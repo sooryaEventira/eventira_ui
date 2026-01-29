@@ -291,28 +291,30 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Group
             </label>
-            <select
+            <input
+              type="text"
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary bg-white"
-              onChange={(e) => {
-                if (e.target.value) {
+              placeholder="Type a group name and press Enter"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                const input = e.currentTarget
+                const value = (input.value || '').trim()
+                if (!value) return
+
+                setSelectedGroups((prev) => {
+                  const exists = prev.some((g) => String(g.name || '').toLowerCase() === value.toLowerCase())
+                  if (exists) return prev
                   const newGroup: AttendeeGroup = {
                     id: Date.now().toString(),
-                    name: e.target.value,
+                    name: value,
                     variant: 'primary'
                   }
-                  setSelectedGroups((prev) => [...prev, newGroup])
-                  e.target.value = ''
-                }
+                  return [...prev, newGroup]
+                })
+                input.value = ''
               }}
-            >
-              <option value="">Select group</option>
-              <option value="Speaker">Speaker</option>
-              <option value="VIP">VIP</option>
-              <option value="Attendee">Attendee</option>
-              <option value="Volunteer">Volunteer</option>
-              <option value="Press">Press</option>
-              <option value="Sponsor">Sponsor</option>
-            </select>
+            />
           </div>
         </div>
 

@@ -17,6 +17,8 @@ interface ScheduleContentProps {
   sessions?: SavedSession[] | any[] // Allow any[] for Puck compatibility
   onDateChange?: (date: Date) => void
   selectedDate?: Date | string // Allow string for Puck (ISO string)
+  rangeStartDate?: Date | string
+  rangeEndDate?: Date | string
 }
 
 const ScheduleContent: React.FC<ScheduleContentProps> = ({
@@ -27,7 +29,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   onBack,
   sessions = [],
   onDateChange,
-  selectedDate: propSelectedDate
+  selectedDate: propSelectedDate,
+  rangeStartDate,
+  rangeEndDate
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
@@ -51,6 +55,22 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   }
   
   const [selectedDate, setSelectedDate] = useState<Date>(getInitialDate)
+
+  const normalizedRangeStart = useMemo(() => {
+    if (!rangeStartDate) return null
+    const d = rangeStartDate instanceof Date ? new Date(rangeStartDate) : new Date(String(rangeStartDate))
+    if (Number.isNaN(d.getTime())) return null
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [rangeStartDate])
+
+  const normalizedRangeEnd = useMemo(() => {
+    if (!rangeEndDate) return null
+    const d = rangeEndDate instanceof Date ? new Date(rangeEndDate) : new Date(String(rangeEndDate))
+    if (Number.isNaN(d.getTime())) return null
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [rangeEndDate])
 
   useEffect(() => {
     // Initialize date when component mounts or prop changes
@@ -202,7 +222,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               aria-label="Back to schedule list"
             />
           )}
-          <h1 className="font-manrope text-[26px] font-semibold leading-10 text-primary-dark md:text-[32px] md:leading-10">
+          <h1 className="font-manrope text-[20px] font-semibold leading-10 text-primary-dark md:text-[26px] md:leading-10">
             {scheduleName}
           </h1>
         </div>
@@ -223,6 +243,8 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         {/* Date Selector */}
         <WeekDateSelector 
           initialDate={selectedDate} 
+          initialRangeStartDate={normalizedRangeStart}
+          initialRangeEndDate={normalizedRangeEnd}
           onDateChange={(date) => {
             handleDateChange(date)
           }} 

@@ -98,7 +98,7 @@ export const useOrganizationTableColumns = ({
         render: ({ organization }) => {
           if (!organization) return null
           return (
-            <span className="text-sm text-slate-600 line-clamp-2 max-w-[520px] block">
+            <span className="block max-w-[520px] whitespace-normal break-words text-sm leading-5 text-slate-600">
               {organization.description?.trim() || '-'}
             </span>
           )

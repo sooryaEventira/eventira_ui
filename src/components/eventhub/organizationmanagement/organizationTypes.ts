@@ -3,6 +3,7 @@ export interface Organization {
   name: string
   website?: string
   linkedin?: string
+  groups?: string
   description?: string
   logoLink?: string
   stallNumber?: string

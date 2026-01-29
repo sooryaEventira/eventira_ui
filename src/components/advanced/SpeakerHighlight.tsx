@@ -7,6 +7,7 @@ export interface SpeakerItem {
   company?: string | React.ReactElement
   quote?: string | React.ReactElement
   photo: string | React.ReactElement
+  link?: string
   accentColor?: string
 }
 
@@ -18,9 +19,12 @@ export interface SpeakerHighlightProps {
   textColor?: string
   headingColor?: string
   subtitleColor?: string
+  speakerNameColor?: string
+  speakerMetaColor?: string
   accentColor?: string
   padding?: string
   imageShape?: 'circle' | 'rectangle'
+  photoSize?: 'sm' | 'md' | 'lg'
 }
 
 const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
@@ -31,8 +35,11 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
   textColor = '#000000',
   headingColor,
   subtitleColor,
+  speakerNameColor,
+  speakerMetaColor,
   padding = '4rem 2rem',
-  imageShape = 'circle'
+  imageShape = 'circle',
+  photoSize = 'md'
 }) => {
   // Store uploaded images per speaker ID
   const [uploadedImages, setUploadedImages] = useState<Record<string, string>>({})
@@ -72,6 +79,15 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
   const subtitleValue = getStringValue(subtitle);
   const finalHeadingColor = headingColor || textColor;
   const finalSubtitleColor = subtitleColor || '#6b7280';
+  const finalSpeakerNameColor = speakerNameColor || textColor;
+  const finalSpeakerMetaColor = speakerMetaColor || '#6b7280';
+
+  const photoSizeClass =
+    photoSize === 'sm'
+      ? 'w-24 h-24 md:w-32 md:h-32'
+      : photoSize === 'lg'
+        ? 'w-40 h-40 md:w-48 md:h-48'
+        : 'w-32 h-32 md:w-40 md:h-40'
 
   return (
     <section
@@ -113,42 +129,42 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
               const companyValue = getStringValue(speaker.company);
               const quoteValue = getStringValue(speaker.quote);
               const photoValue = getStringValue(speaker.photo);
+              const linkValue = (speaker.link || '').trim()
               // Always use gray for accent color
               const speakerAccentColor = '#6b7280';
 
-              return (
-                <div
-                  key={speaker.id}
-                  className="flex flex-col items-center text-center"
-                >
+              const SpeakerContent = () => (
+                <>
                   {/* Photo with accent border */}
                   <div className="relative mb-6">
-                    {/* Hidden file input for image upload */}
-                    <input
-                      ref={(el) => {
-                        fileInputRefs.current[speaker.id] = el
-                      }}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileUpload(speaker.id)}
-                      style={{ display: 'none' }}
-                    />
+                    {/* Hidden file input for image upload (editor convenience only) */}
+                    {!linkValue && (
+                      <input
+                        ref={(el) => {
+                          fileInputRefs.current[speaker.id] = el
+                        }}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileUpload(speaker.id)}
+                        style={{ display: 'none' }}
+                      />
+                    )}
                     <div
-                      className={`w-32 h-32 md:w-40 md:h-40 overflow-hidden border-4 cursor-pointer transition-opacity duration-200 ${
+                      className={`${photoSizeClass} overflow-hidden border-4 transition-opacity duration-200 ${
                         imageShape === 'circle' ? 'rounded-full' : 'rounded-lg'
-                      }`}
+                      } ${linkValue ? 'cursor-pointer' : 'cursor-pointer'}`}
                       style={{
                         borderColor: speakerAccentColor,
                         boxShadow: `0 4px 20px ${speakerAccentColor}40`
                       }}
-                      onClick={handleImageClick(speaker.id)}
+                      onClick={!linkValue ? handleImageClick(speaker.id) : undefined}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.opacity = '0.8'
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.opacity = '1'
                       }}
-                      title="Click to upload photo"
+                      title={linkValue ? 'Open profile' : 'Click to upload photo'}
                     >
                       {(uploadedImages[speaker.id] || photoValue) ? (
                         <img
@@ -165,17 +181,17 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
                         />
                       ) : (
                         <div className="w-full h-full bg-gray-200 flex items-center justify-center pointer-events-none">
-                          <span className="text-gray-400 text-sm">Click to upload</span>
+                          <span className="text-gray-400 text-sm">{linkValue ? 'No photo' : 'Click to upload'}</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Name */}
+                  {/* Name (photo heading) */}
                   {nameValue && (
                     <h3
                       className="text-xl md:text-2xl font-bold mb-2"
-                      style={{ color: textColor }}
+                      style={{ color: finalSpeakerNameColor }}
                     >
                       {speaker.name}
                     </h3>
@@ -185,7 +201,7 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
                   {(titleValue || companyValue) && (
                     <p
                       className="text-base md:text-lg mb-3 font-medium"
-                      style={{ color: '#6b7280' }}
+                      style={{ color: finalSpeakerMetaColor }}
                     >
                       {titleValue && companyValue ? (
                         <>
@@ -206,7 +222,28 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
                       "{speaker.quote}"
                     </p>
                   )}
-                </div>
+                </>
+              )
+
+              return (
+                linkValue ? (
+                  <a
+                    key={speaker.id}
+                    href={linkValue}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center text-center transition-opacity hover:opacity-90"
+                  >
+                    <SpeakerContent />
+                  </a>
+                ) : (
+                  <div
+                    key={speaker.id}
+                    className="flex flex-col items-center text-center"
+                  >
+                    <SpeakerContent />
+                  </div>
+                )
               );
             })}
           </div>

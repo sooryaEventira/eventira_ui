@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { File01 } from '@untitled-ui/icons-react'
 
 export interface ResourceAsset {
   uuid: string
@@ -39,6 +40,88 @@ const extFromName = (name: string) => {
   const parts = String(name || '').split('.')
   if (parts.length < 2) return ''
   return parts[parts.length - 1].toUpperCase()
+}
+
+const getFileExtension = (fileName: string): string => {
+  return String(fileName || '').split('.').pop()?.toLowerCase() || ''
+}
+
+const isExcelFile = (contentType?: string, name?: string): boolean => {
+  const ext = getFileExtension(String(name || ''))
+  const ct = String(contentType || '').toLowerCase()
+  return ['xls', 'xlsx', 'xlsm', 'xlsb'].includes(ext) || ct.includes('spreadsheet')
+}
+
+const isWordFile = (contentType?: string, name?: string): boolean => {
+  const ext = getFileExtension(String(name || ''))
+  const ct = String(contentType || '').toLowerCase()
+  return ['doc', 'docx', 'docm'].includes(ext) || ct.includes('document')
+}
+
+const isPdfFile = (contentType?: string, name?: string): boolean => {
+  const ext = getFileExtension(String(name || ''))
+  const ct = String(contentType || '').toLowerCase()
+  return ext === 'pdf' || ct.includes('pdf')
+}
+
+const getAssetIcon = (asset: ResourceAsset) => {
+  // Excel files - green icon (match Resource Management)
+  if (isExcelFile(asset.content_type, asset.name)) {
+    const ext = getFileExtension(asset.name).toUpperCase() || 'XLS'
+    return (
+      <div className="relative h-12 w-12 flex-shrink-0 flex items-center justify-center">
+        <div className="relative h-10 w-8">
+          <div className="absolute left-0 top-0 h-10 w-8 bg-[#079455] rounded-sm" />
+          <div className="absolute left-5 top-0.5 h-2.5 w-2.5 bg-white opacity-30 rounded-sm" />
+          <div
+            className="absolute left-0.5 top-[18px] w-7 text-center text-[8px] font-bold leading-none text-white"
+            style={{ fontFamily: 'Inter' }}
+          >
+            {ext}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Word files - blue icon
+  if (isWordFile(asset.content_type, asset.name)) {
+    const ext = getFileExtension(asset.name).toUpperCase() || 'DOC'
+    return (
+      <div className="relative h-12 w-12 flex-shrink-0 flex items-center justify-center">
+        <div className="relative h-10 w-8">
+          <div className="absolute left-0 top-0 h-10 w-8 bg-[#2B579A] rounded-sm" />
+          <div className="absolute left-5 top-0.5 h-2.5 w-2.5 bg-white opacity-30 rounded-sm" />
+          <div
+            className="absolute left-0.5 top-[18px] w-7 text-center text-[8px] font-bold leading-none text-white"
+            style={{ fontFamily: 'Inter' }}
+          >
+            {ext}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // PDF files - red icon
+  if (isPdfFile(asset.content_type, asset.name)) {
+    return (
+      <div className="relative h-12 w-12 flex-shrink-0 flex items-center justify-center">
+        <div className="relative h-10 w-8">
+          <div className="absolute left-0 top-0 h-10 w-8 bg-[#E11D48] rounded-sm" />
+          <div className="absolute left-5 top-0.5 h-2.5 w-2.5 bg-white opacity-30 rounded-sm" />
+          <div
+            className="absolute left-0.5 top-[18px] w-7 text-center text-[8px] font-bold leading-none text-white"
+            style={{ fontFamily: 'Inter' }}
+          >
+            PDF
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return <File01 className="h-12 w-12 text-slate-400" />
 }
 
 const prettyTitleFromName = (name: string) => {
@@ -126,12 +209,21 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
                     {isImage(a.content_type, a.name) ? (
                       <img src={a.file} alt={title} className="h-full w-full object-cover" />
                     ) : isVideo(a.content_type, a.name) ? (
-                      <div className="flex h-full w-full items-center justify-center bg-slate-900/5 text-sm text-slate-600">
-                        Video
-                      </div>
+                      <video
+                        src={a.file}
+                        className="h-full w-full object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onError={(e) => {
+                          // Fallback to icon if preview fails
+                          const target = e.currentTarget
+                          target.style.display = 'none'
+                        }}
+                      />
                     ) : (
-                      <div className="flex h-full w-full items-center justify-center bg-slate-900/5 text-sm font-semibold text-slate-700">
-                        {extFromName(a.name) || 'FILE'}
+                      <div className="flex h-full w-full items-center justify-center bg-slate-900/5">
+                        {getAssetIcon(a)}
                       </div>
                     )}
                   </div>

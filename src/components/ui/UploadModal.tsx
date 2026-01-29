@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react'
-import { Upload01, Download01, XClose } from '@untitled-ui/icons-react'
+import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { Upload01, Download01, XClose, File01 } from '@untitled-ui/icons-react'
 import Button from './untitled/Button'
 
 interface UploadModalProps {
@@ -44,6 +44,120 @@ const UploadModal: React.FC<UploadModalProps> = ({
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const getFileExtension = (name: string) => {
+    const ext = String(name || '').split('.').pop() || ''
+    return ext.toLowerCase()
+  }
+
+  const isExcelFile = (file: File) => {
+    const ext = getFileExtension(file.name)
+    const ct = String(file.type || '').toLowerCase()
+    return ['xls', 'xlsx', 'xlsm', 'xlsb'].includes(ext) || ct.includes('spreadsheet')
+  }
+
+  const isWordFile = (file: File) => {
+    const ext = getFileExtension(file.name)
+    const ct = String(file.type || '').toLowerCase()
+    return ['doc', 'docx', 'docm'].includes(ext) || ct.includes('document')
+  }
+
+  const isPdfFile = (file: File) => {
+    const ext = getFileExtension(file.name)
+    const ct = String(file.type || '').toLowerCase()
+    return ext === 'pdf' || ct.includes('pdf')
+  }
+
+  const isImageFile = (file: File) => {
+    const ct = String(file.type || '').toLowerCase()
+    const ext = getFileExtension(file.name)
+    return ct.startsWith('image/') || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'].includes(ext)
+  }
+
+  const isVideoFile = (file: File) => {
+    const ct = String(file.type || '').toLowerCase()
+    const ext = getFileExtension(file.name)
+    return ct.startsWith('video/') || ['mp4', 'mov', 'webm', 'm4v', 'avi'].includes(ext)
+  }
+
+  const FileTypeIcon = ({ file }: { file: File }) => {
+    const ext = (getFileExtension(file.name) || 'FILE').toUpperCase()
+
+    // Image thumbnails for a nicer preview (matches Resource Management expectation)
+    if (isImageFile(file)) {
+      return <ImageThumb file={file} />
+    }
+
+    // Excel files - green icon
+    if (isExcelFile(file)) {
+      return (
+        <div className="relative h-8 w-8 flex-shrink-0">
+          <div className="absolute left-0.5 top-0 h-8 w-7">
+            <div className="absolute left-0 top-0 h-8 w-7 bg-[#079455]" />
+            <div className="absolute left-4 top-0 h-2.5 w-2.5 bg-white opacity-30" />
+          </div>
+          <div className="absolute left-0.5 top-[18px] w-7 text-center text-[8px] font-bold leading-none text-white" style={{ fontFamily: 'Inter' }}>
+            {ext}
+          </div>
+        </div>
+      )
+    }
+
+    // Word files - blue icon
+    if (isWordFile(file)) {
+      return (
+        <div className="relative h-8 w-8 flex-shrink-0">
+          <div className="absolute left-0.5 top-0 h-8 w-7">
+            <div className="absolute left-0 top-0 h-8 w-7 bg-[#2B579A]" />
+            <div className="absolute left-4 top-0 h-2.5 w-2.5 bg-white opacity-30" />
+          </div>
+          <div className="absolute left-0.5 top-[18px] w-7 text-center text-[8px] font-bold leading-none text-white" style={{ fontFamily: 'Inter' }}>
+            {ext}
+          </div>
+        </div>
+      )
+    }
+
+    // PDF files - red icon
+    if (isPdfFile(file)) {
+      return (
+        <div className="relative h-8 w-8 flex-shrink-0">
+          <div className="absolute left-0.5 top-0 h-8 w-7">
+            <div className="absolute left-0 top-0 h-8 w-7 bg-[#E11D48]" />
+            <div className="absolute left-4 top-0 h-2.5 w-2.5 bg-white opacity-30" />
+          </div>
+          <div className="absolute left-0.5 top-[18px] w-7 text-center text-[8px] font-bold leading-none text-white" style={{ fontFamily: 'Inter' }}>
+            PDF
+          </div>
+        </div>
+      )
+    }
+
+    // Video / other files: show generic icon (don’t mislabel as XLSX)
+    if (isVideoFile(file)) {
+      return <File01 className="h-8 w-8 text-slate-400" />
+    }
+    return <File01 className="h-8 w-8 text-slate-400" />
+  }
+
+  const ImageThumb = ({ file }: { file: File }) => {
+    const url = useMemo(() => URL.createObjectURL(file), [file])
+    useEffect(() => {
+      return () => {
+        try {
+          URL.revokeObjectURL(url)
+        } catch {
+          // ignore
+        }
+      }
+    }, [url])
+
+    return (
+      <div className="h-8 w-8 flex-shrink-0 overflow-hidden rounded-md border border-slate-200 bg-white">
+        <img src={url} alt={file.name} className="h-full w-full object-cover" />
+      </div>
+    )
+  }
   
   // Use onUpload if provided, otherwise fall back to onAttachFiles for backward compatibility
   const handleUpload = onUpload || onAttachFiles
@@ -359,15 +473,7 @@ const UploadModal: React.FC<UploadModalProps> = ({
                       className="flex w-full items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2"
                     >
                       <div className="flex flex-1 items-center justify-start gap-2 min-w-0">
-                        <div className="relative h-8 w-8 flex-shrink-0">
-                          <div className="absolute left-0.5 top-0 h-8 w-7">
-                            <div className="absolute left-0 top-0 h-8 w-7 bg-[#079455]" />
-                            <div className="absolute left-4 top-0 h-2.5 w-2.5 bg-white opacity-30" />
-                          </div>
-                          <div className="absolute left-0.5 top-[18px] w-7 text-center text-[8px] font-bold leading-none text-white" style={{ fontFamily: 'Inter' }}>
-                            XLSX
-                          </div>
-                        </div>
+                        <FileTypeIcon file={file} />
                         <div className="flex flex-1 flex-col items-start justify-start gap-0.5 min-w-0">
                           <div className="w-full truncate text-sm font-medium leading-5 text-[#181D27]" style={{ fontFamily: 'Inter' }}>
                             {file.name}

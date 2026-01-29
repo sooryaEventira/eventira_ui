@@ -9,6 +9,7 @@ interface CreateOrganizationModalProps {
     name?: string
     website?: string
     linkedin?: string
+    groups?: string
     description?: string
     logoLink?: string
     stallNumber?: string
@@ -17,6 +18,7 @@ interface CreateOrganizationModalProps {
     name: string
     website?: string
     linkedin?: string
+    groups?: string
     description?: string
     logoLink?: string
     stallNumber?: string
@@ -33,6 +35,7 @@ const CreateOrganizationModal = ({
   const [name, setName] = useState('')
   const [website, setWebsite] = useState('')
   const [linkedin, setLinkedin] = useState('')
+  const [groups, setGroups] = useState('')
   const [description, setDescription] = useState('')
   const [logoLink, setLogoLink] = useState('')
   const [stallNumber, setStallNumber] = useState('')
@@ -42,6 +45,7 @@ const CreateOrganizationModal = ({
       !!initialValues?.name ||
       !!initialValues?.website ||
       !!initialValues?.linkedin ||
+      !!initialValues?.groups ||
       !!initialValues?.description ||
       !!initialValues?.logoLink ||
       !!initialValues?.stallNumber
@@ -53,6 +57,7 @@ const CreateOrganizationModal = ({
     setName(initialValues?.name || '')
     setWebsite(initialValues?.website || '')
     setLinkedin(initialValues?.linkedin || '')
+    setGroups(initialValues?.groups || '')
     setDescription(initialValues?.description || '')
     setLogoLink(initialValues?.logoLink || '')
     setStallNumber(initialValues?.stallNumber || '')
@@ -74,6 +79,7 @@ const CreateOrganizationModal = ({
       name: trimmedName,
       website: website.trim() || undefined,
       linkedin: linkedin.trim() || undefined,
+      groups: groups.trim() || undefined,
       description: description.trim() || undefined,
       logoLink: logoLink.trim() || undefined,
       stallNumber: stallNumber.trim() || undefined
@@ -135,7 +141,7 @@ const CreateOrganizationModal = ({
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">LinkedIn</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Other Links</label>
           <input
             type="url"
             value={linkedin}
@@ -143,6 +149,18 @@ const CreateOrganizationModal = ({
             placeholder="https://www.linkedin.com/company/..."
             className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1">Group</label>
+          <input
+            type="text"
+            value={groups}
+            onChange={(e) => setGroups(e.target.value)}
+            placeholder="e.g. exhibitors, sponsors, partners"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+          />
+          
         </div>
 
         <div>

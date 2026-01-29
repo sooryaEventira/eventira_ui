@@ -334,12 +334,51 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const [currentView, setCurrentView] = React.useState<'table' | 'content'>('table')
   const [availableTags, setAvailableTags] = React.useState<string[]>([])
   const [availableLocations, setAvailableLocations] = React.useState<string[]>([])
+
+  const parseEventStartDate = React.useCallback((): Date | null => {
+    const raw =
+      (createdEvent as any)?.startDate ??
+      (createdEvent as any)?.start_date ??
+      (eventData as any)?.startDate ??
+      (eventData as any)?.start_date
+    if (!raw) return null
+    const d = new Date(raw as any)
+    if (Number.isNaN(d.getTime())) return null
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [createdEvent, eventData])
+
+  const parseEventEndDate = React.useCallback((): Date | null => {
+    const raw =
+      (createdEvent as any)?.endDate ??
+      (createdEvent as any)?.end_date ??
+      (eventData as any)?.endDate ??
+      (eventData as any)?.end_date
+    if (!raw) return null
+    const d = new Date(raw as any)
+    if (Number.isNaN(d.getTime())) return null
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [createdEvent, eventData])
+
   const [selectedDate, setSelectedDate] = React.useState<Date>(() => {
+    const eventStart = parseEventStartDate()
+    if (eventStart) return eventStart
     const date = new Date()
     date.setHours(0, 0, 0, 0)
     return date
   })
   const [parentSessionId, setParentSessionId] = React.useState<string | undefined>(undefined)
+
+  // If the event start date becomes available after initial render, sync once.
+  const didInitSelectedFromEventRef = React.useRef(false)
+  React.useEffect(() => {
+    const eventStart = parseEventStartDate()
+    if (!eventStart) return
+    if (didInitSelectedFromEventRef.current) return
+    didInitSelectedFromEventRef.current = true
+    setSelectedDate(eventStart)
+  }, [parseEventStartDate])
 
   // After refresh, selectedDate becomes "today". If today's date has no sessions, the grid looks empty.
   // Auto-pick the first session day for the active schedule so sessions show immediately.
@@ -1735,6 +1774,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             onAddSession={handleAddSessionClick}
             onBack={handleBackToTable}
             sessions={activeScheduleId ? savedSchedules.find(s => s.id === activeScheduleId)?.sessions || [] : []}
+            selectedDate={selectedDate}
+            rangeStartDate={parseEventStartDate() || undefined}
+            rangeEndDate={parseEventEndDate() || undefined}
             onDateChange={(date) => {
               const normalizedDate = new Date(date)
               normalizedDate.setHours(0, 0, 0, 0)

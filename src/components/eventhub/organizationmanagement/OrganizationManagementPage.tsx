@@ -71,6 +71,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
       name,
       website: raw?.website ?? raw?.site ?? undefined,
       linkedin: raw?.linkedin ?? raw?.linkedin_url ?? undefined,
+      groups: raw?.groups ?? raw?.group ?? undefined,
       description: raw?.description ?? raw?.about ?? undefined,
       logoLink: raw?.logo_link ?? raw?.logo_url ?? raw?.logo ?? raw?.logoLink ?? undefined,
       stallNumber: raw?.stall_number ?? raw?.stallNumber ?? undefined
@@ -147,6 +148,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
     name: string
     website?: string
     linkedin?: string
+    groups?: string
     description?: string
     logoLink?: string
     stallNumber?: string
@@ -171,6 +173,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
           name: data.name,
           website: data.website,
           linkedin: data.linkedin,
+          groups: data.groups,
           description: data.description,
           logo_link: data.logoLink,
           stall_number: data.stallNumber
@@ -297,6 +300,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
                 name: editingOrg.name,
                 website: editingOrg.website,
                 linkedin: editingOrg.linkedin,
+                groups: editingOrg.groups,
                 description: editingOrg.description,
                 logoLink: editingOrg.logoLink,
                 stallNumber: editingOrg.stallNumber

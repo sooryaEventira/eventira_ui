@@ -132,13 +132,13 @@ export const getPuckConfig = (pageType?: string, pageName?: string) => {
     config.categories = updatedCategories
   }
   
-  // Reorder categories - prioritize landing, then venue, then location, then general, then tableList
+  // Reorder categories - prioritize landing, then venue, then resource, then location, then general, then tableList
   const orderedCategories: any = {}
   const otherCategories: any = {}
   
   // Separate special categories from others
   Object.keys(config.categories).forEach(catKey => {
-    if (catKey !== 'landing' && catKey !== 'venue' && catKey !== 'location' && catKey !== 'general' && catKey !== 'tableList') {
+    if (catKey !== 'landing' && catKey !== 'venue' && catKey !== 'resource' && catKey !== 'location' && catKey !== 'general' && catKey !== 'tableList') {
       otherCategories[catKey] = config.categories[catKey]
     }
   })
@@ -152,6 +152,10 @@ export const getPuckConfig = (pageType?: string, pageName?: string) => {
     orderedCategories.venue = config.categories.venue
   }
   
+  if (config.categories.resource) {
+    orderedCategories.resource = config.categories.resource
+  }
+
   if (config.categories.location) {
     orderedCategories.location = config.categories.location
   }

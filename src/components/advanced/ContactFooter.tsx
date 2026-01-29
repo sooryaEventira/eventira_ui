@@ -95,9 +95,12 @@ const ContactFooter: React.FC<ContactFooterProps> = ({
             {title}
           </h2>
         )}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+        <div
+          className="grid gap-8 mb-8 justify-items-center"
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))' }}
+        >
           {items.map((item) => (
-            <div key={item.id} className="flex flex-col items-center text-center">
+            <div key={item.id} className="flex w-full max-w-sm flex-col items-center text-center">
               <div className="mb-4">
                 {getIcon(item.type)}
               </div>

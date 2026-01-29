@@ -1,4 +1,4 @@
-import React, { useEffect, useState, createContext, useContext, useRef } from 'react'
+import React, { useEffect, useMemo, useState, createContext, useContext, useRef } from 'react'
 import { Puck } from '@measured/puck'
 import '@measured/puck/puck.css'
 
@@ -129,6 +129,12 @@ export const EditorView: React.FC<EditorViewProps> = ({
   // Use a ref to store the latest data from Puck (including zones)
   // This ensures we always publish the most up-to-date data
   const latestDataRef = useRef(currentData)
+
+  // Keep onChange stable for effects (avoids effect loops on re-renders)
+  const onChangeRef = useRef(onChange)
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
   
   // Get banner URL for key generation (to force re-render when banner changes).
   // Use per-event storage to avoid leaking banners across events.
@@ -304,6 +310,21 @@ export const EditorView: React.FC<EditorViewProps> = ({
     }
   }
 
+  // Avoid rerunning hero-sync effect on every keystroke.
+  // This signature only changes when HeroSection props change (not when you edit other blocks like Sponsors).
+  const heroPropsSignature = useMemo(() => {
+    const content = currentData?.content
+    if (!Array.isArray(content)) return 'no-content'
+    const hero = content.find((item: any) => item?.type === 'HeroSection')
+    if (!hero?.props) return 'no-hero'
+    const p = hero.props || {}
+    return JSON.stringify({
+      title: p.title ?? '',
+      subtitle: p.subtitle ?? '',
+      backgroundImage: p.backgroundImage ?? ''
+    })
+  }, [currentData?.content])
+
   // Ensure banner, title, location, and date from eventData are applied when currentData changes
   useEffect(() => {
     // Add a small delay to ensure data is fully loaded
@@ -311,16 +332,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
       // Try multiple sources for banner
       const bannerUrl = localStorage.getItem('event-form-banner')
       const apiBanner = createdEvent?.banner
-      if (!currentData?.content) {
-        console.log('🖼️ EditorView useEffect - No content')
-        return
-      }
+      const content = currentData?.content
+      if (!Array.isArray(content)) return
 
-      const heroSection = currentData.content.find((item: any) => item.type === 'HeroSection')
-      if (!heroSection) {
-        console.log('🖼️ EditorView useEffect - No HeroSection found')
-        return
-      }
+      const heroSection = content.find((item: any) => item?.type === 'HeroSection')
+      if (!heroSection) return
 
       // Get event data values - prioritize createdEvent, then eventData, then existing props
       const eventName = createdEvent?.eventName || eventData?.eventName || heroSection.props.title || 'Event Title'
@@ -388,22 +404,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
       const needsSubtitleUpdate = heroSection.props.subtitle !== subtitle
       const needsUpdate = needsBannerUpdate || needsTitleUpdate || needsSubtitleUpdate
 
-      console.log('🖼️ EditorView useEffect - Checking updates:', {
-        hasBannerInStorage: !!bannerUrl,
-        currentBanner: currentBanner?.substring(0, 50) + '...',
-        finalBannerUrl: finalBannerUrl ? (finalBannerUrl.substring(0, 50) + '...') : 'NONE',
-        hasDefaultImage,
-        needsBannerUpdate,
-        needsTitleUpdate,
-        needsSubtitleUpdate,
-        eventName,
-        subtitle,
-        currentTitle: heroSection.props.title,
-        currentSubtitle: heroSection.props.subtitle
-      })
-
       if (needsUpdate) {
-        console.log('🖼️ EditorView useEffect - Updating HeroSection with eventData')
         const updatedContent = currentData.content.map((item: any) => {
           if (item.type === 'HeroSection') {
             return {
@@ -425,12 +426,25 @@ export const EditorView: React.FC<EditorViewProps> = ({
         }
 
         // Update via onChange to ensure the parent state is updated
-        onChange(updatedData)
+        onChangeRef.current(updatedData)
       }
     }, 100) // Small delay to ensure data is loaded
 
     return () => clearTimeout(timer)
-  }, [currentData, currentPage, eventData, createdEvent, onChange])
+  }, [
+    heroPropsSignature,
+    currentPage,
+    createdEvent?.uuid,
+    createdEvent?.banner,
+    createdEvent?.eventName,
+    createdEvent?.location,
+    createdEvent?.startDate,
+    createdEvent?.endDate,
+    (eventData as any)?.eventName,
+    (eventData as any)?.location,
+    (eventData as any)?.startDate,
+    (eventData as any)?.endDate
+  ])
 
   const handleBackButtonClick = () => {
     setShowCustomSidebar(prev => !prev)

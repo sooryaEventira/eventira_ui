@@ -4,6 +4,8 @@ import Button from '../../ui/untitled/Button'
 
 interface WeekDateSelectorProps {
   initialDate?: Date
+  initialRangeStartDate?: Date | null
+  initialRangeEndDate?: Date | null
   onDateChange?: (date: Date) => void
   onDateRangeChange?: (startDate: Date, endDate: Date) => void
   className?: string
@@ -11,6 +13,8 @@ interface WeekDateSelectorProps {
 
 const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
   initialDate = new Date(),
+  initialRangeStartDate = null,
+  initialRangeEndDate = null,
   onDateChange,
   onDateRangeChange,
   className = ''
@@ -52,8 +56,17 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
     return dayNames[date.getDay()]
   }
 
+  const getMonthName = (date: Date) => {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    return monthNames[date.getMonth()]
+  }
+
+  const getCardTopLabel = (date: Date) => {
+    // Format: "Jan-Wed" (top line)
+    return `${getMonthName(date)}-${getDayName(date)}`
+  }
+
   const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate])
-  const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
 
   // Always show 7-day week view, regardless of date range selection
   const displayDates = useMemo(() => {
@@ -211,6 +224,27 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialDate])
 
+  // Initialize/refresh the selected range (ex: event start/end dates)
+  useEffect(() => {
+    if (!initialRangeStartDate || !initialRangeEndDate) return
+    const start = normalizeDay(initialRangeStartDate)
+    const end = normalizeDay(initialRangeEndDate)
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return
+
+    const finalStart = start <= end ? start : end
+    const finalEnd = start <= end ? end : start
+
+    setStartDate(finalStart)
+    setEndDate(finalEnd)
+    setTempStartDate(finalStart)
+    setTempEndDate(finalEnd)
+
+    // Keep current date anchored to the start of the range
+    setCurrentDate(finalStart)
+    onDateChange?.(finalStart)
+    onDateRangeChange?.(finalStart, finalEnd)
+  }, [initialRangeStartDate, initialRangeEndDate, normalizeDay, onDateChange, onDateRangeChange])
+
   const formatDate = (date: Date | null) => {
     if (!date) return ''
     const month = new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date)
@@ -230,8 +264,34 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
     'July', 'August', 'September', 'October', 'November', 'December'
   ]
 
+  const weekMonthLabel = useMemo(() => {
+    if (!displayDates || displayDates.length === 0) return ''
+    const first = displayDates[0]
+    const last = displayDates[displayDates.length - 1]
+
+    const fmtMonthShort = (d: Date) => new Intl.DateTimeFormat('en-US', { month: 'short' }).format(d)
+    const fmtMonthLong = (d: Date) => new Intl.DateTimeFormat('en-US', { month: 'long' }).format(d)
+
+    const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()
+    if (sameMonth) {
+      return `${fmtMonthLong(first)} ${first.getFullYear()}`
+    }
+
+    const firstLabel = `${fmtMonthShort(first)} ${first.getFullYear()}`
+    const lastLabel = `${fmtMonthShort(last)} ${last.getFullYear()}`
+    return `${firstLabel} / ${lastLabel}`
+  }, [displayDates])
+
+  const rangeLabel = useMemo(() => {
+    if (!startDate || !endDate) return ''
+    return `${formatDate(startDate)} – ${formatDate(endDate)}`
+  }, [startDate, endDate])
+
   return (
-    <div className={`shedulebar relative flex items-center ${!startDate || !endDate ? 'justify-center' : 'justify-between'} gap-2 mt-2 w-full${className}`}>
+    <div className="w-full">
+
+
+      <div className={`shedulebar relative flex items-center ${!startDate || !endDate ? 'justify-center' : 'justify-between'} gap-2 mt-2 w-full${className}`}>
       {/* Left Arrow */}
       {shouldShowArrows && (
         <button
@@ -255,14 +315,14 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
             
             // Determine button styling
             let buttonClass = 'bg-[#FAFAFA] text-[#414651] outline outline-1 outline-[#D5D7DA] hover:bg-slate-50 hover:-translate-y-0.5'
-            let textClass = 'font-bold text-[#414651]'
+            let textClass = 'font-semibold text-[#414651]'
             let numberClass = 'font-medium text-[#414651]'
             
             if (startDate && endDate) {
               if (isStart || isEnd) {
                 // Start and end dates - primary color
                 buttonClass = 'bg-primary text-white shadow-md shadow-primary/30 outline-none'
-                textClass = 'font-bold text-white'
+                textClass = 'font-semibold text-white'
                 numberClass = 'font-medium text-white'
               } else if (isInRangeDate) {
                 // Dates in range (between start and end) - light purple background
@@ -282,20 +342,13 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                 <button
                   type="button"
                   onClick={() => selectDate(date)}
-                  className={`inline-flex flex-col items-center justify-center rounded-[10px] px-1 py-2 text-[10px] shadow-md shadow-primary/30 transition-all duration-200 sm:px-[20px] sm:py-2.5 sm:text-sm min-w-[80px] sm:min-w-[100px] w-[140px] md:w-[140px] md:min-w-[140px] md:max-w-[140px] md:px-[30px] md:py-3 ${buttonClass}`}
+                  className={`inline-flex flex-col items-center justify-center rounded-[10px] px-2 py-2 text-[12px] shadow-md shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 sm:px-5 sm:py-2.5 sm:text-sm min-w-[120px] w-[140px] md:w-[140px] md:min-w-[140px] md:max-w-[140px] ${buttonClass}`}
                 >
-                  <div
-                    className={`leading-4 sm:leading-5 ${textClass}`}
-                    style={{ fontFamily: 'Inter' }}
-                  >
-                    {startDate && endDate ? getDayName(date) : dayNames[index]}
+                  <div className={`whitespace-nowrap ${textClass}`} style={{ fontFamily: 'Inter' }}>
+                    {getCardTopLabel(date)}
                   </div>
-                  <div
-                    className={`leading-4 sm:leading-5 ${numberClass}`}
-                    style={{ fontFamily: 'Inter' }}
-                  >
-                    {date.getDate()}
-                  </div>
+                  <div className={numberClass} style={{ fontFamily: 'Inter' }}>
+                    {date.getDate()}                  </div>
                 </button>
               </div>
             )
@@ -565,6 +618,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

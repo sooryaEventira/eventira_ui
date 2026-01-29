@@ -246,27 +246,30 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
             <label className="block text-sm font-medium text-slate-700 mb-2">
               Group
             </label>
-            <select
+            <input
+              type="text"
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary bg-white"
-              onChange={(e) => {
-                if (e.target.value) {
+              placeholder="Type a group name and press Enter"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter') return
+                e.preventDefault()
+                const input = e.currentTarget
+                const value = (input.value || '').trim()
+                if (!value) return
+
+                setSelectedGroups((prev) => {
+                  const exists = prev.some((g) => String(g.name || '').toLowerCase() === value.toLowerCase())
+                  if (exists) return prev
                   const newGroup: SpeakerGroup = {
                     id: Date.now().toString(),
-                    name: e.target.value,
+                    name: value,
                     variant: 'primary'
                   }
-                  setSelectedGroups((prev) => [...prev, newGroup])
-                  e.target.value = ''
-                }
+                  return [...prev, newGroup]
+                })
+                input.value = ''
               }}
-            >
-              <option value="">Select group</option>
-              <option value="Keynote Speaker">Keynote Speaker</option>
-              <option value="Panelist">Panelist</option>
-              <option value="Workshop Leader">Workshop Leader</option>
-              <option value="Moderator">Moderator</option>
-              <option value="Speaker">Speaker</option>
-            </select>
+            />
           </div>
         </div>
 

@@ -15,6 +15,9 @@ interface SponsorsProps {
   title?: string | React.ReactElement
   titleColor?: string
   titleSize?: 1 | 2 | 3
+  subtitle?: string | React.ReactElement
+  subtitleColor?: string
+  subtitleSize?: 1 | 2 | 3
   sponsors?: Sponsor[]
   backgroundColor?: string
   textColor?: string
@@ -25,6 +28,9 @@ const Sponsors: React.FC<SponsorsProps> = ({
   title = "Our Sponsors",
   titleColor,
   titleSize = 2,
+  subtitle = "",
+  subtitleColor,
+  subtitleSize = 1,
   sponsors = [
     { id: '1', name: 'Sponsor 1', logoUrl: '' },
     { id: '2', name: 'Sponsor 2', logoUrl: '' },
@@ -51,9 +57,13 @@ const Sponsors: React.FC<SponsorsProps> = ({
   }
 
   const titleValue = getStringValue(title)
+  const subtitleValue = getStringValue(subtitle)
 
   const titleSizeClass =
     titleSize === 1 ? 'text-xl md:text-2xl' : titleSize === 3 ? 'text-3xl md:text-4xl' : 'text-2xl md:text-3xl'
+
+  const subtitleSizeClass =
+    subtitleSize === 1 ? 'text-sm md:text-base' : subtitleSize === 3 ? 'text-lg md:text-xl' : 'text-base md:text-lg'
 
   // Default placeholder logos (matching the image description)
   const getDefaultLogo = (index: number) => {
@@ -82,9 +92,17 @@ const Sponsors: React.FC<SponsorsProps> = ({
     <section style={containerStyle} className="w-full">
       <div className="max-w-7xl mx-auto">
         {titleValue && (
-          <h2 className={`${titleSizeClass} font-bold mb-8 text-center`} style={{ color: titleColor || textColor }}>
-            {title}
-          </h2>
+          <div className="text-center">
+            <h2 className={`${titleSizeClass} font-bold`} style={{ color: titleColor || textColor }}>
+              {title}
+            </h2>
+            {subtitleValue ? (
+              <p className={`${subtitleSizeClass} mt-2`} style={{ color: subtitleColor || textColor }}>
+                {subtitle}
+              </p>
+            ) : null}
+            <div className="h-8" />
+          </div>
         )}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8 items-center justify-items-center">
           {sponsors.map((sponsor, index) => {

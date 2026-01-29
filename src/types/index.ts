@@ -259,6 +259,7 @@ export interface SpeakerItem {
   company?: string | React.ReactElement
   quote?: string | React.ReactElement
   photo: string | React.ReactElement
+  link?: string
   accentColor?: string
 }
 
@@ -272,6 +273,10 @@ export interface SpeakerHighlightProps {
   subtitleColor?: string
   accentColor?: string
   padding?: string
+  speakerNameColor?: string
+  speakerMetaColor?: string
+  imageShape?: 'circle' | 'rectangle'
+  photoSize?: 'sm' | 'md' | 'lg'
 }
 
 export interface SessionHighlightProps {

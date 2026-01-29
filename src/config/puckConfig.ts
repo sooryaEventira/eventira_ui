@@ -34,17 +34,12 @@ export const config = {
       title: "Basic Elements",
       icon: "fa-solid fa-font",
       defaultExpanded: true,
-      components: ["Heading", "Text", "Button", "Image", "Checkbox", "Divider", "Spacer", "TextBlock", "InputField", "SelectField"],
+      components: ["Heading", "Text", "Button", "Checkbox", "Divider", "Spacer", "TextBlock", "InputField", "SelectField"],
       subcategories: {
         typography: {
           title: "Typography",
           icon: "fa-solid fa-text-width",
           components: ["Heading", "Text", "TextBlock"]
-        },
-        media: {
-          title: "Media",
-          icon: "fa-solid fa-image",
-          components: ["Image"]
         },
         interactive: {
           title: "Interactive",
@@ -120,12 +115,12 @@ export const config = {
       defaultExpanded: true,
       components: ["VenueBlock", "SplitVenueBlock", "HotelPartners", "VenueDirections"]
     },
-    // Location Page Category
-    location: {
-      title: "Location Page",
-      icon: "fa-solid fa-map",
+    // Resource Category
+    resource: {
+      title: "Resource",
+      icon: "fa-solid fa-folder-open",
       defaultExpanded: true,
-      components: ["LocationFloorPlan"]
+      components: ["Image", "ResourceCards", "LocationFloorPlan"]
     },
     // General Page Category
     general: {
@@ -146,7 +141,7 @@ export const config = {
       title: "Advanced Components",
       icon: "fa-solid fa-magic",
       defaultExpanded: false,
-      components: ["Slider", "YouTubeVideo", "ResourceCards", "SpeakerCard", "SpeakersSection", "SchedulePage", "ScheduleSection", "AboutSection", "TwoColumnContent", "FAQSection", "FAQAccordion", "Navigation", "HTMLContent", "FeedbackForm", "RegistrationForm", "SessionForm", "LiveChat", "ApiTestComponent", "PdfViewer"],
+      components: ["Slider", "YouTubeVideo", "SpeakerCard", "SpeakersSection", "SchedulePage", "ScheduleSection", "AboutSection", "TwoColumnContent", "FAQSection", "FAQAccordion", "Navigation", "HTMLContent", "FeedbackForm", "RegistrationForm", "SessionForm", "LiveChat", "ApiTestComponent", "PdfViewer"],
       subcategories: {
         sections: {
           title: "Sections",
@@ -156,7 +151,7 @@ export const config = {
         media: {
           title: "Media",
           icon: "fa-solid fa-image",
-          components: ["ResourceCards", "YouTubeVideo", "Slider", "PdfViewer"]
+          components: ["YouTubeVideo", "Slider", "PdfViewer"]
         },
         interactive: {
           title: "Interactive",
@@ -1924,6 +1919,25 @@ export const config = {
             { label: 'Size 3 (large)', value: 3 }
           ]
         },
+        subtitle: {
+          type: 'text' as const,
+          label: 'Subtitle',
+          placeholder: 'Sponsors who make this event possible',
+        },
+        subtitleColor: {
+          type: 'text' as const,
+          label: 'Subtitle Color (hex)',
+          placeholder: '#1f2937'
+        },
+        subtitleSize: {
+          type: 'select' as const,
+          label: 'Subtitle Size (3 options)',
+          options: [
+            { label: 'Size 1 (small)', value: 1 },
+            { label: 'Size 2 (medium)', value: 2 },
+            { label: 'Size 3 (large)', value: 3 }
+          ]
+        },
         sponsors: {
           type: 'array' as const,
           label: 'Sponsors',
@@ -1989,6 +2003,9 @@ export const config = {
         title: "Our Sponsors",
         titleColor: '',
         titleSize: 2,
+        subtitle: "",
+        subtitleColor: "",
+        subtitleSize: 1,
         sponsors: [
           { id: '1', title: 'Sponsor 1', titleColor: '', titleSize: 1, name: 'Sponsor 1', logoUrl: '' },
           { id: '2', title: 'Sponsor 2', titleColor: '', titleSize: 1, name: 'Sponsor 2', logoUrl: '' },
@@ -2312,6 +2329,11 @@ export const config = {
               type: 'text' as const,
               label: 'Photo URL',
               placeholder: 'https://example.com/photo.jpg',
+            },
+            link: {
+              type: 'text' as const,
+              label: 'Profile Link (optional)',
+              placeholder: 'https://example.com/speakers/sarah-jenkins',
             }
           },
           getItemSummary: (item: any, index: number) => {
@@ -2319,49 +2341,34 @@ export const config = {
           }
         },
         backgroundColor: {
-          type: 'select' as const,
-          label: 'Background Color',
-          options: [
-            { label: 'White', value: '#ffffff' },
-            { label: 'Light Gray', value: '#f9fafb' },
-            { label: 'Gray', value: '#f3f4f6' },
-            { label: 'Dark Gray', value: '#1f2937' },
-            { label: 'Black', value: '#000000' },
-            { label: 'Custom...', value: '' }
-          ]
+          type: 'text' as const,
+          label: 'Background Color (hex)',
+          placeholder: '#ffffff',
         },
         textColor: {
-          type: 'select' as const,
-          label: 'Text Color',
-          options: [
-            { label: 'Black', value: '#000000' },
-            { label: 'Dark Gray', value: '#1f2937' },
-            { label: 'Gray', value: '#6b7280' },
-            { label: 'White', value: '#ffffff' },
-            { label: 'Custom...', value: '' }
-          ]
+          type: 'text' as const,
+          label: 'Text Color (hex)',
+          placeholder: '#000000',
         },
         headingColor: {
-          type: 'select' as const,
-          label: 'Heading Color (optional)',
-          options: [
-            { label: 'Same as Text', value: '' },
-            { label: 'Black', value: '#000000' },
-            { label: 'Dark Gray', value: '#1f2937' },
-            { label: 'Blue', value: '#3b82f6' },
-            { label: 'Custom...', value: '' }
-          ]
+          type: 'text' as const,
+          label: 'Heading Color (hex, optional)',
+          placeholder: 'Leave empty to use Text Color',
         },
         subtitleColor: {
-          type: 'select' as const,
-          label: 'Subtitle Color (optional)',
-          options: [
-            { label: 'Gray (default)', value: '' },
-            { label: 'Dark Gray', value: '#1f2937' },
-            { label: 'Gray', value: '#6b7280' },
-            { label: 'Black', value: '#000000' },
-            { label: 'Custom...', value: '' }
-          ]
+          type: 'text' as const,
+          label: 'Subtitle Color (hex, optional)',
+          placeholder: 'Leave empty for default gray',
+        },
+        speakerNameColor: {
+          type: 'text' as const,
+          label: 'Photo Heading Color (hex, optional)',
+          placeholder: 'Controls speaker name color',
+        },
+        speakerMetaColor: {
+          type: 'text' as const,
+          label: 'Photo Subheading Color (hex, optional)',
+          placeholder: 'Controls title/company color',
         },
         imageShape: {
           type: 'select' as const,
@@ -2369,6 +2376,15 @@ export const config = {
           options: [
             { label: 'Circle', value: 'circle' },
             { label: 'Rectangle', value: 'rectangle' }
+          ]
+        },
+        photoSize: {
+          type: 'select' as const,
+          label: 'Photo Size',
+          options: [
+            { label: 'Small', value: 'sm' },
+            { label: 'Medium', value: 'md' },
+            { label: 'Large', value: 'lg' }
           ]
         }
       },
@@ -2382,7 +2398,8 @@ export const config = {
             title: 'CMO',
             company: 'TechGlobal',
             quote: 'The Future of AI in Marketing',
-            photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop'
+            photo: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&h=400&fit=crop',
+            link: ''
           },
           {
             id: '2',
@@ -2390,7 +2407,8 @@ export const config = {
             title: 'Founder',
             company: 'StartUp Inc.',
             quote: 'Building for Scale',
-            photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop'
+            photo: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop',
+            link: ''
           },
           {
             id: '3',
@@ -2398,14 +2416,18 @@ export const config = {
             title: 'Director of Design',
             company: 'ArtFlo',
             quote: 'Empathy in UX',
-            photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop'
+            photo: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=400&h=400&fit=crop',
+            link: ''
           }
         ],
         backgroundColor: '#ffffff',
         textColor: '#000000',
         headingColor: '',
         subtitleColor: '',
-        imageShape: 'circle'
+        speakerNameColor: '',
+        speakerMetaColor: '',
+        imageShape: 'circle',
+        photoSize: 'md'
       },
       render: SpeakerHighlight
     },
