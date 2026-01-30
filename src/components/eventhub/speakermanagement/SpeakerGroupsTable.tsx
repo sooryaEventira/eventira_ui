@@ -3,8 +3,8 @@ import {
   DividerLineTable,
   type DividerLineTableSortDescriptor
 } from '../../ui/untitled'
-import { Group } from './speakerTypes'
-import type { GroupTableRowData } from './speakerTypes'
+import type { Group } from './speakerTypes'
+import type { GroupTableRowData } from '../attendeemanagement/attendeeTypes'
 import { TablePagination, useTableHeader } from '../../ui'
 import { useGroupTableColumns } from '../attendeemanagement/GroupTableColumns'
 
@@ -128,13 +128,13 @@ const SpeakerGroupsTable: React.FC<SpeakerGroupsTableProps> = ({
 
   // Table rows - map speakerCount to attendeeCount for compatibility with GroupTableColumns
   const groupTableRows = useMemo<GroupTableRowData[]>(() => {
-    return paginatedGroups.map((group, index) => ({ 
+    return paginatedGroups.map((group, index) => ({
       group: {
-        ...group,
-        // Map speakerCount to attendeeCount for GroupTableColumns compatibility
+        id: group.id,
+        name: group.name,
         attendeeCount: group.speakerCount
-      } as any, 
-      index 
+      },
+      index
     }))
   }, [paginatedGroups])
 

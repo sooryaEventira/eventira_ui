@@ -197,5 +197,16 @@ export const API_ENDPOINTS = {
       return url
     },
   },
+  // Team Management endpoints (dashboard)
+  // NOTE: If backend paths differ, override in the service via env vars later.
+  TEAM: {
+    // The backend (per 404 URLconf) exposes `/api/v1/users/`.
+    // We keep invite/resend endpoints as placeholders; the service will try fallbacks and show friendly errors if missing.
+    LIST: `${env.AUTH_API_URL}${API_V1_BASE}users/`,
+    INVITE: `${env.AUTH_API_URL}${ADMIN_API_BASE}team-invites/`,
+    UPDATE_MEMBER: (memberUuid: string) => `${env.AUTH_API_URL}${API_V1_BASE}users/${memberUuid}/`,
+    REMOVE_MEMBER: (memberUuid: string) => `${env.AUTH_API_URL}${API_V1_BASE}users/${memberUuid}/`,
+    RESEND_INVITE: (inviteUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}team-invites/${inviteUuid}/resend/`,
+  },
 }
 

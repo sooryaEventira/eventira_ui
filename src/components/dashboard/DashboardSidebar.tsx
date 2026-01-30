@@ -15,20 +15,21 @@ interface SidebarItem {
   id: string
   label: string
   icon: React.ReactNode
+  path?: string
 }
 
 interface DashboardSidebarProps {
   organizationName?: string
   activeItemId?: string
-  onItemClick?: (itemId: string) => void
+  onItemClick?: (itemId: string, path?: string) => void
   onOrganizationChange?: () => void
   isOpen?: boolean
   onClose?: () => void
 }
 
 const sidebarItems: SidebarItem[] = [
-  { id: 'events', label: 'Events', icon: <Home01 className="h-5 w-5" /> },
-  { id: 'team', label: 'Team', icon: <Users01 className="h-5 w-5" /> },
+  { id: 'events', label: 'Events', icon: <Home01 className="h-5 w-5" />, path: '/dashboard' },
+  { id: 'team', label: 'Team', icon: <Users01 className="h-5 w-5" />, path: '/dashboard/team' },
   { id: 'templates', label: 'Templates', icon: <File05 className="h-5 w-5" /> },
   { id: 'reports', label: 'Reports', icon: <BarChart03 className="h-5 w-5" /> },
   { id: 'settings', label: 'Settings', icon: <Settings01 className="h-5 w-5" /> },
@@ -141,7 +142,7 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    onItemClick?.(item.id)
+                    onItemClick?.(item.id, item.path)
                     onClose?.() // Close sidebar on mobile when item is clicked
                   }}
                   className={`flex-1 flex items-center gap-3 px-3 py-2 ${

@@ -6,6 +6,7 @@ import NewEventForm, { type EventFormData } from './NewEventForm'
 import TemplateSelectionPage from './TemplateSelectionPage'
 import EventWebsitePage from '../eventhub/EventWebsitePage'
 import WebsitePreviewPage from '../eventhub/WebsitePreviewPage'
+import TeamManagementPage from './team/TeamManagementPage'
 import { type Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
 import { deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
@@ -50,30 +51,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // This ensures the ref is always up-to-date before any navigation happens
   // CRITICAL: This must happen synchronously, not in useEffect, to prevent race conditions
   if (createdEventRef.current?.uuid !== createdEvent?.uuid) {
-    const oldEvent = createdEventRef.current
     createdEventRef.current = createdEvent
-    console.log('🔄 DashboardLayout: createdEventRef updated synchronously:', {
-      oldUuid: oldEvent?.uuid,
-      oldName: oldEvent?.eventName,
-      newUuid: createdEvent?.uuid,
-      newName: createdEvent?.eventName,
-      timestamp: new Date().toISOString()
-    })
   }
   
-  // Also verify in effect and log for debugging
+  // Also verify in effect
   React.useEffect(() => {
     if (createdEventRef.current?.uuid !== createdEvent?.uuid) {
-      console.warn('⚠️ DashboardLayout: Ref and context out of sync! Updating ref in effect:', {
-        refUuid: createdEventRef.current?.uuid,
-        contextUuid: createdEvent?.uuid,
-        timestamp: new Date().toISOString()
-      })
       createdEventRef.current = createdEvent
     }
   }, [createdEvent])
   
   const [activeItemId, setActiveItemId] = useState('events')
+  const [routePath, setRoutePath] = useState<string>(() => window.location.pathname)
   const [searchValue, setSearchValue] = useState('')
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null })
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -83,10 +72,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [showPreviewPage, setShowPreviewPage] = useState(false)
   const [previewPageId, setPreviewPageId] = useState<string>('')
 
+  const getDashboardPathForItem = (itemId: string) => {
+    if (itemId === 'events') return '/dashboard'
+    return `/dashboard/${itemId}`
+  }
+
   // Check if we should show template page or event website page based on URL
   useEffect(() => {
     const checkRoute = () => {
       const path = window.location.pathname
+      setRoutePath(path)
       // Read latest event from ref (always current, doesn't cause re-renders)
       // Also verify it matches context to catch any sync issues
       const currentEvent = createdEventRef.current
@@ -96,24 +91,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       const eventToUse = (currentEvent?.uuid === contextEvent?.uuid) ? currentEvent : contextEvent
       
       if (currentEvent?.uuid !== contextEvent?.uuid) {
-        console.warn('⚠️ DashboardLayout: Ref and context mismatch in checkRoute!', {
-          refUuid: currentEvent?.uuid,
-          refName: currentEvent?.eventName,
-          contextUuid: contextEvent?.uuid,
-          contextName: contextEvent?.eventName,
-          using: eventToUse?.uuid
-        })
         // Update ref to match context
         createdEventRef.current = contextEvent
       }
-      
-      // Log what event we're using for debugging
-      console.log('🔍 DashboardLayout: checkRoute called:', {
-        path,
-        eventUuid: eventToUse?.uuid,
-        eventName: eventToUse?.eventName,
-        timestamp: new Date().toISOString()
-      })
       
       // Don't handle editor routes here - they're handled by App.tsx
       if (path.startsWith('/event/website/editor/')) {
@@ -132,14 +112,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         // Only show preview if we have a valid event context
         // Use eventToUse which is guaranteed to be in sync
         if (eventToUse?.uuid) {
-          console.log('✅ DashboardLayout: Showing preview page for event:', eventToUse.uuid, eventToUse.eventName)
           setPreviewPageId(pageId)
           setShowPreviewPage(true)
           setShowEventWebsitePage(false)
           setShowTemplatePage(false)
           setShowNewEventForm(false)
         } else {
-          console.warn('⚠️ DashboardLayout: No event context for preview, redirecting to dashboard')
           setShowPreviewPage(false)
           setPreviewPageId('')
           window.history.pushState({}, '', '/dashboard')
@@ -149,9 +127,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         // Ensure we have event context before showing event website page
         // Use eventToUse which is guaranteed to be in sync
         if (eventToUse?.uuid) {
-          console.log('✅ DashboardLayout: Showing event website page for event:', eventToUse.uuid, eventToUse.eventName)
+          // ok
         } else {
-          console.warn('⚠️ DashboardLayout: No event context for /event/website, redirecting to dashboard')
           window.history.pushState({}, '', '/dashboard')
           window.dispatchEvent(new PopStateEvent('popstate'))
           return
@@ -160,7 +137,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         setShowTemplatePage(false)
         setShowNewEventForm(false)
         setShowPreviewPage(false)
+      } else if (path === '/dashboard' || path === '/') {
+        setActiveItemId('events')
       } else {
+        // Support dashboard sub-routes like /dashboard/team
+        if (path.startsWith('/dashboard/')) {
+          const sub = path.split('/')[2] || 'events'
+          setActiveItemId(sub)
+        }
         const wasShowingOtherPages = showTemplatePage || showEventWebsitePage || showPreviewPage
         setShowTemplatePage(false)
         setShowEventWebsitePage(false)
@@ -187,11 +171,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       setShowNewEventForm(true)
     }
 
-    window.addEventListener('popstate', handleLocationChange)
+    window.addEventListener('locationchange', handleLocationChange)
     window.addEventListener('open-event-form', handleOpenForm)
 
     return () => {
-      window.removeEventListener('popstate', handleLocationChange)
+      window.removeEventListener('locationchange', handleLocationChange)
       window.removeEventListener('open-event-form', handleOpenForm)
     }
   }, []) // Only run on mount - checkRoute reads latest event from ref, not from closure
@@ -207,16 +191,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     setEventsError(null)
     
     try {
-      console.log('🔄 [DashboardLayout] Fetching events...')
       const eventDataList = await fetchEvents()
-      console.log('✅ [DashboardLayout] Events fetched:', eventDataList.length, 'events')
-      
-      // Debug: Log first event to see available fields
-      if (eventDataList.length > 0) {
-        const sampleEvent = eventDataList[0] as any
-        console.log('🔍 [DashboardLayout] Sample event fields:', Object.keys(sampleEvent))
-        console.log('🔍 [DashboardLayout] Sample event - created_at:', sampleEvent.created_at, 'createdAt:', sampleEvent.createdAt, 'created_date:', sampleEvent.created_date, 'event_date:', sampleEvent.event_date)
-      }
       
       // Sort events by createdAt in descending order (newest first)
       const sortedEventDataList = [...eventDataList].sort((a, b) => {
@@ -265,8 +240,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         // Descending order: newest first (larger date value comes first)
         return dateB - dateA
       })
-      
-      console.log('📊 [DashboardLayout] Events sorted by createdAt (newest first)')
       
       // Map API response to Event interface format (already sorted)
       const mappedEvents: Event[] = sortedEventDataList.map((eventData: EventData) => {
@@ -337,16 +310,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         return dateB - dateA // Descending order (newest first)
       })
       
-      console.log('✅ [DashboardLayout] Mapped and sorted events by createdAt (newest first):', mappedEvents.length, 'events')
-      if (mappedEvents.length > 0) {
-        console.log('📊 [DashboardLayout] First event (newest):', mappedEvents[0].name, 'createdAt:', mappedEvents[0].createdAt)
-        if (mappedEvents.length > 1) {
-          console.log('📊 [DashboardLayout] Last event (oldest):', mappedEvents[mappedEvents.length - 1].name, 'createdAt:', mappedEvents[mappedEvents.length - 1].createdAt)
-        }
-      }
       setEvents(mappedEvents)
     } catch (error) {
-      console.error('Failed to fetch events:', error)
       setEventsError(error instanceof Error ? error.message : 'Failed to load events')
       // Fallback to empty array or default events on error
       setEvents([])
@@ -379,6 +344,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   useEffect(() => {
     const checkAndRefresh = () => {
       const currentPath = window.location.pathname
+      setRoutePath(currentPath)
       const prevPath = prevPathRef.current
 
       // Only refresh events if we're actually on the dashboard page
@@ -390,7 +356,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       // This prevents unnecessary refreshes when navigating between event pages
       if (isOnDashboard && prevPath !== currentPath && 
           (prevPath.startsWith('/event/create') || prevPath.startsWith('/event/website') || prevPath.startsWith('/event/hub'))) {
-        console.log('🔄 DashboardLayout: Refreshing events list (navigated back to dashboard)')
         loadEvents()
       }
 
@@ -404,10 +369,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       checkAndRefresh()
     }
 
-    window.addEventListener('popstate', handleLocationChange)
+    window.addEventListener('locationchange', handleLocationChange)
     
     return () => {
-      window.removeEventListener('popstate', handleLocationChange)
+      window.removeEventListener('locationchange', handleLocationChange)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showTemplatePage, showEventWebsitePage, showPreviewPage, showNewEventForm])
@@ -486,11 +451,25 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     return filtered
   }, [events, searchValue, dateRange])
 
-  const handleSidebarItemClick = (itemId: string) => {
+  const handleSidebarItemClick = (itemId: string, pathOverride?: string) => {
     setActiveItemId(itemId)
     onSidebarItemClick?.(itemId)
     // Close sidebar on mobile when item is clicked
     setIsSidebarOpen(false)
+
+    // Ensure "Events" always returns to the main dashboard content area
+    // Close any overlays/pages
+    setShowNewEventForm(false)
+    setShowTemplatePage(false)
+    setShowEventWebsitePage(false)
+    setShowPreviewPage(false)
+    setPreviewPageId('')
+
+    // Update URL to reflect dashboard section
+    const nextPath = pathOverride || getDashboardPathForItem(itemId)
+    window.history.pushState({}, '', nextPath)
+    // pushState does not trigger popstate
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   const toggleSidebar = () => {
@@ -506,8 +485,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     setShowNewEventForm(false)
   }
 
-  const handleFormSubmit = (data: EventFormData) => {
-    console.log('Event form submitted:', data)
+  const handleFormSubmit = (_data: EventFormData) => {
     // TODO: Handle form submission (e.g., API call)
     setShowNewEventForm(false)
     onNewEventClick?.()
@@ -515,14 +493,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
   const handleEventRowClick = async (event: Event) => {
     try {
-      console.log('🔄 DashboardLayout: Switching to event:', event.id, event.name)
-      console.log('📊 DashboardLayout: Current createdEvent before switch:', {
-        uuid: createdEvent?.uuid,
-        eventName: createdEvent?.eventName,
-        refUuid: createdEventRef.current?.uuid,
-        refName: createdEventRef.current?.eventName
-      })
-      
       // Fetch event details by UUID (assuming event.id is the UUID)
       const eventData = await fetchEvent(event.id)
       
@@ -532,32 +502,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         ...eventData
       }
       
-      console.log('✅ DashboardLayout: Event data fetched:', {
-        uuid: createdEventData.uuid,
-        eventName: createdEventData.eventName
-      })
-        
       // Set event in context - this updates both state and localStorage synchronously
       // IMPORTANT: This must happen BEFORE navigation to ensure context is updated
       setCreatedEvent(createdEventData)
       
       // Immediately update the ref synchronously (don't wait for effect)
       createdEventRef.current = createdEventData
-      console.log('✅ DashboardLayout: Event context and ref updated to:', {
-        uuid: createdEventData.uuid,
-        eventName: createdEventData.eventName,
-        refUuid: createdEventRef.current?.uuid,
-        refName: createdEventRef.current?.eventName
-      })
       
       // Verify localStorage was updated
       const storedEvent = localStorage.getItem('created-event')
       if (storedEvent) {
         const parsed = JSON.parse(storedEvent)
         if (parsed.uuid !== createdEventData.uuid) {
-          console.error('❌ DashboardLayout: localStorage mismatch! Expected:', createdEventData.uuid, 'Got:', parsed.uuid)
-        } else {
-          console.log('✅ DashboardLayout: localStorage verified - matches context')
+          // ignore mismatch (will be corrected by next navigation)
         }
       }
       
@@ -569,13 +526,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       window.history.pushState({}, '', '/event/website')
       window.dispatchEvent(new PopStateEvent('popstate'))
     } catch (error) {
-      console.error('❌ DashboardLayout: Failed to load event:', error)
       // Error is already handled in fetchEvent with toast
     }
   }
 
+  // Use routePath as the source of truth for what is rendered.
+  // This prevents stale boolean flags from showing the wrong page (e.g., URL=/dashboard but website page still mounted).
+  const pathname = routePath
+  const shouldRenderPreview = pathname.startsWith('/event/website/preview/')
+  const shouldRenderWebsite = pathname === '/event/website'
+  const shouldRenderTemplate = pathname === '/event/create/template'
+
   // Show preview page
-  if (showPreviewPage) {
+  if (showPreviewPage && shouldRenderPreview) {
     return (
       <WebsitePreviewPage
         pageId={previewPageId}
@@ -593,10 +556,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }
 
   // Show event website page
-  if (showEventWebsitePage) {
+  if (showEventWebsitePage && shouldRenderWebsite) {
     return (
       <EventWebsitePage
         onBackClick={() => {
+          // Close the website view immediately (don't rely on route listeners)
+          setShowEventWebsitePage(false)
+          setShowPreviewPage(false)
+          setShowTemplatePage(false)
+          setShowNewEventForm(false)
+          setPreviewPageId('')
+          setActiveItemId('events')
+
           window.history.pushState({}, '', '/dashboard')
           window.dispatchEvent(new PopStateEvent('popstate'))
         }}
@@ -606,7 +577,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }
 
   // Show template selection page
-  if (showTemplatePage) {
+  if (showTemplatePage && shouldRenderTemplate) {
     return <TemplateSelectionPage />
   }
 
@@ -648,7 +619,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
       {/* Main Content */}
       <main className="lg:ml-[250px] mt-16 p-4 sm:p-6">
-        {isLoadingEvents ? (
+        {activeItemId === 'team' ? (
+          <TeamManagementPage />
+        ) : activeItemId !== 'events' ? (
+          <div className="min-h-[400px] flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-lg font-semibold text-slate-900">Coming soon</div>
+              <div className="mt-1 text-sm text-slate-500">This section hasn’t been implemented yet.</div>
+            </div>
+          </div>
+        ) : isLoadingEvents ? (
           <div className="flex items-center justify-center min-h-[400px]">
             <div className="text-center">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#6938EF] mb-4"></div>

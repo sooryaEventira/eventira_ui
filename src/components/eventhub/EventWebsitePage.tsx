@@ -5,9 +5,18 @@ import EventHubNavbar from './EventHubNavbar'
 import EventHubSidebar from './EventHubSidebar'
 import { defaultCards, ContentCard } from './EventHubContent'
 import PageCreationModal, { type PageType } from '../page/PageCreationModal'
+import CreateNavFolderModal from './CreateNavFolderModal'
 import { fetchWebpages, type WebpageData } from '../../services/webpageService'
 import Button from '../ui/untitled/Button'
 import { readEventStoreJSON } from '../../utils/eventLocalStore'
+import type { NavigationFolderItem, NavigationItem, NavigationPageItem } from '../../types/navigation'
+import {
+  isFolder,
+  isPage,
+  loadNavigationConfigFromStorage,
+  saveNavigationConfigToStorage,
+  upsertMissingPagesToRoot
+} from '../../utils/navigationTree'
 import { 
   InfoCircle, 
   CodeBrowser, 
@@ -42,6 +51,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   }, [createdEvent?.eventName, createdEvent?.uuid, eventData?.eventName])
   const [activeSubItem, setActiveSubItem] = useState('website-pages')
   const [showPageCreationModal, setShowPageCreationModal] = useState(false)
+  const [showCreateNavFolderModal, setShowCreateNavFolderModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   const [webpages, setWebpages] = useState<WebpageData[]>([])
   const [isLoadingWebpages, setIsLoadingWebpages] = useState(false)
@@ -49,6 +59,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
   const [draggingNavId, setDraggingNavId] = useState<string | null>(null)
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
+  const [navTreeRefresh, setNavTreeRefresh] = useState(0)
 
   const eventUuidForNavigation = useMemo(
     () => createdEvent?.uuid ?? localStorage.getItem('currentEventUuid') ?? '',
@@ -57,6 +68,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
   const getNavigationOrderStorageKey = (eventUuid: string) => `navigation-order-${eventUuid}`
   const getNavigationHiddenStorageKey = (eventUuid: string) => `navigation-hidden-${eventUuid}`
+  const getNavigationTreeStorageKey = (eventUuid: string) => `navigation-tree-${eventUuid}`
 
   const [hiddenNavIds, setHiddenNavIds] = useState<Set<string>>(() => new Set())
 
@@ -172,6 +184,53 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     return [...ordered, ...missing]
   }, [webpages, navigationOrderIds])
 
+  const navigationTreeItems = useMemo(() => {
+    const eventUuid = eventUuidForNavigation
+    if (!eventUuid) return [] as NavigationItem[]
+
+    const treeKey = getNavigationTreeStorageKey(eventUuid)
+
+    const systemPages: NavigationPageItem[] = systemItemsForNavigation.map((p) => ({
+      id: p.id,
+      type: 'page',
+      title: p.label,
+      slug: p.id,
+      pageId: p.id
+    }))
+
+    const webpagePages: NavigationPageItem[] = orderedWebpagesForNavigation.map((w) => ({
+      id: String(w.uuid),
+      type: 'page',
+      title: w.name,
+      slug: String(w.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      pageId: String(w.uuid)
+    }))
+
+    const defaultFlat: NavigationPageItem[] = [...systemPages, ...webpagePages]
+
+    const stored = loadNavigationConfigFromStorage(treeKey)
+    const baseItems =
+      stored?.items && Array.isArray(stored.items)
+        ? (stored.items as NavigationItem[])
+        : defaultFlat
+
+    const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlat)
+
+    // Persist reconciliation so new pages/folders remain stable across refreshes.
+    try {
+      saveNavigationConfigToStorage(treeKey, reconciled)
+    } catch {
+      // ignore
+    }
+
+    return reconciled
+  }, [
+    eventUuidForNavigation,
+    systemItemsForNavigation,
+    orderedWebpagesForNavigation,
+    navTreeRefresh
+  ])
+
   const moveNavigationItem = useCallback(
     (dragId: string, targetId: string) => {
       if (!dragId || !targetId || dragId === targetId) return
@@ -193,6 +252,37 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     [navigationOrderIds, webpages, persistNavigationOrder]
   )
 
+  const moveNavigationTreeItem = useCallback(
+    (dragId: string, targetId: string) => {
+      const eventUuid = eventUuidForNavigation
+      if (!eventUuid) return
+      if (!dragId || !targetId || dragId === targetId) return
+
+      const treeKey = getNavigationTreeStorageKey(eventUuid)
+      const stored = loadNavigationConfigFromStorage(treeKey)
+      const current =
+        stored?.items && Array.isArray(stored.items)
+          ? (stored.items as NavigationItem[])
+          : navigationTreeItems
+
+      const fromIndex = current.findIndex((it) => it.id === dragId)
+      const toIndex = current.findIndex((it) => it.id === targetId)
+      if (fromIndex === -1 || toIndex === -1) return
+
+      const next = [...current]
+      const [moved] = next.splice(fromIndex, 1)
+      next.splice(toIndex, 0, moved)
+
+      try {
+        saveNavigationConfigToStorage(treeKey, next)
+      } catch {
+        // ignore
+      }
+      setNavTreeRefresh((x) => x + 1)
+    },
+    [eventUuidForNavigation, navigationTreeItems]
+  )
+
   // Fetch webpages from backend
   const loadWebpages = useCallback(async () => {
     if (!createdEvent?.uuid) {
@@ -203,13 +293,13 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
     setIsLoadingWebpages(true)
     try {
-      console.log('📋 [EventWebsitePage] Fetching webpages for event:', createdEvent.uuid)
+      console.log('?? [EventWebsitePage] Fetching webpages for event:', createdEvent.uuid)
       const fetchedWebpages = await fetchWebpages(createdEvent.uuid)
-      console.log('📋 [EventWebsitePage] Fetched webpages:', fetchedWebpages.length, 'pages')
-      console.log('📋 [EventWebsitePage] Webpage names:', fetchedWebpages.map(w => w.name))
+      console.log('?? [EventWebsitePage] Fetched webpages:', fetchedWebpages.length, 'pages')
+      console.log('?? [EventWebsitePage] Webpage names:', fetchedWebpages.map(w => w.name))
       setWebpages(fetchedWebpages)
     } catch (error) {
-      console.error('❌ [EventWebsitePage] Error fetching webpages:', error)
+      console.error('? [EventWebsitePage] Error fetching webpages:', error)
       // Error is handled by errorHandler
     } finally {
       setIsLoadingWebpages(false)
@@ -226,7 +316,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       const { eventUuid } = event.detail
       // Only refresh if it's for the current event
       if (eventUuid === createdEvent?.uuid) {
-        console.log('🔄 [EventWebsitePage] Webpage saved, refreshing list...')
+        console.log('?? [EventWebsitePage] Webpage saved, refreshing list...')
         loadWebpages()
       }
     }
@@ -331,6 +421,18 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       return
     }
     
+    // Top-level navigation items
+    if (itemId === 'overview') {
+      window.history.pushState({ section: 'overview' }, '', '/event/hub?section=overview')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      return
+    }
+    if (itemId === 'event-website') {
+      window.history.pushState({ section: 'event-website' }, '', '/event/hub?section=event-website')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+      return
+    }
+
     if (itemId === 'event-hub') {
       window.history.pushState({}, '', '/event/hub')
       window.dispatchEvent(new PopStateEvent('popstate'))
@@ -364,21 +466,68 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     window.open(url, '_blank', 'noopener,noreferrer')
   }
 
+  const createNavigationFolder = useCallback(
+    (name: string) => {
+      const eventUuid = eventUuidForNavigation
+      if (!eventUuid) return
+
+      const treeKey = getNavigationTreeStorageKey(eventUuid)
+      const stored = loadNavigationConfigFromStorage(treeKey)
+      const existing: NavigationItem[] =
+        stored?.items && Array.isArray(stored.items) ? (stored.items as NavigationItem[]) : []
+
+      const folder: NavigationFolderItem = {
+        id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: 'folder',
+        title: name.trim(),
+        children: []
+      }
+
+      const next: NavigationItem[] = [...existing, folder]
+      try {
+        saveNavigationConfigToStorage(treeKey, next)
+      } catch {
+        // ignore
+      }
+      setShowCreateNavFolderModal(false)
+      setNavTreeRefresh((x) => x + 1)
+    },
+    [eventUuidForNavigation]
+  )
+
   const renderNavigationTab = () => {
     const eventUuid = eventUuidForNavigation
-    const webpageItems = orderedWebpagesForNavigation.map((w) => ({
-      id: w.uuid,
-      label: w.name,
-      kind: 'webpage' as const
-    }))
+    const flatten = (list: NavigationItem[], depth = 0): Array<{ item: NavigationItem; depth: number }> => {
+      const out: Array<{ item: NavigationItem; depth: number }> = []
+      for (const it of list) {
+        out.push({ item: it, depth })
+        if (isFolder(it) && Array.isArray(it.children) && it.children.length) {
+          out.push(...flatten(it.children, depth + 1))
+        }
+      }
+      return out
+    }
 
-    const allItems = [...systemItemsForNavigation, ...webpageItems]
-    const byId = new Map(allItems.map((i) => [i.id, i] as const))
-    const baseIds = navigationOrderIds.length ? navigationOrderIds : allItems.map((i) => i.id)
-    const items = [...baseIds.map((id) => byId.get(id)).filter(Boolean), ...allItems.filter((i) => !baseIds.includes(i.id))] as typeof allItems
+    const items = navigationTreeItems
+    // For the editor preview, keep folders visible even if they have no children.
+    // (The public website prunes empty folders, but in the editor it's useful to show them.)
+    const applyHiddenKeepEmptyFolders = (list: NavigationItem[]): NavigationItem[] => {
+      const out: NavigationItem[] = []
+      for (const it of list) {
+        if (hiddenNavIds.has(it.id)) continue
+        if (isFolder(it)) {
+          out.push({ ...it, children: applyHiddenKeepEmptyFolders(it.children || []) })
+        } else {
+          out.push(it)
+        }
+      }
+      return out
+    }
+    const visibleTree = applyHiddenKeepEmptyFolders(items)
+    const flat = flatten(items)
+    const visibleFlat = flatten(visibleTree)
 
-    const visibleItems = items.filter((i) => !hiddenNavIds.has(i.id))
-    const activeId = navigationPreviewActive ?? visibleItems[0]?.id ?? null
+    const activeId = navigationPreviewActive ?? visibleFlat[0]?.item?.id ?? null
 
     return (
       <div className="flex flex-col gap-6 min-h-[520px]">
@@ -394,33 +543,37 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
               <div className="flex items-center justify-center py-8 text-slate-500">
                 <p>Loading webpages...</p>
               </div>
-            ) : items.length === 0 ? (
+            ) : flat.length === 0 ? (
               <div className="flex items-center justify-center py-8 text-slate-500">
-                <p>No pages yet. Create pages to see them here.</p>
+                <p>No menu items yet. Create pages or folders to see them here.</p>
               </div>
             ) : (
-              items.map((item) => {
-                const isWebpage = item.kind === 'webpage'
-                const isWelcome = isWebpage && String(item.label || '').toLowerCase() === 'welcome'
+              flat.map(({ item, depth }) => {
+                const folder = isFolder(item)
+                const page = isPage(item)
+                const isSystemPage = page && String(item.pageId).startsWith('system:')
+                const isWebpage = page && !isSystemPage
+                const isWelcome = isWebpage && String(item.title || '').toLowerCase() === 'welcome'
                 const isHidden = hiddenNavIds.has(item.id)
                 const publicUrl =
-                  !eventUuid
+                  !eventUuid || !page
                     ? ''
                     : isWebpage
-                      ? `${window.location.origin}/events/${eventUuid}/webpages/${item.id}`
-                      : item.id === 'system:organizations'
+                      ? `${window.location.origin}/events/${eventUuid}/webpages/${item.pageId}`
+                      : item.pageId === 'system:organizations'
                         ? `${window.location.origin}/events/${eventUuid}/organizations`
-                        : item.id === 'system:speakers'
+                        : item.pageId === 'system:speakers'
                           ? `${window.location.origin}/events/${eventUuid}/speakers`
-                          : item.id === 'system:attendees'
+                          : item.pageId === 'system:attendees'
                             ? `${window.location.origin}/events/${eventUuid}/attendees`
-                            : item.id === 'system:schedule'
+                            : item.pageId === 'system:schedule'
                               ? `${window.location.origin}/events/${eventUuid}/schedule`
                               : `${window.location.origin}/events/${eventUuid}/sessions`
                 return (
                   <div
                     key={item.id}
                     onDragOver={(e) => {
+                      if (depth !== 0) return
                       e.preventDefault()
                       if (dragOverNavId !== item.id) setDragOverNavId(item.id)
                     }}
@@ -428,8 +581,9 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                       setDragOverNavId((prev) => (prev === item.id ? null : prev))
                     }}
                     onDrop={(e) => {
+                      if (depth !== 0) return
                       e.preventDefault()
-                      if (draggingNavId) moveNavigationItem(draggingNavId, item.id)
+                      if (draggingNavId) moveNavigationTreeItem(draggingNavId, item.id)
                       setDraggingNavId(null)
                       setDragOverNavId(null)
                     }}
@@ -438,31 +592,35 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                       dragOverNavId === item.id ? 'bg-violet-50' : 'hover:bg-slate-50'
                     ].join(' ')}
                   >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className="text-slate-400 cursor-grab select-none"
-                        aria-hidden="true"
-                        draggable
-                        onDragStart={(e) => {
-                          setDraggingNavId(item.id)
-                          try {
-                            e.dataTransfer.effectAllowed = 'move'
-                            e.dataTransfer.setData('text/plain', item.id)
-                          } catch {
-                            // ignore
-                          }
-                        }}
-                        onDragEnd={() => {
-                          setDraggingNavId(null)
-                          setDragOverNavId(null)
-                        }}
-                      >
-                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
-                        </svg>
-                      </span>
+                    <div className="flex items-center gap-3 min-w-0" style={{ paddingLeft: depth * 16 }}>
+                      {depth === 0 ? (
+                        <span
+                          className="text-slate-400 cursor-grab select-none"
+                          aria-hidden="true"
+                          draggable
+                          onDragStart={(e) => {
+                            setDraggingNavId(item.id)
+                            try {
+                              e.dataTransfer.effectAllowed = 'move'
+                              e.dataTransfer.setData('text/plain', item.id)
+                            } catch {
+                              // ignore
+                            }
+                          }}
+                          onDragEnd={() => {
+                            setDraggingNavId(null)
+                            setDragOverNavId(null)
+                          }}
+                        >
+                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
+                          </svg>
+                        </span>
+                      ) : (
+                        <span className="w-4" aria-hidden="true" />
+                      )}
                       <span className={`text-sm font-medium capitalize truncate ${isHidden ? 'text-slate-400' : 'text-slate-900'}`}>
-                        {item.label}
+                        {folder ? item.title : item.title}
                       </span>
                     </div>
 
@@ -505,10 +663,11 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           <div className="text-sm font-semibold text-slate-900">Preview</div>
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <div className="flex items-center gap-2 overflow-x-auto">
-              {visibleItems.length === 0 ? (
+              {visibleFlat.length === 0 ? (
                 <span className="text-sm text-slate-500">No menu items to preview.</span>
               ) : (
-                visibleItems.map((item) => {
+                visibleFlat.map(({ item }) => {
+                  const label = isFolder(item) ? item.title : item.title
                   const isActive = item.id === activeId
                   return (
                     <button
@@ -521,7 +680,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
-                      {item.label}
+                      {label}
                     </button>
                   )
                 })
@@ -762,7 +921,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         <div className="flex-1 p-8 bg-white overflow-auto">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 w-full">
-            <h1 className="text-[26px] font-bold text-primary-dark">Event Website</h1>
+            <h1 className="text-[26px] font-bold text-primary-dark">Event website</h1>
             {renderHeaderButtons()}
           </div>
 
@@ -797,10 +956,14 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
             <Button
               variant="primary"
               size="md"
-              onClick={handleNewPage}
+              onClick={
+                activeSubItem === 'website-header'
+                  ? () => setShowCreateNavFolderModal(true)
+                  : handleNewPage
+              }
               iconLeading={<Plus className="h-4 w-4" />}
             >
-              New page
+              {activeSubItem === 'website-header' ? 'New folder' : 'New page'}
             </Button>
           </div>
 
@@ -883,6 +1046,12 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           isVisible={showPageCreationModal}
           onClose={() => setShowPageCreationModal(false)}
           onSelect={handlePageTypeSelect}
+        />
+
+        <CreateNavFolderModal
+          isVisible={showCreateNavFolderModal}
+          onClose={() => setShowCreateNavFolderModal(false)}
+          onConfirm={createNavigationFolder}
         />
 
         {/* Delete Confirmation Modal */}
@@ -978,10 +1147,14 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           <Button
             variant="primary"
             size="md"
-            onClick={handleNewPage}
+            onClick={
+              activeSubItem === 'website-header'
+                ? () => setShowCreateNavFolderModal(true)
+                : handleNewPage
+            }
             iconLeading={<Plus className="h-4 w-4" />}
           >
-            New page
+            {activeSubItem === 'website-header' ? 'New folder' : 'New page'}
           </Button>
         </div>
 
@@ -1064,6 +1237,12 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         isVisible={showPageCreationModal}
         onClose={() => setShowPageCreationModal(false)}
         onSelect={handlePageTypeSelect}
+      />
+
+      <CreateNavFolderModal
+        isVisible={showCreateNavFolderModal}
+        onClose={() => setShowCreateNavFolderModal(false)}
+        onConfirm={createNavigationFolder}
       />
 
       {/* Delete Confirmation Modal */}

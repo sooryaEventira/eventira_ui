@@ -25,17 +25,17 @@ interface PageTypeOption {
 
 const pageTypes: PageTypeOption[] = [
   { id: 'scratch', title: 'Create from scratch', description: 'Create a custom page from scratch.' },
-  { id: 'attendee', title: 'Attendee page', description: 'List out users' },
-  { id: 'schedule', title: 'Schedule page', description: 'Create sessions' },
-  { id: 'html-general', title: 'HTML/General page', description: 'Create welcome page, venue, etc.' },
+  // { id: 'attendee', title: 'Attendee page', description: 'List out users' },
+  // { id: 'schedule', title: 'Schedule page', description: 'Create sessions' },
+  // { id: 'html-general', title: 'HTML/General page', description: 'Create welcome page, venue, etc.' },
   { id: 'folder', title: 'Folder', description: 'Create folders' },
-  { id: 'organization', title: 'Organization page', description: 'List partners, exhibitors' },
-  { id: 'hyperlink', title: 'Hyperlink', description: 'Insert any link' },
-  { id: 'qr-scanner', title: 'App QR Scanner', description: 'Add QR code' },
-  { id: 'documents', title: 'Documents list', description: 'List your documents' },
-  { id: 'gallery', title: 'Gallery page', description: 'List partners, exhibitors' },
-  { id: 'forms', title: 'Forms', description: 'Insert any link' },
-  { id: 'meeting-room', title: 'Meeting room', description: 'Add QR code' }
+  // { id: 'organization', title: 'Organization page', description: 'List partners, exhibitors' },
+  // { id: 'hyperlink', title: 'Hyperlink', description: 'Insert any link' },
+  // { id: 'qr-scanner', title: 'App QR Scanner', description: 'Add QR code' },
+  // { id: 'documents', title: 'Documents list', description: 'List your documents' },
+  // { id: 'gallery', title: 'Gallery page', description: 'List partners, exhibitors' },
+  // { id: 'forms', title: 'Forms', description: 'Insert any link' },
+  // { id: 'meeting-room', title: 'Meeting room', description: 'Add QR code' }
 ]
 
 interface PageCreationModalProps {
@@ -129,8 +129,8 @@ const PageCreationModal: React.FC<PageCreationModalProps> = ({
       isVisible={isVisible}
       onClose={onClose}
       title="Pages"
-      width={900}
-      maxWidth={900}
+      width={560}
+      maxWidth={560}
       maxHeight="90vh"
       borderRadius={16}
       footer={footer}
@@ -143,7 +143,7 @@ const PageCreationModal: React.FC<PageCreationModalProps> = ({
       )}
       contentStyle={{ padding: 0 }}
     >
-      <div className="grid grid-cols-3 gap-3 px-6 pb-6 mt-4">
+      <div className="grid grid-cols-2 gap-3 px-6 pb-6 mt-4">
         {pageTypes.map((pageType) => renderCard(pageType))}
       </div>
     </Modal>

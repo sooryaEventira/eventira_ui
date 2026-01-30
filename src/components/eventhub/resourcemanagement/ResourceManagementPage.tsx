@@ -890,7 +890,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
         <div className="space-y-6 px-4 pb-12 pt-8 md:px-10 lg:px-16">
           {/* Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
-            <h1 className="text-[26px] font-bold text-primary-dark">Resource Management</h1>
+            <h1 className="text-[26px] font-bold text-primary-dark">Resource management</h1>
             <div className="flex items-center gap-3">
               <Button
                 variant="secondary"

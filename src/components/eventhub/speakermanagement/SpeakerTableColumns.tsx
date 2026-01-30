@@ -138,13 +138,13 @@ export const useSpeakerTableColumns = ({
       // },
       {
         id: 'role',
-        header: 'Role',
+        header: 'Designation',
         sortable: true,
         sortAccessor: ({ speaker }) => speaker?.role || '',
         render: ({ speaker }) => {
           if (!speaker) return null
           return (
-            <span className="text-sm text-slate-600">
+            <span className="block max-w-[220px] truncate text-sm text-slate-600" title={speaker.role || undefined}>
               {speaker.role || '-'}
             </span>
           )

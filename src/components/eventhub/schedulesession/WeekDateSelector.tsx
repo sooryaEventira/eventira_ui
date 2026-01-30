@@ -33,6 +33,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
   const [tempEndDate, setTempEndDate] = useState<Date | null>(null)
   const [firstMonth, setFirstMonth] = useState(new Date())
   const calendarRef = useRef<HTMLDivElement>(null)
+  const lastInitRangeSignatureRef = useRef<string | null>(null)
 
   // Generate week dates
   const getWeekDates = (date: Date) => {
@@ -86,27 +87,9 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
   }
 
   const isCurrentDay = (date: Date) => {
-    if (startDate && endDate) {
-      // If range is selected, highlight all dates in range
-      return isDateInRange(date, startDate, endDate)
-    }
-    return date.toDateString() === currentDate.toDateString()
-  }
-
-  // Check if date is start date
-  const isStartDate = (date: Date) => {
-    return startDate && isSameDay(date, startDate)
-  }
-
-  // Check if date is end date
-  const isEndDate = (date: Date) => {
-    return endDate && isSameDay(date, endDate)
-  }
-
-  // Check if date is in range (but not start or end)
-  const isInRange = (date: Date) => {
-    if (!startDate || !endDate) return false
-    return isDateInRange(date, startDate, endDate) && !isStartDate(date) && !isEndDate(date)
+    // Highlight ONLY the day the manager is working on (the clicked/active day).
+    // Date range (event start/end) should not highlight every day in the range.
+    return isSameDay(date, currentDate)
   }
 
   const selectDate = (date: Date) => {
@@ -234,6 +217,12 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
     const finalStart = start <= end ? start : end
     const finalEnd = start <= end ? end : start
 
+    // Guard: parents may pass new Date instances on every render.
+    // Only update internal state if the *value* actually changed.
+    const signature = `${finalStart.toISOString().slice(0, 10)}|${finalEnd.toISOString().slice(0, 10)}`
+    if (lastInitRangeSignatureRef.current === signature) return
+    lastInitRangeSignatureRef.current = signature
+
     setStartDate(finalStart)
     setEndDate(finalEnd)
     setTempStartDate(finalStart)
@@ -241,9 +230,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
 
     // Keep current date anchored to the start of the range
     setCurrentDate(finalStart)
-    onDateChange?.(finalStart)
-    onDateRangeChange?.(finalStart, finalEnd)
-  }, [initialRangeStartDate, initialRangeEndDate, normalizeDay, onDateChange, onDateRangeChange])
+  }, [initialRangeStartDate, initialRangeEndDate, normalizeDay])
 
   const formatDate = (date: Date | null) => {
     if (!date) return ''
@@ -289,8 +276,6 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
 
   return (
     <div className="w-full">
-
-
       <div className={`shedulebar relative flex items-center ${!startDate || !endDate ? 'justify-center' : 'justify-between'} gap-2 mt-2 w-full${className}`}>
       {/* Left Arrow */}
       {shouldShowArrows && (
@@ -309,9 +294,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
         <div className={`flex gap-1 overflow-x-auto pb-2 sm:gap-3 sm:pb-0 scrollbar-hide h-[70px] sm:overflow-visible`}>
           {displayDates.map((date, index) => {
             const isSelected = isCurrentDay(date)
-            const isStart = isStartDate(date)
-            const isEnd = isEndDate(date)
-            const isInRangeDate = isInRange(date)
+            const isInRangeDate = startDate && endDate ? isDateInRange(date, startDate, endDate) : false
             
             // Determine button styling
             let buttonClass = 'bg-[#FAFAFA] text-[#414651] outline outline-1 outline-[#D5D7DA] hover:bg-slate-50 hover:-translate-y-0.5'
@@ -319,29 +302,37 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
             let numberClass = 'font-medium text-[#414651]'
             
             if (startDate && endDate) {
-              if (isStart || isEnd) {
-                // Start and end dates - primary color
-                buttonClass = 'bg-primary text-white shadow-md shadow-primary/30 outline-none'
+              // Outside event range: disabled / dimmed
+              if (!isInRangeDate) {
+                buttonClass =
+                  'bg-[#FAFAFA] text-[#414651] outline outline-1 outline-[#E5E7EB] opacity-40 cursor-not-allowed'
+                textClass = 'font-semibold text-[#414651]'
+                numberClass = 'font-medium text-[#414651]'
+              } else {
+                // Inside range but NOT the active day: solid purple
+                buttonClass =
+                  'bg-primary text-white shadow-md shadow-primary/30 outline-none hover:bg-primary/90 hover:-translate-y-0.5'
                 textClass = 'font-semibold text-white'
                 numberClass = 'font-medium text-white'
-              } else if (isInRangeDate) {
-                // Dates in range (between start and end) - light purple background
-                buttonClass = 'bg-primary/20 text-primary shadow-md outline outline-1 outline-primary/30 hover:bg-primary/30 hover:-translate-y-0.5'
-                textClass = 'font-bold text-primary'
-                numberClass = 'font-medium text-primary'
               }
-            } else if (isSelected) {
-              // Normal selected date (no range)
-              buttonClass = 'bg-primary text-white shadow-lg shadow-primary/30 outline-none'
-              textClass = 'font-bold text-white'
-              numberClass = 'font-medium text-white'
+            }
+
+            // Active working day (clicked): light purple (overrides others)
+            if (isSelected) {
+              buttonClass =
+                'bg-primary/20 text-primary shadow-md outline outline-1 outline-primary/40 hover:bg-primary/30 hover:-translate-y-0.5'
+              textClass = 'font-bold text-primary'
+              numberClass = 'font-semibold text-primary'
             }
             
             return (
               <div key={`${date.toISOString()}-${index}`} className="relative shrink-0">
                 <button
                   type="button"
-                  onClick={() => selectDate(date)}
+                  onClick={() => {
+                    if (startDate && endDate && !isInRangeDate) return
+                    selectDate(date)
+                  }}
                   className={`inline-flex flex-col items-center justify-center rounded-[10px] px-2 py-2 text-[12px] shadow-md shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 sm:px-5 sm:py-2.5 sm:text-sm min-w-[120px] w-[140px] md:w-[140px] md:min-w-[140px] md:max-w-[140px] ${buttonClass}`}
                 >
                   <div className={`whitespace-nowrap ${textClass}`} style={{ fontFamily: 'Inter' }}>

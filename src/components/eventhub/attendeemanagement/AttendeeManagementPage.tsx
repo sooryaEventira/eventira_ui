@@ -270,6 +270,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
       avatarUrl: data.avatarUrl,
       status: 'sent',
       inviteCode: undefined,
+      institute: data.organization,
+      post: data.role,
       groups: data.group
         ? [
             {

@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { Pencil01, Trash03 } from '@untitled-ui/icons-react'
 import type { DividerLineTableColumn } from '../../ui/untitled'
 import { SelectAllCheckbox } from '../../ui'
@@ -12,6 +13,115 @@ interface OrganizationTableColumnsProps {
   onToggleRow: (id: string, checked: boolean) => void
   onEditOrganization?: (organizationId: string) => void
   onDeleteOrganization?: (organizationId: string) => void
+}
+
+const DescriptionTooltipCell: React.FC<{ description: string }> = ({ description }) => {
+  const text = (description || '').trim()
+  const anchorRef = useRef<HTMLSpanElement | null>(null)
+  const closeTimerRef = useRef<number | null>(null)
+  const [open, setOpen] = useState(false)
+  const [pos, setPos] = useState<{ top: number; left: number; width: number; place: 'above' | 'below' } | null>(
+    null
+  )
+
+  const computePos = useCallback(() => {
+    const el = anchorRef.current
+    if (!el) return
+
+    const rect = el.getBoundingClientRect()
+    const margin = 12
+    const maxWidth = Math.min(640, Math.max(240, window.innerWidth - margin * 2))
+
+    let left = rect.left
+    if (left + maxWidth > window.innerWidth - margin) {
+      left = window.innerWidth - margin - maxWidth
+    }
+    if (left < margin) left = margin
+
+    // If there isn't enough space below, render above the cell.
+    const estimatedTooltipHeight = 320
+    const place: 'above' | 'below' =
+      rect.bottom + 8 + estimatedTooltipHeight > window.innerHeight - margin ? 'above' : 'below'
+    const top = place === 'below' ? rect.bottom + 8 : rect.top - 8
+
+    setPos({ top, left, width: maxWidth, place })
+  }, [])
+
+  const handleEnter = useCallback(() => {
+    if (!text) return
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+    computePos()
+    setOpen(true)
+  }, [computePos, text])
+
+  const handleLeave = useCallback(() => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current)
+      closeTimerRef.current = null
+    }
+    closeTimerRef.current = window.setTimeout(() => {
+      setOpen(false)
+      closeTimerRef.current = null
+    }, 160)
+  }, [])
+
+  useEffect(() => {
+    if (!open) return
+    const onWindowChange = () => computePos()
+    window.addEventListener('scroll', onWindowChange, true)
+    window.addEventListener('resize', onWindowChange)
+    return () => {
+      window.removeEventListener('scroll', onWindowChange, true)
+      window.removeEventListener('resize', onWindowChange)
+    }
+  }, [open, computePos])
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        className="block max-w-[420px] whitespace-normal break-words text-sm leading-5 text-slate-600 overflow-hidden"
+        style={{
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical'
+        }}
+        onMouseEnter={handleEnter}
+        onMouseLeave={handleLeave}
+        onFocus={handleEnter}
+        onBlur={handleLeave}
+        tabIndex={text ? 0 : -1}
+      >
+        {text || '-'}
+      </span>
+
+      {open && text && pos
+        ? createPortal(
+            <div
+              className="fixed z-[9999] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-700 shadow-lg"
+              style={{
+                top: pos.top,
+                left: pos.left,
+                width: pos.width,
+                transform: pos.place === 'above' ? 'translateY(-100%)' : undefined,
+                maxHeight: 'min(480px, 65vh)',
+                overflow: 'auto',
+                pointerEvents: 'auto'
+              }}
+              role="tooltip"
+              onMouseEnter={handleEnter}
+              onMouseLeave={handleLeave}
+            >
+              <div className="whitespace-pre-wrap break-words">{text}</div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
+  )
 }
 
 export const useOrganizationTableColumns = ({
@@ -97,11 +207,8 @@ export const useOrganizationTableColumns = ({
         sortAccessor: ({ organization }) => organization?.description || '',
         render: ({ organization }) => {
           if (!organization) return null
-          return (
-            <span className="block max-w-[520px] whitespace-normal break-words text-sm leading-5 text-slate-600">
-              {organization.description?.trim() || '-'}
-            </span>
-          )
+          const description = (organization.description || '').trim()
+          return <DescriptionTooltipCell description={description} />
         }
       },
       {

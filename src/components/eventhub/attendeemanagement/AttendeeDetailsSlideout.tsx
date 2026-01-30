@@ -273,17 +273,17 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
           />
         </div>
 
-        {/* Role + Group (same row) */}
+        {/* Designation + Group (same row) */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Role
+              Designation
             </label>
             <input
               type="text"
               value={post}
               onChange={(e) => setPost(e.target.value)}
-              placeholder="Role"
+              placeholder="Designation"
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>

@@ -54,6 +54,33 @@ const App: React.FC = () => {
   const [showPageCreationModal, setShowPageCreationModal] = useState(false)
   const [showLeftSidebar] = useState(true)
   const [showRightSidebar] = useState(true)
+
+  // Global navigation sync:
+  // Many parts of the app call history.pushState/replaceState without dispatching popstate.
+  // Emit a consistent event so route handlers stay in sync without requiring hard refresh.
+  useEffect(() => {
+    const notify = () => window.dispatchEvent(new Event('locationchange'))
+    const originalPush = window.history.pushState
+    const originalReplace = window.history.replaceState
+
+    window.history.pushState = function (...args) {
+      originalPush.apply(this, args as any)
+      notify()
+    }
+    window.history.replaceState = function (...args) {
+      originalReplace.apply(this, args as any)
+      notify()
+    }
+
+    const onPop = () => notify()
+    window.addEventListener('popstate', onPop)
+
+    return () => {
+      window.history.pushState = originalPush
+      window.history.replaceState = originalReplace
+      window.removeEventListener('popstate', onPop)
+    }
+  }, [])
   
   const {
     currentData,
@@ -119,15 +146,12 @@ const App: React.FC = () => {
     setCurrentView('editor')
   }
 
-  // Custom back to event hub handler
-  const handleBackToEventHub = () => {
-    setCurrentView('events')
-  }
-
   // Custom back to dashboard handler
   const handleBackToDashboard = () => {
     setCurrentView('dashboard')
     window.history.pushState({}, '', '/dashboard')
+    // IMPORTANT: pushState does not trigger popstate; keep dashboard route state in sync
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   // Helper function to check if user has an organization
@@ -384,12 +408,11 @@ const App: React.FC = () => {
 
     const checkRoute = () => {
       const path = window.location.pathname
-      
-      // Skip if path hasn't changed
-      if (path === lastCheckedPath) {
-        return
-      }
-      
+
+      // If path hasn't changed, we still need to enforce the correct view.
+      // (Several parts of the app call setCurrentView without updating the URL, which can
+      // leave us in an inconsistent state until a hard refresh.)
+      const pathUnchanged = path === lastCheckedPath
       lastCheckedPath = path
       
       if (path.startsWith('/event/website/editor/')) {
@@ -422,8 +445,8 @@ const App: React.FC = () => {
         if (currentViewRef.current !== 'dashboard') {
           setCurrentView('dashboard')
         }
-      } else if (path === '/dashboard') {
-        // Navigate to Dashboard root
+      } else if (path === '/dashboard' || path.startsWith('/dashboard/')) {
+        // Navigate to Dashboard (including sub-routes like /dashboard/team)
         if (currentViewRef.current !== 'dashboard') {
           setCurrentView('dashboard')
         }
@@ -434,20 +457,24 @@ const App: React.FC = () => {
           setCurrentView('dashboard')
         }
       }
+
+      // If nothing matched and the path didn't change, do nothing else.
+      // (All handled routes above already enforce view consistency.)
+      void pathUnchanged
     }
 
     // Check on mount
     checkRoute()
 
-    // Listen for navigation events
+    // Listen for navigation events (popstate + programmatic pushState/replaceState)
     const handleLocationChange = () => {
       checkRoute()
     }
 
-    window.addEventListener('popstate', handleLocationChange)
+    window.addEventListener('locationchange', handleLocationChange)
 
     return () => {
-      window.removeEventListener('popstate', handleLocationChange)
+      window.removeEventListener('locationchange', handleLocationChange)
     }
   }, [isAuthenticated])
 
@@ -586,13 +613,9 @@ const App: React.FC = () => {
           title="Web Submit Events"
           userAvatarUrl=""
           userEmail={userEmail}
-          onSidebarItemClick={(itemId) => {
-            // Handle navigation to different sections
-            if (itemId === 'events') {
-              setCurrentView('events')
-            }
-            // Add other navigation handlers as needed
-          }}
+          // Dashboard sidebar navigation is handled inside DashboardLayout via /dashboard routes.
+          // Do not switch App-level views here (currentView "events" is the Event Hub view).
+          onSidebarItemClick={() => {}}
           onSearchClick={() => {}}
           onNotificationClick={() => {}}
           onProfileClick={handleProfileClick}

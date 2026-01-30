@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Upload01, Plus, ArrowNarrowLeft } from '@untitled-ui/icons-react'
 import { Button } from '../../ui/untitled'
 import WeekDateSelector from './WeekDateSelector'
@@ -55,6 +55,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   }
   
   const [selectedDate, setSelectedDate] = useState<Date>(getInitialDate)
+  const didNotifyInitialDateRef = useRef(false)
 
   const normalizedRangeStart = useMemo(() => {
     if (!rangeStartDate) return null
@@ -75,9 +76,15 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   useEffect(() => {
     // Initialize date when component mounts or prop changes
     const initialDate = getInitialDate()
-    setSelectedDate(initialDate)
-    onDateChange?.(initialDate)
-  }, [propSelectedDate])
+    setSelectedDate((prev) => (prev.getTime() === initialDate.getTime() ? prev : initialDate))
+
+    // Only notify parent once when parent didn't supply a selected date.
+    // If parent *did* supply a date, calling onDateChange here can cause a render loop.
+    if (!propSelectedDate && !didNotifyInitialDateRef.current) {
+      didNotifyInitialDateRef.current = true
+      onDateChange?.(initialDate)
+    }
+  }, [propSelectedDate, onDateChange])
   
   // Normalize sessions - convert date strings to Date objects if needed
   const gridSessions = useMemo(() => {

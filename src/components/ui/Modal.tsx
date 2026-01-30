@@ -111,6 +111,8 @@ const Modal: React.FC<ModalProps> = ({
     ...contentStyle
   } as React.CSSProperties
 
+  const hasExplicitWidth = typeof width !== 'undefined' || typeof maxWidth !== 'undefined'
+
   return (
     <div
       className="fixed inset-0 flex items-center justify-center overflow-auto bg-black/50 p-0"
@@ -123,7 +125,10 @@ const Modal: React.FC<ModalProps> = ({
       }}
     >
       <div
-        className="relative flex w-full max-w-[90vw] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[90vh]"
+        className={cn(
+          'relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[90vh] max-w-[90vw]',
+          hasExplicitWidth ? 'w-auto' : 'w-full'
+        )}
         style={contentStyleWithVars}
         onClick={(e) => e.stopPropagation()}
       >

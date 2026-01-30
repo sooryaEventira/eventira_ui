@@ -251,6 +251,19 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
               className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
               required
             />
+
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Organization
+            </label>
+            <input
+              type="text"
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              placeholder="Organization"
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -268,30 +281,19 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Role
+                Designation
               </label>
               <input
                 type="text"
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                placeholder="Role"
+                placeholder="Designation"
                 className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Organization
-            </label>
-            <input
-              type="text"
-              value={organization}
-              onChange={(e) => setOrganization(e.target.value)}
-              placeholder="Organization"
-              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
-            />
-          </div>
+
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">

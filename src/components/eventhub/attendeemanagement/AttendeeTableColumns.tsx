@@ -17,24 +17,6 @@ interface AttendeeTableColumnsProps {
   onDeleteAttendee?: (attendeeId: string) => void
 }
 
-const getStatusBadgeVariant = (status: string) => {
-  switch (status) {
-    case 'opened':
-      return 'success' as const
-    case 'loggedin':
-    case 'active':
-      return 'info' as const
-    case 'sent':
-      return 'primary' as const
-    case 'delivered':
-      return 'warning' as const
-    case 'bounced':
-      return 'danger' as const
-    default:
-      return 'neutral' as const
-  }
-}
-
 const getUserGroupVariant = (variant?: string): 'primary' | 'info' | 'muted' => {
   if (variant === 'primary') return 'primary'
   if (variant === 'info') return 'info'
@@ -128,6 +110,21 @@ export const useAttendeeTableColumns = ({
           return (
             <span className="text-sm text-slate-600">
               {attendee.inviteCode || '-'}
+            </span>
+          )
+        }
+      },
+      {
+        id: 'designation',
+        header: 'Designation',
+        sortable: true,
+        sortAccessor: ({ attendee }) => attendee?.post || '',
+        render: ({ attendee }) => {
+          if (!attendee) return null
+          const designation = (attendee.post || '').trim()
+          return (
+            <span className="block max-w-[220px] truncate text-sm text-slate-600" title={designation || undefined}>
+              {designation || '-'}
             </span>
           )
         }

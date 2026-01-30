@@ -1,9 +1,17 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import PublicNavbar, { type PublicNavbarItem } from './PublicNavbar'
+import PublicNavbar from './PublicNavbar'
 import { fetchPublicEvent, type PublicEventData } from '../../services/publicEventService'
 import { fetchPublicWebpages, type PublicWebpageData } from '../../services/publicWebpageService'
 import PublicWebpageRenderer from './PublicWebpageRenderer'
 import { buildPublicThemeVars } from '../../config/publicTheme'
+import type { NavigationItem, NavigationPageItem, PublicNavNode } from '../../types/navigation'
+import {
+  loadNavigationConfigFromStorage,
+  mapToPublicNav,
+  pruneHidden,
+  saveNavigationConfigToStorage,
+  upsertMissingPagesToRoot
+} from '../../utils/navigationTree'
 
 type PublicSection =
   | 'webpage'
@@ -105,8 +113,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventUuid])
 
-  const navbarItems: PublicNavbarItem[] = useMemo(() => {
+  const navbarItems: PublicNavNode[] = useMemo(() => {
     const hiddenKey = `navigation-hidden-${eventUuid}`
+    const treeKey = `navigation-tree-${eventUuid}`
+
     let hiddenIds = new Set<string>()
     try {
       const raw = localStorage.getItem(hiddenKey)
@@ -116,22 +126,59 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       hiddenIds = new Set()
     }
 
-    const SYSTEM_PAGES: PublicNavbarItem[] = [
+    const SYSTEM_PAGES: Array<{ id: string; label: string; path: string }> = [
       { id: 'system:organizations', label: 'Organizations', path: `/events/${eventUuid}/organizations` },
       { id: 'system:speakers', label: 'Speakers', path: `/events/${eventUuid}/speakers` },
       { id: 'system:attendees', label: 'Attendees', path: `/events/${eventUuid}/attendees` },
       { id: 'system:schedule', label: 'Schedule', path: `/events/${eventUuid}/schedule` },
-    ].filter((i) => !hiddenIds.has(i.id || ''))
+    ]
 
-    const dynamic: PublicNavbarItem[] = webpages
-      .map((p) => ({
-        id: String(p.uuid),
-        label: p.name,
-        path: `/events/${eventUuid}/webpages/${p.uuid}`
+    const dynamicPages: Array<{ id: string; label: string; path: string }> = webpages.map((p) => ({
+      id: String(p.uuid),
+      label: p.name,
+      path: `/events/${eventUuid}/webpages/${p.uuid}`
+    }))
+
+    const pagePathById = new Map<string, { label: string; path: string }>([
+      ...SYSTEM_PAGES.map((i) => [i.id, { label: i.label, path: i.path }] as const),
+      ...dynamicPages.map((i) => [i.id, { label: i.label, path: i.path }] as const)
+    ])
+
+    const defaultFlat: NavigationItem[] = [
+      ...SYSTEM_PAGES.map<NavigationPageItem>((p) => ({
+        id: p.id,
+        type: 'page',
+        title: p.label,
+        slug: p.id,
+        pageId: p.id
+      })),
+      ...dynamicPages.map<NavigationPageItem>((p) => ({
+        id: p.id,
+        type: 'page',
+        title: p.label,
+        slug: String(p.label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+        pageId: p.id
       }))
-      .filter((i) => !hiddenIds.has(i.id || ''))
+    ]
 
-    return [...SYSTEM_PAGES, ...dynamic]
+    // Load tree (folder-capable). If missing, migrate to a flat tree.
+    const stored = loadNavigationConfigFromStorage(treeKey)
+    const baseItems = stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat
+
+    // Reconcile: ensure newly created pages appear even if the tree is stale.
+    const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlat.filter((i) => i.type === 'page'))
+
+    // Persist reconciliation so future loads are stable.
+    try {
+      saveNavigationConfigToStorage(treeKey, reconciled)
+    } catch {
+      // ignore (private mode, quota, etc.)
+    }
+
+    // Apply hidden filtering (works for both pages and folders).
+    const visibleTree = pruneHidden(reconciled, hiddenIds)
+
+    return mapToPublicNav(visibleTree, pagePathById)
   }, [eventUuid, webpages])
 
   const current = useMemo(() => getSectionFromPath(eventUuid, activePath), [eventUuid, activePath])

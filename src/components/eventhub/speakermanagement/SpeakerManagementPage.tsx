@@ -465,10 +465,11 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     lastName: string
     email: string
     organization?: string
-    title?: string
+    role?: string
     bio?: string
     group?: string
     avatarUrl?: string
+    customFields?: Array<{ label: string; value: string; hideFromProfile?: boolean }>
   }) => {
     const newSpeaker: Speaker = {
       id: Date.now().toString(),
@@ -479,7 +480,9 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
       avatarUrl: data.avatarUrl,
       status: 'active',
       organization: data.organization,
-      title: data.title,
+      role: data.role,
+      // Keep title in sync for backwards compatibility
+      title: data.role,
       bio: data.bio,
       groups: data.group
         ? [

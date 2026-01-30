@@ -361,6 +361,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     return d
   }, [createdEvent, eventData])
 
+  // Memoize range dates so we don't create new Date instances every render.
+  const rangeStartDate = useMemo(() => parseEventStartDate() || undefined, [parseEventStartDate])
+  const rangeEndDate = useMemo(() => parseEventEndDate() || undefined, [parseEventEndDate])
+
   const [selectedDate, setSelectedDate] = React.useState<Date>(() => {
     const eventStart = parseEventStartDate()
     if (eventStart) return eventStart
@@ -1775,8 +1779,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             onBack={handleBackToTable}
             sessions={activeScheduleId ? savedSchedules.find(s => s.id === activeScheduleId)?.sessions || [] : []}
             selectedDate={selectedDate}
-            rangeStartDate={parseEventStartDate() || undefined}
-            rangeEndDate={parseEventEndDate() || undefined}
+            rangeStartDate={rangeStartDate}
+            rangeEndDate={rangeEndDate}
             onDateChange={(date) => {
               const normalizedDate = new Date(date)
               normalizedDate.setHours(0, 0, 0, 0)

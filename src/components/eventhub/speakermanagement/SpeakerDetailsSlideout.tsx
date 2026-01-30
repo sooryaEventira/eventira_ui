@@ -35,7 +35,8 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
       setLastName(speaker.lastName || nameParts.slice(1).join(' ') || '')
       setEmail(speaker.email || '')
       setOrganization(speaker.organization || '')
-      setTitle(speaker.title || '')
+      // Treat "Designation" as speaker.role (fallback to title for backwards compatibility)
+      setTitle(speaker.role || speaker.title || '')
       setBio(speaker.bio || '')
       setSelectedGroups([...speaker.groups])
     }
@@ -62,6 +63,8 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
       name: `${firstName} ${lastName}`.trim(),
       email,
       organization,
+      // Keep both fields in sync; table uses `role`
+      role: title,
       title,
       bio,
       groups: selectedGroups
@@ -227,17 +230,17 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
           />
         </div>
 
-        {/* Role + Groups (same row) */}
+        {/* Designation + Groups (same row) */}
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-2">
-              Role
+              Designation
             </label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Role"
+              placeholder="Designation"
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>

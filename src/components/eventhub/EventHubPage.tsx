@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback } from 'react'
 import { useEventForm } from '../../contexts/EventFormContext'
 import EventHubNavbar from './EventHubNavbar'
 import EventHubSidebar from './EventHubSidebar'
-import EventHubContent, { defaultCards, ContentCard } from './EventHubContent'
+import { defaultCards, ContentCard } from './EventHubContent'
 import CommunicationPage from './communication/CommunicationPage'
 import ResourceManagementPage from './resourcemanagement/ResourceManagementPage'
 import SchedulePage from './schedulesession/SchedulePage'
@@ -11,6 +11,7 @@ import AttendeeManagementPage from './attendeemanagement/AttendeeManagementPage'
 import SpeakerManagementPage from './speakermanagement/SpeakerManagementPage'
 import OrganizationManagementPage from './organizationmanagement/OrganizationManagementPage'
 import WebsiteSettingsPage from './websitesettings/WebsiteSettingsPage'
+import EventHubOverviewPage from './overview/EventHubOverviewPage'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 
 interface EventHubPageProps {
@@ -110,6 +111,15 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
 
   const renderContent = () => {
     switch (activeSection) {
+      case 'overview':
+        return (
+          <EventHubOverviewPage
+            onNavigateSection={(sectionId) => {
+              setActiveSection(sectionId)
+              window.history.pushState({ section: sectionId }, '', `/event/hub?section=${sectionId}`)
+            }}
+          />
+        )
       case 'communications':
         return (
           <CommunicationPage
