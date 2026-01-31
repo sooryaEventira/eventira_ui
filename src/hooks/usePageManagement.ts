@@ -1074,22 +1074,47 @@ export const usePageManagement = () => {
     const emptyPage1DataStr = localStorage.getItem('create-from-scratch-page1')
     const isPage1 = pageId === 'page1' || filename === 'page1.json' || filename === 'page1'
     
-    if (isCreateFromScratch && isPage1 && emptyPage1DataStr) {
-      try {
-        const emptyPage1Data = JSON.parse(emptyPage1DataStr)
-        logger.debug('loadPage: Loading empty Page1 from create-from-scratch')
-        console.log('📄 Loading empty Page1 from create-from-scratch')
-        
-        setCurrentData(emptyPage1Data)
-        setCurrentPage('page1')
-        setCurrentPageName('Page 1')
-        setShowPageManager(false)
-
-        return
-      } catch (error) {
-        logger.error('loadPage: Error parsing empty page1 data:', error)
-        // Fall through to normal loading
+    // In create-from-scratch mode, Page 1 must always be clean/empty.
+    // Do NOT allow cached `puck-page-page1` to override it on refresh.
+    if (isCreateFromScratch && isPage1) {
+      let emptyPage1Data: any = null
+      if (emptyPage1DataStr) {
+        try {
+          emptyPage1Data = JSON.parse(emptyPage1DataStr)
+        } catch (error) {
+          logger.error('loadPage: Error parsing empty page1 data:', error)
+          emptyPage1Data = null
+        }
       }
+
+      if (!emptyPage1Data) {
+        emptyPage1Data = {
+          content: [],
+          root: { props: { title: 'Page 1', pageTitle: 'Page 1' } },
+          zones: {}
+        }
+      }
+
+      // Keep the scratch page1 seed available for subsequent refreshes.
+      try {
+        localStorage.setItem('create-from-scratch-page1', JSON.stringify(emptyPage1Data))
+      } catch {
+        // ignore
+      }
+
+      // Overwrite the generic cache key so other code paths can't resurrect old data.
+      try {
+        localStorage.setItem('puck-page-page1', JSON.stringify(emptyPage1Data))
+      } catch {
+        // ignore
+      }
+
+      logger.debug('loadPage: Loading clean Page1 for create-from-scratch mode')
+      setCurrentData(emptyPage1Data)
+      setCurrentPage('page1')
+      setCurrentPageName('Page 1')
+      setShowPageManager(false)
+      return
     }
     
     // First, try to find the page in the pages array
@@ -1870,6 +1895,10 @@ export const usePageManagement = () => {
       // If creating from scratch, skip backend page loading and use clean state
       if (isCreateFromScratch) {
         try {
+          // When starting scratch from Event Website, we want a clean single-page editor.
+          // Do NOT rehydrate old scratch pages on refresh (users expect only Page 1).
+          const isEventWebsiteScratch = scratchOrigin === 'event-website'
+
           // Use empty Page1 data from localStorage if available, otherwise use current empty state
           const emptyPage1Data = emptyPage1DataStr ? JSON.parse(emptyPage1DataStr) : {
             content: [],
@@ -1885,7 +1914,11 @@ export const usePageManagement = () => {
           // Hydrate scratch pages from storage if available (prevents resetting to Page 1 / Page 2 after navigation)
           let storedPages: Page[] | null = null
           try {
-            const raw = scratchPagesKey ? localStorage.getItem(scratchPagesKey) : null
+            // In event-website scratch flow, always start clean.
+            if (isEventWebsiteScratch && scratchPagesKey) {
+              localStorage.removeItem(scratchPagesKey)
+            }
+            const raw = !isEventWebsiteScratch && scratchPagesKey ? localStorage.getItem(scratchPagesKey) : null
             if (raw) {
               const parsed = JSON.parse(raw)
               if (Array.isArray(parsed)) storedPages = parsed
@@ -1908,13 +1941,25 @@ export const usePageManagement = () => {
             ]
           }
 
-          const normalizedStored = storedPages
+          const normalizedStored = !isEventWebsiteScratch && storedPages
             ? ensurePage1(
                 storedPages.filter((p: any) => p && typeof p.id === 'string' && typeof p.name === 'string')
               )
             : null
 
           setPages((prev) => {
+            // Event Website scratch should always be a clean single page.
+            if (isEventWebsiteScratch) {
+              return [
+                {
+                  id: 'page1',
+                  name: 'Page 1',
+                  filename: 'page1.json',
+                  lastModified: new Date().toISOString()
+                }
+              ]
+            }
+
             // If we already have more than page1, don't wipe it.
             if (prev.length > 1) return prev
             if (normalizedStored && normalizedStored.length > 0) return normalizedStored
@@ -1939,7 +1984,7 @@ export const usePageManagement = () => {
           try {
             const match = window.location.pathname.match(/\/event\/website\/editor\/([^/?#]+)/)
             const routePageId = match?.[1] ? decodeURIComponent(match[1]) : null
-            if (routePageId && routePageId !== 'page1') {
+            if (routePageId && routePageId !== 'page1' && !isEventWebsiteScratch) {
               if (uuidRegex.test(routePageId)) {
                 // Only attempt backend UUID load if this uuid belongs to the current event sidebar webpages.
                 // This prevents cross-event UUIDs from triggering 404 + toast spam.
@@ -2025,7 +2070,7 @@ export const usePageManagement = () => {
           
           // Clear the flags after using them
           localStorage.removeItem('create-from-scratch')
-          localStorage.removeItem('create-from-scratch-page1')
+          // Keep `create-from-scratch-page1` so a refresh in blank mode stays clean.
           
           logger.debug('initializePage: Initialized clean editor state for create-from-scratch mode')
           return // Exit early - don't load backend pages
@@ -2101,6 +2146,9 @@ export const usePageManagement = () => {
     if (!scratchEventUuid) return
     const scratchOrigin = getScratchOrigin()
     if (!scratchOrigin) return
+    // For Event Website -> Create from scratch, do not persist extra pages.
+    // This flow is intentionally a clean single-page editor.
+    if (scratchOrigin === 'event-website') return
     const scratchPagesKey = `scratch-pages-${scratchEventUuid}-${scratchOrigin}`
     try {
       const minimal = pages.map((p) => ({

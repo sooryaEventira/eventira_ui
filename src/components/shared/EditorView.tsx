@@ -84,15 +84,6 @@ export const EditorView: React.FC<EditorViewProps> = ({
   const [isLoadingSidebarWebpages, setIsLoadingSidebarWebpages] = useState(false)
   const sidebarWebpagesEventUuidRef = useRef<string | null>(null)
   const sidebarWebpagesRequestIdRef = useRef(0)
-
-  const getScratchOrigin = () => {
-    const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
-    if (eventUuid) {
-      const scoped = localStorage.getItem(`create-from-scratch-origin-${eventUuid}`)
-      if (scoped) return scoped
-    }
-    return localStorage.getItem('create-from-scratch-origin')
-  }
   
   // Initially show default COMPONENTS sidebar, canvas, and property sidebar with Page 1
   // Custom sidebar only appears after "Create from scratch" is selected
@@ -236,13 +227,11 @@ export const EditorView: React.FC<EditorViewProps> = ({
   }, [createdEvent?.banner, (eventData as any)?.banner])
 
   // Fetch webpages list for sidebar.
-  // In template mode: always fetch.
-  // In create-from-scratch mode: fetch only when origin is event website (so existing pages are visible).
+  // In template mode: fetch.
+  // In create-from-scratch mode: do NOT fetch (sidebar should show only local scratch pages like page1).
   useEffect(() => {
     const loadSidebarWebpages = async () => {
-      const origin = getScratchOrigin()
-      const shouldFetchInBlank = editorMode === 'blank' && origin === 'event-website'
-      if (editorMode === 'blank' && !shouldFetchInBlank) {
+      if (editorMode === 'blank') {
         setSidebarWebpages([])
         return
       }
@@ -299,12 +288,20 @@ export const EditorView: React.FC<EditorViewProps> = ({
     loadSidebarWebpages()
   }, [createdEvent?.uuid, editorMode])
 
-  // Helper function to format event date
-  const formatEventDate = (startDate?: string): string => {
+  // Helper function to format event date (single date or range)
+  const formatEventDate = (startDate?: string, endDate?: string): string => {
     if (!startDate) return 'Jan 13, 2025'
     try {
-      const date = new Date(startDate)
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      const start = new Date(startDate)
+      if (isNaN(start.getTime())) return 'Jan 13, 2025'
+      const startStr = start.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+      if (!endDate) return startStr
+      const end = new Date(endDate)
+      if (isNaN(end.getTime())) return startStr
+      const endStr = end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+
+      return startStr === endStr ? startStr : `${startStr} - ${endStr}`
     } catch {
       return 'Jan 13, 2025'
     }
@@ -448,43 +445,6 @@ export const EditorView: React.FC<EditorViewProps> = ({
 
   const handleBackButtonClick = () => {
     setShowCustomSidebar(prev => !prev)
-  }
-
-  const handleNavigateToPreview = () => {
-    // First, try to get page ID from URL (most reliable)
-    const path = window.location.pathname
-    let pageId: string | null = null
-    
-    if (path.startsWith('/event/website/editor/')) {
-      // Extract pageId from current editor URL
-      const pageIdMatch = path.match(/\/event\/website\/editor\/(.+)/)
-      pageId = pageIdMatch ? pageIdMatch[1] : null
-    }
-    
-    // Fallback to currentPage prop if URL extraction fails
-    if (!pageId && currentPage) {
-      pageId = currentPage.endsWith('.json') 
-        ? currentPage.replace('.json', '') 
-        : currentPage
-    }
-    
-    // Final fallback
-    if (!pageId) {
-      pageId = 'welcome'
-    }
-    
-    const previewUrl = `/event/website/preview/${pageId}`
-    
-    // Use window.location.href for full navigation to ensure route handlers respond
-    // This will trigger a proper route change and component remount
-    window.location.href = previewUrl
-  }
-
-  const handleBackToTemplateSelection = () => {
-    // Navigate to template selection page
-    // App.tsx will handle switching to dashboard view, then DashboardLayout will show TemplateSelectionPage
-    window.history.pushState({}, '', '/event/create/template')
-    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   const handlePageCreationSelect = (pageType: PageType) => {
@@ -741,74 +701,17 @@ export const EditorView: React.FC<EditorViewProps> = ({
             let pagesForSidebar: Array<{ id: string; name: string }>
             
             if (editorMode === 'blank') {
-              const origin = getScratchOrigin()
-
-              // If scratch flow started from Event Website, show real backend pages + any local (unsaved) pages.
-              if (origin === 'event-website') {
-                const currentEventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
-                pagesForSidebar = sidebarWebpages
-                  // Never show cross-event pages (can happen if cache is stale)
-                  .filter((w) => !currentEventUuid || w.event === currentEventUuid)
-                  .filter((w) => {
-                    const name = String(w.name ?? '').toLowerCase()
-                    return name !== 'welcome'
-                  })
-                  .map(w => ({ id: w.uuid, name: w.name }))
-                // IMPORTANT: do NOT fall back to WebsitePagesContext here (it is stored under a global key and
-                // can contain pages from other events). If backend pages haven't loaded yet, we'll still
-                // show local unsaved pages below.
-
-                // Merge in local pages from usePageManagement (includes newly created unsaved pages)
-                for (const p of pages) {
-                  const pageNameLower = p.name.toLowerCase()
-                  const pageIdLower = p.id.toLowerCase()
+              // Blank/scratch mode: ONLY local scratch pages (no backend webpages).
+              // Keep only local scratch ids: "page1" or "page-<...>"
+              pagesForSidebar = pages
+                .filter((page) => {
+                  const pageNameLower = page.name.toLowerCase()
+                  const pageIdLower = page.id.toLowerCase()
                   const isWelcome = pageNameLower === 'welcome' || pageIdLower === 'welcome'
-                  if (isWelcome) continue
-                  if (!pagesForSidebar.some(x => x.id === p.id)) {
-                    pagesForSidebar.push({ id: p.id, name: p.name })
-                  }
-                }
-
-                // Deduplicate by name (case-insensitive). Prefer backend UUID entries over local scratch ids.
-                const isUuid = (id: string) =>
-                  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)
-                pagesForSidebar = pagesForSidebar.reduce((acc, page) => {
-                  const key = page.name.toLowerCase()
-                  const existingIndex = acc.findIndex(p => p.name.toLowerCase() === key)
-                  if (existingIndex === -1) {
-                    acc.push(page)
-                  } else {
-                    const existing = acc[existingIndex]
-                    const pageIsUuid = isUuid(page.id)
-                    const existingIsUuid = isUuid(existing.id)
-                    const pageIsCurrent = page.id === currentPage
-                    const existingIsCurrent = existing.id === currentPage
-
-                    // Prefer current page; otherwise prefer UUID
-                    if (pageIsCurrent && !existingIsCurrent) {
-                      acc[existingIndex] = page
-                    } else if (!existingIsCurrent && pageIsUuid && !existingIsUuid) {
-                      acc[existingIndex] = page
-                    }
-                  }
-                  return acc
-                }, [] as typeof pagesForSidebar)
-              } else {
-                // TemplateSelection scratch flow: ONLY local scratch pages (no backend pages)
-                pagesForSidebar = pages
-                  .filter(page => {
-                    const pageNameLower = page.name.toLowerCase()
-                    const pageIdLower = page.id.toLowerCase()
-                    const isWelcome = pageNameLower === 'welcome' || pageIdLower === 'welcome'
-                    if (isWelcome) {
-                      console.log('🚫 Filtering out welcome page from sidebar:', page.name, page.id)
-                    }
-                    // Keep only local scratch ids: "page1" or "page-<...>"
-                    const isLocalScratchId = page.id === 'page1' || page.id.startsWith('page-')
-                    return !isWelcome && isLocalScratchId
-                  })
-                  .map(page => ({ id: page.id, name: page.name }))
-              }
+                  const isLocalScratchId = page.id === 'page1' || page.id.startsWith('page-')
+                  return !isWelcome && isLocalScratchId
+                })
+                .map((page) => ({ id: page.id, name: page.name }))
             } else {
               // Template mode: Prefer backend webpages list (accurate for current event)
               pagesForSidebar = sidebarWebpages.map(w => ({
@@ -1212,6 +1115,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
                 onPublish(dataToPublish)
               }}
               showPreview={showPreview}
+              pageTitle={currentPageName}
               onBack={handleBackButtonClick}
             />
           </div>
@@ -1257,8 +1161,9 @@ const PuckHeaderButtons: React.FC<{
   onPreviewToggle: () => void
   onPublish: () => void
   showPreview: boolean
+  pageTitle: string
   onBack?: () => void
-}> = ({ onPreviewToggle, onPublish, showPreview, onBack }) => {
+}> = ({ onPreviewToggle, onPublish, showPreview, pageTitle, onBack }) => {
   useEffect(() => {
     let isUpdating = false
     let lastUpdateTime = 0
@@ -1303,6 +1208,52 @@ const PuckHeaderButtons: React.FC<{
       }
 
       if (!header) return
+
+      // Always keep the header title in sync with the current page name
+      const syncHeaderTitle = () => {
+        const nextTitle = (pageTitle || '').trim() || 'Page 1'
+        const headerInner = header.querySelector('[class*="PuckHeader-inner"]') as HTMLElement | null
+        const scope: ParentNode = headerInner || header
+
+        // Prefer an existing title node if present
+        const existingTitle =
+          (scope.querySelector('[class*="PuckHeader-title"]') as HTMLElement | null) ||
+          (scope.querySelector('[class*="Header-title"]') as HTMLElement | null) ||
+          (scope.querySelector('[data-custom-page-title]') as HTMLElement | null)
+
+        if (existingTitle) {
+          if ((existingTitle.textContent || '').trim() !== nextTitle) {
+            existingTitle.textContent = nextTitle
+          }
+          return
+        }
+
+        // Fallback: inject our own title element once
+        if (headerInner && !headerInner.querySelector('[data-custom-page-title]')) {
+          const titleEl = document.createElement('div')
+          titleEl.setAttribute('data-custom-page-title', 'true')
+          titleEl.textContent = nextTitle
+          titleEl.style.cssText = `
+            flex: 1;
+            text-align: center;
+            font-weight: 600;
+            color: #111827;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 0 12px;
+          `
+          // Insert near the middle: after first child if possible
+          const first = headerInner.firstChild
+          if (first && first.nextSibling) {
+            headerInner.insertBefore(titleEl, first.nextSibling)
+          } else {
+            headerInner.appendChild(titleEl)
+          }
+        }
+      }
+
+      syncHeaderTitle()
 
       const existingLeftContainer = header.querySelector('[data-puck-header-left]')
       const existingPreviewBtn = header.querySelector('[data-custom-preview-button]') as HTMLElement
@@ -1413,8 +1364,8 @@ const PuckHeaderButtons: React.FC<{
         
         const backButton = document.createElement('button')
         backButton.setAttribute('data-custom-back-button', 'true')
-        backButton.setAttribute('title', 'Back')
-        backButton.setAttribute('aria-label', 'Back')
+        backButton.setAttribute('title', 'Edit components')
+        backButton.setAttribute('aria-label', 'Edit components')
         backButton.style.cssText = `
           background: none;
           border: none;
@@ -1438,7 +1389,9 @@ const PuckHeaderButtons: React.FC<{
         backIcon.setAttribute('stroke-width', '2')
         backIcon.setAttribute('stroke-linecap', 'round')
         backIcon.setAttribute('stroke-linejoin', 'round')
-        backIcon.innerHTML = '<path d="M19 12H5M12 19l-7-7 7-7"/>'
+        // Pencil / edit icon (no underline)
+        backIcon.innerHTML =
+          '<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/><path d="m15 5 3 3"/>'
         backButton.appendChild(backIcon)
         
         backButton.addEventListener('click', (e) => {
@@ -2089,7 +2042,7 @@ const PuckHeaderButtons: React.FC<{
         existingButtons.remove()
       }
     }
-   }, [onPreviewToggle, onPublish, showPreview, onBack])
+   }, [onPreviewToggle, onPublish, showPreview, pageTitle, onBack])
 
   return null
 }

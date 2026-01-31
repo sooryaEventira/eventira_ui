@@ -118,6 +118,7 @@ export interface HeroSectionProps {
   startDate?: string
   endDate?: string
   buttons?: HeroButton[]
+  showContent?: boolean
   backgroundColor?: string
   textColor?: string
   backgroundImage?: string

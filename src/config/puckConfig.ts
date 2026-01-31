@@ -807,6 +807,14 @@ export const config = {
     HeroSection: {
       label: "🪟 HeroSection",
       fields: {
+        showContent: {
+          type: 'radio' as const,
+          label: 'Show content',
+          options: [
+            { label: 'Yes', value: true },
+            { label: 'No', value: false }
+          ]
+        },
         title: { 
           type: 'text' as const,
           label: 'Event Title',
@@ -914,6 +922,7 @@ export const config = {
         }
       },
       defaultProps: {
+        showContent: true,
         title: 'Event Title',
         subtitle: 'Location',
         startDate: '',

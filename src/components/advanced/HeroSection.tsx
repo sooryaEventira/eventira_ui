@@ -19,6 +19,7 @@ const HeroSection = ({
   backgroundColor = '#1a1a1a', 
   textColor = '#FFFFFF',
   backgroundImage = '',
+  showContent = true,
   height = '500px',
   alignment = 'center',
   overlayOpacity = 0.4,
@@ -216,6 +217,18 @@ const HeroSection = ({
 
   const heroClassName = 'w-full flex items-center m-0 relative overflow-hidden block'
 
+  const toBoolean = (value: unknown, fallback: boolean) => {
+    if (typeof value === 'boolean') return value
+    if (typeof value === 'string') {
+      const v = value.trim().toLowerCase()
+      if (v === 'true') return true
+      if (v === 'false') return false
+    }
+    return fallback
+  }
+
+  const shouldShowContent = toBoolean(showContent, true)
+
   const overlayStyle: React.CSSProperties = {
     backgroundColor: `rgba(0, 0, 0, ${overlayOpacity})`
   }
@@ -315,52 +328,56 @@ const HeroSection = ({
         />
       )}
       {/* Overlay for text readability */}
-      {currentBackgroundImage && <div style={overlayStyle} className="absolute inset-0 z-[1]" />}
+      {currentBackgroundImage && shouldShowContent && (
+        <div style={overlayStyle} className="absolute inset-0 z-[1]" />
+      )}
       
-      <div 
-        style={contentStyle}
-        className="z-[2] relative w-full"
-      >
-        <h1 
-          className="m-0 mb-4 text-[clamp(1.75rem,4vw,3.5rem)] font-bold leading-tight text-white drop-shadow-[2px_2px_4px_rgba(0,0,0,0.5)]"
+      {shouldShowContent && (
+        <div
+          style={contentStyle}
+          className="z-[2] relative w-full"
         >
-          {title}
-        </h1>
-        {subtitleText && (
-          <p 
-            className="m-0 mb-5 text-[clamp(0.875rem,2vw,1.25rem)] opacity-95 text-white drop-shadow-[1px_1px_2px_rgba(0,0,0,0.5)] leading-snug"
+          <h1
+            className="m-0 mb-4 text-[clamp(1.75rem,4vw,3.5rem)] font-bold leading-tight text-white drop-shadow-[2px_2px_4px_rgba(0,0,0,0.5)]"
           >
-            {subtitleText}
-          </p>
-        )}
-        {buttons && buttons.length > 0 && (
-          <div 
-            className="mt-[clamp(20px,4vw,30px)] flex flex-wrap"
-            style={{ 
-              gap: buttonSpacing,
-              justifyContent: alignment === 'left' ? 'flex-start' : alignment === 'right' ? 'flex-end' : 'center'
-            }}
-          >
-            {buttons.map((button, index) => (
-              <a
-                key={index}
-                ref={(el) => {
-                  buttonRefs.current[index] = el
-                }}
-                href={button.link || '#'}
-                style={getButtonStyle(button)}
-                className="rounded-lg cursor-pointer font-bold no-underline inline-block transition-all duration-300 uppercase tracking-wider"
-                data-original-color={button.textColor}
-                onMouseEnter={handleButtonHover}
-                onMouseLeave={handleButtonLeave}
-                onClick={(e) => handleButtonClick(e, button)}
-              >
-                {button.text}
-              </a>
-            ))}
-          </div>
-        )}
-      </div>
+            {title}
+          </h1>
+          {subtitleText && (
+            <p
+              className="m-0 mb-5 text-[clamp(0.875rem,2vw,1.25rem)] opacity-95 text-white drop-shadow-[1px_1px_2px_rgba(0,0,0,0.5)] leading-snug"
+            >
+              {subtitleText}
+            </p>
+          )}
+          {buttons && buttons.length > 0 && (
+            <div
+              className="mt-[clamp(20px,4vw,30px)] flex flex-wrap"
+              style={{
+                gap: buttonSpacing,
+                justifyContent: alignment === 'left' ? 'flex-start' : alignment === 'right' ? 'flex-end' : 'center'
+              }}
+            >
+              {buttons.map((button, index) => (
+                <a
+                  key={index}
+                  ref={(el) => {
+                    buttonRefs.current[index] = el
+                  }}
+                  href={button.link || '#'}
+                  style={getButtonStyle(button)}
+                  className="rounded-lg cursor-pointer font-bold no-underline inline-block transition-all duration-300 uppercase tracking-wider"
+                  data-original-color={button.textColor}
+                  onMouseEnter={handleButtonHover}
+                  onMouseLeave={handleButtonLeave}
+                  onClick={(e) => handleButtonClick(e, button)}
+                >
+                  {button.text}
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
