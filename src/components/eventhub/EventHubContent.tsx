@@ -78,6 +78,14 @@ export const defaultCards: ContentCard[] = [
     ]
   },
   {
+    id: 'registration-form',
+    title: 'Registration form',
+    icon: <Folder className="h-5 w-5" aria-hidden="true" />,
+    items: [
+      { label: 'Configure and preview the registration form used for event signups.' }
+    ]
+  },
+  {
     id: 'analytics',
     title: 'Analytics',
     icon: <BarChart07 className="h-5 w-5" aria-hidden="true" />,

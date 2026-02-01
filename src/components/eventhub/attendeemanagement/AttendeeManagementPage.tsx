@@ -15,6 +15,11 @@ import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import attendeeSpeakerTemplate from '../../../assets/excel/Attendee Speaker template.xlsx?url'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
+import { listBuiltGroupIds } from '../../../utils/groupDirectoryPages'
+import {
+  ensureGroupDirectoryWebpage,
+  removeGroupDirectoryWebpageForGroup
+} from '../../../services/groupDirectoryPageService'
 
 interface AttendeeManagementPageProps {
   eventName?: string
@@ -103,6 +108,17 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   const [selectedAttendee, setSelectedAttendee] = useState<Attendee | null>(null)
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false)
   const [isLoadingGroups, setIsLoadingGroups] = useState(false)
+  const [builtGroupIds, setBuiltGroupIds] = useState<Set<string>>(new Set())
+
+  const eventUuid = createdEvent?.uuid || ''
+
+  useEffect(() => {
+    if (!eventUuid) {
+      setBuiltGroupIds(new Set())
+      return
+    }
+    setBuiltGroupIds(listBuiltGroupIds(eventUuid))
+  }, [eventUuid])
 
   // Persist attendees for public pages (no new API on public site)
   useEffect(() => {
@@ -345,6 +361,32 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     setGroups((prev) => prev.filter((g) => g.id !== groupId))
   }
 
+  const handleToggleBuildPage = async (
+    group: { id: string; name: string },
+    checked: boolean
+  ) => {
+    if (!eventUuid) return
+    try {
+      if (checked) {
+        await ensureGroupDirectoryWebpage(eventUuid, group.id, group.name)
+        setBuiltGroupIds((prev) => {
+          const next = new Set(prev)
+          next.add(group.id)
+          return next
+        })
+      } else {
+        await removeGroupDirectoryWebpageForGroup(eventUuid, group.id)
+        setBuiltGroupIds((prev) => {
+          const next = new Set(prev)
+          next.delete(group.id)
+          return next
+        })
+      }
+    } catch {
+      // Toasts handled by service layer; keep UI stable
+    }
+  }
+
   const handleEditCustomField = (customFieldId: string) => {
     console.log('Edit custom field:', customFieldId)
     // TODO: Implement edit custom field functionality
@@ -402,6 +444,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onCreateGroup={handleCreateGroup}
             onEditGroup={handleEditGroup}
             onDeleteGroup={handleDeleteGroup}
+            builtGroupIds={builtGroupIds}
+            onToggleBuildPage={handleToggleBuildPage}
             onFilter={handleFilter}
             onTabChange={setActiveTab}
             isLoading={isLoadingGroups}

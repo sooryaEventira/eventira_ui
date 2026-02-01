@@ -1,13 +1,17 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { SearchLg, FilterLines, Upload01 } from '@untitled-ui/icons-react'
+import { Upload01 } from '@untitled-ui/icons-react'
 import { DividerLineTable, type DividerLineTableSortDescriptor, Button } from '../../ui/untitled'
-import { TablePagination } from '../../ui'
+import { TablePagination, useTableHeader } from '../../ui'
 import type { Organization, OrganizationTableRowData } from './organizationTypes'
 import { useOrganizationTableColumns } from './OrganizationTableColumns'
+
+export type OrganizationManagementTab = 'organizations' | 'groups'
 
 interface OrganizationsTableProps {
   organizations: Organization[]
   isLoading?: boolean
+  activeTab: OrganizationManagementTab
+  onTabChange: (tab: OrganizationManagementTab) => void
   onUpload?: () => void
   onCreateOrganization?: () => void
   onEditOrganization?: (organizationId: string) => void
@@ -17,6 +21,8 @@ interface OrganizationsTableProps {
 const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
   organizations,
   isLoading = false,
+  activeTab,
+  onTabChange,
   onUpload,
   onCreateOrganization,
   onEditOrganization,
@@ -119,6 +125,26 @@ const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
     setCurrentPage(1)
   }, [searchQuery])
 
+  const tableHeader = useTableHeader({
+    tabs: [
+      { id: 'organizations', label: 'Organizations' },
+      { id: 'groups', label: 'Groups' }
+    ],
+    activeTabId: activeTab,
+    searchQuery,
+    searchPlaceholder: 'Search organizations',
+    onTabChange: (tabId) => onTabChange(tabId as OrganizationManagementTab),
+    onSearchChange: setSearchQuery,
+    showFilter: true,
+    onFilterClick: () => {
+      // UI only for now
+      console.log('Organization filter clicked')
+    },
+    filterLabel: 'Filter organizations',
+    customActions: undefined
+  })
+
+  // Loading state - must be after hooks to keep hook order stable
   if (isLoading) {
     return (
       <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
@@ -134,42 +160,6 @@ const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
       </div>
     )
   }
-
-  const headerActions = (
-    <div className="flex w-full flex-row items-center gap-2 md:w-auto md:gap-4">
-      <div className="flex flex-1 md:flex-none w-full md:w-auto max-w-2xl border border-slate-200 rounded-md overflow-hidden">
-        <input
-          type="search"
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          placeholder="Search organizations"
-          className="w-full md:w-[350px] px-3 py-2 text-sm text-slate-600 focus:outline-none min-w-0"
-          aria-label="Search organizations"
-        />
-        <button
-          type="button"
-          className="inline-flex h-full -mr-1 items-center justify-center bg-primary px-3 py-2.5 text-white transition 
-            hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label="Search"
-        >
-          <SearchLg className="h-4 w-4" strokeWidth={2} />
-        </button>
-      </div>
-      <button
-        type="button"
-        className="inline-flex shrink-0 h-10 w-10 items-center justify-center rounded-md border border-slate-200 
-          bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none 
-          focus-visible:ring-2 focus-visible:ring-primary/40"
-        aria-label="Filter organizations"
-        onClick={() => {
-          // UI only for now
-          console.log('Organization filter clicked')
-        }}
-      >
-        <FilterLines className="h-4 w-4" strokeWidth={2} />
-      </button>
-    </div>
-  )
 
   return (
     <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
@@ -195,7 +185,8 @@ const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
       </div>
 
       <DividerLineTable
-        headerActions={headerActions}
+        headerLeading={tableHeader.leading}
+        headerActions={tableHeader.actions}
         data={rows}
         columns={columns}
         getRowKey={(row: OrganizationTableRowData) => row.organization?.id || String(row.index)}

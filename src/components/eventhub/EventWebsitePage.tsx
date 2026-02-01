@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { useWebsitePages } from '../../contexts/WebsitePagesContext'
 import EventHubNavbar from './EventHubNavbar'
@@ -17,6 +17,7 @@ import {
   saveNavigationConfigToStorage,
   upsertMissingPagesToRoot
 } from '../../utils/navigationTree'
+import { NAV_ICON_KEYS, renderNavIcon } from '../../utils/navIcons'
 import { 
   InfoCircle, 
   CodeBrowser, 
@@ -26,7 +27,8 @@ import {
   EyeOff,
   Edit05,
   Trash01,
-  Plus
+  Plus,
+  FileSearch02
 } from '@untitled-ui/icons-react'
 
 interface EventWebsitePageProps {
@@ -56,10 +58,43 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [webpages, setWebpages] = useState<WebpageData[]>([])
   const [isLoadingWebpages, setIsLoadingWebpages] = useState(false)
   const [navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
+  const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
+  const [iconPickerQuery, setIconPickerQuery] = useState('')
+  const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
+  const iconPopoverRef = useRef<HTMLDivElement | null>(null)
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
   const [draggingNavId, setDraggingNavId] = useState<string | null>(null)
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
   const [navTreeRefresh, setNavTreeRefresh] = useState(0)
+
+  const closeIconPicker = useCallback(() => {
+    setIconPickerForNavId(null)
+    setIconPickerQuery('')
+    setIconPickerAnchor(null)
+  }, [])
+
+  // Close icon popover on outside click / Esc
+  useEffect(() => {
+    if (!iconPickerForNavId) return
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeIconPicker()
+    }
+
+    const onMouseDown = (e: MouseEvent) => {
+      const target = e.target as Node | null
+      if (!target) return
+      if (iconPopoverRef.current && iconPopoverRef.current.contains(target)) return
+      closeIconPicker()
+    }
+
+    window.addEventListener('keydown', onKeyDown)
+    window.addEventListener('mousedown', onMouseDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+      window.removeEventListener('mousedown', onMouseDown)
+    }
+  }, [iconPickerForNavId, closeIconPicker])
 
   const eventUuidForNavigation = useMemo(
     () => createdEvent?.uuid ?? localStorage.getItem('currentEventUuid') ?? '',
@@ -529,6 +564,129 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
     const activeId = navigationPreviewActive ?? visibleFlat[0]?.item?.id ?? null
 
+    const setNavItemIcon = (targetId: string, iconKey?: string) => {
+      if (!eventUuid) return
+      const treeKey = getNavigationTreeStorageKey(eventUuid)
+      const stored = loadNavigationConfigFromStorage(treeKey)
+      const current =
+        stored?.items && Array.isArray(stored.items)
+          ? (stored.items as NavigationItem[])
+          : items
+
+      const walk = (list: NavigationItem[]): NavigationItem[] =>
+        list.map((it) => {
+          if (isFolder(it)) {
+            return { ...it, children: walk(it.children || []) }
+          }
+          if (it.id !== targetId) return it
+          return { ...it, iconKey: iconKey || undefined }
+        })
+
+      const next = walk(current)
+      try {
+        saveNavigationConfigToStorage(treeKey, next)
+      } catch {
+        // ignore
+      }
+      setNavTreeRefresh((x) => x + 1)
+    }
+
+    const findNavItemById = (list: NavigationItem[], id: string): NavigationItem | null => {
+      for (const it of list) {
+        if (it.id === id) return it
+        if (isFolder(it)) {
+          const nested = findNavItemById(it.children || [], id)
+          if (nested) return nested
+        }
+      }
+      return null
+    }
+
+    const removeNavItemById = (
+      list: NavigationItem[],
+      id: string
+    ): { item: NavigationItem | null; next: NavigationItem[] } => {
+      let found: NavigationItem | null = null
+      const next: NavigationItem[] = []
+      for (const it of list) {
+        if (it.id === id) {
+          found = it
+          continue
+        }
+        if (isFolder(it)) {
+          const res = removeNavItemById(it.children || [], id)
+          if (res.item) {
+            found = res.item
+            next.push({ ...it, children: res.next })
+          } else {
+            next.push(it)
+          }
+        } else {
+          next.push(it)
+        }
+      }
+      return { item: found, next }
+    }
+
+    const insertNavItemIntoFolder = (
+      list: NavigationItem[],
+      folderId: string,
+      toInsert: NavigationItem
+    ): { inserted: boolean; next: NavigationItem[] } => {
+      let inserted = false
+      const next = list.map((it) => {
+        if (isFolder(it)) {
+          if (it.id === folderId) {
+            inserted = true
+            return { ...it, children: [...(it.children || []), toInsert] }
+          }
+          const res = insertNavItemIntoFolder(it.children || [], folderId, toInsert)
+          if (res.inserted) {
+            inserted = true
+            return { ...it, children: res.next }
+          }
+        }
+        return it
+      })
+      return { inserted, next }
+    }
+
+    const moveNavPageIntoFolder = (dragId: string, folderId: string) => {
+      if (!eventUuid) return
+      if (!dragId || !folderId || dragId === folderId) return
+
+      const treeKey = getNavigationTreeStorageKey(eventUuid)
+      const stored = loadNavigationConfigFromStorage(treeKey)
+      const current =
+        stored?.items && Array.isArray(stored.items)
+          ? (stored.items as NavigationItem[])
+          : items
+
+      const draggedItem = findNavItemById(current, dragId)
+      if (!draggedItem || !isPage(draggedItem)) return
+
+      const { item: removed, next: removedTree } = removeNavItemById(current, dragId)
+      if (!removed) return
+
+      const insertedRes = insertNavItemIntoFolder(removedTree, folderId, removed)
+      if (!insertedRes.inserted) return
+
+      try {
+        saveNavigationConfigToStorage(treeKey, insertedRes.next)
+      } catch {
+        // ignore
+      }
+      setNavTreeRefresh((x) => x + 1)
+    }
+
+    const filteredIconKeys = (() => {
+      const q = iconPickerQuery.trim().toLowerCase()
+      if (!q) return NAV_ICON_KEYS
+      return NAV_ICON_KEYS.filter((k) => k.toLowerCase().includes(q))
+    })()
+
+    const limitedIconKeys = filteredIconKeys.slice(0, 180)
+
     return (
       <div className="flex flex-col gap-6 min-h-[520px]">
         {/* List of menu items (webpages) that will appear in published navbar */}
@@ -555,6 +713,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                 const isWebpage = page && !isSystemPage
                 const isWelcome = isWebpage && String(item.title || '').toLowerCase() === 'welcome'
                 const isHidden = hiddenNavIds.has(item.id)
+                const currentIcon = page ? (item as any).iconKey : undefined
                 const publicUrl =
                   !eventUuid || !page
                     ? ''
@@ -573,6 +732,13 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                   <div
                     key={item.id}
                     onDragOver={(e) => {
+                      // Allow dropping pages onto folders (any depth).
+                      if (folder) {
+                        e.preventDefault()
+                        if (dragOverNavId !== item.id) setDragOverNavId(item.id)
+                        return
+                      }
+                      // Keep root reordering behavior.
                       if (depth !== 0) return
                       e.preventDefault()
                       if (dragOverNavId !== item.id) setDragOverNavId(item.id)
@@ -581,6 +747,16 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                       setDragOverNavId((prev) => (prev === item.id ? null : prev))
                     }}
                     onDrop={(e) => {
+                      // Dropping a PAGE onto a FOLDER moves the page into that folder.
+                      if (folder) {
+                        e.preventDefault()
+                        if (draggingNavId) moveNavPageIntoFolder(draggingNavId, item.id)
+                        setDraggingNavId(null)
+                        setDragOverNavId(null)
+                        return
+                      }
+
+                      // Otherwise, only support root reordering (existing behavior).
                       if (depth !== 0) return
                       e.preventDefault()
                       if (draggingNavId) moveNavigationTreeItem(draggingNavId, item.id)
@@ -593,38 +769,75 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                     ].join(' ')}
                   >
                     <div className="flex items-center gap-3 min-w-0" style={{ paddingLeft: depth * 16 }}>
-                      {depth === 0 ? (
-                        <span
-                          className="text-slate-400 cursor-grab select-none"
-                          aria-hidden="true"
-                          draggable
-                          onDragStart={(e) => {
-                            setDraggingNavId(item.id)
-                            try {
-                              e.dataTransfer.effectAllowed = 'move'
-                              e.dataTransfer.setData('text/plain', item.id)
-                            } catch {
-                              // ignore
-                            }
-                          }}
-                          onDragEnd={() => {
-                            setDraggingNavId(null)
-                            setDragOverNavId(null)
-                          }}
-                        >
-                          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
-                          </svg>
+                      <span
+                        className="text-slate-400 cursor-grab select-none"
+                        aria-hidden="true"
+                        draggable
+                        onDragStart={(e) => {
+                          setDraggingNavId(item.id)
+                          try {
+                            e.dataTransfer.effectAllowed = 'move'
+                            e.dataTransfer.setData('text/plain', item.id)
+                          } catch {
+                            // ignore
+                          }
+                        }}
+                        onDragEnd={() => {
+                          setDraggingNavId(null)
+                          setDragOverNavId(null)
+                        }}
+                      >
+                        <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
+                        </svg>
+                      </span>
+                      {page ? (
+                        <span className={`shrink-0 ${isHidden ? 'text-slate-300' : 'text-slate-500'}`} aria-hidden="true">
+                          {renderNavIcon(currentIcon, 'h-4 w-4')}
                         </span>
-                      ) : (
-                        <span className="w-4" aria-hidden="true" />
-                      )}
+                      ) : null}
                       <span className={`text-sm font-medium capitalize truncate ${isHidden ? 'text-slate-400' : 'text-slate-900'}`}>
                         {folder ? item.title : item.title}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-1">
+                      {page ? (
+                        <>
+                          <Button
+                            variant="tertiary"
+                            size="sm"
+                            onClick={(e) => {
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                              const popoverWidth = 380
+                              const margin = 12
+                              const left = Math.min(
+                                Math.max(rect.left, margin),
+                                window.innerWidth - popoverWidth - margin
+                              )
+                              const top = Math.min(rect.bottom + 8, window.innerHeight - 420)
+                              setIconPickerAnchor({ top, left, width: popoverWidth })
+                              setIconPickerForNavId(item.id)
+                              setIconPickerQuery('')
+                            }}
+                            className="px-2"
+                            iconLeading={renderNavIcon(currentIcon, 'h-4 w-4')}
+                          >
+                            {currentIcon ? 'Change icon' : 'Add icon'}
+                          </Button>
+                          {currentIcon ? (
+                            <Button
+                              variant="tertiary"
+                              size="sm"
+                              onClick={() => setNavItemIcon(item.id, undefined)}
+                              className="px-2 text-slate-400 hover:text-red-600"
+                              aria-label="Remove icon"
+                            >
+                              Remove
+                            </Button>
+                          ) : null}
+                        </>
+                      ) : null}
                       <Button
                         variant="tertiary"
                         size="sm"
@@ -658,6 +871,92 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           </div>
         </div>
 
+        {iconPickerForNavId && iconPickerAnchor ? (
+          <div
+            className="fixed inset-0 z-[10000]"
+            aria-hidden="true"
+          >
+            <div
+              ref={iconPopoverRef}
+              className="fixed rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+              style={{
+                top: iconPickerAnchor.top,
+                left: iconPickerAnchor.left,
+                width: iconPickerAnchor.width,
+                maxHeight: 420
+              }}
+              role="dialog"
+              aria-label="Choose an icon"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-sm font-semibold text-slate-900">Choose an icon</div>
+                <button
+                  type="button"
+                  onClick={closeIconPicker}
+                  className="rounded-md px-2 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                >
+                  Close
+                </button>
+              </div>
+
+              <div className="mt-2">
+                <input
+                  value={iconPickerQuery}
+                  onChange={(e) => setIconPickerQuery(e.target.value)}
+                  placeholder="Search icons…"
+                  className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  autoFocus
+                />
+              </div>
+
+              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
+                <span>
+                  {limitedIconKeys.length} results
+                  {filteredIconKeys.length > limitedIconKeys.length ? ' (refine search)' : ''}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNavItemIcon(iconPickerForNavId, undefined)
+                    closeIconPicker()
+                  }}
+                  className="rounded-md px-2 py-1 font-semibold text-slate-500 hover:bg-slate-100 hover:text-red-600"
+                >
+                  Remove
+                </button>
+              </div>
+
+              <div className="mt-2 overflow-auto pr-1" style={{ maxHeight: 320 }}>
+                <div className="grid grid-cols-4 gap-2">
+                  {limitedIconKeys.map((key) => {
+                    const found = flat.find((x) => x.item.id === iconPickerForNavId)
+                    const isSelected =
+                      isPage(found?.item as any) && (found?.item as any)?.iconKey === key
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setNavItemIcon(iconPickerForNavId, key)
+                          closeIconPicker()
+                        }}
+                        className={[
+                          'flex flex-col items-center justify-center gap-1 rounded-lg border p-2 transition-colors',
+                          isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 hover:bg-slate-50'
+                        ].join(' ')}
+                        title={key}
+                      >
+                        <span className="text-slate-700">{renderNavIcon(key, 'h-5 w-5')}</span>
+                        <span className="w-full truncate text-[10px] text-slate-600">{key}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {/* Demo navbar preview */}
         <div className="space-y-2 mt-auto">
           <div className="text-sm font-semibold text-slate-900">Preview</div>
@@ -669,6 +968,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                 visibleFlat.map(({ item }) => {
                   const label = isFolder(item) ? item.title : item.title
                   const isActive = item.id === activeId
+                  const iconKey = isPage(item) ? (item as any).iconKey : undefined
                   return (
                     <button
                       key={item.id}
@@ -680,7 +980,10 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                           : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                       }`}
                     >
-                      {label}
+                      <span className="inline-flex items-center gap-2">
+                        {renderNavIcon(iconKey, 'h-4 w-4')}
+                        <span>{label}</span>
+                      </span>
                     </button>
                   )
                 })
@@ -998,7 +1301,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                             onClick={() => handlePageAction(webpage.uuid, 'view')}
                             className="p-2 text-slate-400 hover:text-slate-600"
                             aria-label="View"
-                            iconLeading={<Eye className="h-4 w-4" />}
+                            iconLeading={<FileSearch02 className="h-4 w-4" />}
                           />
                           <Button
                             variant="tertiary"
@@ -1088,7 +1391,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
   // Render full page with navbar and sidebar
   return (
-    <div className="h-screen overflow-hidden bg-white">
+    <div className="h-screen bg-white">
       {/* Navbar */}
       <EventHubNavbar
         key={createdEvent?.uuid || 'no-event'} // Force re-render when event changes
@@ -1109,128 +1412,130 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       />
 
       {/* Main Content */}
-      <div className="flex-1 p-8 bg-white overflow-x-auto overflow-y-auto ml-[250px] mt-16 min-w-0">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 w-full">
-          <h1 className="text-[26px] font-bold text-primary-dark">Event Website</h1>
-          {renderHeaderButtons()}
-        </div>
-
-        {/* Tabs */}
-        <div className="flex items-center justify-between mb-6 border-b border-slate-200">
-          <div className="flex gap-6">
-            <Button
-              variant="tertiary"
-              size="sm"
-              onClick={() => setActiveSubItem('website-pages')}
-              className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                activeSubItem === 'website-pages'
-                  ? 'text-primary border-b-primary'
-                  : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-              }`}
-            >
-              Website pages
-            </Button>
-            <Button
-              variant="tertiary"
-              size="sm"
-              onClick={() => setActiveSubItem('website-header')}
-              className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                activeSubItem === 'website-header'
-                  ? 'text-primary border-b-primary'
-                  : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-              }`}
-            >
-              Navigation
-            </Button>
+      <main className="fixed left-0 right-0 top-16 bottom-0 overflow-y-auto overflow-x-hidden bg-white md:left-[250px]">
+        <div className="min-w-0 p-4 sm:p-6 lg:p-8">
+          {/* Header */}
+          <div className="flex flex-col gap-4 mb-6 w-full sm:flex-row sm:items-center sm:justify-between">
+            <h1 className="text-[26px] font-bold text-primary-dark">Event Website</h1>
+            {renderHeaderButtons()}
           </div>
-          <Button
-            variant="primary"
-            size="md"
-            onClick={
-              activeSubItem === 'website-header'
-                ? () => setShowCreateNavFolderModal(true)
-                : handleNewPage
-            }
-            iconLeading={<Plus className="h-4 w-4" />}
-          >
-            {activeSubItem === 'website-header' ? 'New folder' : 'New page'}
-          </Button>
-        </div>
 
-        {/* Content based on active tab */}
-        {activeSubItem === 'website-pages' && (
-          <div>
-            {/* Pages List */}
-            <div className="space-y-0 border border-slate-200 rounded-lg bg-white">
-              {isLoadingWebpages ? (
-                <div className="flex items-center justify-center py-8 text-slate-500">
-                  <p>Loading webpages...</p>
-                </div>
-              ) : webpages.length === 0 ? (
-                <div className="flex items-center justify-center py-8 text-slate-500">
-                  <p>No pages yet. Click "+ New Page" to create one.</p>
-                </div>
-              ) : (
-                webpages.map((webpage) => {
-                  const isFirstPage = webpage.name.toLowerCase() === 'welcome'
-                  return (
-                    <div
-                      key={webpage.uuid}
-                      className="flex items-center justify-between py-2 px-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
-                    >
-                      <span className="text-sm font-medium text-slate-900 capitalize">
-                        {webpage.name}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="tertiary"
-                          size="sm"
-                          onClick={() => handlePageAction(webpage.uuid, 'view')}
-                          className="p-2 text-slate-400 hover:text-slate-600"
-                          aria-label="View"
-                          iconLeading={<Eye className="h-4 w-4" />}
-                        />
-                        <Button
-                          variant="tertiary"
-                          size="sm"
-                          onClick={() => handlePageAction(webpage.uuid, 'edit')}
-                          className="p-2 text-slate-400 hover:text-slate-600"
-                          aria-label="Edit"
-                          iconLeading={<Edit05 className="h-4 w-4" />}
-                        />
-                        <Button
-                          variant="tertiary"
-                          size="sm"
-                          onClick={() => handlePageAction(webpage.uuid, 'duplicate')}
-                          className="p-2 text-slate-400 hover:text-slate-600"
-                          aria-label="Duplicate"
-                          iconLeading={<Copy01 className="h-4 w-4" />}
-                        />
-                        <Button
-                          variant="tertiary"
-                          size="sm"
-                          onClick={() => handlePageAction(webpage.uuid, 'delete')}
-                          className={`p-2 hover:text-red-600 ${
-                            isFirstPage 
-                              ? 'text-slate-300 cursor-not-allowed opacity-50' 
-                              : 'text-slate-400'
-                          }`}
-                          aria-label="Delete"
-                          disabled={isFirstPage}
-                          iconLeading={<Trash01 className="h-4 w-4" />}
-                        />
-                      </div>
-                    </div>
-                  )
-                })
-              )}
+          {/* Tabs */}
+          <div className="flex items-center justify-between mb-6 border-b border-slate-200">
+            <div className="flex gap-6">
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={() => setActiveSubItem('website-pages')}
+                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
+                  activeSubItem === 'website-pages'
+                    ? 'text-primary border-b-primary'
+                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
+                }`}
+              >
+                Website pages
+              </Button>
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={() => setActiveSubItem('website-header')}
+                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
+                  activeSubItem === 'website-header'
+                    ? 'text-primary border-b-primary'
+                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
+                }`}
+              >
+                Navigation
+              </Button>
             </div>
+            <Button
+              variant="primary"
+              size="md"
+              onClick={
+                activeSubItem === 'website-header'
+                  ? () => setShowCreateNavFolderModal(true)
+                  : handleNewPage
+              }
+              iconLeading={<Plus className="h-4 w-4" />}
+            >
+              {activeSubItem === 'website-header' ? 'New folder' : 'New page'}
+            </Button>
           </div>
-        )}
 
-        {activeSubItem === 'website-header' && renderNavigationTab()}
-      </div>
+          {/* Content based on active tab */}
+          {activeSubItem === 'website-pages' && (
+            <div>
+              {/* Pages List */}
+              <div className="space-y-0 border border-slate-200 rounded-lg bg-white">
+                {isLoadingWebpages ? (
+                  <div className="flex items-center justify-center py-8 text-slate-500">
+                    <p>Loading webpages...</p>
+                  </div>
+                ) : webpages.length === 0 ? (
+                  <div className="flex items-center justify-center py-8 text-slate-500">
+                    <p>No pages yet. Click "+ New Page" to create one.</p>
+                  </div>
+                ) : (
+                  webpages.map((webpage) => {
+                    const isFirstPage = webpage.name.toLowerCase() === 'welcome'
+                    return (
+                      <div
+                        key={webpage.uuid}
+                        className="flex items-center justify-between py-2 px-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="text-sm font-medium text-slate-900 capitalize">
+                          {webpage.name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="tertiary"
+                            size="sm"
+                            onClick={() => handlePageAction(webpage.uuid, 'view')}
+                            className="p-2 text-slate-400 hover:text-slate-600"
+                            aria-label="View"
+                            iconLeading={<Eye className="h-4 w-4" />}
+                          />
+                          <Button
+                            variant="tertiary"
+                            size="sm"
+                            onClick={() => handlePageAction(webpage.uuid, 'edit')}
+                            className="p-2 text-slate-400 hover:text-slate-600"
+                            aria-label="Edit"
+                            iconLeading={<Edit05 className="h-4 w-4" />}
+                          />
+                          <Button
+                            variant="tertiary"
+                            size="sm"
+                            onClick={() => handlePageAction(webpage.uuid, 'duplicate')}
+                            className="p-2 text-slate-400 hover:text-slate-600"
+                            aria-label="Duplicate"
+                            iconLeading={<Copy01 className="h-4 w-4" />}
+                          />
+                          <Button
+                            variant="tertiary"
+                            size="sm"
+                            onClick={() => handlePageAction(webpage.uuid, 'delete')}
+                            className={`p-2 hover:text-red-600 ${
+                              isFirstPage
+                                ? 'text-slate-300 cursor-not-allowed opacity-50'
+                                : 'text-slate-400'
+                            }`}
+                            aria-label="Delete"
+                            disabled={isFirstPage}
+                            iconLeading={<Trash01 className="h-4 w-4" />}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {activeSubItem === 'website-header' && renderNavigationTab()}
+        </div>
+      </main>
 
       {/* Page Creation Modal */}
       <PageCreationModal

@@ -1,1 +1,0 @@
-function t(t,e){return`eventita:event:${t}:${e}`}function e(e,r,n){try{const a=localStorage.getItem(t(e,r));return a?JSON.parse(a):n}catch{return n}}function r(e,r,n){try{localStorage.setItem(t(e,r),JSON.stringify(n))}catch{}}export{e as r,r as w};

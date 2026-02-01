@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import type { PublicNavNode } from '../../types/navigation'
+import { renderNavIcon } from '../../utils/navIcons'
 
 interface PublicNavbarProps {
   eventName?: string
@@ -105,7 +106,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
             isActive ? 'bg-slate-100 text-black' : 'text-white hover:bg-slate-100 hover:text-black'
           ].join(' ')}
         >
-          {node.label}
+          <span className="inline-flex items-center gap-2">
+            {renderNavIcon(node.iconKey, 'h-4 w-4')}
+            <span>{node.label}</span>
+          </span>
         </button>
       )
     }
@@ -135,39 +139,49 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
         </button>
 
         {isOpen ? (
-          <div
-            role="menu"
-            className="absolute left-0 mt-2 min-w-[220px] rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
-          >
-            {(node.children || []).map((child) => {
-              if (child.type === 'page') {
-                const childActive = isActiveForItem(activePath || '', child.path)
+          // Wrapper provides a "hover bridge" (no dead gap),
+          // so moving from the folder button to the menu doesn't close it before click.
+          <div className="absolute left-0 top-full z-[1100] pt-2">
+            <div
+              role="menu"
+              className="min-w-[220px] rounded-xl border border-slate-200 bg-white p-1 shadow-lg"
+            >
+              {(node.children || []).map((child) => {
+                if (child.type === 'page') {
+                  const childActive = isActiveForItem(activePath || '', child.path)
+                  return (
+                    <button
+                      key={child.id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        setOpenFolderId(null)
+                        onNavigate(child.path)
+                      }}
+                      className={[
+                        'w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors',
+                        childActive ? 'bg-primary/10 text-primary' : 'text-slate-700 hover:bg-slate-50'
+                      ].join(' ')}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        {renderNavIcon(child.iconKey, 'h-4 w-4')}
+                        <span>{child.label}</span>
+                      </span>
+                    </button>
+                  )
+                }
+
+                // Nested folders (future): render as a section header for now.
                 return (
-                  <button
+                  <div
                     key={child.id}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setOpenFolderId(null)
-                      onNavigate(child.path)
-                    }}
-                    className={[
-                      'w-full rounded-lg px-3 py-2 text-left text-sm font-semibold transition-colors',
-                      childActive ? 'bg-primary/10 text-primary' : 'text-slate-700 hover:bg-slate-50'
-                    ].join(' ')}
+                    className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400"
                   >
                     {child.label}
-                  </button>
+                  </div>
                 )
-              }
-
-              // Nested folders (future): render as a section header for now.
-              return (
-                <div key={child.id} className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  {child.label}
-                </div>
-              )
-            })}
+              })}
+            </div>
           </div>
         ) : null}
       </div>
@@ -252,7 +266,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                         isActive ? 'bg-primary/10 text-primary' : 'text-slate-800 hover:bg-slate-50'
                       ].join(' ')}
                     >
-                      {node.label}
+                      <span className="inline-flex items-center gap-2">
+                        {renderNavIcon(node.iconKey, 'h-4 w-4')}
+                        <span>{node.label}</span>
+                      </span>
                     </button>
                   )
                 }
@@ -294,7 +311,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                                 childActive ? 'bg-primary/10 text-primary' : 'text-slate-700 hover:bg-slate-50'
                               ].join(' ')}
                             >
-                              {child.label}
+                              <span className="inline-flex items-center gap-2">
+                                {renderNavIcon(child.iconKey, 'h-4 w-4')}
+                                <span>{child.label}</span>
+                              </span>
                             </button>
                           )
                         })}

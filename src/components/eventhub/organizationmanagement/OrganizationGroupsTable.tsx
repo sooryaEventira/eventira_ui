@@ -3,24 +3,31 @@ import {
   DividerLineTable,
   type DividerLineTableSortDescriptor
 } from '../../ui/untitled'
-import { Group } from './attendeeTypes'
-import type { GroupTableRowData } from './attendeeTypes'
+import type { GroupTableRowData } from '../attendeemanagement/attendeeTypes'
 import { TablePagination, useTableHeader } from '../../ui'
-import { useGroupTableColumns } from './GroupTableColumns'
+import { useGroupTableColumns } from '../attendeemanagement/GroupTableColumns'
 
-interface GroupsTableProps {
-  groups: Group[]
+export type OrganizationManagementTab = 'organizations' | 'groups'
+
+export interface OrganizationGroup {
+  id: string
+  name: string
+  organizationCount: number
+}
+
+interface OrganizationGroupsTableProps {
+  groups: OrganizationGroup[]
   onCreateGroup?: () => void
   onEditGroup?: (groupId: string) => void
   onDeleteGroup?: (groupId: string) => void
   builtGroupIds?: Set<string>
   onToggleBuildPage?: (group: { id: string; name: string }, checked: boolean) => void
   onFilter?: () => void
-  onTabChange?: (tab: 'user' | 'groups' | 'custom-schedule') => void
+  onTabChange?: (tab: OrganizationManagementTab) => void
   isLoading?: boolean
 }
 
-const GroupsTable: React.FC<GroupsTableProps> = ({
+const OrganizationGroupsTable: React.FC<OrganizationGroupsTableProps> = ({
   groups,
   onCreateGroup,
   onEditGroup,
@@ -39,56 +46,28 @@ const GroupsTable: React.FC<GroupsTableProps> = ({
     direction: 'ascending'
   })
 
-  // Filter groups - ensure we only have valid Group objects
   const filteredGroups = useMemo(() => {
-    // Validate that all items are proper Group objects
-    // Filter out any items that don't match the Group interface structure
-    const validGroups = groups.filter((group) => {
-      // Group should have: id, name, attendeeCount
-      // Should NOT have: email, inviteCode, status, etc. (which are Attendee properties)
-      return (
-        group &&
-        typeof group === 'object' &&
-        'id' in group &&
-        'name' in group &&
-        'attendeeCount' in group &&
-        !('email' in group) && // Attendees have email, groups don't
-        !('inviteCode' in group) && // Attendees have inviteCode, groups don't
-        !('status' in group) // Attendees have status, groups don't
-      )
-    })
-
     const query = searchQuery.trim().toLowerCase()
-    if (!query) return validGroups
+    if (!query) return groups
+    return groups.filter((group) => group.name.toLowerCase().includes(query))
+  }, [groups, searchQuery])
 
-    return validGroups.filter((group) => {
-      return group.name.toLowerCase().includes(query)
-    })
-  }, [searchQuery, groups])
-
-  // Get visible IDs
-  const visibleGroupIds = useMemo(
-    () => filteredGroups.map((group) => group.id),
-    [filteredGroups]
-  )
-
-  // Paginate groups
-  const paginatedGroups = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
-    const endIndex = startIndex + itemsPerPage
-    return filteredGroups.slice(startIndex, endIndex)
-  }, [filteredGroups, currentPage])
-
-  // Calculate total pages
-  const totalPages = useMemo(() => {
-    return Math.ceil(filteredGroups.length / itemsPerPage)
-  }, [filteredGroups.length])
-
+  const visibleGroupIds = useMemo(() => filteredGroups.map((g) => g.id), [filteredGroups])
   void visibleGroupIds
 
-  // Table rows and columns
+  const paginatedGroups = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage
+    return filteredGroups.slice(startIndex, startIndex + itemsPerPage)
+  }, [filteredGroups, currentPage])
+
+  const totalPages = useMemo(() => Math.ceil(filteredGroups.length / itemsPerPage), [filteredGroups.length])
+
+  // Map organizationCount -> attendeeCount for compatibility with shared group columns
   const groupTableRows = useMemo<GroupTableRowData[]>(() => {
-    return paginatedGroups.map((group, index) => ({ group, index }))
+    return paginatedGroups.map((group, index) => ({
+      group: { id: group.id, name: group.name, attendeeCount: group.organizationCount },
+      index
+    }))
   }, [paginatedGroups])
 
   const groupColumns = useGroupTableColumns({
@@ -98,27 +77,21 @@ const GroupsTable: React.FC<GroupsTableProps> = ({
     onDeleteGroup
   })
 
-  // Empty state
   const groupEmptyState = (
     <div className="flex min-h-[280px] items-center justify-center px-6 py-10 text-sm text-slate-500">
-      {groups.length === 0
-        ? 'No groups have been created yet!'
-        : 'No groups match your search.'}
+      {groups.length === 0 ? 'No groups have been created yet!' : 'No groups match your search.'}
     </div>
   )
 
-  // Table header - Note: Tab navigation should be handled by parent component
-  // For now, we'll create a simple header without tabs since GroupsTable is only for groups
   const tableHeader = useTableHeader({
     tabs: [
-      { id: 'user', label: 'User' },
-      { id: 'groups', label: 'Groups' },
-      { id: 'custom-schedule', label: 'Custom schedule' }
+      { id: 'organizations', label: 'Organizations' },
+      { id: 'groups', label: 'Groups' }
     ],
     activeTabId: 'groups',
     searchQuery,
     searchPlaceholder: 'Search group',
-    onTabChange: (tabId) => onTabChange?.(tabId as 'user' | 'groups' | 'custom-schedule'),
+    onTabChange: (tabId) => onTabChange?.(tabId as OrganizationManagementTab),
     onSearchChange: setSearchQuery,
     showFilter: true,
     onFilterClick: onFilter || (() => {}),
@@ -126,24 +99,19 @@ const GroupsTable: React.FC<GroupsTableProps> = ({
     customActions: undefined
   })
 
-  const handleSortChange = useCallback(
-    (descriptor: DividerLineTableSortDescriptor) => {
-      setSortDescriptor(descriptor)
-    },
-    []
-  )
+  const handleSortChange = useCallback((descriptor: DividerLineTableSortDescriptor) => {
+    setSortDescriptor(descriptor)
+  }, [])
 
-  // Reset page when search changes
   React.useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery])
 
-  // Loading state - check after all hooks
   if (isLoading) {
     return (
       <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-[26px] font-bold text-primary-dark">Attendee Management</h1>
+          <h1 className="text-[26px] font-bold text-primary-dark">Organization management</h1>
         </div>
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
@@ -158,7 +126,7 @@ const GroupsTable: React.FC<GroupsTableProps> = ({
   return (
     <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-[26px] font-bold text-primary-dark">Attendee Management</h1>
+        <h1 className="text-[26px] font-bold text-primary-dark">Organization management</h1>
         <div className="flex items-center gap-3">
           <button
             type="button"
@@ -191,4 +159,5 @@ const GroupsTable: React.FC<GroupsTableProps> = ({
   )
 }
 
-export default GroupsTable
+export default OrganizationGroupsTable
+

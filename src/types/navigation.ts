@@ -13,6 +13,11 @@ export interface NavigationPageItem {
   title: string
   slug: string
   pageId: string
+  /**
+   * Optional icon identifier to render alongside the label in navbars.
+   * The actual icon rendering is handled by a shared icon registry in code.
+   */
+  iconKey?: string
 }
 
 /**
@@ -38,6 +43,7 @@ export interface PublicNavPageNode {
   id: string
   label: string
   path: string
+  iconKey?: string
 }
 
 export interface PublicNavFolderNode {

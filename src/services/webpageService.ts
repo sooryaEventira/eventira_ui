@@ -447,6 +447,94 @@ export const updateWebpage = async (
   }
 }
 
+export const deleteWebpage = async (webpageUuid: string, eventUuid: string): Promise<void> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.')
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError('Organization UUID is missing. Please create or select an organization first.', undefined, 'Organization UUID is missing. Please create or select an organization first.')
+      throw new Error(errorMessage)
+    }
+
+    if (!webpageUuid) {
+      const errorMessage = handleApiError('Webpage UUID is required.', undefined, 'Webpage UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = `${API_ENDPOINTS.WEBPAGE.GET(webpageUuid, eventUuid).split('?')[0]}/`
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response || !response.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+
+      // Some backends return 204 No Content on delete; ok is already true.
+      // For error responses, try to parse message.
+      try {
+        const responseText = await response.text()
+        let errorData: any = null
+        try {
+          errorData = responseText ? JSON.parse(responseText) : null
+        } catch {
+          if (responseText && responseText.trim()) {
+            const errorMessage = handleApiError(responseText.trim(), response, 'Failed to delete webpage. Please try again.')
+            throw new Error(errorMessage)
+          }
+        }
+        const errorMessage = handleApiError(errorData, response, 'Failed to delete webpage. Please try again.')
+        throw new Error(errorMessage)
+      } catch (parseError) {
+        if (parseError instanceof Error) throw parseError
+        const errorMessage = handleApiError(null, response, 'Failed to delete webpage. Please try again.')
+        throw new Error(errorMessage)
+      }
+    }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error && (
+        error.message.includes('Cannot connect') || 
+        error.message.includes('Invalid response') ||
+        error.message.includes('Authentication required') ||
+        error.message.includes('Organization UUID') ||
+        error.message.includes('Event UUID') ||
+        error.message.includes('Webpage UUID') ||
+        error.message.includes('Failed to delete')
+    )) {
+      throw error
+    }
+
+    const errorMessage = error instanceof Error ? error.message : 'Failed to delete webpage. Please try again.'
+    handleApiError(errorMessage, undefined, 'Failed to delete webpage. Please try again.')
+    throw new Error(errorMessage)
+  }
+}
+
 export const fetchWebpage = async (webpageUuid: string, eventUuid: string): Promise<WebpageData> => {
   try {
     const accessToken = localStorage.getItem('accessToken')

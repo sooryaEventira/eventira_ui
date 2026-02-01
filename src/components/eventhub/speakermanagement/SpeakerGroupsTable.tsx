@@ -13,6 +13,8 @@ interface SpeakerGroupsTableProps {
   onCreateGroup?: () => void
   onEditGroup?: (groupId: string) => void
   onDeleteGroup?: (groupId: string) => void
+  builtGroupIds?: Set<string>
+  onToggleBuildPage?: (group: { id: string; name: string }, checked: boolean) => void
   onFilter?: () => void
   onTabChange?: (tab: 'user' | 'groups' | 'custom-schedule') => void
   isLoading?: boolean
@@ -23,12 +25,13 @@ const SpeakerGroupsTable: React.FC<SpeakerGroupsTableProps> = ({
   onCreateGroup,
   onEditGroup,
   onDeleteGroup,
+  builtGroupIds,
+  onToggleBuildPage,
   onFilter,
   onTabChange,
   isLoading = false
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
-  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>({
@@ -81,50 +84,7 @@ const SpeakerGroupsTable: React.FC<SpeakerGroupsTableProps> = ({
     return Math.ceil(filteredGroups.length / itemsPerPage)
   }, [filteredGroups.length])
 
-  // Selection logic
-  const allVisibleGroupsSelected = useMemo(() => {
-    return (
-      visibleGroupIds.length > 0 &&
-      visibleGroupIds.every((id) => selectedGroupIds.has(id))
-    )
-  }, [visibleGroupIds, selectedGroupIds])
-
-  const partiallyGroupsSelected = useMemo(() => {
-    return (
-      !allVisibleGroupsSelected &&
-      visibleGroupIds.some((id) => selectedGroupIds.has(id))
-    )
-  }, [allVisibleGroupsSelected, visibleGroupIds, selectedGroupIds])
-
-  // Toggle handlers
-  const handleToggleAllGroups = useCallback(
-    (checked: boolean) => {
-      setSelectedGroupIds((previous) => {
-        const next = new Set(previous)
-        visibleGroupIds.forEach((id) => {
-          if (checked) {
-            next.add(id)
-          } else {
-            next.delete(id)
-          }
-        })
-        return next
-      })
-    },
-    [visibleGroupIds]
-  )
-
-  const handleToggleGroup = useCallback((id: string, checked: boolean) => {
-    setSelectedGroupIds((previous) => {
-      const next = new Set(previous)
-      if (checked) {
-        next.add(id)
-      } else {
-        next.delete(id)
-      }
-      return next
-    })
-  }, [])
+  void visibleGroupIds
 
   // Table rows - map speakerCount to attendeeCount for compatibility with GroupTableColumns
   const groupTableRows = useMemo<GroupTableRowData[]>(() => {
@@ -139,11 +99,8 @@ const SpeakerGroupsTable: React.FC<SpeakerGroupsTableProps> = ({
   }, [paginatedGroups])
 
   const groupColumns = useGroupTableColumns({
-    allVisibleSelected: allVisibleGroupsSelected,
-    partiallySelected: partiallyGroupsSelected,
-    selectedGroupIds,
-    onToggleAllVisible: handleToggleAllGroups,
-    onToggleRow: handleToggleGroup,
+    builtGroupIds,
+    onToggleBuildPage,
     onEditGroup,
     onDeleteGroup
   })

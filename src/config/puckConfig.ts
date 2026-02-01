@@ -9,6 +9,7 @@ import {
 import {
   HeroSection, HeroVideo, HeroSplitScreen, YouTubeVideo, Slider, SpeakerCard, SpeakersSection, SchedulePage, ScheduleSection, AboutSection, PricingPlans, FAQSection, FAQAccordion, Navigation, CountdownTimer, ProgressCircleStats, HTMLContent, RegistrationForm, GoogleForm, LiveChat, ApiTestComponent, SessionForm, PdfViewer, RegistrationCTA, Sponsors, ContactFooter, EventNumbers, SpeakerHighlight, SessionHighlight, SessionHighlightKeynote, SessionHighlightWorkshop, VenueBlock, SplitVenueBlock, HotelPartners, VenueDirections, LocationFloorPlan, GridBlock, Article, Table, ResourceCards
 } from '../components/advanced'
+import GroupDirectory from '../components/advanced/GroupDirectory'
 import ScheduleContent from '../components/eventhub/schedulesession/ScheduleContent'
 import TwoColumnContent from '../components/advanced/TwoColumnContent'
 import FeedbackForm from '../components/advanced/FeedbackForm'
@@ -162,6 +163,26 @@ export const config = {
     }
   },
   components: {
+    GroupDirectory: {
+      label: "👥 Group Directory",
+      fields: {
+        groupId: { type: 'text' as const, label: 'Group ID (optional)' },
+        groupName: { type: 'text' as const, label: 'Group name' },
+        title: { type: 'text' as const, label: 'Title' },
+        showAttendees: { type: 'radio' as const, options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },
+        showSpeakers: { type: 'radio' as const, options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },
+        showOrganizations: { type: 'radio' as const, options: [{ label: 'Yes', value: true }, { label: 'No', value: false }] },
+      },
+      defaultProps: {
+        groupId: '',
+        groupName: '',
+        title: '',
+        showAttendees: true,
+        showSpeakers: true,
+        showOrganizations: true,
+      },
+      render: GroupDirectory
+    },
     Heading: {
       label: "📝 Heading",
       fields: {

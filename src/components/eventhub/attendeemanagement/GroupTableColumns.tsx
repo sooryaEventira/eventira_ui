@@ -4,24 +4,17 @@ import {
   type DividerLineTableColumn
 } from '../../ui/untitled'
 import type { GroupTableRowData } from './attendeeTypes'
-import { SelectAllCheckbox } from '../../ui'
 
 interface GroupTableColumnsProps {
-  allVisibleSelected: boolean
-  partiallySelected: boolean
-  selectedGroupIds: Set<string>
-  onToggleAllVisible: (checked: boolean) => void
-  onToggleRow: (id: string, checked: boolean) => void
+  builtGroupIds?: Set<string>
+  onToggleBuildPage?: (group: { id: string; name: string }, checked: boolean) => void
   onEditGroup?: (groupId: string) => void
   onDeleteGroup?: (groupId: string) => void
 }
 
 export const useGroupTableColumns = ({
-  allVisibleSelected,
-  partiallySelected,
-  selectedGroupIds,
-  onToggleAllVisible,
-  onToggleRow,
+  builtGroupIds,
+  onToggleBuildPage,
   onEditGroup,
   onDeleteGroup
 }: GroupTableColumnsProps): DividerLineTableColumn<GroupTableRowData>[] => {
@@ -29,32 +22,13 @@ export const useGroupTableColumns = ({
     () => [
       {
         id: 'groupName',
-        header: (
-          <div className="flex items-center gap-2">
-            <SelectAllCheckbox
-              checked={allVisibleSelected}
-              indeterminate={partiallySelected}
-              onChange={onToggleAllVisible}
-              ariaLabel="Select all groups"
-            />
-            <span>Group name</span>
-          </div>
-        ),
+        header: 'Group name',
         sortable: true,
         sortAccessor: ({ group }) => group?.name || '',
         render: ({ group }) => {
           if (!group) return null
           return (
-            <div className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40"
-                aria-label={`Select ${group.name}`}
-                checked={selectedGroupIds.has(group.id)}
-                onChange={(event) => onToggleRow(group.id, event.target.checked)}
-              />
-              <span className="text-sm font-medium text-slate-900">{group.name}</span>
-            </div>
+            <span className="text-sm font-medium text-slate-900">{group.name}</span>
           )
         }
       },
@@ -66,6 +40,27 @@ export const useGroupTableColumns = ({
         render: ({ group }) => {
           if (!group) return null
           return <span className="text-sm text-slate-600">{group.attendeeCount}</span>
+        }
+      },
+      {
+        id: 'buildPage',
+        header: 'Build page',
+        align: 'center',
+        sortable: false,
+        render: ({ group }) => {
+          if (!group) return null
+          const isBuilt = Boolean(builtGroupIds?.has(group.id))
+          return (
+            <input
+              type="checkbox"
+              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40"
+              aria-label={`Build page for ${group.name}`}
+              checked={isBuilt}
+              onChange={(event) =>
+                onToggleBuildPage?.({ id: group.id, name: group.name }, event.target.checked)
+              }
+            />
+          )
         }
       },
       {
@@ -98,11 +93,8 @@ export const useGroupTableColumns = ({
       }
     ],
     [
-      allVisibleSelected,
-      partiallySelected,
-      selectedGroupIds,
-      onToggleAllVisible,
-      onToggleRow,
+      builtGroupIds,
+      onToggleBuildPage,
       onEditGroup,
       onDeleteGroup
     ]

@@ -104,7 +104,13 @@ export function mapToPublicNav(
 
       const mapped = pagePathById.get(it.pageId)
       if (!mapped) continue
-      out.push({ type: 'page', id: it.pageId, label: mapped.label, path: mapped.path })
+      out.push({
+        type: 'page',
+        id: it.pageId,
+        label: mapped.label,
+        path: mapped.path,
+        iconKey: it.iconKey
+      })
     }
     return out
   }

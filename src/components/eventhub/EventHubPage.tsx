@@ -12,6 +12,7 @@ import SpeakerManagementPage from './speakermanagement/SpeakerManagementPage'
 import OrganizationManagementPage from './organizationmanagement/OrganizationManagementPage'
 import WebsiteSettingsPage from './websitesettings/WebsiteSettingsPage'
 import EventHubOverviewPage from './overview/EventHubOverviewPage'
+import RegistrationFormPage from './registrationform/RegistrationFormPage'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 
 interface EventHubPageProps {
@@ -209,6 +210,8 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
             hideNavbarAndSidebar={true}
           />
         )
+      case 'registration-form':
+        return <RegistrationFormPage hideNavbarAndSidebar={true} />
       case 'event-hub':
       default:
         // Redirect to event-website instead of showing empty Event Hub page

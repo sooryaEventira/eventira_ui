@@ -8,10 +8,21 @@ import UploadModal from '../../ui/UploadModal'
 import { showToast } from '../../../utils/toast'
 import type { Organization } from './organizationTypes'
 import OrganizationsTable from './OrganizationsTable'
+import OrganizationGroupsTable, {
+  type OrganizationGroup,
+  type OrganizationManagementTab
+} from './OrganizationGroupsTable'
 import CreateOrganizationModal from './CreateOrganizationModal'
 import { createExhibitor, deleteExhibitor, fetchExhibitors, importExhibitors } from '../../../services/exhibitorService'
 import { ConfirmDeleteModal } from '../../ui'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
+import CreateGroupModal from '../attendeemanagement/CreateGroupModal'
+import { fetchTags, type TagData } from '../../../services/attendeeService'
+import { listBuiltGroupIds } from '../../../utils/groupDirectoryPages'
+import {
+  ensureGroupDirectoryWebpage,
+  removeGroupDirectoryWebpageForGroup
+} from '../../../services/groupDirectoryPageService'
 
 interface OrganizationManagementPageProps {
   eventName?: string
@@ -58,10 +69,23 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
 
   const [organizations, setOrganizations] = useState<Organization[]>([])
   const [isLoadingOrganizations, setIsLoadingOrganizations] = useState(false)
+  const [activeTab, setActiveTab] = useState<OrganizationManagementTab>('organizations')
+  const [tags, setTags] = useState<TagData[]>([])
+  const [isLoadingGroups, setIsLoadingGroups] = useState(false)
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
+  const [builtGroupIds, setBuiltGroupIds] = useState<Set<string>>(new Set())
 
   const eventUuid = useMemo(() => {
     return createdEvent?.uuid || localStorage.getItem('currentEventUuid') || localStorage.getItem('createdEventUuid') || ''
   }, [createdEvent?.uuid])
+
+  useEffect(() => {
+    if (!eventUuid) {
+      setBuiltGroupIds(new Set())
+      return
+    }
+    setBuiltGroupIds(listBuiltGroupIds(eventUuid))
+  }, [eventUuid])
 
   const mapExhibitorToOrganization = useCallback((raw: any): Organization => {
     const id = String(raw?.uuid ?? raw?.id ?? raw?.pk ?? raw?._id ?? `org-${Date.now()}-${Math.random()}`)
@@ -100,6 +124,49 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
     loadOrganizations()
   }, [loadOrganizations])
 
+  const loadTags = useCallback(async () => {
+    if (!eventUuid) {
+      setTags([])
+      return
+    }
+
+    setIsLoadingGroups(true)
+    try {
+      const list = await fetchTags(eventUuid)
+      // Only keep active tags (consistent with attendee/speaker)
+      const activeOnly = (list || []).filter((t) => t.is_active !== false)
+      setTags(activeOnly)
+    } catch (e) {
+      // fetchTags already toasts; keep UI safe
+      setTags([])
+    } finally {
+      setIsLoadingGroups(false)
+    }
+  }, [eventUuid])
+
+  useEffect(() => {
+    void loadTags()
+  }, [loadTags])
+
+  const organizationGroups = useMemo<OrganizationGroup[]>(() => {
+    const norm = (s: string) => s.trim().toLowerCase()
+    const split = (raw?: string) =>
+      String(raw || '')
+        .split(',')
+        .map((x) => norm(x))
+        .filter(Boolean)
+
+    return tags.map((t) => {
+      const tagName = String(t.name || '').trim()
+      const tagNameNorm = norm(tagName)
+      const count = organizations.reduce((sum, org) => {
+        const groups = split(org.groups)
+        return groups.includes(tagNameNorm) ? sum + 1 : sum
+      }, 0)
+      return { id: t.uuid, name: tagName, organizationCount: count }
+    })
+  }, [tags, organizations])
+
   // Persist organizations for published website navigation + list page
   useEffect(() => {
     const eventUuidForStore =
@@ -130,6 +197,40 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
   const handleCreate = () => {
     setEditingOrgId(null)
     setIsCreateModalOpen(true)
+  }
+
+  const handleCreateGroup = () => {
+    setIsCreateGroupModalOpen(true)
+  }
+
+  const handleSaveGroup = async () => {
+    await loadTags()
+  }
+
+  const handleToggleBuildPage = async (
+    group: { id: string; name: string },
+    checked: boolean
+  ) => {
+    if (!eventUuid) return
+    try {
+      if (checked) {
+        await ensureGroupDirectoryWebpage(eventUuid, group.id, group.name)
+        setBuiltGroupIds((prev) => {
+          const next = new Set(prev)
+          next.add(group.id)
+          return next
+        })
+      } else {
+        await removeGroupDirectoryWebpageForGroup(eventUuid, group.id)
+        setBuiltGroupIds((prev) => {
+          const next = new Set(prev)
+          next.delete(group.id)
+          return next
+        })
+      }
+    } catch {
+      // Toasts handled by service layer; keep UI stable
+    }
   }
 
   const handleEdit = (organizationId: string) => {
@@ -226,20 +327,43 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
             items={sidebarItems}
             activeItemId="organization-management"
             onItemClick={handleSidebarItemClick}
-            isModalOpen={isUploadModalOpen || isCreateModalOpen}
+            isModalOpen={isUploadModalOpen || isCreateModalOpen || isCreateGroupModalOpen}
           />
         </>
       )}
 
       <div className={hideNavbarAndSidebar ? '' : 'md:pl-[250px]'}>
-        <OrganizationsTable
-          organizations={organizations}
-          isLoading={isLoadingOrganizations}
-          onUpload={handleUpload}
-          onCreateOrganization={handleCreate}
-          onEditOrganization={handleEdit}
-          onDeleteOrganization={handleRequestDelete}
-        />
+        {activeTab === 'groups' ? (
+          <OrganizationGroupsTable
+            groups={organizationGroups}
+            onCreateGroup={handleCreateGroup}
+            onEditGroup={() => {
+              // UI only for now (same as attendee/speaker)
+            }}
+            onDeleteGroup={(groupId) => {
+              // UI only for now: remove from local list for this session
+              setTags((prev) => prev.filter((t) => t.uuid !== groupId))
+            }}
+            builtGroupIds={builtGroupIds}
+            onToggleBuildPage={handleToggleBuildPage}
+            onFilter={() => {
+              // UI only for now
+            }}
+            onTabChange={setActiveTab}
+            isLoading={isLoadingGroups}
+          />
+        ) : (
+          <OrganizationsTable
+            organizations={organizations}
+            isLoading={isLoadingOrganizations}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onUpload={handleUpload}
+            onCreateOrganization={handleCreate}
+            onEditOrganization={handleEdit}
+            onDeleteOrganization={handleRequestDelete}
+          />
+        )}
       </div>
 
       <ConfirmDeleteModal
@@ -308,6 +432,12 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
             : undefined
         }
         onSave={handleSaveOrganization}
+      />
+
+      <CreateGroupModal
+        isOpen={isCreateGroupModalOpen}
+        onClose={() => setIsCreateGroupModalOpen(false)}
+        onConfirm={() => void handleSaveGroup()}
       />
     </div>
   )
