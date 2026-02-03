@@ -115,55 +115,6 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     return Math.ceil(totalItems / itemsPerPage)
   }, [activeTab, filteredSpeakers.length, filteredCustomFields.length])
 
-  // Selection logic for speakers
-  const allVisibleSpeakersSelected = useMemo(() => {
-    return (
-      visibleSpeakerIds.length > 0 &&
-      visibleSpeakerIds.every((id) => selectedSpeakerIds.has(id))
-    )
-  }, [visibleSpeakerIds, selectedSpeakerIds])
-
-  const partiallySpeakersSelected = useMemo(() => {
-    return (
-      !allVisibleSpeakersSelected &&
-      visibleSpeakerIds.some((id) => selectedSpeakerIds.has(id))
-    )
-  }, [allVisibleSpeakersSelected, visibleSpeakerIds, selectedSpeakerIds])
-
-
-  // Selection logic for custom fields
-  const allVisibleCustomFieldsSelected = useMemo(() => {
-    return (
-      visibleCustomFieldIds.length > 0 &&
-      visibleCustomFieldIds.every((id) => selectedCustomFieldIds.has(id))
-    )
-  }, [visibleCustomFieldIds, selectedCustomFieldIds])
-
-  const partiallyCustomFieldsSelected = useMemo(() => {
-    return (
-      !allVisibleCustomFieldsSelected &&
-      visibleCustomFieldIds.some((id) => selectedCustomFieldIds.has(id))
-    )
-  }, [allVisibleCustomFieldsSelected, visibleCustomFieldIds, selectedCustomFieldIds])
-
-  // Toggle handlers
-  const handleToggleAllSpeakers = useCallback(
-    (checked: boolean) => {
-      setSelectedSpeakerIds((previous) => {
-        const next = new Set(previous)
-        visibleSpeakerIds.forEach((id) => {
-          if (checked) {
-            next.add(id)
-          } else {
-            next.delete(id)
-          }
-        })
-        return next
-      })
-    },
-    [visibleSpeakerIds]
-  )
-
   const handleToggleSpeaker = useCallback((id: string, checked: boolean) => {
     setSelectedSpeakerIds((previous) => {
       const next = new Set(previous)
@@ -177,31 +128,11 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   }, [])
 
 
-  const handleToggleAllCustomFields = useCallback(
-    (checked: boolean) => {
-      setSelectedCustomFieldIds((previous) => {
-        const next = new Set(previous)
-        visibleCustomFieldIds.forEach((id) => {
-          if (checked) {
-            next.add(id)
-          } else {
-            next.delete(id)
-          }
-        })
-        return next
-      })
-    },
-    [visibleCustomFieldIds]
-  )
-
   const handleToggleCustomField = useCallback((id: string, checked: boolean) => {
     setSelectedCustomFieldIds((previous) => {
       const next = new Set(previous)
-      if (checked) {
-        next.add(id)
-      } else {
-        next.delete(id)
-      }
+      if (checked) next.add(id)
+      else next.delete(id)
       return next
     })
   }, [])
@@ -241,10 +172,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   }, [deleteCandidate, isDeleting, onDeleteSpeakerProp])
 
   const speakerColumns = useSpeakerTableColumns({
-    allVisibleSelected: allVisibleSpeakersSelected,
-    partiallySelected: partiallySpeakersSelected,
     selectedSpeakerIds,
-    onToggleAllVisible: handleToggleAllSpeakers,
     onToggleRow: handleToggleSpeaker,
     onEditSpeaker,
     onDeleteSpeaker: requestDeleteSpeaker
@@ -252,10 +180,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
 
 
   const customFieldColumns = useCustomFieldTableColumns({
-    allVisibleSelected: allVisibleCustomFieldsSelected,
-    partiallySelected: partiallyCustomFieldsSelected,
     selectedCustomFieldIds,
-    onToggleAllVisible: handleToggleAllCustomFields,
     onToggleRow: handleToggleCustomField,
     onEditCustomField,
     onDeleteCustomField

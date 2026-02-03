@@ -112,6 +112,8 @@ export const API_ENDPOINTS = {
   // Event website index (navigation + webpages list for event website)
   WEBSITE: {
     INDEX: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website/index/?event_id=${eventUuid}`,
+    /** Website settings (branding, domain, visibility). PUT/PATCH with body. */
+    SETTINGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website-settings/?event_id=${eventUuid}`,
   },
   // Public website endpoints (published pages + event details)
   PUBLIC: {
@@ -143,6 +145,7 @@ export const API_ENDPOINTS = {
   ATTENDEE_MANAGEMENT: {
     UPLOAD_USER: `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/upload-excel/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
+    /** Attendee tag/group listing: GET .../attendees/tags/?event_id={eventUuid} */
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
     UPDATE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`,
@@ -150,8 +153,16 @@ export const API_ENDPOINTS = {
   },
   // Tags/Groups endpoints
   TAGS: {
-    CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/`,
+    // Used by Attendee/Speaker/Organization "Groups" creation
+    CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/create/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/?event_id=${eventUuid}`,
+  },
+  // Event tags: publish/unpublish group page (Build page checkbox). Page listing from website index API only.
+  EVENT_TAGS: {
+    SET_PUBLISHED: (tagUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}event-tags/${tagUuid}/set-published/?event_id=${eventUuid}`,
+    SET_UNPUBLISHED: (tagUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}event-tags/${tagUuid}/set-unpublished/?event_id=${eventUuid}`,
   },
   // Schedule session tags (creatable multiselect in ScheduleDetailsSlideout)
   SCHEDULE_TAGS: {
@@ -178,6 +189,7 @@ export const API_ENDPOINTS = {
   SPEAKER_MANAGEMENT: {
     UPLOAD_SPEAKER: `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/import/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
+    /** Speaker tag/group listing: GET .../speakers/tags/?event_id={eventUuid} */
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
     UPDATE: (speakerUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/${speakerUuid}/`,

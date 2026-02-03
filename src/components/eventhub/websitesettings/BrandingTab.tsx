@@ -1,21 +1,70 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { Button } from '../../ui/untitled'
 import { XClose, Upload01, ChevronDown } from '@untitled-ui/icons-react'
+import { useEventForm } from '../../../contexts/EventFormContext'
+import { showToast } from '../../../utils/toast'
+import { fetchWebsiteSettings, updateWebsiteSettings, type WebsiteSettingsBody } from '../../../services/websiteSettingsService'
+
+const BRANDING_STORAGE_KEY = 'event-website-branding'
+/** Persisted for API body: visibility, require_registration, domain_url (used by Access control & Domain tabs). */
+const WEBSITE_SETTINGS_API_KEY = 'event-website-settings-api'
 
 const BrandingTab: React.FC = () => {
-  // Get banner and logo from localStorage (stored during event creation)
+  const { createdEvent } = useEventForm()
+  const eventUuid = typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null
+
+  // Get banner and logo: prefer localStorage, then fall back to event from API
   const [bannerUrl, setBannerUrl] = useState<string>(() => {
     return localStorage.getItem('event-form-banner') || ''
   })
   const [logoUrl, setLogoUrl] = useState<string>(() => {
     return localStorage.getItem('event-form-logo') || ''
   })
-  
-  const [primaryColor, setPrimaryColor] = useState('#6366f1')
-  const [headingFont, setHeadingFont] = useState('Inter')
-  const [bodyFont, setBodyFont] = useState('Inter')
+
+  // Sync logo/banner from current event when API returns URLs (so uploaded logo renders)
+  useEffect(() => {
+    const bannerFromApi = createdEvent?.banner && typeof createdEvent.banner === 'string'
+      ? (createdEvent.banner as string).replace(/^http:\/\//, 'https://')
+      : ''
+    const logoFromApi = createdEvent?.logo && typeof createdEvent.logo === 'string'
+      ? (createdEvent.logo as string).replace(/^http:\/\//, 'https://')
+      : ''
+    if (bannerFromApi && !localStorage.getItem('event-form-banner')) {
+      setBannerUrl(bannerFromApi)
+      localStorage.setItem('event-form-banner', bannerFromApi)
+      if (eventUuid) localStorage.setItem(`event-form-banner-${eventUuid}`, bannerFromApi)
+    }
+    if (logoFromApi && !localStorage.getItem('event-form-logo')) {
+      setLogoUrl(logoFromApi)
+      localStorage.setItem('event-form-logo', logoFromApi)
+    }
+  }, [createdEvent?.banner, createdEvent?.logo, eventUuid])
+
+  // Load saved branding (colors, fonts) from localStorage first, then from GET website-settings
+  const savedBranding = typeof window !== 'undefined' ? localStorage.getItem(BRANDING_STORAGE_KEY) : null
+  const parsed = savedBranding ? (() => { try { return JSON.parse(savedBranding) } catch { return null } })() : null
+
+  const [primaryColor, setPrimaryColor] = useState(parsed?.primaryColor ?? '#6366f1')
+  const [headingFont, setHeadingFont] = useState(parsed?.headingFont ?? 'Inter')
+  const [bodyFont, setBodyFont] = useState(parsed?.bodyFont ?? 'Inter')
   const [showThemeDropdown, setShowThemeDropdown] = useState(false)
-  
+  const [isSaving, setIsSaving] = useState(false)
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+
+  // Fetch saved website settings from API so form reflects saved values and published site can use them
+  useEffect(() => {
+    if (!eventUuid || settingsLoaded) return
+    let cancelled = false
+    fetchWebsiteSettings(eventUuid).then((data) => {
+      if (cancelled || !data) return
+      setSettingsLoaded(true)
+      if (data.brand_primary_color) setPrimaryColor(data.brand_primary_color)
+      if (data.heading_font) setHeadingFont(data.heading_font)
+      if (data.body_font) setBodyFont(data.body_font)
+    }).catch(() => { /* ignore */ })
+    return () => { cancelled = true }
+  }, [eventUuid, settingsLoaded])
+
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -95,6 +144,43 @@ const BrandingTab: React.FC = () => {
     localStorage.removeItem('event-form-logo')
     if (logoInputRef.current) {
       logoInputRef.current.value = ''
+    }
+  }
+
+  const handleSave = async () => {
+    if (!eventUuid) {
+      showToast.error('No event selected')
+      return
+    }
+    setIsSaving(true)
+    try {
+      localStorage.setItem('event-form-banner', bannerUrl)
+      localStorage.setItem('event-form-logo', logoUrl)
+      if (eventUuid) {
+        localStorage.setItem(`event-form-banner-${eventUuid}`, bannerUrl)
+      }
+      localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify({
+        primaryColor,
+        headingFont,
+        bodyFont
+      }))
+
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+      const parsed = stored ? (() => { try { return JSON.parse(stored) } catch { return null } })() : null
+      const body: WebsiteSettingsBody = {
+        heading_font: headingFont,
+        body_font: bodyFont,
+        brand_primary_color: primaryColor,
+        visibility: parsed?.visibility ?? 'private',
+        require_registration: parsed?.require_registration ?? true,
+        domain_url: parsed?.domain_url ?? ''
+      }
+      await updateWebsiteSettings(eventUuid, body)
+      showToast.success('Settings saved')
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to save settings')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -293,6 +379,17 @@ const BrandingTab: React.FC = () => {
             Brown fox jumped through the loop
           </p>
         </div>
+      </div>
+
+      {/* Save button */}
+      <div className="pt-6 border-t border-slate-200">
+        <Button
+          variant="primary"
+          onClick={handleSave}
+          disabled={isSaving}
+        >
+          {isSaving ? 'Saving...' : 'Save'}
+        </Button>
       </div>
     </div>
   )

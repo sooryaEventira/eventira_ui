@@ -18,11 +18,8 @@ import { ConfirmDeleteModal } from '../../ui'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
 import CreateGroupModal from '../attendeemanagement/CreateGroupModal'
 import { fetchTags, type TagData } from '../../../services/attendeeService'
-import { listBuiltGroupIds } from '../../../utils/groupDirectoryPages'
-import {
-  ensureGroupDirectoryWebpage,
-  removeGroupDirectoryWebpageForGroup
-} from '../../../services/groupDirectoryPageService'
+import { setTagPublished, setTagUnpublished } from '../../../services/eventTagService'
+import { fetchPublishedAttendeeTagIds } from '../../../services/webpageService'
 
 interface OrganizationManagementPageProps {
   eventName?: string
@@ -79,12 +76,26 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
     return createdEvent?.uuid || localStorage.getItem('currentEventUuid') || localStorage.getItem('createdEventUuid') || ''
   }, [createdEvent?.uuid])
 
+  // Load published tag IDs from website index so Build page checkbox stays checked for published tags
   useEffect(() => {
     if (!eventUuid) {
       setBuiltGroupIds(new Set())
       return
     }
-    setBuiltGroupIds(listBuiltGroupIds(eventUuid))
+    let cancelled = false
+    fetchPublishedAttendeeTagIds(eventUuid).then((ids) => {
+      if (!cancelled) setBuiltGroupIds(ids)
+    })
+    return () => { cancelled = true }
+  }, [eventUuid])
+
+  // Refresh builtGroupIds when webpage-saved fires (e.g. after publishing from this page)
+  useEffect(() => {
+    const handler = () => {
+      if (eventUuid) fetchPublishedAttendeeTagIds(eventUuid).then(setBuiltGroupIds)
+    }
+    window.addEventListener('webpage-saved', handler as EventListener)
+    return () => window.removeEventListener('webpage-saved', handler as EventListener)
   }, [eventUuid])
 
   const mapExhibitorToOrganization = useCallback((raw: any): Organization => {
@@ -212,24 +223,36 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
     checked: boolean
   ) => {
     if (!eventUuid) return
-    try {
-      if (checked) {
-        await ensureGroupDirectoryWebpage(eventUuid, group.id, group.name)
-        setBuiltGroupIds((prev) => {
-          const next = new Set(prev)
-          next.add(group.id)
-          return next
-        })
-      } else {
-        await removeGroupDirectoryWebpageForGroup(eventUuid, group.id)
+    if (checked) {
+      setBuiltGroupIds((prev) => {
+        const next = new Set(prev)
+        next.add(group.id)
+        return next
+      })
+      try {
+        await setTagPublished(group.id, eventUuid)
+      } catch {
         setBuiltGroupIds((prev) => {
           const next = new Set(prev)
           next.delete(group.id)
           return next
         })
       }
-    } catch {
-      // Toasts handled by service layer; keep UI stable
+    } else {
+      setBuiltGroupIds((prev) => {
+        const next = new Set(prev)
+        next.delete(group.id)
+        return next
+      })
+      try {
+        await setTagUnpublished(group.id, eventUuid)
+      } catch {
+        setBuiltGroupIds((prev) => {
+          const next = new Set(prev)
+          next.add(group.id)
+          return next
+        })
+      }
     }
   }
 

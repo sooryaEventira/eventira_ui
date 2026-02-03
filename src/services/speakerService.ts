@@ -608,6 +608,7 @@ export const updateSpeaker = async (
           // Some endpoints respond with 204 or non-JSON; treat as success.
           responseData = null
         }
+        console.log('PATCH speaker API response:', responseData)
         showToast.success('Speaker updated successfully')
         return responseData
       }

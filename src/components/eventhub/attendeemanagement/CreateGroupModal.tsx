@@ -47,8 +47,8 @@ const CreateGroupModal: React.FC<CreateGroupModalProps> = ({
         is_active: true
       })
 
-      // Call onConfirm after successful API call
-      onConfirm(groupName.trim())
+      // Await onConfirm so parent can refresh the group table before we close
+      await Promise.resolve(onConfirm(groupName.trim()))
       setGroupName('')
       setDescription('')
       onClose()

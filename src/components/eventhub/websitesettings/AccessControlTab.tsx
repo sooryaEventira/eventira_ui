@@ -1,14 +1,25 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
+
+const WEBSITE_SETTINGS_API_KEY = 'event-website-settings-api'
 
 const AccessControlTab: React.FC = () => {
-  const [visibility, setVisibility] = useState<'public' | 'private' | 'hidden'>('public')
+  const stored = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+  const parsed = stored ? (() => { try { return JSON.parse(stored) } catch { return null } })() : null
+  const [visibility, setVisibility] = useState<'public' | 'private' | 'hidden'>(parsed?.visibility ?? 'public')
   const [pages, setPages] = useState({
     home: true,
     speakers: true,
     schedule: true,
     newPage: false
   })
-  const [requireRegistration, setRequireRegistration] = useState(true)
+  const [requireRegistration, setRequireRegistration] = useState(parsed?.require_registration ?? true)
+
+  useEffect(() => {
+    const current = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+    const prev = current ? (() => { try { return JSON.parse(current) } catch { return {} } })() : {}
+    const payload = { ...prev, visibility, require_registration: requireRegistration }
+    localStorage.setItem(WEBSITE_SETTINGS_API_KEY, JSON.stringify(payload))
+  }, [visibility, requireRegistration])
 
   const handlePageToggle = (page: keyof typeof pages) => {
     setPages(prev => ({

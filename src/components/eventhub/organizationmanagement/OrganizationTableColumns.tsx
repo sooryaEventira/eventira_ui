@@ -2,14 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Pencil01, Trash03 } from '@untitled-ui/icons-react'
 import type { DividerLineTableColumn } from '../../ui/untitled'
-import { SelectAllCheckbox } from '../../ui'
 import type { OrganizationTableRowData } from './organizationTypes'
 
 interface OrganizationTableColumnsProps {
-  allVisibleSelected: boolean
-  partiallySelected: boolean
   selectedOrganizationIds: Set<string>
-  onToggleAllVisible: (checked: boolean) => void
   onToggleRow: (id: string, checked: boolean) => void
   onEditOrganization?: (organizationId: string) => void
   onDeleteOrganization?: (organizationId: string) => void
@@ -125,10 +121,7 @@ const DescriptionTooltipCell: React.FC<{ description: string }> = ({ description
 }
 
 export const useOrganizationTableColumns = ({
-  allVisibleSelected,
-  partiallySelected,
   selectedOrganizationIds,
-  onToggleAllVisible,
   onToggleRow,
   onEditOrganization,
   onDeleteOrganization
@@ -137,17 +130,7 @@ export const useOrganizationTableColumns = ({
     () => [
       {
         id: 'name',
-        header: (
-          <div className="flex items-center gap-2">
-            <SelectAllCheckbox
-              checked={allVisibleSelected}
-              indeterminate={partiallySelected}
-              onChange={onToggleAllVisible}
-              ariaLabel="Select all organizations"
-            />
-            <span>Name</span>
-          </div>
-        ),
+        header: 'Name',
         sortable: true,
         sortAccessor: ({ organization }) => organization?.name || '',
         render: ({ organization }) => {
@@ -269,15 +252,7 @@ export const useOrganizationTableColumns = ({
         }
       }
     ],
-    [
-      allVisibleSelected,
-      partiallySelected,
-      selectedOrganizationIds,
-      onToggleAllVisible,
-      onToggleRow,
-      onEditOrganization,
-      onDeleteOrganization
-    ]
+    [selectedOrganizationIds, onToggleRow, onEditOrganization, onDeleteOrganization]
   )
 }
 

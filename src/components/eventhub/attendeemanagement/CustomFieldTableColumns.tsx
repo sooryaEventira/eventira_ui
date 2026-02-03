@@ -4,23 +4,16 @@ import {
   type DividerLineTableColumn
 } from '../../ui/untitled'
 import type { CustomFieldTableRowData } from './attendeeTypes'
-import { SelectAllCheckbox } from '../../ui'
 
 interface CustomFieldTableColumnsProps {
-  allVisibleSelected: boolean
-  partiallySelected: boolean
   selectedCustomFieldIds: Set<string>
-  onToggleAllVisible: (checked: boolean) => void
   onToggleRow: (id: string, checked: boolean) => void
   onEditCustomField?: (customFieldId: string) => void
   onDeleteCustomField?: (customFieldId: string) => void
 }
 
 export const useCustomFieldTableColumns = ({
-  allVisibleSelected,
-  partiallySelected,
   selectedCustomFieldIds,
-  onToggleAllVisible,
   onToggleRow,
   onEditCustomField,
   onDeleteCustomField
@@ -29,17 +22,7 @@ export const useCustomFieldTableColumns = ({
     () => [
       {
         id: 'fieldName',
-        header: (
-          <div className="flex items-center gap-2">
-            <SelectAllCheckbox
-              checked={allVisibleSelected}
-              indeterminate={partiallySelected}
-              onChange={onToggleAllVisible}
-              ariaLabel="Select all custom fields"
-            />
-            <span>Field name</span>
-          </div>
-        ),
+        header: 'Field name',
         sortable: true,
         sortAccessor: ({ customField }) => customField?.fieldName || '',
         render: ({ customField }) => {
@@ -117,15 +100,7 @@ export const useCustomFieldTableColumns = ({
         }
       }
     ],
-    [
-      allVisibleSelected,
-      partiallySelected,
-      selectedCustomFieldIds,
-      onToggleAllVisible,
-      onToggleRow,
-      onEditCustomField,
-      onDeleteCustomField
-    ]
+    [selectedCustomFieldIds, onToggleRow, onEditCustomField, onDeleteCustomField]
   )
 }
 

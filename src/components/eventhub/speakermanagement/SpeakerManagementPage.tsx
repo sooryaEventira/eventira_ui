@@ -15,11 +15,8 @@ import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import attendeeSpeakerTemplate from '../../../assets/excel/Attendee Speaker template.xlsx?url'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
-import { listBuiltGroupIds } from '../../../utils/groupDirectoryPages'
-import {
-  ensureGroupDirectoryWebpage,
-  removeGroupDirectoryWebpageForGroup
-} from '../../../services/groupDirectoryPageService'
+import { setTagPublished, setTagUnpublished } from '../../../services/eventTagService'
+import { fetchPublishedSpeakerTagIds } from '../../../services/webpageService'
 
 interface SpeakerManagementPageProps {
   eventName?: string
@@ -112,12 +109,26 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
   const eventUuid = createdEvent?.uuid || ''
 
+  // Load published tag IDs from website index so Build page checkbox stays checked for published tags
   useEffect(() => {
     if (!eventUuid) {
       setBuiltGroupIds(new Set())
       return
     }
-    setBuiltGroupIds(listBuiltGroupIds(eventUuid))
+    let cancelled = false
+    fetchPublishedSpeakerTagIds(eventUuid).then((ids) => {
+      if (!cancelled) setBuiltGroupIds(ids)
+    })
+    return () => { cancelled = true }
+  }, [eventUuid])
+
+  // Refresh builtGroupIds when webpage-saved fires (e.g. after publishing from this page)
+  useEffect(() => {
+    const handler = () => {
+      if (eventUuid) fetchPublishedSpeakerTagIds(eventUuid).then(setBuiltGroupIds)
+    }
+    window.addEventListener('webpage-saved', handler as EventListener)
+    return () => window.removeEventListener('webpage-saved', handler as EventListener)
   }, [eventUuid])
 
   const handleUpload = () => {
@@ -535,8 +546,10 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
   const handleSaveSpeaker = async (updatedSpeaker: Speaker) => {
     const designation = updatedSpeaker.role || updatedSpeaker.title || ''
+    // Send name for new groups (client-generated id like "1770124605561-1") so backend creates tag with correct name; send id for existing tags
+    const isNewGroupId = (id: string) => /^\d+-\d+$/.test(String(id))
     const groupValues = (updatedSpeaker.groups || [])
-      .map((g) => g.id || g.name)
+      .map((g) => (isNewGroupId(String(g.id)) ? (g.name || g.id) : (g.id || g.name)))
       .filter(Boolean)
 
     // Persist to DB
@@ -548,6 +561,9 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
       designation: designation || undefined,
       groups: groupValues.length ? groupValues : undefined,
     })
+
+    // Refetch tags so the Groups tab shows any newly created group immediately and with correct name
+    await loadTags()
 
     // Update UI state (optimistic merge)
     setSpeakers((prev) => prev.map((s) => (s.id === updatedSpeaker.id ? updatedSpeaker : s)))
@@ -604,24 +620,36 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     checked: boolean
   ) => {
     if (!eventUuid) return
-    try {
-      if (checked) {
-        await ensureGroupDirectoryWebpage(eventUuid, group.id, group.name)
-        setBuiltGroupIds((prev) => {
-          const next = new Set(prev)
-          next.add(group.id)
-          return next
-        })
-      } else {
-        await removeGroupDirectoryWebpageForGroup(eventUuid, group.id)
+    if (checked) {
+      setBuiltGroupIds((prev) => {
+        const next = new Set(prev)
+        next.add(group.id)
+        return next
+      })
+      try {
+        await setTagPublished(group.id, eventUuid)
+      } catch {
         setBuiltGroupIds((prev) => {
           const next = new Set(prev)
           next.delete(group.id)
           return next
         })
       }
-    } catch {
-      // Toasts handled by service layer; keep UI stable
+    } else {
+      setBuiltGroupIds((prev) => {
+        const next = new Set(prev)
+        next.delete(group.id)
+        return next
+      })
+      try {
+        await setTagUnpublished(group.id, eventUuid)
+      } catch {
+        setBuiltGroupIds((prev) => {
+          const next = new Set(prev)
+          next.add(group.id)
+          return next
+        })
+      }
     }
   }
 

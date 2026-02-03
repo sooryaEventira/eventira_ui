@@ -114,55 +114,6 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     return Math.ceil(totalItems / itemsPerPage)
   }, [activeTab, filteredAttendees.length, filteredCustomFields.length])
 
-  // Selection logic for attendees
-  const allVisibleAttendeesSelected = useMemo(() => {
-    return (
-      visibleAttendeeIds.length > 0 &&
-      visibleAttendeeIds.every((id) => selectedAttendeeIds.has(id))
-    )
-  }, [visibleAttendeeIds, selectedAttendeeIds])
-
-  const partiallyAttendeesSelected = useMemo(() => {
-    return (
-      !allVisibleAttendeesSelected &&
-      visibleAttendeeIds.some((id) => selectedAttendeeIds.has(id))
-    )
-  }, [allVisibleAttendeesSelected, visibleAttendeeIds, selectedAttendeeIds])
-
-
-  // Selection logic for custom fields
-  const allVisibleCustomFieldsSelected = useMemo(() => {
-    return (
-      visibleCustomFieldIds.length > 0 &&
-      visibleCustomFieldIds.every((id) => selectedCustomFieldIds.has(id))
-    )
-  }, [visibleCustomFieldIds, selectedCustomFieldIds])
-
-  const partiallyCustomFieldsSelected = useMemo(() => {
-    return (
-      !allVisibleCustomFieldsSelected &&
-      visibleCustomFieldIds.some((id) => selectedCustomFieldIds.has(id))
-    )
-  }, [allVisibleCustomFieldsSelected, visibleCustomFieldIds, selectedCustomFieldIds])
-
-  // Toggle handlers
-  const handleToggleAllAttendees = useCallback(
-    (checked: boolean) => {
-      setSelectedAttendeeIds((previous) => {
-        const next = new Set(previous)
-        visibleAttendeeIds.forEach((id) => {
-          if (checked) {
-            next.add(id)
-          } else {
-            next.delete(id)
-          }
-        })
-        return next
-      })
-    },
-    [visibleAttendeeIds]
-  )
-
   const handleToggleAttendee = useCallback((id: string, checked: boolean) => {
     setSelectedAttendeeIds((previous) => {
       const next = new Set(previous)
@@ -175,23 +126,6 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     })
   }, [])
 
-
-  const handleToggleAllCustomFields = useCallback(
-    (checked: boolean) => {
-      setSelectedCustomFieldIds((previous) => {
-        const next = new Set(previous)
-        visibleCustomFieldIds.forEach((id) => {
-          if (checked) {
-            next.add(id)
-          } else {
-            next.delete(id)
-          }
-        })
-        return next
-      })
-    },
-    [visibleCustomFieldIds]
-  )
 
   const handleToggleCustomField = useCallback((id: string, checked: boolean) => {
     setSelectedCustomFieldIds((previous) => {
@@ -240,21 +174,14 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   }, [deleteCandidate, isDeleting, onDeleteAttendeeProp])
 
   const attendeeColumns = useAttendeeTableColumns({
-    allVisibleSelected: allVisibleAttendeesSelected,
-    partiallySelected: partiallyAttendeesSelected,
     selectedAttendeeIds,
-    onToggleAllVisible: handleToggleAllAttendees,
     onToggleRow: handleToggleAttendee,
     onEditAttendee,
     onDeleteAttendee: requestDeleteAttendee
   })
 
-
   const customFieldColumns = useCustomFieldTableColumns({
-    allVisibleSelected: allVisibleCustomFieldsSelected,
-    partiallySelected: partiallyCustomFieldsSelected,
     selectedCustomFieldIds,
-    onToggleAllVisible: handleToggleAllCustomFields,
     onToggleRow: handleToggleCustomField,
     onEditCustomField,
     onDeleteCustomField

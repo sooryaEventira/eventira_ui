@@ -15,6 +15,8 @@ export interface EventFormData {
   eventName: string
   startDate: string
   endDate: string
+  /** When true, user picks one date and start/end are the same. */
+  isSingleDayEvent: boolean
   timezone: string
   fixTimezoneForAttendees: boolean
   location: string
@@ -38,6 +40,7 @@ const NewEventForm: React.FC<NewEventFormProps> = ({ onClose, onSubmit }) => {
     eventName: '',
     startDate: '',
     endDate: '',
+    isSingleDayEvent: false,
     timezone: '', // Will be auto-detected by TimezoneSelector component
     fixTimezoneForAttendees: true,
     location: '',
@@ -69,18 +72,22 @@ const NewEventForm: React.FC<NewEventFormProps> = ({ onClose, onSubmit }) => {
         eventExperience: formData.eventExperience
       })
       
-      if (
+      const step1Valid =
         formData.eventName &&
         formData.startDate &&
-        formData.endDate &&
         formData.timezone &&
         formData.location &&
         formData.attendees > 0 &&
         formData.eventExperience
-      ) {
-        // Store form data in context before moving to next step
+      const endDateValid = formData.isSingleDayEvent || (formData.endDate && formData.endDate > formData.startDate)
+      if (step1Valid && endDateValid) {
+        // For single-day events, ensure endDate = startDate before storing
+        const dataToStore = formData.isSingleDayEvent
+          ? { ...formData, endDate: formData.startDate }
+          : formData
         console.log('💾 [NewEventForm] Storing form data in context and moving to step 2')
-        setEventData(formData)
+        setEventData(dataToStore)
+        setFormData((prev) => (formData.isSingleDayEvent ? { ...prev, endDate: prev.startDate } : prev))
         setCurrentStep(2)
       } else {
         console.warn('⚠️ [NewEventForm] Step 1 validation failed - missing required fields')
@@ -113,14 +120,16 @@ const NewEventForm: React.FC<NewEventFormProps> = ({ onClose, onSubmit }) => {
   }
 
   const isStep1Valid = () => {
-    return !!(
+    const hasRequired = !!(
       formData.eventName &&
       formData.startDate &&
-      formData.endDate &&
       formData.timezone &&
       formData.location &&
-      formData.attendees > 0
+      formData.attendees > 0 &&
+      formData.eventExperience
     )
+    const dateValid = formData.isSingleDayEvent || (!!formData.endDate && formData.endDate > formData.startDate)
+    return hasRequired && dateValid
   }
 
   return (

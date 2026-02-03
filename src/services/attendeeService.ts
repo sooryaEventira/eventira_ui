@@ -361,6 +361,8 @@ export const createTag = async (request: CreateTagRequest): Promise<CreateTagRes
 
     const requestBody = {
       event_uuid: request.event_uuid,
+      // Some backends require event_id in the payload as well.
+      event_id: request.event_uuid,
       name: request.name.trim(),
       description: request.description || '',
       is_active: request.is_active !== undefined ? request.is_active : true

@@ -1649,6 +1649,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           body: JSON.stringify({
             // Some backends require event in body even if event_id is in query params.
             event_id: eventUuid,
+            event_uuid: eventUuid,
             name: scheduleTitle,
             title: scheduleTitle,
             description: details.description || '',

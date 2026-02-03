@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import PublicNavbar from './PublicNavbar'
 import { fetchPublicEvent, type PublicEventData } from '../../services/publicEventService'
+import { fetchPublicWebsiteSettings } from '../../services/websiteSettingsService'
 import { fetchPublicWebpages, type PublicWebpageData } from '../../services/publicWebpageService'
 import PublicWebpageRenderer from './PublicWebpageRenderer'
 import { buildPublicThemeVars } from '../../config/publicTheme'
@@ -229,17 +230,20 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
-  // Public-site theme: set ONE primary hex and derive other tokens.
-  // If backend later provides a brand color, we can wire it here (common keys supported).
+  // Public-site theme: use saved website settings brand color so it reflects on published website.
   const publicThemeVars = useMemo(() => {
+    const fromSettings = websiteSettings?.brand_primary_color?.trim() || ''
     const fromEvent =
+      (event as any)?.brand_primary_color ||
+      (event as any)?.website_settings?.brand_primary_color ||
       (event as any)?.primaryColor ||
       (event as any)?.primary_color ||
       (event as any)?.brandColor ||
       (event as any)?.brand_color ||
       ''
-    return buildPublicThemeVars(String(fromEvent || '').trim() || undefined)
-  }, [event])
+    const primaryHex = (fromSettings || fromEvent || '').trim()
+    return buildPublicThemeVars(primaryHex || undefined)
+  }, [event, websiteSettings])
 
   return (
     <div className="min-h-screen bg-white" style={publicThemeVars as any}>

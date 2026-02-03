@@ -5,13 +5,9 @@ import {
   type DividerLineTableColumn
 } from '../../ui/untitled'
 import type { SpeakerTableRowData } from './speakerTypes'
-import { SelectAllCheckbox } from '../../ui'
 
 interface SpeakerTableColumnsProps {
-  allVisibleSelected: boolean
-  partiallySelected: boolean
   selectedSpeakerIds: Set<string>
-  onToggleAllVisible: (checked: boolean) => void
   onToggleRow: (id: string, checked: boolean) => void
   onEditSpeaker?: (speakerId: string) => void
   onDeleteSpeaker?: (speakerId: string) => void
@@ -24,10 +20,7 @@ const getUserGroupVariant = (variant?: string): 'primary' | 'info' | 'muted' => 
 }
 
 export const useSpeakerTableColumns = ({
-  allVisibleSelected,
-  partiallySelected,
   selectedSpeakerIds,
-  onToggleAllVisible,
   onToggleRow,
   onEditSpeaker,
   onDeleteSpeaker
@@ -36,17 +29,7 @@ export const useSpeakerTableColumns = ({
     () => [
       {
         id: 'name',
-        header: (
-          <div className="flex items-center gap-2">
-            <SelectAllCheckbox
-              checked={allVisibleSelected}
-              indeterminate={partiallySelected}
-              onChange={onToggleAllVisible}
-              ariaLabel="Select all speakers"
-            />
-            <span>Name</span>
-          </div>
-        ),
+        header: 'Name',
         sortable: true,
         sortAccessor: ({ speaker }) => speaker?.name || '',
         render: ({ speaker }) => {
@@ -221,14 +204,6 @@ export const useSpeakerTableColumns = ({
         }
       }
     ],
-    [
-      allVisibleSelected,
-      partiallySelected,
-      selectedSpeakerIds,
-      onToggleAllVisible,
-      onToggleRow,
-      onEditSpeaker,
-      onDeleteSpeaker
-    ]
+    [selectedSpeakerIds, onToggleRow, onEditSpeaker, onDeleteSpeaker]
   )
 }

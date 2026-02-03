@@ -259,17 +259,20 @@ export function DividerLineTable<TData>({
               </TableRow>
             ) : (
               sortedData.map((item, index) => (
-                <TableRow 
+                <TableRow
                   key={getRowKey(item, index)}
-                  onClick={(e) => {
-                    // Don't trigger row click if clicking on interactive elements
-                    const target = e.target as HTMLElement
-                    if (target.closest('button, input, a, [role="button"]')) {
-                      return
-                    }
-                    onRowClick?.(item, index)
-                  }}
-                  className={onRowClick ? 'cursor-pointer' : ''}
+                  {...(onRowClick
+                    ? {
+                        onClick: (e: React.MouseEvent<HTMLTableRowElement>) => {
+                          const target = e.target as HTMLElement
+                          if (target.closest('button, input, a, [role="button"], [role="checkbox"]')) {
+                            return
+                          }
+                          onRowClick(item, index)
+                        },
+                        className: 'cursor-pointer'
+                      }
+                    : { className: '' })}
                 >
                   {columns.map((column) => (
                     <TableCell

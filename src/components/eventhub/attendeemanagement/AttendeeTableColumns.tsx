@@ -5,13 +5,9 @@ import {
   type DividerLineTableColumn
 } from '../../ui/untitled'
 import type { AttendeeTableRowData } from './attendeeTypes'
-import { SelectAllCheckbox } from '../../ui'
 
 interface AttendeeTableColumnsProps {
-  allVisibleSelected: boolean
-  partiallySelected: boolean
   selectedAttendeeIds: Set<string>
-  onToggleAllVisible: (checked: boolean) => void
   onToggleRow: (id: string, checked: boolean) => void
   onEditAttendee?: (attendeeId: string) => void
   onDeleteAttendee?: (attendeeId: string) => void
@@ -24,10 +20,7 @@ const getUserGroupVariant = (variant?: string): 'primary' | 'info' | 'muted' => 
 }
 
 export const useAttendeeTableColumns = ({
-  allVisibleSelected,
-  partiallySelected,
   selectedAttendeeIds,
-  onToggleAllVisible,
   onToggleRow,
   onEditAttendee,
   onDeleteAttendee
@@ -36,17 +29,7 @@ export const useAttendeeTableColumns = ({
     () => [
       {
         id: 'name',
-        header: (
-          <div className="flex items-center gap-2">
-            <SelectAllCheckbox
-              checked={allVisibleSelected}
-              indeterminate={partiallySelected}
-              onChange={onToggleAllVisible}
-              ariaLabel="Select all attendees"
-            />
-            <span>Name</span>
-          </div>
-        ),
+        header: 'Name',
         sortable: true,
         sortAccessor: ({ attendee }) => attendee?.name || '',
         render: ({ attendee }) => {
@@ -217,10 +200,7 @@ export const useAttendeeTableColumns = ({
       }
     ],
     [
-      allVisibleSelected,
-      partiallySelected,
       selectedAttendeeIds,
-      onToggleAllVisible,
       onToggleRow,
       onEditAttendee,
       onDeleteAttendee

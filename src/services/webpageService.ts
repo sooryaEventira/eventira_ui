@@ -411,7 +411,9 @@ export const fetchWebsiteIndex = async (eventUuid: string): Promise<WebsiteIndex
     const webpages = Array.isArray(raw?.webpages) ? raw.webpages : []
     const speaker_tags = Array.isArray(raw?.speaker_tags) ? raw.speaker_tags : []
     const attendee_tags = Array.isArray(raw?.attendee_tags) ? raw.attendee_tags : []
-    return { webpages, speaker_tags, attendee_tags }
+    const result = { webpages, speaker_tags, attendee_tags }
+    console.log('Website index API response:', { raw: data, parsed: result })
+    return result
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
       if (!error.message.includes('Cannot connect')) handleNetworkError(error)
@@ -430,6 +432,45 @@ export const fetchWebsiteIndex = async (eventUuid: string): Promise<WebsiteIndex
     const msg = error instanceof Error ? error.message : 'Failed to fetch website index. Please try again.'
     handleApiError(msg, undefined, 'Failed to fetch website index. Please try again.')
     throw new Error(msg)
+  }
+}
+
+/** Return set of tag UUIDs that have a published group page (for Build page checkbox state). Listing from API only. */
+export async function fetchPublishedTagIds(eventUuid: string): Promise<Set<string>> {
+  try {
+    const index = await fetchWebsiteIndex(eventUuid)
+    const ids: string[] = []
+    for (const t of index.speaker_tags ?? []) {
+      if (t?.uuid) ids.push(t.uuid)
+    }
+    for (const t of index.attendee_tags ?? []) {
+      if (t?.uuid) ids.push(t.uuid)
+    }
+    return new Set(ids)
+  } catch {
+    return new Set()
+  }
+}
+
+/** Published speaker tag UUIDs only (for Speaker management Build page checkbox). */
+export async function fetchPublishedSpeakerTagIds(eventUuid: string): Promise<Set<string>> {
+  try {
+    const index = await fetchWebsiteIndex(eventUuid)
+    const ids = (index.speaker_tags ?? []).map((t) => t?.uuid).filter(Boolean) as string[]
+    return new Set(ids)
+  } catch {
+    return new Set()
+  }
+}
+
+/** Published attendee tag UUIDs only (for Attendee/Organization management Build page checkbox). */
+export async function fetchPublishedAttendeeTagIds(eventUuid: string): Promise<Set<string>> {
+  try {
+    const index = await fetchWebsiteIndex(eventUuid)
+    const ids = (index.attendee_tags ?? []).map((t) => t?.uuid).filter(Boolean) as string[]
+    return new Set(ids)
+  } catch {
+    return new Set()
   }
 }
 

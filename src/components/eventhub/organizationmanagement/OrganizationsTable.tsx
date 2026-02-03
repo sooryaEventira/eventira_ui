@@ -49,36 +49,6 @@ const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
     })
   }, [organizations, searchQuery])
 
-  const visibleOrganizationIds = useMemo(
-    () => filteredOrganizations.map((org) => org.id),
-    [filteredOrganizations]
-  )
-
-  const allVisibleSelected = useMemo(() => {
-    return (
-      visibleOrganizationIds.length > 0 &&
-      visibleOrganizationIds.every((id) => selectedOrganizationIds.has(id))
-    )
-  }, [selectedOrganizationIds, visibleOrganizationIds])
-
-  const partiallySelected = useMemo(() => {
-    return !allVisibleSelected && visibleOrganizationIds.some((id) => selectedOrganizationIds.has(id))
-  }, [allVisibleSelected, selectedOrganizationIds, visibleOrganizationIds])
-
-  const handleToggleAllVisible = useCallback(
-    (checked: boolean) => {
-      setSelectedOrganizationIds((previous) => {
-        const next = new Set(previous)
-        visibleOrganizationIds.forEach((id) => {
-          if (checked) next.add(id)
-          else next.delete(id)
-        })
-        return next
-      })
-    },
-    [visibleOrganizationIds]
-  )
-
   const handleToggleRow = useCallback((id: string, checked: boolean) => {
     setSelectedOrganizationIds((previous) => {
       const next = new Set(previous)
@@ -101,10 +71,7 @@ const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
   )
 
   const columns = useOrganizationTableColumns({
-    allVisibleSelected,
-    partiallySelected,
     selectedOrganizationIds,
-    onToggleAllVisible: handleToggleAllVisible,
     onToggleRow: handleToggleRow,
     onEditOrganization,
     onDeleteOrganization

@@ -1,9 +1,21 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ChevronDown } from '@untitled-ui/icons-react'
 
+const WEBSITE_SETTINGS_API_KEY = 'event-website-settings-api'
+
 const DomainUrlTab: React.FC = () => {
-  const [subdomain, setSubdomain] = useState('HIC2025')
+  const stored = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+  const parsed = stored ? (() => { try { return JSON.parse(stored) } catch { return null } })() : null
+  const [subdomain, setSubdomain] = useState(parsed?.subdomain ?? 'HIC2025')
   const [showAdvanced, setShowAdvanced] = useState(false)
+
+  useEffect(() => {
+    const current = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+    const prev = current ? (() => { try { return JSON.parse(current) } catch { return {} } })() : {}
+    const domain_url = subdomain ? `https://${subdomain}.example.com` : ''
+    const payload = { ...prev, subdomain, domain_url }
+    localStorage.setItem(WEBSITE_SETTINGS_API_KEY, JSON.stringify(payload))
+  }, [subdomain])
 
   return (
     <div className="space-y-8">
