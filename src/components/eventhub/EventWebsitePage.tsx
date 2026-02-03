@@ -7,8 +7,11 @@ import { defaultCards, ContentCard } from './EventHubContent'
 import PageCreationModal, { type PageType } from '../page/PageCreationModal'
 import CreateNavFolderModal from './CreateNavFolderModal'
 import { fetchWebpages, type WebpageData } from '../../services/webpageService'
+import { publishEvent } from '../../services/eventService'
+import { fetchPublicEvent } from '../../services/publicEventService'
 import Button from '../ui/untitled/Button'
 import { readEventStoreJSON } from '../../utils/eventLocalStore'
+import { showToast } from '../../utils/toast'
 import type { NavigationFolderItem, NavigationItem, NavigationPageItem } from '../../types/navigation'
 import {
   isFolder,
@@ -43,7 +46,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   hideNavbarAndSidebar = false
 }) => {
   const { eventData, createdEvent } = useEventForm()
-  const { pages, addPage, deletePage, duplicatePage, initializePages } = useWebsitePages()
+  const { pages, addPage, deletePage, initializePages } = useWebsitePages()
 
   // Prioritize createdEvent data from API, fallback to eventData from form
   // Use useMemo to ensure we always get the latest value and prevent stale reads
@@ -66,6 +69,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [draggingNavId, setDraggingNavId] = useState<string | null>(null)
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
   const [navTreeRefresh, setNavTreeRefresh] = useState(0)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   const closeIconPicker = useCallback(() => {
     setIconPickerForNavId(null)
@@ -147,15 +151,27 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     const speakers = readEventStoreJSON<any[]>(eventUuid, 'speakers', [])
     const attendees = readEventStoreJSON<any[]>(eventUuid, 'attendees', [])
     const organizations = readEventStoreJSON<any[]>(eventUuid, 'organizations', [])
-    const schedules = readEventStoreJSON<any[]>(eventUuid, 'schedule', [])
     const sessionsMap = readEventStoreJSON<Record<string, any[]>>(eventUuid, 'sessions', {})
     const sessionsCount = Object.values(sessionsMap || {}).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
 
+    const hasNamedItem = (arr: any[], fields: string[]) => {
+      return (Array.isArray(arr) ? arr : []).some((x) =>
+        fields.some((f) => String((x as any)?.[f] ?? '').trim().length > 0)
+      )
+    }
+
+    // Only show system pages when there is real data (not placeholders)
+    const hasOrganizations = hasNamedItem(organizations, ['name', 'title', 'company', 'organization', 'organisation'])
+    const hasSpeakers = hasNamedItem(speakers, ['name', 'email'])
+    const hasAttendees = hasNamedItem(attendees, ['name', 'email'])
+    // For schedule, require sessions (a schedule record can exist without any sessions)
+    const hasSchedule = sessionsCount > 0
+
     const out: Array<{ id: string; label: string; kind: 'system' }> = []
-    if (organizations.length) out.push({ id: 'system:organizations', label: 'Organizations', kind: 'system' })
-    if (speakers.length) out.push({ id: 'system:speakers', label: 'Speakers', kind: 'system' })
-    if (attendees.length) out.push({ id: 'system:attendees', label: 'Attendees', kind: 'system' })
-    if (schedules.length || sessionsCount > 0) out.push({ id: 'system:schedule', label: 'Schedule', kind: 'system' })
+    if (hasOrganizations) out.push({ id: 'system:organizations', label: 'Organizations', kind: 'system' })
+    if (hasSpeakers) out.push({ id: 'system:speakers', label: 'Speakers', kind: 'system' })
+    if (hasAttendees) out.push({ id: 'system:attendees', label: 'Attendees', kind: 'system' })
+    if (hasSchedule) out.push({ id: 'system:schedule', label: 'Schedule', kind: 'system' })
     return out
   }, [eventUuidForNavigation])
 
@@ -196,19 +212,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       }
       return reconciled
     })
-  }, [eventUuidForNavigation, webpages])
-
-  const persistNavigationOrder = useCallback(
-    (nextOrder: string[]) => {
-      if (!eventUuidForNavigation) return
-      try {
-        localStorage.setItem(getNavigationOrderStorageKey(eventUuidForNavigation), JSON.stringify(nextOrder))
-      } catch {
-        // ignore
-      }
-    },
-    [eventUuidForNavigation]
-  )
+  }, [eventUuidForNavigation, webpages, systemItemsForNavigation])
 
   const orderedWebpagesForNavigation = useMemo(() => {
     if (webpages.length === 0) return []
@@ -242,6 +246,24 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     }))
 
     const defaultFlat: NavigationPageItem[] = [...systemPages, ...webpagePages]
+    const allowedSystemIds = new Set(systemPages.map((p) => String(p.pageId)))
+
+    const pruneUnavailableSystemPages = (items: NavigationItem[]): NavigationItem[] => {
+      const out: NavigationItem[] = []
+      for (const it of items) {
+        if (isFolder(it)) {
+          out.push({ ...it, children: pruneUnavailableSystemPages(it.children || []) })
+          continue
+        }
+        // Page item
+        const pageId = String((it as any)?.pageId ?? '')
+        if (pageId.startsWith('system:') && !allowedSystemIds.has(pageId)) {
+          continue
+        }
+        out.push(it)
+      }
+      return out
+    }
 
     const stored = loadNavigationConfigFromStorage(treeKey)
     const baseItems =
@@ -249,7 +271,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         ? (stored.items as NavigationItem[])
         : defaultFlat
 
-    const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlat)
+    const prunedBaseItems = pruneUnavailableSystemPages(baseItems)
+    const reconciled = upsertMissingPagesToRoot(prunedBaseItems, defaultFlat)
 
     // Persist reconciliation so new pages/folders remain stable across refreshes.
     try {
@@ -265,27 +288,6 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     orderedWebpagesForNavigation,
     navTreeRefresh
   ])
-
-  const moveNavigationItem = useCallback(
-    (dragId: string, targetId: string) => {
-      if (!dragId || !targetId || dragId === targetId) return
-      const currentIds = (navigationOrderIds.length
-        ? navigationOrderIds
-        : webpages.map((w) => w.uuid)
-      ).filter(Boolean)
-
-      const fromIndex = currentIds.indexOf(dragId)
-      const toIndex = currentIds.indexOf(targetId)
-      if (fromIndex === -1 || toIndex === -1) return
-
-      const next = [...currentIds]
-      next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, dragId)
-      setNavigationOrderIds(next)
-      persistNavigationOrder(next)
-    },
-    [navigationOrderIds, webpages, persistNavigationOrder]
-  )
 
   const moveNavigationTreeItem = useCallback(
     (dragId: string, targetId: string) => {
@@ -491,14 +493,40 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     }
   }
 
-  const handlePublishWebsite = () => {
+  const handlePublishWebsite = async () => {
     const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
     if (!eventUuid) return
 
-    // Open public website shell in a new tab.
-    // The public shell will load navbar items from the public endpoints and render pages read-only.
-    const url = `${window.location.origin}/events/${eventUuid}`
-    window.open(url, '_blank', 'noopener,noreferrer')
+    if (isPublishing) return
+    setIsPublishing(true)
+    try {
+      await publishEvent(eventUuid)
+
+      // Publishing can be eventually-consistent. Wait briefly for the public endpoint to start serving it.
+      const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+      let published = false
+      for (let attempt = 0; attempt < 6; attempt++) {
+        try {
+          await fetchPublicEvent(eventUuid)
+          published = true
+          break
+        } catch {
+          await sleep(800)
+        }
+      }
+
+      if (!published) {
+        showToast.error('Published, but the public site is not available yet. Please try again in a moment.')
+        return
+      }
+
+      // Open public website shell in a new tab after successful publish.
+      // The public shell will load navbar items from the public endpoints and render pages read-only.
+      const url = `${window.location.origin}/events/${eventUuid}`
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } finally {
+      setIsPublishing(false)
+    }
   }
 
   const createNavigationFolder = useCallback(
@@ -1010,12 +1038,13 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         variant="primary"
         size="md"
         onClick={handlePublishWebsite}
+        disabled={isPublishing}
         data-custom-publish-button="true"
         className="bg-[#6938EF] hover:bg-[#5925DC] text-white whitespace-nowrap"
         iconLeading={<Globe01 className="h-4 w-4 flex-shrink-0" />}
         aria-label="Publish"
       >
-        Publish
+        {isPublishing ? 'Publishing...' : 'Publish'}
       </Button>
     </div>
   )
@@ -1109,6 +1138,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
   const createSchedulePage = async (pageId: string, pageName: string) => {
     try {
+      void pageId
       const schedulePageData = {
         content: [
           {
@@ -1145,6 +1175,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         },
         zones: {}
       }
+      void schedulePageData
       
       // // Save page to server
       // const apiUrl = API_ENDPOINTS.SAVE_PAGE || '/api/save-page'

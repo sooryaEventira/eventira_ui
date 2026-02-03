@@ -1,4 +1,6 @@
-export const PUBLIC_PRIMARY_HEX_DEFAULT = '#000000'
+// Default published-site brand color.
+// Matches the app primary used across the admin UI.
+export const PUBLIC_PRIMARY_HEX_DEFAULT = '#6938EF'
 
 const isHexColor = (value: string) => /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test((value || '').trim())
 

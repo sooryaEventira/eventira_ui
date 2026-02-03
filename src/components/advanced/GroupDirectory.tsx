@@ -6,7 +6,7 @@ import { fetchPublicSpeakers } from '../../services/publicSpeakerService'
 type DirectoryAttendee = {
   id: string
   name: string
-  institute?: string
+  organization?: string
   post?: string
   avatarUrl?: string
   groups?: any
@@ -144,7 +144,7 @@ const GroupDirectory: React.FC<GroupDirectoryProps> = ({
               String(a.name ?? '').trim() ||
               String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() ||
               'Unknown',
-            institute: a.institute ?? a.company ?? undefined,
+            organization: a.organization ?? a.institute ?? a.company ?? undefined,
             post: a.post ?? a.title ?? undefined,
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? undefined,
             groups: (a as any).groups,
@@ -245,7 +245,7 @@ const GroupDirectory: React.FC<GroupDirectoryProps> = ({
                   <CardRow
                     key={`${a.id}-${idx}`}
                     title={a.name}
-                    subtitle={[a.post, a.institute].filter(Boolean).join(' • ')}
+                    subtitle={[a.post, a.organization].filter(Boolean).join(' • ')}
                     imageUrl={a.avatarUrl}
                   />
                 ))}

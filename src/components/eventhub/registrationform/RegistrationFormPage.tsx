@@ -7,6 +7,12 @@ interface RegistrationFormPageProps {
   hideNavbarAndSidebar?: boolean
 }
 
+type CustomRegistrationField = {
+  id: string
+  label: string
+  value: string
+}
+
 const RegistrationFormPage: React.FC<RegistrationFormPageProps> = ({ hideNavbarAndSidebar = false }) => {
   // This page is currently used inside EventHubPage with navbar/sidebar already shown.
   // If needed elsewhere, this flag keeps it consistent with other embedded pages.
@@ -14,6 +20,29 @@ const RegistrationFormPage: React.FC<RegistrationFormPageProps> = ({ hideNavbarA
 
   const [bannerLink, setBannerLink] = useState('')
   const [pageDescription, setPageDescription] = useState('')
+  const [customFields, setCustomFields] = useState<CustomRegistrationField[]>([])
+
+  const addCustomField = () => {
+    setCustomFields((prev) => {
+      const nextIndex = prev.length + 1
+      return [
+        ...prev,
+        {
+          id: `custom-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+          label: `Additional field ${nextIndex}`,
+          value: ''
+        }
+      ]
+    })
+  }
+
+  const updateCustomField = (id: string, patch: Partial<CustomRegistrationField>) => {
+    setCustomFields((prev) => prev.map((f) => (f.id === id ? { ...f, ...patch } : f)))
+  }
+
+  const removeCustomField = (id: string) => {
+    setCustomFields((prev) => prev.filter((f) => f.id !== id))
+  }
 
   const linkToCopy = useMemo(() => {
     if (typeof window === 'undefined') return ''
@@ -129,6 +158,23 @@ const RegistrationFormPage: React.FC<RegistrationFormPageProps> = ({ hideNavbarA
                 />
               </div>
 
+              {customFields.length > 0 ? (
+                <div className="space-y-4">
+                  {customFields.map((field) => (
+                    <div key={field.id} className="space-y-1.5">
+                      <label className="text-xs font-medium text-slate-700">{field.label}</label>
+                      <input
+                        type="text"
+                        value={field.value}
+                        onChange={(e) => updateCustomField(field.id, { value: e.target.value })}
+                        placeholder={`Enter ${field.label.toLowerCase()}`}
+                        className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#6938EF] focus:outline-none focus:ring-2 focus:ring-[#6938EF]/15"
+                      />
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
               <button
                 type="button"
                 className="mt-2 inline-flex w-full items-center justify-center rounded-md bg-[#6938EF] px-4 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-[#5925DC] focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
@@ -139,6 +185,7 @@ const RegistrationFormPage: React.FC<RegistrationFormPageProps> = ({ hideNavbarA
 
             <button
               type="button"
+              onClick={addCustomField}
               className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               Add a new field <span className="text-lg leading-none text-slate-500">+</span>
@@ -172,6 +219,34 @@ const RegistrationFormPage: React.FC<RegistrationFormPageProps> = ({ hideNavbarA
                 rows={6}
                 className="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#6938EF] focus:outline-none focus:ring-2 focus:ring-[#6938EF]/15"
               />
+            </div>
+
+            <div className="space-y-2">
+              <div className="text-xs font-semibold text-slate-900">Custom fields</div>
+              {customFields.length === 0 ? (
+                <div className="text-xs text-slate-500">No extra fields yet. Click “Add a new field”.</div>
+              ) : (
+                <div className="space-y-2">
+                  {customFields.map((f) => (
+                    <div key={f.id} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={f.label}
+                        onChange={(e) => updateCustomField(f.id, { label: e.target.value })}
+                        className="flex-1 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#6938EF] focus:outline-none focus:ring-2 focus:ring-[#6938EF]/15"
+                        placeholder="Field label"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeCustomField(f.id)}
+                        className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

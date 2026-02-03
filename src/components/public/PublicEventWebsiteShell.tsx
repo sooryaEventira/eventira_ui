@@ -12,6 +12,7 @@ import {
   saveNavigationConfigToStorage,
   upsertMissingPagesToRoot
 } from '../../utils/navigationTree'
+import { readEventStoreJSON } from '../../utils/eventLocalStore'
 
 type PublicSection =
   | 'webpage'
@@ -126,12 +127,33 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       hiddenIds = new Set()
     }
 
-    const SYSTEM_PAGES: Array<{ id: string; label: string; path: string }> = [
-      { id: 'system:organizations', label: 'Organizations', path: `/events/${eventUuid}/organizations` },
-      { id: 'system:speakers', label: 'Speakers', path: `/events/${eventUuid}/speakers` },
-      { id: 'system:attendees', label: 'Attendees', path: `/events/${eventUuid}/attendees` },
-      { id: 'system:schedule', label: 'Schedule', path: `/events/${eventUuid}/schedule` },
-    ]
+    // Only include system pages when there's real data for them.
+    // This mirrors the editor/demo navbar behavior.
+    const speakers = readEventStoreJSON<any[]>(eventUuid, 'speakers', [])
+    const attendees = readEventStoreJSON<any[]>(eventUuid, 'attendees', [])
+    const organizations = readEventStoreJSON<any[]>(eventUuid, 'organizations', [])
+    const sessionsMap = readEventStoreJSON<Record<string, any[]>>(eventUuid, 'sessions', {})
+    const sessionsCount = Object.values(sessionsMap || {}).reduce(
+      (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
+      0
+    )
+
+    const hasNamedItem = (arr: any[], fields: string[]) => {
+      return (Array.isArray(arr) ? arr : []).some((x) =>
+        fields.some((f) => String((x as any)?.[f] ?? '').trim().length > 0)
+      )
+    }
+
+    const hasOrganizations = hasNamedItem(organizations, ['name', 'title', 'company', 'organization', 'organisation'])
+    const hasSpeakers = hasNamedItem(speakers, ['name', 'email'])
+    const hasAttendees = hasNamedItem(attendees, ['name', 'email'])
+    const hasSchedule = sessionsCount > 0
+
+    const SYSTEM_PAGES: Array<{ id: string; label: string; path: string }> = []
+    if (hasOrganizations) SYSTEM_PAGES.push({ id: 'system:organizations', label: 'Organizations', path: `/events/${eventUuid}/organizations` })
+    if (hasSpeakers) SYSTEM_PAGES.push({ id: 'system:speakers', label: 'Speakers', path: `/events/${eventUuid}/speakers` })
+    if (hasAttendees) SYSTEM_PAGES.push({ id: 'system:attendees', label: 'Attendees', path: `/events/${eventUuid}/attendees` })
+    if (hasSchedule) SYSTEM_PAGES.push({ id: 'system:schedule', label: 'Schedule', path: `/events/${eventUuid}/schedule` })
 
     const dynamicPages: Array<{ id: string; label: string; path: string }> = webpages.map((p) => ({
       id: String(p.uuid),
@@ -160,10 +182,27 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         pageId: p.id
       }))
     ]
+    const allowedSystemIds = new Set(SYSTEM_PAGES.map((p) => p.id))
+
+    const pruneUnavailableSystemPages = (items: NavigationItem[]): NavigationItem[] => {
+      const out: NavigationItem[] = []
+      for (const it of items) {
+        // folder shape
+        if ((it as any)?.type === 'folder') {
+          out.push({ ...(it as any), children: pruneUnavailableSystemPages((it as any).children || []) })
+          continue
+        }
+        const pageId = String((it as any)?.pageId ?? '')
+        if (pageId.startsWith('system:') && !allowedSystemIds.has(pageId)) continue
+        out.push(it)
+      }
+      return out
+    }
 
     // Load tree (folder-capable). If missing, migrate to a flat tree.
     const stored = loadNavigationConfigFromStorage(treeKey)
-    const baseItems = stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat
+    const baseItemsRaw = stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat
+    const baseItems = pruneUnavailableSystemPages(baseItemsRaw)
 
     // Reconcile: ensure newly created pages appear even if the tree is stale.
     const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlat.filter((i) => i.type === 'page'))

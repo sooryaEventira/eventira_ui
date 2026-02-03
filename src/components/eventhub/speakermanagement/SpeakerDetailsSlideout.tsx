@@ -7,7 +7,7 @@ interface SpeakerDetailsSlideoutProps {
   isOpen: boolean
   onClose: () => void
   speaker: Speaker | null
-  onSave?: (speaker: Speaker) => void
+  onSave?: (speaker: Speaker) => void | Promise<void>
   topOffset?: number
 }
 
@@ -26,6 +26,8 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
   const [title, setTitle] = useState('')
   const [bio, setBio] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<SpeakerGroup[]>([])
+  const [groupsText, setGroupsText] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     if (speaker && isOpen) {
@@ -39,22 +41,47 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
       setTitle(speaker.role || speaker.title || '')
       setBio(speaker.bio || '')
       setSelectedGroups([...speaker.groups])
+      setGroupsText((speaker.groups || []).map((g) => g.name).filter(Boolean).join(', '))
     }
   }, [speaker, isOpen])
 
-  const handleRemoveGroup = (groupId: string) => {
-    setSelectedGroups((prev) => prev.filter((g) => g.id !== groupId))
+  const parseGroupsFromText = (text: string, prev: SpeakerGroup[]): SpeakerGroup[] => {
+    const parts = String(text || '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+
+    const seen = new Set<string>()
+    const unique = parts.filter((name) => {
+      const key = name.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    return unique.map((name, idx) => {
+      const existing = prev.find((g) => String(g.name || '').toLowerCase() === name.toLowerCase())
+      if (existing) return existing
+      return {
+        id: `${Date.now()}-${idx}`,
+        name,
+        variant: 'primary' as const
+      }
+    })
   }
 
-  const getGroupVariant = (groupName: string): 'primary' | 'success' | 'warning' | 'info' | 'muted' => {
-    if (groupName === 'Keynote Speaker') return 'primary'
-    if (groupName === 'Panelist') return 'success'
-    if (groupName === 'Workshop Leader') return 'warning'
-    return 'primary'
+  const commitGroups = (text = groupsText) => {
+    const next = parseGroupsFromText(text, selectedGroups)
+    setSelectedGroups(next)
+    setGroupsText(next.map((g) => g.name).join(', '))
+    return next
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editedSpeaker) return
+    if (isSaving) return
+    setIsSaving(true)
+    const nextGroups = commitGroups(groupsText)
 
     const updatedSpeaker: Speaker = {
       ...editedSpeaker,
@@ -67,11 +94,15 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
       role: title,
       title,
       bio,
-      groups: selectedGroups
+      groups: nextGroups
     }
 
-    onSave?.(updatedSpeaker)
-    onClose()
+    try {
+      await onSave?.(updatedSpeaker)
+      onClose()
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (!speaker) return null
@@ -88,6 +119,7 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
           <button
             type="button"
             onClick={onClose}
+            disabled={isSaving}
             className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
             Cancel
@@ -95,9 +127,10 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
           <button
             type="button"
             onClick={handleSave}
+            disabled={isSaving}
             className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </button>
         </>
       }
@@ -251,26 +284,15 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
             </label>
             <input
               type="text"
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary bg-white"
-              placeholder="Type a group name and press Enter"
+              value={groupsText}
+              onChange={(e) => setGroupsText(e.target.value)}
+              onBlur={() => commitGroups()}
+              placeholder="e.g. VIP, Panelist"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return
                 e.preventDefault()
-                const input = e.currentTarget
-                const value = (input.value || '').trim()
-                if (!value) return
-
-                setSelectedGroups((prev) => {
-                  const exists = prev.some((g) => String(g.name || '').toLowerCase() === value.toLowerCase())
-                  if (exists) return prev
-                  const newGroup: SpeakerGroup = {
-                    id: Date.now().toString(),
-                    name: value,
-                    variant: 'primary'
-                  }
-                  return [...prev, newGroup]
-                })
-                input.value = ''
+                commitGroups()
               }}
             />
           </div>
@@ -290,33 +312,6 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
           />
         </div>
 
-        {/* Selected groups */}
-        {selectedGroups.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Groups
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {selectedGroups.map((group) => (
-                <Badge
-                  key={group.id}
-                  variant={getGroupVariant(group.name)}
-                  className="inline-flex items-center gap-1.5"
-                >
-                  {group.name}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveGroup(group.id)}
-                    className="ml-1 hover:text-slate-700"
-                    aria-label={`Remove ${group.name}`}
-                  >
-                    <XClose className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </Slideout>
   )

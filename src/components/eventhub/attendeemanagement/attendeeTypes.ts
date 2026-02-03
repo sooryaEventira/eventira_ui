@@ -1,4 +1,4 @@
-export type AttendeeStatus = 'opened' | 'loggedin' | 'sent' | 'delivered' | 'active' | 'bounced'
+export type AttendeeStatus = 'opened' | 'loggedin' | 'sent' | 'delivered' | 'active' | 'bounced' | 'invited'
 
 export interface AttendeeGroup {
   id: string
@@ -18,7 +18,7 @@ export interface Attendee {
   inviteCode?: string
   groups: AttendeeGroup[]
   tags?: string[]
-  institute?: string
+  organization?: string
   post?: string
   description?: string
   emailVerified?: boolean

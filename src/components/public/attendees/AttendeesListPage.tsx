@@ -8,7 +8,7 @@ type PublicAttendee = {
   id: string
   name: string
   post?: string
-  institute?: string
+  organization?: string
   avatarUrl?: string
 }
 
@@ -18,7 +18,7 @@ interface AttendeesListPageProps {
 }
 
 const AttendeeRow = ({ attendee }: { attendee: PublicAttendee }) => {
-  const subtitle = [attendee.post, attendee.institute].filter(Boolean).join(' • ')
+  const subtitle = [attendee.post, attendee.organization].filter(Boolean).join(' • ')
   return (
     <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       {attendee.avatarUrl ? (
@@ -48,7 +48,7 @@ const AttendeeRow = ({ attendee }: { attendee: PublicAttendee }) => {
 
 const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavigate }) => {
   const [queryInput, setQueryInput] = useState('') // live query
-  const [instituteFilter, setInstituteFilter] = useState<string>('all')
+  const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [apiAttendees, setApiAttendees] = useState<PublicAttendee[] | null>(null)
   const [isLoading, setIsLoading] = useState(false)
 
@@ -68,7 +68,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             id,
             name,
             post: a.post ?? a.title ?? undefined,
-            institute: a.institute ?? a.company ?? undefined,
+            organization: a.organization ?? a.institute ?? a.company ?? undefined,
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? undefined,
           }
         })
@@ -102,19 +102,19 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     })
   }, [attendees])
 
-  const instituteOptions = useMemo(() => {
+  const organizationOptions = useMemo(() => {
     const set = new Set<string>()
     normalizedAttendees.forEach((a) => {
-      const v = String(a.institute ?? '').trim()
+      const v = String(a.organization ?? '').trim()
       if (v) set.add(v)
     })
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [normalizedAttendees])
 
   const baseAttendees = useMemo(() => {
-    if (instituteFilter === 'all') return normalizedAttendees
-    return normalizedAttendees.filter((a) => String(a.institute ?? '').trim() === instituteFilter)
-  }, [normalizedAttendees, instituteFilter])
+    if (organizationFilter === 'all') return normalizedAttendees
+    return normalizedAttendees.filter((a) => String(a.organization ?? '').trim() === organizationFilter)
+  }, [normalizedAttendees, organizationFilter])
 
   const attendeeIndex = useMemo(() => {
     // Search by attendee name only
@@ -153,7 +153,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             />
             <button
               type="button"
-              className="flex h-9 w-10 items-center justify-center bg-primary text-white"
+              className="flex h-9 w-10 items-center justify-center bg-primary/90 text-white"
               aria-label="Search"
               onClick={() => {
                 // Live search already applies; keep button for UI parity.
@@ -173,13 +173,13 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
               <FilterLines className="h-4 w-4" />
             </button>
             <select
-              value={instituteFilter}
-              onChange={(e) => setInstituteFilter(e.target.value)}
+              value={organizationFilter}
+              onChange={(e) => setOrganizationFilter(e.target.value)}
               className="absolute inset-0 h-9 w-9 cursor-pointer opacity-0"
-              aria-label="Filter by institute"
+              aria-label="Filter by organization"
             >
-              <option value="all">All institutes</option>
-              {instituteOptions.map((opt) => (
+              <option value="all">All organizations</option>
+              {organizationOptions.map((opt) => (
                 <option key={opt} value={opt}>
                   {opt}
                 </option>

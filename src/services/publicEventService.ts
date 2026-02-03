@@ -16,11 +16,24 @@ export const fetchPublicEvent = async (eventUuid: string): Promise<PublicEventDa
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.PUBLIC.EVENT.GET(eventUuid)
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+    const ensureTrailingSlash = (u: string) => (u.endsWith('/') ? u : `${u}/`)
+
+    const urlPrimary = ensureTrailingSlash(API_ENDPOINTS.PUBLIC.EVENT.GET(eventUuid))
+    // Fallback for environments that use plural `events/{uuid}/`
+    const urlFallback = ensureTrailingSlash(urlPrimary.replace('/event/', '/events/'))
+
+    const tryFetch = async (url: string) => {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      })
+      return response
+    }
+
+    let response = await tryFetch(urlPrimary)
+    if (response.status === 404 && urlFallback !== urlPrimary) {
+      response = await tryFetch(urlFallback)
+    }
 
     if (!response || !response.ok) {
       if (!response) {

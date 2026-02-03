@@ -6,7 +6,7 @@ type PublicAttendee = {
   id: string
   name: string
   post?: string
-  institute?: string
+  organization?: string
   avatarUrl?: string
 }
 
@@ -36,7 +36,7 @@ const AttendeeDetailPage: React.FC<AttendeeDetailPageProps> = ({ eventUuid, atte
             id,
             name,
             post: a.post ?? a.title ?? undefined,
-            institute: a.institute ?? a.company ?? undefined,
+            organization: a.organization ?? a.institute ?? a.company ?? undefined,
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? undefined,
           }
         })
@@ -103,7 +103,7 @@ const AttendeeDetailPage: React.FC<AttendeeDetailPageProps> = ({ eventUuid, atte
     )
   }
 
-  const subtitle = [attendee.post, attendee.institute].filter(Boolean).join(' • ')
+  const subtitle = [attendee.post, attendee.organization].filter(Boolean).join(' • ')
 
   return (
     <div className="space-y-10">

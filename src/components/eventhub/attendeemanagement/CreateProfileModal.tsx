@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react'
 import { XClose, Upload01, HelpCircle, Plus, Trash03 } from '@untitled-ui/icons-react'
+import { createAttendee } from '../../../services/attendeeService'
 
 interface CreateProfileModalProps {
   isOpen: boolean
   onClose: () => void
+  eventUuid?: string
   onSave: (data: {
     firstName: string
     lastName: string
@@ -20,6 +22,7 @@ interface CreateProfileModalProps {
 const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   isOpen,
   onClose,
+  eventUuid,
   onSave
 }) => {
   const [firstName, setFirstName] = useState('')
@@ -31,6 +34,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   const [description, setDescription] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [customFields, setCustomFields] = useState<
     Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
@@ -80,11 +84,17 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       alert('Please fill in all required fields')
       return
     }
+    if (!eventUuid) {
+      alert('Event UUID is required. Please select an event first.')
+      return
+    }
+    if (isSaving) return
+    setIsSaving(true)
 
     const cleanedCustomFields = customFields
       .map((f) => ({
@@ -95,7 +105,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       }))
       .filter((f) => f.label || f.value)
 
-    onSave({
+    const payload = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim(),
@@ -105,19 +115,39 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       description: description.trim() || undefined,
       avatarUrl: avatarUrl || undefined,
       customFields: cleanedCustomFields.length ? cleanedCustomFields : undefined
-    })
+    }
 
-    // Reset form
-    setFirstName('')
-    setLastName('')
-    setEmail('')
-    setOrganization('')
-    setRole('')
-    setGroup('')
-    setDescription('')
-    setAvatarUrl(null)
-    setCustomFields([])
-    onClose()
+    try {
+      // Persist to DB (create attendee)
+      await createAttendee(eventUuid, {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        email: payload.email,
+        organization: payload.organization,
+        designation: payload.role,
+        bio: payload.description,
+        groups: payload.group ? [payload.group] : undefined,
+      })
+
+      onSave(payload)
+
+      // Reset form
+      setFirstName('')
+      setLastName('')
+      setEmail('')
+      setOrganization('')
+      setRole('')
+      setGroup('')
+      setDescription('')
+      setAvatarUrl(null)
+      setCustomFields([])
+      onClose()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Failed to create attendee. Please try again.'
+      alert(msg)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const handleCancel = () => {
@@ -402,6 +432,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
             <button
               type="button"
               onClick={handleCancel}
+              disabled={isSaving}
               className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
               Cancel
@@ -409,9 +440,10 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
+              disabled={isSaving}
               className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
-              Save
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>

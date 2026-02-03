@@ -1,9 +1,11 @@
 import React, { useState, useRef } from 'react'
 import { XClose, Upload01, HelpCircle, Plus, Trash03 } from '@untitled-ui/icons-react'
+import { createSpeaker } from '../../../services/speakerService'
 
 interface CreateSpeakerModalProps {
   isOpen: boolean
   onClose: () => void
+  eventUuid?: string
   onSave: (data: {
     firstName: string
     lastName: string
@@ -20,6 +22,7 @@ interface CreateSpeakerModalProps {
 const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
   isOpen,
   onClose,
+  eventUuid,
   onSave
 }) => {
   const [firstName, setFirstName] = useState('')
@@ -31,6 +34,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
   const [group, setGroup] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [customFields, setCustomFields] = useState<
     Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
@@ -79,11 +83,17 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
     }
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!firstName.trim() || !lastName.trim() || !email.trim()) {
       alert('Please fill in all required fields')
       return
     }
+    if (!eventUuid) {
+      alert('Event UUID is required. Please select an event first.')
+      return
+    }
+    if (isSaving) return
+    setIsSaving(true)
 
     const cleanedCustomFields = customFields
       .map((f) => ({
@@ -93,7 +103,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
       }))
       .filter((f) => f.label || f.value)
 
-    onSave({
+    const payload = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
       email: email.trim(),
@@ -103,19 +113,43 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
       group: group.trim() || undefined,
       avatarUrl: avatarUrl || undefined,
       customFields: cleanedCustomFields.length ? cleanedCustomFields : undefined
-    })
+    }
 
-    // Reset form
-    setFirstName('')
-    setLastName('')
-    setEmail('')
-    setOrganization('')
-    setRole('')
-    setBio('')
-    setGroup('')
-    setAvatarUrl(null)
-    setCustomFields([])
-    onClose()
+    try {
+      // Persist to DB:
+      // POST {{url}}{{admin_url}}speakers/?event_id={{event_uuid}}
+      await createSpeaker(eventUuid, {
+        first_name: payload.firstName,
+        last_name: payload.lastName,
+        email: payload.email,
+        organization: payload.organization,
+        designation: payload.role,
+        bio: payload.bio,
+        groups: payload.group ? [payload.group] : undefined,
+      })
+
+      // Let parent refresh UI if needed
+      onSave(payload)
+
+      // Reset form
+      setFirstName('')
+      setLastName('')
+      setEmail('')
+      setOrganization('')
+      setRole('')
+      setBio('')
+      setGroup('')
+      setAvatarUrl(null)
+      setCustomFields([])
+      onClose()
+    } catch (err) {
+      // Keep modal open; service layer already formats toast, but ensure user sees something.
+      const msg = err instanceof Error ? err.message : 'Failed to create speaker. Please try again.'
+      alert(msg)
+    } finally {
+      setIsSaving(false)
+    }
+
   }
 
   const handleCancel = () => {
@@ -407,9 +441,10 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
+              disabled={isSaving}
               className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
-              Save
+              {isSaving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>

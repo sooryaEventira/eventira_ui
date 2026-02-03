@@ -1,11 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import Slideout from '../../ui/untitled/Slideout'
 import Button from '../../ui/untitled/Button'
 import SessionDetailsForm from './SessionDetailsForm'
 import SectionPickerModal from './SectionPickerModal'
 import SessionSummaryView from './SessionSummaryView'
+import SessionSectionPreview from './SessionSectionPreview'
+import type { SessionSectionPreviewHandlers } from './SessionSectionPreview'
 import { defaultSessionDraft, sectionOptions } from './sessionConfig'
-import { SessionDraft } from './sessionTypes'
+import { SessionDraft, SessionSection } from './sessionTypes'
 
 interface SessionSlideoutProps {
   isOpen: boolean
@@ -35,6 +37,14 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sectionOptions[0]?.id ?? 'slides')
   const [isEditing, setIsEditing] = useState(startInEditMode)
+  const [galleryCurrentIndex, setGalleryCurrentIndex] = useState<Record<string, number>>({})
+
+  const imageInputRef = useRef<HTMLInputElement | null>(null)
+  const imageUploadSectionIdRef = useRef<string | null>(null)
+  const galleryInputRef = useRef<HTMLInputElement | null>(null)
+  const galleryUploadSectionIdRef = useRef<string | null>(null)
+  const resourcesInputRef = useRef<HTMLInputElement | null>(null)
+  const resourcesUploadSectionIdRef = useRef<string | null>(null)
 
 
   useEffect(() => {
@@ -95,20 +105,213 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         ? 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Odio dictumst tempus magna elit cras posuere cursus pulvinar id. Facilisis at eu amet ornare enim arcu malesuada rutrum a.'
         : undefined
 
+    const data =
+      section.id === 'location'
+        ? { embed: '' }
+        : section.id === 'slides' || section.id === 'image'
+          ? { url: '' }
+          : section.id === 'photo-gallery'
+            ? { images: [] }
+            : section.id === 'resources'
+              ? { files: [] }
+              : undefined
+
     setDraft((prev) => ({
       ...prev,
       sections: [
         ...prev.sections,
         {
-          id: `section-${Date.now()}`,
+          id: `${section.id}-${Date.now()}`,
           type: section.id,
           title: section.label,
-          description: sectionDescription
+          description: sectionDescription,
+          data
         }
       ]
     }))
 
     setIsSectionModalOpen(false)
+  }
+
+  const handleRemoveSection = (sectionId: string) => {
+    const section = draft.sections.find((s) => s.id === sectionId)
+    const previewUrl = section?.data?.previewUrl
+    if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(previewUrl)
+      } catch {
+        // ignore
+      }
+    }
+    const galleryImages = section?.data?.images as Array<{ previewUrl?: string }> | undefined
+    if (Array.isArray(galleryImages)) {
+      galleryImages.forEach((item) => {
+        const url = item?.previewUrl
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(url)
+          } catch {
+            // ignore
+          }
+        }
+      })
+    }
+    setDraft((prev) => ({ ...prev, sections: prev.sections.filter((s) => s.id !== sectionId) }))
+  }
+
+  const updateSection = (sectionId: string, patch: Partial<SessionSection>) => {
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) => (s.id === sectionId ? { ...s, ...patch } : s))
+    }))
+  }
+
+  const openSectionImagePicker = (id: string) => {
+    imageUploadSectionIdRef.current = id
+    imageInputRef.current?.click()
+  }
+
+  const handleSectionImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = imageUploadSectionIdRef.current
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    imageUploadSectionIdRef.current = null
+    if (!file || !sectionId) return
+    if (!file.type?.startsWith('image/')) return
+    const section = draft.sections.find((s) => s.id === sectionId)
+    const prevPreviewUrl = section?.data?.previewUrl
+    if (typeof prevPreviewUrl === 'string' && prevPreviewUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(prevPreviewUrl)
+      } catch {
+        // ignore
+      }
+    }
+    const previewUrl = URL.createObjectURL(file)
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId ? { ...s, data: { ...(s.data || {}), file, previewUrl, url: '' } } : s
+      )
+    }))
+  }
+
+  const handleRemoveSectionImage = (sectionId: string) => {
+    const section = draft.sections.find((s) => s.id === sectionId)
+    const previewUrl = section?.data?.previewUrl
+    if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(previewUrl)
+      } catch {
+        // ignore
+      }
+    }
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId ? { ...s, data: { ...(s.data || {}), file: undefined, previewUrl: undefined } } : s
+      )
+    }))
+  }
+
+  const openGalleryPicker = (sectionId: string) => {
+    galleryUploadSectionIdRef.current = sectionId
+    galleryInputRef.current?.click()
+  }
+
+  const handleGalleryImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = galleryUploadSectionIdRef.current
+    const files = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    galleryUploadSectionIdRef.current = null
+    if (!files.length || !sectionId) return
+    const section = draft.sections.find((s) => s.id === sectionId)
+    const existingImages = (section?.data?.images as Array<{ file: File; previewUrl: string }>) ?? []
+    const newEntries = files
+      .filter((file) => file.type?.startsWith('image/'))
+      .map((file) => ({ file, previewUrl: URL.createObjectURL(file) }))
+    if (newEntries.length === 0) return
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId
+          ? { ...s, data: { ...(s.data || {}), images: [...existingImages, ...newEntries] } }
+          : s
+      )
+    }))
+  }
+
+  const handleRemoveGalleryImage = (sectionId: string, index: number) => {
+    const section = draft.sections.find((s) => s.id === sectionId)
+    const images = (section?.data?.images as Array<{ file: File; previewUrl: string }>) ?? []
+    const item = images[index]
+    if (item?.previewUrl?.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(item.previewUrl)
+      } catch {
+        // ignore
+      }
+    }
+    const nextImages = images.filter((_, i) => i !== index)
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId ? { ...s, data: { ...(s.data || {}), images: nextImages } } : s
+      )
+    }))
+    setGalleryCurrentIndex((prev) => {
+      const current = prev[sectionId] ?? 0
+      return { ...prev, [sectionId]: Math.min(current, Math.max(0, nextImages.length - 1)) }
+    })
+  }
+
+  const openResourcesPicker = (sectionId: string) => {
+    resourcesUploadSectionIdRef.current = sectionId
+    resourcesInputRef.current?.click()
+  }
+
+  const handleResourcesFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = resourcesUploadSectionIdRef.current
+    const files = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    resourcesUploadSectionIdRef.current = null
+    if (!files.length || !sectionId) return
+    const section = draft.sections.find((s) => s.id === sectionId)
+    const existingFiles = (section?.data?.files as File[]) ?? []
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId
+          ? { ...s, data: { ...(s.data || {}), files: [...existingFiles, ...files] } }
+          : s
+      )
+    }))
+  }
+
+  const handleRemoveResourcesFile = (sectionId: string, index: number) => {
+    const section = draft.sections.find((s) => s.id === sectionId)
+    const files = (section?.data?.files as File[]) ?? []
+    const nextFiles = files.filter((_, i) => i !== index)
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId ? { ...s, data: { ...(s.data || {}), files: nextFiles } } : s
+      )
+    }))
+  }
+
+  const sectionPreviewHandlers: SessionSectionPreviewHandlers = {
+    onUpdateSection: updateSection,
+    galleryCurrentIndex,
+    onGalleryIndexChange: (sectionId: string, index: number) => {
+      setGalleryCurrentIndex((prev) => ({ ...prev, [sectionId]: index }))
+    },
+    onOpenSectionImagePicker: openSectionImagePicker,
+    onRemoveSectionImage: handleRemoveSectionImage,
+    onOpenGalleryPicker: openGalleryPicker,
+    onRemoveGalleryImage: handleRemoveGalleryImage,
+    onOpenResourcesPicker: openResourcesPicker,
+    onRemoveResourcesFile: handleRemoveResourcesFile
   }
 
   const handleCloseSectionModal = () => {
@@ -188,8 +391,37 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     </>
   )
 
+  const docAccept =
+    '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain'
+
   return (
     <>
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleSectionImageChange}
+        aria-hidden
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleGalleryImageChange}
+        aria-hidden
+      />
+      <input
+        ref={resourcesInputRef}
+        type="file"
+        accept={docAccept}
+        multiple
+        className="hidden"
+        onChange={handleResourcesFileChange}
+        aria-hidden
+      />
       <Slideout
         isOpen={isOpen}
         onClose={onClose}
@@ -207,6 +439,10 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
               onAddSectionClick={handleAddSection}
               availableTags={availableTags}
               availableLocations={availableLocations}
+              renderSectionPreview={(section) => (
+                <SessionSectionPreview section={section} handlers={sectionPreviewHandlers} />
+              )}
+              onRemoveSection={handleRemoveSection}
             />
           ) : (
             <SessionSummaryView session={draft} />

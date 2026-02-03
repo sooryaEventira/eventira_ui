@@ -11,6 +11,7 @@ import { TablePagination, useTableHeader } from '../../ui'
 import { useSpeakerTableColumns } from './SpeakerTableColumns'
 import { useCustomFieldTableColumns } from '../attendeemanagement/CustomFieldTableColumns'
 import { Download01, Grid01, Upload01 } from '@untitled-ui/icons-react'
+import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface SpeakersTableProps {
   speakers: Speaker[]
@@ -40,7 +41,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   onCreateField,
   onEditSpeaker,
   isLoading = false,
-  onDeleteSpeaker,
+  onDeleteSpeaker: onDeleteSpeakerProp,
   onEditCustomField,
   onDeleteCustomField,
   onDownload,
@@ -52,6 +53,8 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   const [selectedCustomFieldIds, setSelectedCustomFieldIds] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+  const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>({
     column: 'name',
     direction: 'ascending'
@@ -213,6 +216,30 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     return paginatedCustomFields.map((field, index) => ({ customField: field, index }))
   }, [paginatedCustomFields])
 
+  const requestDeleteSpeaker = useCallback(
+    (speakerId: string) => {
+      const s = speakers.find((x) => x.id === speakerId)
+      setDeleteCandidate({ id: speakerId, name: s?.name || 'this speaker' })
+    },
+    [speakers]
+  )
+
+  const confirmDeleteSpeaker = useCallback(async () => {
+    if (!deleteCandidate) return
+    if (!onDeleteSpeakerProp) {
+      setDeleteCandidate(null)
+      return
+    }
+    if (isDeleting) return
+    setIsDeleting(true)
+    try {
+      await Promise.resolve(onDeleteSpeakerProp(deleteCandidate.id) as any)
+      setDeleteCandidate(null)
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [deleteCandidate, isDeleting, onDeleteSpeakerProp])
+
   const speakerColumns = useSpeakerTableColumns({
     allVisibleSelected: allVisibleSpeakersSelected,
     partiallySelected: partiallySpeakersSelected,
@@ -220,7 +247,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     onToggleAllVisible: handleToggleAllSpeakers,
     onToggleRow: handleToggleSpeaker,
     onEditSpeaker,
-    onDeleteSpeaker
+    onDeleteSpeaker: requestDeleteSpeaker
   })
 
 
@@ -414,6 +441,18 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
             onPageChange={setCurrentPage}
           />
         }
+      />
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteCandidate}
+        title="Delete speaker?"
+        itemName={deleteCandidate?.name}
+        isLoading={isDeleting}
+        onCancel={() => {
+          if (isDeleting) return
+          setDeleteCandidate(null)
+        }}
+        onConfirm={confirmDeleteSpeaker}
       />
     </div>
   )

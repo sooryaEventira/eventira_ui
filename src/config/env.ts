@@ -91,6 +91,7 @@ export const API_ENDPOINTS = {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}event/`,
     LIST: `${env.AUTH_API_URL}${ADMIN_API_BASE}event/`,
     GET: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
+    PUBLISH: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/publish/`,
   },
   // Timezone endpoints
   TIMEZONE: {
@@ -99,12 +100,13 @@ export const API_ENDPOINTS = {
   // Webpage endpoints
   WEBPAGE: {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/?event_uuid=${eventUuid}`,
-    GET: (webpageUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/?event_uuid=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/?event_id=${eventUuid}`,
+    GET: (webpageUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/?event_id=${eventUuid}`,
   },
   // Public website endpoints (published pages + event details)
   PUBLIC: {
     EVENT: {
+      // Public event endpoint (backend expects singular `event/`)
       GET: (eventUuid: string) => `${PUBLIC_API_ROOT}event/${eventUuid}`,
     },
     WEBPAGES: {
@@ -128,51 +130,58 @@ export const API_ENDPOINTS = {
     },
   },
   // User Management endpoints
-  USER_MANAGEMENT: {
+  ATTENDEE_MANAGEMENT: {
     UPLOAD_USER: `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/upload-excel/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_uuid=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
+    TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/tags/?event_id=${eventUuid}`,
+    CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
+    UPDATE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`,
+    DELETE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`
   },
   // Tags/Groups endpoints
   TAGS: {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/`,
-    // LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags?event_uuid=${eventUuid}`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/?event_uuid=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/?event_id=${eventUuid}`,
   },
   // Schedule session tags (creatable multiselect in ScheduleDetailsSlideout)
   SCHEDULE_TAGS: {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/?event_uuid=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/?event_id=${eventUuid}`,
   },
   // Schedule endpoints
   SCHEDULES: {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_uuid=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
   },
   // Sessions endpoints (schedule grid + bulk import)
   SESSIONS: {
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_uuid=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_id=${eventUuid}`,
     BULK_IMPORT: (scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/schedules/${scheduleUuid}/bulk-import/`,
   },
   // Communication endpoints
   COMMUNICATION: {
     SEND: `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_uuid=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_id=${eventUuid}`,
   },
   // Speaker Management endpoints
   SPEAKER_MANAGEMENT: {
     UPLOAD_SPEAKER: `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/import/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
+    TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/tags/?event_id=${eventUuid}`,
+    CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
+    UPDATE: (speakerUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/${speakerUuid}/`,
+    DELETE: (speakerUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/${speakerUuid}/`,
   },
   // Organization/Exhibitors endpoints
   EXHIBITORS: {
-    // Listing organizations/exhibitors for Organization table
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_uuid=${eventUuid}`,
-    // Delete an exhibitor/organization by UUID
+ 
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_id=${eventUuid}`,
+ 
     DELETE: (exhibitorUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/${exhibitorUuid}/`,
-    // Bulk upload/import for organizations/exhibitors
+
     IMPORT: (eventUuid: string) =>
-      `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/import/?event_uuid=${eventUuid}`,
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/import/?event_id=${eventUuid}`,
   },
   // Resource Management endpoints
   RESOURCE: {
@@ -180,8 +189,6 @@ export const API_ENDPOINTS = {
     DELETE_FOLDER: (uuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}resources/folders/${uuid}/`,
     LIST_FOLDERS: (eventUuid: string, parentFolderId?: string | null) => {
       let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}resources/folders/?event_uuid=${eventUuid}`
-      // Only add parent parameter if it's explicitly provided (not null/undefined)
-      // When undefined, fetch all folders; when null, fetch root folders; when string, fetch nested folders
       if (parentFolderId !== undefined && parentFolderId !== null) {
         url += `&parent=${parentFolderId}`
       }

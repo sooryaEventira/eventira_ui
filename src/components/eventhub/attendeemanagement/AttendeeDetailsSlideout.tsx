@@ -7,7 +7,7 @@ interface AttendeeDetailsSlideoutProps {
   isOpen: boolean
   onClose: () => void
   attendee: Attendee | null
-  onSave?: (attendee: Attendee) => void
+  onSave?: (attendee: Attendee) => void | Promise<void>
   topOffset?: number
 }
 
@@ -22,10 +22,12 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
-  const [institute, setInstitute] = useState('')
+  const [organization, setOrganization] = useState('')
   const [post, setPost] = useState('')
   const [description, setDescription] = useState('')
   const [selectedGroups, setSelectedGroups] = useState<AttendeeGroup[]>([])
+  const [groupsText, setGroupsText] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
 
 
   useEffect(() => {
@@ -35,26 +37,52 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
       setFirstName(attendee.firstName || nameParts[0] || '')
       setLastName(attendee.lastName || nameParts.slice(1).join(' ') || '')
       setEmail(attendee.email || '')
-      setInstitute(attendee.institute || '')
+      setOrganization(attendee.organization || '')
       setPost(attendee.post || '')
-      setDescription((attendee as any).description || '')
+      // Backend sometimes uses `bio`; UI model uses `description`
+      setDescription(attendee.description || (attendee as any).bio || '')
       setSelectedGroups([...attendee.groups])
+      setGroupsText((attendee.groups || []).map((g) => g.name).filter(Boolean).join(', '))
     }
   }, [attendee, isOpen])
 
-  const handleRemoveGroup = (groupId: string) => {
-    setSelectedGroups((prev) => prev.filter((g) => g.id !== groupId))
+  const parseGroupsFromText = (text: string, prev: AttendeeGroup[]): AttendeeGroup[] => {
+    const parts = String(text || '')
+      .split(',')
+      .map((p) => p.trim())
+      .filter(Boolean)
+
+    const seen = new Set<string>()
+    const unique = parts.filter((name) => {
+      const key = name.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+
+    return unique.map((name, idx) => {
+      const existing = prev.find((g) => String(g.name || '').toLowerCase() === name.toLowerCase())
+      if (existing) return existing
+      return {
+        id: `${Date.now()}-${idx}`,
+        name,
+        variant: 'primary' as const
+      }
+    })
   }
 
-  const getGroupVariant = (groupName: string): 'primary' | 'success' | 'warning' | 'info' | 'muted' => {
-    if (groupName === 'Speaker') return 'primary'
-    if (groupName === 'VIP') return 'success'
-    if (groupName === 'Attendee') return 'warning'
-    return 'primary'
+  const commitGroups = (text = groupsText) => {
+    const next = parseGroupsFromText(text, selectedGroups)
+    setSelectedGroups(next)
+    setGroupsText(next.map((g) => g.name).join(', '))
+    return next
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!editedAttendee) return
+    if (isSaving) return
+    setIsSaving(true)
+    const nextGroups = commitGroups(groupsText)
 
     const updatedAttendee: Attendee = {
       ...editedAttendee,
@@ -62,14 +90,18 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
       lastName,
       name: `${firstName} ${lastName}`.trim(),
       email,
-      institute,
+      organization,
       post,
       description,
-      groups: selectedGroups
+      groups: nextGroups
     }
 
-    onSave?.(updatedAttendee)
-    onClose()
+    try {
+      await onSave?.(updatedAttendee)
+      onClose()
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   if (!attendee) return null
@@ -86,6 +118,7 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
           <button
             type="button"
             onClick={onClose}
+            disabled={isSaving}
             className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
             Cancel
@@ -93,9 +126,10 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
           <button
             type="button"
             onClick={handleSave}
+            disabled={isSaving}
             className="px-4 py-2 text-sm font-semibold text-white bg-primary rounded-md hover:bg-primary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40"
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </button>
         </>
       }
@@ -164,9 +198,9 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
         <div className="mt-4 text-center">
           <h2 className="text-xl font-semibold text-slate-900">{attendee.name}</h2>
           <p className="mt-1 text-sm text-slate-600">
-            {attendee.post && attendee.institute
-              ? `${attendee.post} @ ${attendee.institute}`
-              : attendee.post || attendee.institute || 'No title'}
+            {attendee.post && attendee.organization
+              ? `${attendee.post} @ ${attendee.organization}`
+              : attendee.post || attendee.organization || 'No title'}
           </p>
         </div>
       </div>
@@ -266,8 +300,8 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
           </label>
           <input
             type="text"
-            value={institute}
-            onChange={(e) => setInstitute(e.target.value)}
+            value={organization}
+            onChange={(e) => setOrganization(e.target.value)}
             placeholder="Organization"
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           />
@@ -293,26 +327,15 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
             </label>
             <input
               type="text"
+              value={groupsText}
+              onChange={(e) => setGroupsText(e.target.value)}
+              onBlur={() => commitGroups()}
               className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary bg-white"
-              placeholder="Type a group name and press Enter"
+              placeholder="e.g. VIP, Attendee"
               onKeyDown={(e) => {
                 if (e.key !== 'Enter') return
                 e.preventDefault()
-                const input = e.currentTarget
-                const value = (input.value || '').trim()
-                if (!value) return
-
-                setSelectedGroups((prev) => {
-                  const exists = prev.some((g) => String(g.name || '').toLowerCase() === value.toLowerCase())
-                  if (exists) return prev
-                  const newGroup: AttendeeGroup = {
-                    id: Date.now().toString(),
-                    name: value,
-                    variant: 'primary'
-                  }
-                  return [...prev, newGroup]
-                })
-                input.value = ''
+                commitGroups()
               }}
             />
           </div>
@@ -332,33 +355,6 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
           />
         </div>
 
-        {/* Selected groups */}
-        {selectedGroups.length > 0 && (
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Groups
-            </label>
-            <div className="flex flex-wrap gap-2">
-              {selectedGroups.map((group) => (
-                <Badge
-                  key={group.id}
-                  variant={getGroupVariant(group.name)}
-                  className="inline-flex items-center gap-1.5"
-                >
-                  {group.name}
-                  <button
-                    type="button"
-                    onClick={() => handleRemoveGroup(group.id)}
-                    className="ml-1 hover:text-slate-700"
-                    aria-label={`Remove ${group.name}`}
-                  >
-                    <XClose className="h-3 w-3" />
-                  </button>
-                </Badge>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </Slideout>
   )

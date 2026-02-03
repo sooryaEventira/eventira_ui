@@ -137,15 +137,30 @@ export const useSpeakerTableColumns = ({
       //   }
       // },
       {
-        id: 'role',
+        id: 'designation',
         header: 'Designation',
         sortable: true,
-        sortAccessor: ({ speaker }) => speaker?.role || '',
+        sortAccessor: ({ speaker }) => speaker?.title || speaker?.role || '',
+        render: ({ speaker }) => {
+          if (!speaker) return null
+          const designation = speaker.title || speaker.role
+          return (
+            <span className="block max-w-[220px] truncate text-sm text-slate-600" title={designation || undefined}>
+              {designation || '-'}
+            </span>
+          )
+        }
+      },
+      {
+        id: 'organization',
+        header: 'Organization',
+        sortable: true,
+        sortAccessor: ({ speaker }) => speaker?.organization || '',
         render: ({ speaker }) => {
           if (!speaker) return null
           return (
-            <span className="block max-w-[220px] truncate text-sm text-slate-600" title={speaker.role || undefined}>
-              {speaker.role || '-'}
+            <span className="block max-w-[220px] truncate text-sm text-slate-600" title={speaker.organization || undefined}>
+              {speaker.organization || '-'}
             </span>
           )
         }

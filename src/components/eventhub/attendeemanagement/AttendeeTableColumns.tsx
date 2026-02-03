@@ -130,6 +130,21 @@ export const useAttendeeTableColumns = ({
         }
       },
       {
+        id: 'organization',
+        header: 'Organization',
+        sortable: true,
+        sortAccessor: ({ attendee }) => attendee?.organization || '',
+        render: ({ attendee }) => {
+          if (!attendee) return null
+          const organization = (attendee.organization || '').trim()
+          return (
+            <span className="block max-w-[220px] truncate text-sm text-slate-600" title={organization || undefined}>
+              {organization || '-'}
+            </span>
+          )
+        }
+      },
+      {
         id: 'groups',
         header: 'Group',
         sortable: true,

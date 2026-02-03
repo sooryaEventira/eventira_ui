@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { uploadUserFile, fetchAttendees, fetchTags, type AttendeeData } from '../../../services/attendeeService'
+import { uploadUserFile, fetchAttendees, fetchTags, deleteAttendee, updateAttendee, type AttendeeData } from '../../../services/attendeeService'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import AttendeesTable from './AttendeesTable'
@@ -171,6 +171,47 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
       
       // Map API response to Attendee interface
       const mappedAttendees: Attendee[] = attendeesData.map((attendeeData: AttendeeData) => {
+        const pickStr = (...values: Array<any>) => {
+          for (const v of values) {
+            const s = typeof v === 'string' ? v : v === null || v === undefined ? '' : String(v)
+            const trimmed = s.trim()
+            if (trimmed) return trimmed
+          }
+          return ''
+        }
+
+        const rawGroups: any = (attendeeData as any).groups
+        const mappedGroups = (Array.isArray(rawGroups) ? rawGroups : [])
+          .map((g: any) => {
+            if (g === null || g === undefined) return null
+            if (typeof g === 'string' || typeof g === 'number') {
+              const name = String(g).trim()
+              if (!name) return null
+              return { id: name, name, variant: 'muted' as const }
+            }
+            const id = String(g.id || g.uuid || g.value || g.name || '').trim()
+            const name = String(g.name || g.title || g.label || id).trim()
+            if (!id && !name) return null
+            return { id: id || name, name: name || id, variant: (g.variant || 'muted') as any }
+          })
+          .filter(Boolean) as Attendee['groups']
+
+        const organization = pickStr(
+          attendeeData.institute,
+          attendeeData.organisation,
+          (attendeeData as any).organization
+        )
+        const post = pickStr(
+          attendeeData.post,
+          attendeeData.designation,
+          (attendeeData as any).title,
+          (attendeeData as any).role
+        )
+        const description = pickStr(
+          (attendeeData as any).description,
+          (attendeeData as any).bio
+        )
+
         // Handle tags - can be string, array, or undefined
         let tags: string[] | undefined
         if (attendeeData.tags) {
@@ -192,10 +233,11 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
           bannerUrl: attendeeData.banner_url,
           status: (attendeeData.status as Attendee['status']) || 'sent',
           inviteCode: attendeeData.invite_code,
-          groups: attendeeData.groups || [],
+          groups: mappedGroups,
           tags: tags,
-          institute: attendeeData.institute,
-          post: attendeeData.post,
+          organization: organization || undefined,
+          post: post || undefined,
+          description: description || undefined,
           emailVerified: attendeeData.email_verified,
           emailVerifiedDate: attendeeData.email_verified_date,
           feedbackIncomplete: attendeeData.feedback_incomplete,
@@ -268,7 +310,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     setIsCreateProfileModalOpen(true)
   }
 
-  const handleSaveProfile = (data: {
+  const handleSaveProfile = async (_data: {
     firstName: string
     lastName: string
     email: string
@@ -279,27 +321,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     avatarUrl?: string
     customFields?: Array<{ label: string; value: string }>
   }) => {
-    const newAttendee: Attendee = {
-      id: Date.now().toString(),
-      name: `${data.firstName} ${data.lastName}`,
-      email: data.email,
-      avatarUrl: data.avatarUrl,
-      status: 'sent',
-      inviteCode: undefined,
-      institute: data.organization,
-      post: data.role,
-      groups: data.group
-        ? [
-            {
-              id: Date.now().toString(),
-              name: data.group,
-              variant: 'primary'
-            }
-          ]
-        : [],
-      customFields: data.customFields
-    }
-    setAttendees((prev) => [...prev, newAttendee])
+    // Attendee is created in CreateProfileModal via API; refresh list from DB.
+    await loadAttendees()
   }
 
   const handleEditAttendee = (attendeeId: string) => {
@@ -310,15 +333,30 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     }
   }
 
-  const handleSaveAttendee = (updatedAttendee: Attendee) => {
-    setAttendees((prev) =>
-      prev.map((a) => (a.id === updatedAttendee.id ? updatedAttendee : a))
-    )
-    setSelectedAttendee(null)
+  const handleSaveAttendee = async (updatedAttendee: Attendee) => {
+    const groupValues = (updatedAttendee.groups || [])
+      .map((g) => g.id || g.name)
+      .filter(Boolean)
+
+    await updateAttendee(updatedAttendee.id, {
+      first_name: updatedAttendee.firstName,
+      last_name: updatedAttendee.lastName,
+      email: updatedAttendee.email,
+      organization: updatedAttendee.organization,
+      designation: updatedAttendee.post || undefined,
+      bio: updatedAttendee.description,
+      groups: groupValues.length ? groupValues : undefined,
+    })
+
+    setAttendees((prev) => prev.map((a) => (a.id === updatedAttendee.id ? updatedAttendee : a)))
+    setSelectedAttendee(updatedAttendee)
   }
 
-  const handleDeleteAttendee = (attendeeId: string) => {
+  const handleDeleteAttendee = async (attendeeId: string) => {
+    await deleteAttendee(attendeeId)
     setAttendees((prev) => prev.filter((a) => a.id !== attendeeId))
+    setSelectedAttendee((prev) => (prev?.id === attendeeId ? null : prev))
+    setIsAttendeeSlideoutOpen((prev) => (selectedAttendee?.id === attendeeId ? false : prev))
   }
 
   const handleCreateGroup = () => {
@@ -475,6 +513,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
       <CreateProfileModal
         isOpen={isCreateProfileModalOpen}
         onClose={() => setIsCreateProfileModalOpen(false)}
+        eventUuid={createdEvent?.uuid}
         onSave={handleSaveProfile}
       />
 

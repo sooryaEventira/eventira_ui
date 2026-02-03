@@ -1,7 +1,7 @@
 import React from 'react'
-import { Eye, Pencil01 } from '@untitled-ui/icons-react'
+import { Eye, Pencil01, Trash01 } from '@untitled-ui/icons-react'
 import { Input, Select, Button } from '../../ui/untitled'
-import { SessionDraft } from './sessionTypes'
+import { SessionDraft, SessionSection } from './sessionTypes'
 
 interface SessionDetailsFormProps {
   draft: SessionDraft
@@ -11,6 +11,8 @@ interface SessionDetailsFormProps {
   onAddSectionClick: () => void
   availableTags?: string[]
   availableLocations?: string[]
+  renderSectionPreview?: (section: SessionSection) => React.ReactNode
+  onRemoveSection?: (sectionId: string) => void
 }
 
 const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
@@ -20,7 +22,9 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   onTagsInputChange,
   onAddSectionClick,
   availableTags = [],
-  availableLocations = []
+  availableLocations = [],
+  renderSectionPreview,
+  onRemoveSection
 }) => {
 
   // Tag and location option mappings (same as ScheduleDetailsSlideout)
@@ -179,9 +183,9 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
               {draft.sections.map((section) => (
                 <li
                   key={section.id}
-                  className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+                  className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm"
                 >
-                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-1">
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
                     <div className="flex items-center gap-3">
                       <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold uppercase text-primary">
                         {section.title.slice(0, 1)}
@@ -203,19 +207,31 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
                       >
                         <Eye className="h-4 w-4" strokeWidth={1.5} />
                       </button>
+                      {onRemoveSection && (
+                        <button
+                          type="button"
+                          onClick={() => onRemoveSection(section.id)}
+                          className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                          aria-label={`Remove ${section.title} section`}
+                        >
+                          <Trash01 className="h-4 w-4" strokeWidth={1.5} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  <div className="px-4 py-2">
-                    {section.description ? (
-                      <div className="space-y-2">
+                  <div className="bg-white">
+                    {renderSectionPreview ? (
+                      renderSectionPreview(section)
+                    ) : section.description ? (
+                      <div className="space-y-2 px-4 py-2">
                         <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
                           Description
                         </p>
                         <p className="text-sm leading-6 text-slate-600">{section.description}</p>
                       </div>
                     ) : (
-                      <p className="text-sm text-slate-500">
+                      <p className="px-4 py-2 text-sm text-slate-500">
                         No additional details have been added for this section yet.
                       </p>
                     )}

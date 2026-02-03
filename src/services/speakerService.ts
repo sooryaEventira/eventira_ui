@@ -2,12 +2,14 @@ import { API_ENDPOINTS } from '../config/env'
 import { showToast } from '../utils/toast'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 import type { ApiResponse } from './authService'
+import type { TagData } from './attendeeService'
 
 export interface UploadedSpeakerItem {
   id: number
   event: number
   profile: number
-  role: string
+  designation: string
+  organization: string
   is_active: boolean
   user_email: string
 }
@@ -26,16 +28,21 @@ export interface SpeakerData {
   last_name?: string
   email: string
   avatar_url?: string
+  bio?: string
+  // role?: string
   // banner_url?: string
-  // status?: string
-  // bio?: string
-  organization?: string
-  title?: string
-  // groups?: Array<{
-  //   id: string
-  //   name: string
-  //   variant?: 'primary' | 'info' | 'muted'
-  // }>
+  status?: string
+  description?: string
+  organisation?: string
+  designation?: string
+  // Backend can return groups as strings (e.g. ["speakers"]) or objects.
+  groups?:
+    | string[]
+    | Array<{
+        id: string
+        name: string
+        variant?: 'primary' | 'info' | 'muted'
+      }>
   // sessions?: string[]
   // social_links?: {
   //   linkedin?: string
@@ -254,7 +261,7 @@ export const fetchSpeakers = async (eventUuid: string): Promise<SpeakerData[]> =
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid)
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.CREATE(eventUuid)
     console.log('📡 fetchSpeakers: Fetching from URL:', url)
     
     const response = await fetch(url, {
@@ -347,10 +354,20 @@ export const fetchSpeakers = async (eventUuid: string): Promise<SpeakerData[]> =
       speakers = responseData.data
       console.log('✅ fetchSpeakers: Found data array format with', speakers.length, 'speakers')
     }
+    // Format 2b: ApiResponse + pagination: { status, data: { results: [] } }
+    else if (responseData.data && Array.isArray(responseData.data.results)) {
+      speakers = responseData.data.results
+      console.log('✅ fetchSpeakers: Found data.results array format with', speakers.length, 'speakers')
+    }
     // Format 3: Wrapped in results field (Django REST Framework pagination)
     else if (responseData.results && Array.isArray(responseData.results)) {
       speakers = responseData.results
       console.log('✅ fetchSpeakers: Found results array format with', speakers.length, 'speakers')
+    }
+    // Format 3b: Legacy nested: { data: { data: [] } }
+    else if (responseData.data && Array.isArray(responseData.data.data)) {
+      speakers = responseData.data.data
+      console.log('✅ fetchSpeakers: Found data.data array format with', speakers.length, 'speakers')
     }
     // Format 4: Direct object with data
     else if (responseData.data && typeof responseData.data === 'object' && !Array.isArray(responseData.data)) {
@@ -397,6 +414,462 @@ export const fetchSpeakers = async (eventUuid: string): Promise<SpeakerData[]> =
     // For any other errors, show the actual error message if available
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch speakers. Please try again.'
     handleApiError(errorMessage, undefined, 'Failed to fetch speakers. Please try again.')
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Fetch speaker tags for an event.
+ * Endpoint: {{url}}{{admin_url}}speakers/tags/?event_id={{event_uuid}}
+ */
+export const fetchSpeakerTags = async (eventUuid: string): Promise<TagData[]> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.')
+      throw new Error(errorMessage)
+    }
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError('Organization UUID is missing. Please create or select an organization first.', undefined, 'Organization UUID is missing. Please create or select an organization first.')
+      throw new Error(errorMessage)
+    }
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.TAGS(eventUuid)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response?.ok) {
+      if (response?.status === 404) return []
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        if (responseText?.trim()) throw new Error(handleApiError(responseText.trim(), response!, 'Failed to fetch speaker tags. Please try again.'))
+      }
+      throw new Error(handleApiError(errorData ?? null, response!, 'Failed to fetch speaker tags. Please try again.'))
+    }
+
+    const responseText = await response.text()
+    if (!responseText?.trim()) return []
+    const data = JSON.parse(responseText)
+
+    if (data?.status === 'error') {
+      throw new Error(handleApiError(data, undefined, 'Failed to fetch speaker tags. Please try again.'))
+    }
+
+    let responseData: any[] | null = null
+    if (data?.status === 'success') {
+      if (Array.isArray(data.data)) responseData = data.data
+      else if (Array.isArray(data?.data?.results)) responseData = data.data.results
+      else if (Array.isArray(data?.results)) responseData = data.results
+    }
+    if (!responseData && Array.isArray(data)) responseData = data
+    if (!responseData && Array.isArray(data?.data)) responseData = data.data
+    if (!responseData && Array.isArray(data?.results)) responseData = data.results
+    if (!responseData && Array.isArray(data?.data?.results)) responseData = data.data.results
+    if (!responseData || !Array.isArray(responseData)) return []
+
+    const tags = responseData
+      .map((t: any) => ({
+        uuid: t?.uuid ?? t?.id ?? '',
+        name: t?.name ?? t?.title ?? '',
+        description: t?.description ?? '',
+        is_active: t?.is_active ?? t?.isActive ?? true,
+      }))
+      .filter((t: any) => Boolean(t.uuid) && Boolean(t.name)) as TagData[]
+    return tags
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) handleNetworkError(error)
+      throw new Error(error.message || 'Network error occurred')
+    }
+    if (error instanceof Error && (
+      error.message.includes('Cannot connect') ||
+      error.message.includes('Invalid response') ||
+      error.message.includes('Authentication required') ||
+      error.message.includes('Organization UUID') ||
+      error.message.includes('Event UUID') ||
+      error.message.includes('Failed to fetch')
+    )) {
+      throw error
+    }
+    const msg = error instanceof Error ? error.message : 'Failed to fetch speaker tags. Please try again.'
+    handleApiError(msg, undefined, 'Failed to fetch speaker tags. Please try again.')
+    throw new Error(msg)
+  }
+}
+
+type UpdateSpeakerInput = {
+  first_name?: string
+  last_name?: string
+  email?: string
+  organization?: string
+  designation?: string
+  // if backend supports tags/groups, callers can pass them through
+  [key: string]: any
+}
+
+const cleanObject = (obj: Record<string, any>) =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined))
+
+/**
+ * Update a speaker by UUID.
+ * Endpoint: /api/v1/admin/speakers/{speaker_uuid}/
+ */
+export const updateSpeaker = async (
+  speakerUuid: string,
+  input: UpdateSpeakerInput
+): Promise<any> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!speakerUuid) {
+      const errorMessage = handleApiError('Speaker UUID is required.', undefined, 'Speaker UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.UPDATE(speakerUuid)
+
+    // Backends in this repo have returned both `organization` and `organisation`,
+    // and both `email` and `user_email` depending on endpoint.
+    const designation = input.designation
+    const organization = input.organization
+    const email = input.email
+    const base = cleanObject({
+      ...input,
+      designation,
+      organization,
+      email,
+    })
+
+    const candidates: Array<Record<string, any>> = [
+      base,
+      cleanObject({
+        ...input,
+        designation,
+        organisation: organization,
+        user_email: email,
+        // avoid sending conflicting keys in this attempt
+        organization: undefined,
+        email: undefined,
+      }),
+    ]
+
+    let lastError: any = null
+
+    for (const payload of candidates) {
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid,
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+
+      if (response.ok) {
+        let responseData: any = null
+        try {
+          responseData = await response.json()
+        } catch {
+          // Some endpoints respond with 204 or non-JSON; treat as success.
+          responseData = null
+        }
+        showToast.success('Speaker updated successfully')
+        return responseData
+      }
+
+      // Read body for error details
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+
+      lastError = { response, errorData }
+
+      // Only try next candidate for validation-ish errors
+      if (response.status !== 400 && response.status !== 404 && response.status !== 422) {
+        const errorMessage = handleApiError(errorData, response, 'Failed to update speaker. Please try again.')
+        throw new Error(errorMessage)
+      }
+    }
+
+    const errorMessage = handleApiError(
+      lastError?.errorData ?? null,
+      lastError?.response,
+      'Failed to update speaker. Please try again.'
+    )
+    throw new Error(errorMessage)
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      // Let UI decide whether to keep slideout open; still show toast for visibility.
+      handleApiError(error.message, undefined, 'Failed to update speaker. Please try again.')
+      throw error
+    }
+
+    const errorMessage = 'Failed to update speaker. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Delete a speaker by UUID.
+ * Endpoint: /api/v1/admin/speakers/{speaker_uuid}/
+ */
+export const deleteSpeaker = async (speakerUuid: string): Promise<void> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!speakerUuid) {
+      const errorMessage = handleApiError('Speaker UUID is required.', undefined, 'Speaker UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.DELETE(speakerUuid)
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to delete speaker. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    showToast.success('Speaker deleted successfully')
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      handleApiError(error.message, undefined, 'Failed to delete speaker. Please try again.')
+      throw error
+    }
+
+    const errorMessage = 'Failed to delete speaker. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
+    throw new Error(errorMessage)
+  }
+}
+
+type CreateSpeakerInput = {
+  first_name: string
+  last_name: string
+  email: string
+  organization?: string
+  designation?: string
+  bio?: string
+  groups?: string[]
+  [key: string]: any
+}
+
+/**
+ * Create a speaker for an event.
+ * Endpoint: /api/v1/admin/speakers/?event_id={event_uuid}
+ */
+export const createSpeaker = async (
+  eventUuid: string,
+  input: CreateSpeakerInput
+): Promise<any> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid)
+
+    // Try a couple payload shapes for backend compatibility.
+    // IMPORTANT: backend list responses commonly use `organisation`, so send that on create as well
+    // to ensure the value is actually persisted.
+    const base = cleanObject({
+      ...input,
+      // Some backends require `user_email` instead of `email`
+      user_email: input.email,
+      organization: input.organization,
+      organisation: input.organization,
+      designation: input.designation,
+      // some endpoints use role/title instead of designation
+      role: input.designation,
+      title: input.designation,
+      bio: input.bio,
+      groups: input.groups,
+    })
+
+    const candidates: Array<Record<string, any>> = [
+      base,
+      cleanObject({
+        ...input,
+        user_email: input.email,
+        organisation: input.organization,
+        // some endpoints use role/title instead of designation
+        role: input.designation,
+        title: input.designation,
+        // keep `organization`/`designation` out of this attempt to avoid conflicts
+        organization: undefined,
+        designation: undefined,
+      }),
+    ]
+
+    let lastError: any = null
+
+    for (const payload of candidates) {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid,
+        },
+        credentials: 'include',
+        body: JSON.stringify(payload),
+      })
+
+      if (response.ok) {
+        let responseData: any = null
+        try {
+          responseData = await response.json()
+        } catch {
+          responseData = null
+        }
+        showToast.success('Speaker created successfully')
+        return responseData
+      }
+
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+
+      lastError = { response, errorData }
+
+      if (response.status !== 400 && response.status !== 404 && response.status !== 422) {
+        const errorMessage = handleApiError(errorData, response, 'Failed to create speaker. Please try again.')
+        throw new Error(errorMessage)
+      }
+    }
+
+    const errorMessage = handleApiError(
+      lastError?.errorData ?? null,
+      lastError?.response,
+      'Failed to create speaker. Please try again.'
+    )
+    throw new Error(errorMessage)
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      handleApiError(error.message, undefined, 'Failed to create speaker. Please try again.')
+      throw error
+    }
+
+    const errorMessage = 'Failed to create speaker. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
     throw new Error(errorMessage)
   }
 }

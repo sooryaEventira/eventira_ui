@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { uploadSpeakerFile, fetchSpeakers, type SpeakerData } from '../../../services/speakerService'
-import { fetchTags } from '../../../services/attendeeService'
+import { uploadSpeakerFile, fetchSpeakers, fetchSpeakerTags, updateSpeaker, deleteSpeaker, type SpeakerData } from '../../../services/speakerService'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import SpeakersTable from './SpeakersTable'
@@ -357,6 +356,40 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
             return { id: id || name, name: name || id, variant: g.variant || 'muted' }
           })
           .filter((x: any) => x && x.name) as Speaker['groups']
+
+        const normalizeStatus = (raw: any): Speaker['status'] => {
+          const s = String(raw || '').trim().toLowerCase()
+          if (!s) return 'active'
+          // backend often uses invited/pending-like statuses
+          if (s === 'invited' || s === 'pending' || s === 'awaiting' || s === 'requested') return 'pending'
+          if (s === 'inactive' || s === 'disabled' || s === 'blocked') return 'inactive'
+          if (s === 'active' || s === 'approved' || s === 'confirmed') return 'active'
+          // fallback to active for unknown values to avoid breaking UI
+          return 'active'
+        }
+
+        const designation =
+          pickStr(
+            (speakerData as any).designation,
+            (speakerData as any).title,
+            (speakerData as any).role,
+            profile?.designation,
+            profile?.title,
+            profile?.role,
+            user?.designation,
+            user?.title,
+            user?.role
+          ) || ''
+
+        const organization =
+          pickStr(
+            (speakerData as any).organisation,
+            (speakerData as any).organization,
+            profile?.organisation,
+            profile?.organization,
+            user?.organisation,
+            user?.organization
+          ) || ''
         
         return {
           id,
@@ -366,13 +399,14 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
           email: email,
           phoneNumber: phoneNumber,
           inviteCode: inviteCode || undefined,
-          role: (speakerData as any).role || profile?.role || user?.role || '',
+          // Keep both role & title populated so existing UI columns work.
+          role: designation || '',
           avatarUrl: (speakerData as any).avatar_url || profile?.avatar_url || user?.avatar_url,
           bannerUrl: undefined,
-          status: 'active' as Speaker['status'],
-          bio: undefined,
-          organization: (speakerData as any).organization || profile?.organization || user?.organization,
-          title: (speakerData as any).title || profile?.title || user?.title,
+          status: normalizeStatus((speakerData as any).status ?? profile?.status ?? user?.status),
+          bio: pickStr((speakerData as any).bio, profile?.bio, user?.bio) || undefined,
+          organization: organization || undefined,
+          title: designation || undefined,
           groups: mappedSpeakerGroups,
           sessions: undefined,
           socialLinks: undefined
@@ -408,7 +442,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
     setIsLoadingGroups(true)
     try {
-      const tagsData = await fetchTags(eventUuid)
+      const tagsData = await fetchSpeakerTags(eventUuid)
       
       // Map API response to Group interface
       // Only include tags that are active (is_active !== false)
@@ -429,7 +463,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
       setGroups(mappedGroups)
     } catch (error) {
       // If it's a 404, tags endpoint might not exist yet - set empty array
-      // Other errors are already handled in fetchTags with toast
+      // Other errors are already handled in fetchSpeakerTags with toast
       if (error instanceof Error && error.message.includes('not found')) {
         setGroups([])
       } else {
@@ -476,7 +510,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     setIsCreateProfileModalOpen(true)
   }
 
-  const handleSaveProfile = (data: {
+  const handleSaveProfile = async (_data: {
     firstName: string
     lastName: string
     email: string
@@ -487,30 +521,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     avatarUrl?: string
     customFields?: Array<{ label: string; value: string; hideFromProfile?: boolean }>
   }) => {
-    const newSpeaker: Speaker = {
-      id: Date.now().toString(),
-      name: `${data.firstName} ${data.lastName}`,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      email: data.email,
-      avatarUrl: data.avatarUrl,
-      status: 'active',
-      organization: data.organization,
-      role: data.role,
-      // Keep title in sync for backwards compatibility
-      title: data.role,
-      bio: data.bio,
-      groups: data.group
-        ? [
-            {
-              id: Date.now().toString(),
-              name: data.group,
-              variant: 'primary'
-            }
-          ]
-        : []
-    }
-    setSpeakers((prev) => [...prev, newSpeaker])
+    // Speaker is created in CreateSpeakerModal via API; refresh list from DB.
+    await loadSpeakers()
   }
 
   const handleEditSpeaker = (speakerId: string) => {
@@ -521,15 +533,33 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     }
   }
 
-  const handleSaveSpeaker = (updatedSpeaker: Speaker) => {
-    setSpeakers((prev) =>
-      prev.map((s) => (s.id === updatedSpeaker.id ? updatedSpeaker : s))
-    )
-    setSelectedSpeaker(null)
+  const handleSaveSpeaker = async (updatedSpeaker: Speaker) => {
+    const designation = updatedSpeaker.role || updatedSpeaker.title || ''
+    const groupValues = (updatedSpeaker.groups || [])
+      .map((g) => g.id || g.name)
+      .filter(Boolean)
+
+    // Persist to DB
+    await updateSpeaker(updatedSpeaker.id, {
+      first_name: updatedSpeaker.firstName,
+      last_name: updatedSpeaker.lastName,
+      email: updatedSpeaker.email,
+      organization: updatedSpeaker.organization,
+      designation: designation || undefined,
+      groups: groupValues.length ? groupValues : undefined,
+    })
+
+    // Update UI state (optimistic merge)
+    setSpeakers((prev) => prev.map((s) => (s.id === updatedSpeaker.id ? updatedSpeaker : s)))
+    setSelectedSpeaker(updatedSpeaker)
   }
 
-  const handleDeleteSpeaker = (speakerId: string) => {
+  const handleDeleteSpeaker = async (speakerId: string) => {
+    await deleteSpeaker(speakerId)
+
     setSpeakers((prev) => prev.filter((s) => s.id !== speakerId))
+    setSelectedSpeaker((prev) => (prev?.id === speakerId ? null : prev))
+    setIsSpeakerSlideoutOpen((prev) => (selectedSpeaker?.id === speakerId ? false : prev))
   }
 
   const handleCreateGroup = () => {
@@ -683,6 +713,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
       <CreateSpeakerModal
         isOpen={isCreateProfileModalOpen}
         onClose={() => setIsCreateProfileModalOpen(false)}
+        eventUuid={createdEvent?.uuid}
         onSave={handleSaveProfile}
       />
 

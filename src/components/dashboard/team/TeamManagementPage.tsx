@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Plus, XClose, Pencil01, Trash03,RefreshCcw02 } from '@untitled-ui/icons-react'
-import { Button, DividerLineTable, type DividerLineTableColumn } from '../../ui/untitled'
-import Modal from '../../ui/Modal'
+import { Plus, XClose, Pencil01, Trash03, RefreshCcw02, Mail01 } from '@untitled-ui/icons-react'
+import { Button, DividerLineTable, Input, Select, type DividerLineTableColumn } from '../../ui/untitled'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { showToast } from '../../../utils/toast'
 import Slideout from '../../ui/untitled/Slideout'
@@ -95,86 +94,109 @@ const RefreshIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-const InviteTeamModal = ({
-  isVisible,
+const ROLE_SELECT_OPTIONS = [
+  { value: '', label: 'Select access level' },
+  ...ROLE_OPTIONS.map((r) => ({ value: r, label: r }))
+]
+
+const InviteTeamSlideout = ({
+  isOpen,
   onClose,
   onInvite,
+  eventOptions = [],
 }: {
-  isVisible: boolean
+  isOpen: boolean
   onClose: () => void
-  onInvite: (email: string, role: string) => void
+  onInvite: (email: string, role: string, eventIds?: string[]) => void
+  eventOptions?: Array<{ id: string; name: string }>
 }) => {
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState<string>(ROLE_OPTIONS[1])
+  const [role, setRole] = useState('')
+  const [eventIds, setEventIds] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (isVisible) {
+    if (isOpen) {
       setEmail('')
-      setRole(ROLE_OPTIONS[1])
+      setRole('')
+      setEventIds([])
       setLoading(false)
     }
-  }, [isVisible])
+  }, [isOpen])
 
   const submit = async () => {
     if (!email.trim() || loading) return
+    if (!role) return
     setLoading(true)
     try {
-      onInvite(email.trim(), role)
+      onInvite(email.trim(), role, eventIds.length ? eventIds : undefined)
       onClose()
     } finally {
       setLoading(false)
     }
   }
 
+  const eventSelectOptions = [
+    { value: '', label: 'Select events' },
+    ...eventOptions.map((e) => ({ value: e.id, label: e.name }))
+  ]
+
   return (
-    <Modal
-      isVisible={isVisible}
+    <Slideout
+      isOpen={isOpen}
       onClose={() => {
         if (!loading) onClose()
       }}
-      title="Invite team"
-      subtitle="Invite a team member by email and assign a role."
-      width={520}
-      showHeaderBorder={false}
+      title="Invite member"
+      topOffset={64}
+      width={420}
       footer={
-        <div className="flex justify-end gap-3 pb-4">
-          <Button variant="secondary" onClick={onClose} disabled={loading}>
-            Cancel
-          </Button>
-          <Button variant="primary" onClick={submit} disabled={!email.trim() || loading}>
-            {loading ? 'Inviting...' : 'Send invite'}
-          </Button>
-        </div>
+        <Button
+          type="button"
+          variant="primary"
+          onClick={submit}
+          disabled={!email.trim() || !role || loading}
+        >
+          {loading ? 'Inviting...' : 'Send invite'}
+        </Button>
       }
     >
-      <div className="space-y-4 pt-4 pb-2">
+      <div className="px-6 py-4 space-y-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Email address</label>
-          <input
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            Email <span className="text-red-500">*</span>
+          </label>
+          <Input
+            type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-            placeholder="name@company.com"
-            type="email"
+            placeholder="Enter email"
+            icon={<Mail01 className="h-4 w-4" />}
+            className="w-full rounded-md border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Role</label>
-          <select
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">
+            Role <span className="text-red-500">*</span>
+          </label>
+          <Select
             value={role}
             onChange={(e) => setRole(e.target.value)}
-            className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-          >
-            {ROLE_OPTIONS.map((r) => (
-              <option key={r} value={r}>
-                {r}
-              </option>
-            ))}
-          </select>
+            options={ROLE_SELECT_OPTIONS}
+            className="w-full rounded-md border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-1.5">Events</label>
+          <Select
+            value={eventIds[0] ?? ''}
+            onChange={(e) => setEventIds(e.target.value ? [e.target.value] : [])}
+            options={eventSelectOptions}
+            className="w-full rounded-md border border-slate-200 focus:border-primary focus:ring-2 focus:ring-primary/20"
+          />
         </div>
       </div>
-    </Modal>
+    </Slideout>
   )
 }
 
@@ -228,6 +250,20 @@ const TeamManagementPage: React.FC = () => {
     if (!activeMemberId) return []
     return MOCK_EVENT_ACCESS[activeMemberId] || []
   }, [activeMemberId])
+
+  const inviteEventOptions = useMemo(() => {
+    const seen = new Set<string>()
+    const list: Array<{ id: string; name: string }> = []
+    Object.values(MOCK_EVENT_ACCESS)
+      .flat()
+      .forEach((e) => {
+        if (!seen.has(e.id)) {
+          seen.add(e.id)
+          list.push({ id: e.id, name: e.name })
+        }
+      })
+    return list
+  }, [])
 
   const openDrawerFor = (member: TeamMember) => {
     setActiveMemberId(member.id)
@@ -511,9 +547,10 @@ const TeamManagementPage: React.FC = () => {
         size="md"
       />
 
-      <InviteTeamModal
-        isVisible={inviteOpen}
+      <InviteTeamSlideout
+        isOpen={inviteOpen}
         onClose={() => setInviteOpen(false)}
+        eventOptions={inviteEventOptions}
         onInvite={(email, role) => {
           const newMember: TeamMember = {
             id: `local-${Date.now()}`,

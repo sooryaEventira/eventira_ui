@@ -8,6 +8,7 @@ export interface PublicAttendeeData {
   first_name?: string
   last_name?: string
   post?: string
+  organization?: string
   institute?: string
   avatar_url?: string
   avatarUrl?: string

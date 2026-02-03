@@ -971,27 +971,29 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
           {/* Content Area with Border */}
           <div className="border border-slate-200 rounded-lg bg-white min-h-[400px]">
             
-            {/* Breadcrumbs */}
-            <div className="px-4 md:px-8 pt-4 pb-2 border-b border-slate-200">
-              <div className="flex items-center gap-2 text-sm">
-                {breadcrumbs.map((crumb, index) => (
-                  <React.Fragment key={crumb.id || 'root'}>
-                    {index > 0 && <ChevronRight className="h-4 w-4 text-slate-400" />}
-                    <button
-                      type="button"
-                      onClick={() => setCurrentFolderId(crumb.id)}
-                      className={`${
-                        index === breadcrumbs.length - 1
-                          ? 'text-slate-900 font-medium'
-                          : 'text-slate-600 hover:text-primary'
-                      }`}
-                    >
-                      {crumb.name}
-                    </button>
-                  </React.Fragment>
-                ))}
+            {/* Breadcrumbs - only when inside a folder (hide "All media" in content area at root) */}
+            {currentFolderId && (
+              <div className="px-4 md:px-8 pt-4 pb-2">
+                <div className="flex items-center gap-2 text-sm">
+                  {breadcrumbs.map((crumb, index) => (
+                    <React.Fragment key={crumb.id || 'root'}>
+                      {index > 0 && <ChevronRight className="h-4 w-4 text-slate-400" />}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentFolderId(crumb.id)}
+                        className={`${
+                          index === breadcrumbs.length - 1
+                            ? 'text-slate-900 font-medium'
+                            : 'text-slate-600 hover:text-primary'
+                        }`}
+                      >
+                        {crumb.name}
+                      </button>
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             
             {/* Content */}
             <div className="p-4 md:p-8">

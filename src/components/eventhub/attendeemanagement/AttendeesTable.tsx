@@ -10,6 +10,7 @@ import { TablePagination, useTableHeader } from '../../ui'
 import { useAttendeeTableColumns } from './AttendeeTableColumns'
 import { useCustomFieldTableColumns } from './CustomFieldTableColumns'
 import { Download01, Grid01, Upload01 } from '@untitled-ui/icons-react'
+import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface AttendeesTableProps {
   attendees: Attendee[]
@@ -38,7 +39,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   onCreateProfile,
   onCreateField,
   onEditAttendee,
-  onDeleteAttendee,
+  onDeleteAttendee: onDeleteAttendeeProp,
   onEditCustomField,
   onDeleteCustomField,
   onDownload,
@@ -51,6 +52,8 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const [selectedCustomFieldIds, setSelectedCustomFieldIds] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+  const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>({
     column: 'name',
     direction: 'ascending'
@@ -212,6 +215,30 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     return paginatedCustomFields.map((field, index) => ({ customField: field, index }))
   }, [paginatedCustomFields])
 
+  const requestDeleteAttendee = useCallback(
+    (attendeeId: string) => {
+      const a = attendees.find((x) => x.id === attendeeId)
+      setDeleteCandidate({ id: attendeeId, name: a?.name || 'this attendee' })
+    },
+    [attendees]
+  )
+
+  const confirmDeleteAttendee = useCallback(async () => {
+    if (!deleteCandidate) return
+    if (!onDeleteAttendeeProp) {
+      setDeleteCandidate(null)
+      return
+    }
+    if (isDeleting) return
+    setIsDeleting(true)
+    try {
+      await Promise.resolve(onDeleteAttendeeProp(deleteCandidate.id) as any)
+      setDeleteCandidate(null)
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [deleteCandidate, isDeleting, onDeleteAttendeeProp])
+
   const attendeeColumns = useAttendeeTableColumns({
     allVisibleSelected: allVisibleAttendeesSelected,
     partiallySelected: partiallyAttendeesSelected,
@@ -219,7 +246,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     onToggleAllVisible: handleToggleAllAttendees,
     onToggleRow: handleToggleAttendee,
     onEditAttendee,
-    onDeleteAttendee
+    onDeleteAttendee: requestDeleteAttendee
   })
 
 
@@ -414,6 +441,18 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
             onPageChange={setCurrentPage}
           />
         }
+      />
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteCandidate}
+        title="Delete attendee?"
+        itemName={deleteCandidate?.name}
+        isLoading={isDeleting}
+        onCancel={() => {
+          if (isDeleting) return
+          setDeleteCandidate(null)
+        }}
+        onConfirm={confirmDeleteAttendee}
       />
     </div>
   )

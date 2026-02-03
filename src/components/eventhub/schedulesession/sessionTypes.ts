@@ -12,6 +12,10 @@ export interface SessionSection {
    * Optional description/content for sections such as text blocks.
    */
   description?: string
+  /**
+   * Optional structured data for section-specific settings (e.g., map embed src).
+   */
+  data?: Record<string, any>
 }
 
 export interface SectionOption {

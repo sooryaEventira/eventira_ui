@@ -657,3 +657,95 @@ export const deleteEvent = async (eventUuid: string): Promise<void> => {
     throw new Error(errorMessage)
   }
 }
+
+/**
+ * Publish an event by UUID
+ * Endpoint: {{admin_url}}event/{{event_uuid}}/publish/
+ */
+export const publishEvent = async (eventUuid: string): Promise<any> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const response = await fetch(API_ENDPOINTS.EVENT.PUBLISH(eventUuid), {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response || !response.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to publish event. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    let data: any = null
+    try {
+      data = await response.json()
+    } catch {
+      data = null
+    }
+
+    // Some endpoints respond 200 with ApiResponse { status: 'error' }
+    if (data && typeof data === 'object' && data.status === 'error') {
+      const errorMessage = handleApiError(data, response, 'Failed to publish event. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    showToast.success('Event published successfully')
+    return data
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      // keep UI stable; callers can show additional UI if needed
+      throw error
+    }
+
+    const errorMessage = 'Failed to publish event. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
+    throw new Error(errorMessage)
+  }
+}
