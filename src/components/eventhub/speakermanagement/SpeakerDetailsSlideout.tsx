@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { XClose, Camera01, Eye } from '@untitled-ui/icons-react'
 import { Speaker, SpeakerGroup } from './speakerTypes'
 import { Badge, Slideout } from '../../ui/untitled'
+import profileBackground from '../../../assets/images/profile_background.jpg'
 
 interface SpeakerDetailsSlideoutProps {
   isOpen: boolean
@@ -137,15 +138,11 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
     >
       {/* Banner Image */}
       <div className="relative h-40 w-full overflow-hidden">
-        {speaker.bannerUrl ? (
-          <img
-            src={speaker.bannerUrl}
-            alt="Banner"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-br from-purple-200 via-pink-200 to-blue-200" />
-        )}
+      <img
+          src={profileBackground}
+          alt="Profile background"
+          className="h-full w-full object-cover"
+        />
         <button
           type="button"
           onClick={onClose}

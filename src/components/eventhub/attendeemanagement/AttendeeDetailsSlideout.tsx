@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { XClose, Camera01, Eye, CheckCircle } from '@untitled-ui/icons-react'
 import { Attendee, AttendeeGroup } from './attendeeTypes'
 import { Badge, Slideout } from '../../ui/untitled'
+import profileBackground from '../../../assets/images/profile_background.jpg'
 
 interface AttendeeDetailsSlideoutProps {
   isOpen: boolean
@@ -136,15 +137,11 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
     >
       {/* Banner Image */}
       <div className="relative h-40 w-full overflow-hidden">
-        {attendee.bannerUrl ? (
-          <img
-            src={attendee.bannerUrl}
-            alt="Banner"
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="h-full w-full bg-gradient-to-br from-purple-200 via-pink-200 to-blue-200" />
-        )}
+        <img
+          src={profileBackground}
+          alt="Profile background"
+          className="h-full w-full object-cover"
+        />
         <button
           type="button"
           onClick={onClose}

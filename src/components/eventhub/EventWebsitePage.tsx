@@ -6,12 +6,19 @@ import EventHubSidebar from './EventHubSidebar'
 import { defaultCards, ContentCard } from './EventHubContent'
 import PageCreationModal, { type PageType } from '../page/PageCreationModal'
 import CreateNavFolderModal from './CreateNavFolderModal'
-import { fetchWebpages, type WebpageData } from '../../services/webpageService'
+import {
+  createWebpage,
+  fetchWebpages,
+  fetchWebsiteIndex,
+  type CreateWebpageRequest,
+  type WebpageData
+} from '../../services/webpageService'
 import { publishEvent } from '../../services/eventService'
 import { fetchPublicEvent } from '../../services/publicEventService'
 import Button from '../ui/untitled/Button'
 import { readEventStoreJSON } from '../../utils/eventLocalStore'
 import { showToast } from '../../utils/toast'
+import { getDefaultTemplateData } from '../../hooks/usePageManagement'
 import type { NavigationFolderItem, NavigationItem, NavigationPageItem } from '../../types/navigation'
 import {
   isFolder,
@@ -60,11 +67,14 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   const [webpages, setWebpages] = useState<WebpageData[]>([])
   const [isLoadingWebpages, setIsLoadingWebpages] = useState(false)
+  const [indexWebpages, setIndexWebpages] = useState<WebpageData[]>([])
+  const [isLoadingIndexWebpages, setIsLoadingIndexWebpages] = useState(false)
   const [navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
   const iconPopoverRef = useRef<HTMLDivElement | null>(null)
+  const ensuredWelcomeWebpageForEventRef = useRef<string | null>(null)
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
   const [draggingNavId, setDraggingNavId] = useState<string | null>(null)
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
@@ -180,7 +190,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     if (!eventUuidForNavigation) return
     const availableIds = [
       ...systemItemsForNavigation.map((i) => i.id),
-      ...webpages.map((w) => w.uuid).filter(Boolean)
+      ...indexWebpages.map((w) => w.uuid).filter(Boolean)
     ]
     if (availableIds.length === 0) {
       setNavigationOrderIds([])
@@ -212,16 +222,16 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       }
       return reconciled
     })
-  }, [eventUuidForNavigation, webpages, systemItemsForNavigation])
+  }, [eventUuidForNavigation, indexWebpages, systemItemsForNavigation])
 
   const orderedWebpagesForNavigation = useMemo(() => {
-    if (webpages.length === 0) return []
-    const byId = new Map(webpages.map((w) => [w.uuid, w]))
-    const baseIds = navigationOrderIds.length ? navigationOrderIds : webpages.map((w) => w.uuid)
+    if (indexWebpages.length === 0) return []
+    const byId = new Map(indexWebpages.map((w) => [w.uuid, w]))
+    const baseIds = navigationOrderIds.length ? navigationOrderIds : indexWebpages.map((w) => w.uuid)
     const ordered = baseIds.map((id) => byId.get(id)).filter(Boolean) as WebpageData[]
-    const missing = webpages.filter((w) => !baseIds.includes(w.uuid))
+    const missing = indexWebpages.filter((w) => !baseIds.includes(w.uuid))
     return [...ordered, ...missing]
-  }, [webpages, navigationOrderIds])
+  }, [indexWebpages, navigationOrderIds])
 
   const navigationTreeItems = useMemo(() => {
     const eventUuid = eventUuidForNavigation
@@ -320,7 +330,34 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     [eventUuidForNavigation, navigationTreeItems]
   )
 
-  // Fetch webpages from backend
+  // Fetch website index pages (used in Navigation tab)
+  const loadWebsiteIndexPages = useCallback(async () => {
+    if (!createdEvent?.uuid) {
+      setIndexWebpages([])
+      return
+    }
+
+    setIsLoadingIndexWebpages(true)
+    try {
+      console.log('🧭 [EventWebsitePage] Fetching website index for event:', createdEvent.uuid)
+      const indexData = await fetchWebsiteIndex(createdEvent.uuid)
+      const serverWebpages = indexData.webpages ?? []
+      console.log('🧭 [EventWebsitePage] Fetched index webpages:', serverWebpages.length, 'pages')
+      setIndexWebpages(serverWebpages)
+    } catch (e) {
+      console.error('❌ [EventWebsitePage] Error fetching website index:', e)
+      setIndexWebpages([])
+    } finally {
+      setIsLoadingIndexWebpages(false)
+    }
+  }, [createdEvent?.uuid])
+
+  useEffect(() => {
+    if (activeSubItem !== 'website-header') return
+    loadWebsiteIndexPages()
+  }, [activeSubItem, loadWebsiteIndexPages])
+
+  // Fetch webpages for event website listing from WEBPAGE.LIST endpoint
   const loadWebpages = useCallback(async () => {
     if (!createdEvent?.uuid) {
       // Clear webpages when event UUID is not available to prevent stale data
@@ -330,13 +367,84 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
     setIsLoadingWebpages(true)
     try {
-      console.log('?? [EventWebsitePage] Fetching webpages for event:', createdEvent.uuid)
-      const fetchedWebpages = await fetchWebpages(createdEvent.uuid)
-      console.log('?? [EventWebsitePage] Fetched webpages:', fetchedWebpages.length, 'pages')
-      console.log('?? [EventWebsitePage] Webpage names:', fetchedWebpages.map(w => w.name))
-      setWebpages(fetchedWebpages)
+      console.log('📄 [EventWebsitePage] Fetching webpages for event:', createdEvent.uuid)
+      const serverWebpages = await fetchWebpages(createdEvent.uuid)
+      console.log('📄 [EventWebsitePage] Fetched webpages:', serverWebpages.length, 'pages')
+
+      // If the backend has no Welcome page yet, auto-create it so it appears in listing by default.
+      // This keeps "default template" behavior consistent with the listing view.
+      const isScratchMode = (() => {
+        try {
+          const urlParams = new URLSearchParams(window.location.search)
+          return (
+            urlParams.get('mode') === 'blank' ||
+            localStorage.getItem('create-from-scratch') === 'true'
+          )
+        } catch {
+          return false
+        }
+      })()
+
+      const hasWelcomeOnServer = serverWebpages.some((w) => {
+        const name = String((w as any)?.name ?? '').trim().toLowerCase()
+        const slug = String((w as any)?.slug ?? '').trim().toLowerCase()
+        return name === 'welcome' || slug === 'welcome'
+      })
+
+      if (
+        !isScratchMode &&
+        !hasWelcomeOnServer &&
+        ensuredWelcomeWebpageForEventRef.current !== createdEvent.uuid
+      ) {
+        ensuredWelcomeWebpageForEventRef.current = createdEvent.uuid
+        try {
+          const welcomeName = 'Welcome'
+          const slug = 'welcome'
+          const pageId = 'welcome'
+
+          const templateEventData = {
+            eventName: (createdEvent as any)?.eventName,
+            startDate: (createdEvent as any)?.startDate,
+            endDate: (createdEvent as any)?.endDate,
+            location: (createdEvent as any)?.location
+          }
+
+          const puckData = getDefaultTemplateData(welcomeName, templateEventData)
+
+          const request: CreateWebpageRequest = {
+            event_uuid: createdEvent.uuid,
+            name: welcomeName,
+            content: {
+              [pageId]: {
+                title: welcomeName,
+                slug,
+                data: {
+                  [slug]: puckData
+                }
+              }
+            }
+          }
+
+          await createWebpage(request)
+
+          // Refresh list so the newly created Welcome shows in listing immediately.
+          const refreshed = await fetchWebpages(createdEvent.uuid)
+          setWebpages(refreshed ?? [])
+          // Seed index pages list too (Navigation tab) if it hasn't been loaded yet.
+          setIndexWebpages((prev) => (prev.length ? prev : (refreshed ?? [])))
+          return
+        } catch (e) {
+          // Don't block listing; just fall back to what the server returned.
+          console.error('❌ [EventWebsitePage] Failed to auto-create Welcome webpage:', e)
+          showToast.error('Failed to create default Welcome page')
+        }
+      }
+
+      setWebpages(serverWebpages)
+      // Seed index pages list too (Navigation tab) if it hasn't been loaded yet.
+      setIndexWebpages((prev) => (prev.length ? prev : serverWebpages))
     } catch (error) {
-      console.error('? [EventWebsitePage] Error fetching webpages:', error)
+      console.error('? [EventWebsitePage] Error fetching website index:', error)
       // Error is handled by errorHandler
     } finally {
       setIsLoadingWebpages(false)
@@ -725,9 +833,9 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           </div>
 
           <div className="space-y-0 border border-slate-200 rounded-lg bg-white">
-            {isLoadingWebpages ? (
+            {isLoadingIndexWebpages ? (
               <div className="flex items-center justify-center py-8 text-slate-500">
-                <p>Loading webpages...</p>
+                <p>Loading index pages...</p>
               </div>
             ) : flat.length === 0 ? (
               <div className="flex items-center justify-center py-8 text-slate-500">
@@ -1524,7 +1632,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                             onClick={() => handlePageAction(webpage.uuid, 'view')}
                             className="p-2 text-slate-400 hover:text-slate-600"
                             aria-label="View"
-                            iconLeading={<Eye className="h-4 w-4" />}
+                            iconLeading={<FileSearch02 className="h-4 w-4" />}
                           />
                           <Button
                             variant="tertiary"

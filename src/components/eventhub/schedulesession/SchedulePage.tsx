@@ -1608,7 +1608,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     setActiveDraft(null)
     setStartInEditMode(false)
     setParentSessionId(undefined)
-    setIsSessionSlideoutOpen(false)
+    // Do not close slideout here – SessionSlideout switches to summary view after save;
+    // user closes via the slideout's Close button.
+    // setIsSessionSlideoutOpen(false)
   }
 
   const handleCreateScheduleFromList = () => {
@@ -1635,7 +1637,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
     if (eventUuid && accessToken && organizationUuid) {
       try {
-        const response = await fetch(API_ENDPOINTS.SCHEDULES.CREATE, {
+        const url = API_ENDPOINTS.SCHEDULES.CREATE(eventUuid)
+        const response = await fetch(url, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1644,7 +1647,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           },
           credentials: 'include',
           body: JSON.stringify({
-            event_uuid: eventUuid,
+            // Some backends require event in body even if event_id is in query params.
+            event_id: eventUuid,
             name: scheduleTitle,
             title: scheduleTitle,
             description: details.description || '',
@@ -1662,7 +1666,23 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         }
 
         if (!response.ok) {
-          showToast.error('Failed to create schedule. Please try again.')
+          const backendMessage =
+            (typeof data?.detail === 'string' && data.detail.trim()) ||
+            (typeof data?.message === 'string' && data.message.trim()) ||
+            (typeof data?.error === 'string' && data.error.trim()) ||
+            (typeof rawText === 'string' && rawText.trim()) ||
+            ''
+          console.log('❌ [Schedules] CREATE failed:', {
+            status: response.status,
+            statusText: response.statusText,
+            rawText,
+            parsed: data
+          })
+          showToast.error(
+            backendMessage
+              ? `Failed to create schedule: ${backendMessage}`
+              : 'Failed to create schedule. Please try again.'
+          )
         } else {
           // Support both ApiResponse and direct-object responses
           const payload = data?.data ?? data
@@ -1808,7 +1828,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         onSave={(data) => {
           // Convert template data to SessionDraft format if needed
           console.log('Template session data:', data)
-          setIsTemplateSessionSlideoutOpen(false)
+          // Do not close slideout here – TemplateSessionSlideout switches to summary view after save;
+          // user closes via the slideout's Close button.
+          // setIsTemplateSessionSlideoutOpen(false)
         }}
         availableTags={availableTags}
         availableLocations={availableLocations}

@@ -1,10 +1,12 @@
 import { API_ENDPOINTS } from '../config/env'
-import { showToast } from '../utils/toast'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 import type { ApiResponse } from './authService'
 
 export interface CreateWebpageRequest {
   event_uuid: string
+  // Some backend serializers require event_id in the payload (even if event_id is in query params).
+  // We'll send both for compatibility.
+  event_id?: string
   name: string
   content: {
     [key: string]: {
@@ -47,6 +49,17 @@ export interface WebpageData {
   updated_date: string
 }
 
+export interface WebsiteIndexTag {
+  uuid: string
+  name: string
+}
+
+export interface WebsiteIndexData {
+  webpages: WebpageData[]
+  speaker_tags?: WebsiteIndexTag[]
+  attendee_tags?: WebsiteIndexTag[]
+}
+
 export const createOrUpdateWebpage = async (
   webpageUuid: string | null,
   eventUuid: string,
@@ -75,7 +88,19 @@ export const createWebpage = async (request: CreateWebpageRequest): Promise<Crea
       throw new Error(errorMessage)
     }
 
-    const response = await fetch(API_ENDPOINTS.WEBPAGE.CREATE, {
+    const eventUuid = String(request?.event_uuid || '').trim()
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.WEBPAGE.CREATE(eventUuid)
+    const payload: CreateWebpageRequest = {
+      ...request,
+      // Ensure event_id is present for backends that validate it.
+      event_id: (request as any).event_id ?? eventUuid,
+    }
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -83,7 +108,7 @@ export const createWebpage = async (request: CreateWebpageRequest): Promise<Crea
         'X-Organization': organizationUuid,
       },
       credentials: 'include',
-      body: JSON.stringify(request),
+      body: JSON.stringify(payload),
     })
 
     if (!response || !response.ok) {
@@ -323,6 +348,91 @@ export const fetchWebpages = async (eventUuid: string): Promise<WebpageData[]> =
   }
 }
 
+/**
+ * Fetch event website index (webpages + tags for navigation).
+ * Endpoint: {{url}}{{admin_url}}website/index/?event_id={{event_uuid}}
+ */
+export const fetchWebsiteIndex = async (eventUuid: string): Promise<WebsiteIndexData> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.')
+      throw new Error(errorMessage)
+    }
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError('Organization UUID is missing. Please create or select an organization first.', undefined, 'Organization UUID is missing. Please create or select an organization first.')
+      throw new Error(errorMessage)
+    }
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.WEBSITE.INDEX(eventUuid)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response?.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        if (responseText?.trim()) {
+          throw new Error(handleApiError(responseText.trim(), response, 'Failed to fetch website index. Please try again.'))
+        }
+      }
+      throw new Error(handleApiError(errorData ?? null, response, 'Failed to fetch website index. Please try again.'))
+    }
+
+    const responseText = await response.text()
+    if (!responseText?.trim()) {
+      return { webpages: [], speaker_tags: [], attendee_tags: [] }
+    }
+    const data = JSON.parse(responseText)
+
+    if (data?.status === 'error') {
+      throw new Error(handleApiError(data, undefined, 'Failed to fetch website index. Please try again.'))
+    }
+
+    const raw = data?.data ?? data
+    const webpages = Array.isArray(raw?.webpages) ? raw.webpages : []
+    const speaker_tags = Array.isArray(raw?.speaker_tags) ? raw.speaker_tags : []
+    const attendee_tags = Array.isArray(raw?.attendee_tags) ? raw.attendee_tags : []
+    return { webpages, speaker_tags, attendee_tags }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) handleNetworkError(error)
+      throw new Error(error.message || 'Network error occurred')
+    }
+    if (error instanceof Error && (
+      error.message.includes('Cannot connect') ||
+      error.message.includes('Invalid response') ||
+      error.message.includes('Authentication required') ||
+      error.message.includes('Organization UUID') ||
+      error.message.includes('Event UUID') ||
+      error.message.includes('Failed to')
+    )) {
+      throw error
+    }
+    const msg = error instanceof Error ? error.message : 'Failed to fetch website index. Please try again.'
+    handleApiError(msg, undefined, 'Failed to fetch website index. Please try again.')
+    throw new Error(msg)
+  }
+}
+
 export const updateWebpage = async (
   webpageUuid: string,
   eventUuid: string,
@@ -348,8 +458,14 @@ export const updateWebpage = async (
 
     // Use PATCH method for updating existing webpage
     // URL format: {{admin_url}}webpages/{{webpage_uuid}}/
-    const url = `${API_ENDPOINTS.WEBPAGE.GET(webpageUuid, eventUuid).split('?')[0]}/`
+    const url = API_ENDPOINTS.WEBPAGE.UPDATE(webpageUuid)
     
+    const payload: CreateWebpageRequest = {
+      ...request,
+      // Ensure event_id is present for backends that validate it.
+      event_id: (request as any).event_id ?? eventUuid,
+    }
+
     const response = await fetch(url, {
       method: 'PATCH',
       headers: {
@@ -358,7 +474,7 @@ export const updateWebpage = async (
         'X-Organization': organizationUuid,
       },
       credentials: 'include',
-      body: JSON.stringify(request),
+      body: JSON.stringify(payload),
     })
 
     if (!response || !response.ok) {
@@ -471,7 +587,7 @@ export const deleteWebpage = async (webpageUuid: string, eventUuid: string): Pro
       throw new Error(errorMessage)
     }
 
-    const url = `${API_ENDPOINTS.WEBPAGE.GET(webpageUuid, eventUuid).split('?')[0]}/`
+    const url = API_ENDPOINTS.WEBPAGE.DELETE(webpageUuid)
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {

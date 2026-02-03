@@ -279,6 +279,19 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     )
   }
 
+  if (section.type === 'live-chat') {
+    return (
+      <div className="p-4">
+        <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <p className="text-sm font-medium text-slate-700">Live Chat</p>
+          <p className="mt-1 text-xs text-slate-500">
+            Attendees and speakers can chat here when this section is shown on the session page.
+          </p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="p-4">
       <div className="rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600">

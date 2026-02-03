@@ -119,7 +119,7 @@ const formatEventDate = (startDate?: string, endDate?: string): string => {
 }
 
 // Default template data with HeroSection, AboutSection, SpeakersSection, Sponsors, RegistrationCTA, and ContactFooter
-const getDefaultTemplateData = (pageName: string = 'Page 1', eventData?: any) => {
+export const getDefaultTemplateData = (pageName: string = 'Page 1', eventData?: any) => {
   const heroId = generateId('HeroSection')
   const aboutId = generateId('AboutSection')
   const speakersId = generateId('SpeakersSection')

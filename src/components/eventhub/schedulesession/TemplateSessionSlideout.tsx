@@ -4,8 +4,9 @@ import Input from '../../ui/untitled/Input'
 import Select from '../../ui/untitled/Select'
 import Button from '../../ui/untitled/Button'
 import SectionPickerModal from './SectionPickerModal'
-import { XClose, Plus, Upload01, Settings01, Trash01, Send01 } from '@untitled-ui/icons-react'
-import { sectionOptions } from './sessionConfig'
+import SessionSummaryView from './SessionSummaryView'
+import { XClose, Plus, Upload01, Settings01, Trash01 } from '@untitled-ui/icons-react'
+import { defaultSessionDraft, sectionOptions } from './sessionConfig'
 import type { SessionSection } from './sessionTypes'
 
 // Drag handle icon component (3x3 grid)
@@ -92,6 +93,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
 
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sectionOptions[0]?.id ?? 'slides')
+  const [isEditing, setIsEditing] = useState(true)
 
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const videoElRef = useRef<HTMLVideoElement | null>(null)
@@ -118,6 +120,13 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
       }
     }
   }, [videoPreviewUrl])
+
+  // Reset to edit mode when slideout opens
+  useEffect(() => {
+    if (isOpen) {
+      setIsEditing(true)
+    }
+  }, [isOpen])
 
   const openVideoPicker = () => {
     videoInputRef.current?.click()
@@ -665,8 +674,21 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
           ) : (
             <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
               No documents uploaded. Click &quot;Upload docs&quot; to add PDF, Word, Excel, or other files.
-            </div>
-          )}
+          </div>
+        )}
+      </div>
+    )
+    }
+
+    if (section.type === 'live-chat') {
+      return (
+        <div className="p-4">
+          <div className="rounded-lg border border-slate-200 bg-white p-4">
+            <p className="text-sm font-medium text-slate-700">Live Chat</p>
+            <p className="mt-1 text-xs text-slate-500">
+              Attendees and speakers can chat here when this section is shown on the session page.
+            </p>
+          </div>
         </div>
       )
     }
@@ -685,7 +707,72 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     if (onSave) {
       onSave(formData)
     }
-    onClose()
+    setIsEditing(false)
+  }
+
+  const handleBeginEdit = () => {
+    setIsEditing(true)
+  }
+
+  // Map formData to SessionDraft for summary view.
+  // Include dynamic sections (Add section) plus synthetic sections for template blocks (Video, Speakers, etc.) so they appear in the summary.
+  const templateSections: SessionSection[] = []
+  const effectiveVideoUrl = formData.videoUrl || videoPreviewUrl || ''
+  if (effectiveVideoUrl) {
+    templateSections.push({
+      id: 'template-video',
+      type: 'video',
+      title: 'Video',
+      description: 'Video added',
+      data: { videoUrl: effectiveVideoUrl }
+    })
+  }
+  if ((formData.speakers || []).length > 0) {
+    templateSections.push({
+      id: 'template-speakers',
+      type: 'speakers',
+      title: 'Speakers',
+      description: `${formData.speakers.length} speaker(s)`,
+      data: { speakers: formData.speakers }
+    })
+  }
+  if (formData.description?.trim()) {
+    templateSections.push({
+      id: 'template-description',
+      type: 'text',
+      title: 'Description',
+      description: formData.description.trim()
+    })
+  }
+  if ((formData.hyperlinks || []).length > 0) {
+    templateSections.push({
+      id: 'template-hyperlinks',
+      type: 'hyperlink',
+      title: 'Hyperlink',
+      description: `${formData.hyperlinks.length} link(s)`,
+      data: { hyperlinks: formData.hyperlinks }
+    })
+  }
+  if ((formData.resources || []).length > 0) {
+    templateSections.push({
+      id: 'template-resources',
+      type: 'resources',
+      title: 'Resources',
+      description: `${formData.resources.length} file(s)`,
+      data: { fileNames: (formData.resources || []).map((f) => f.name) }
+    })
+  }
+  const summaryDraft = {
+    ...defaultSessionDraft,
+    title: (formData.title || '').trim() || 'Session title',
+    startTime: formData.startTime || defaultSessionDraft.startTime,
+    startPeriod: 'AM' as const,
+    endTime: formData.endTime || defaultSessionDraft.endTime,
+    endPeriod: 'AM' as const,
+    location: formData.location || '',
+    sessionType: formData.sessionType || '',
+    tags: formData.tags || [],
+    sections: [...(formData.sections || []), ...templateSections]
   }
 
   // Section Component
@@ -722,23 +809,47 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
 
   const footerContent = (
     <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-white px-6 py-4">
-      <Button
-        type="button"
-        variant="secondary"
-        size="md"
-        onClick={onClose}
-      >
-        Cancel
-      </Button>
-      <Button
-        type="button"
-        variant="primary"
-        size="md"
-        onClick={handleSave}
-        className="bg-primary hover:bg-primary/90"
-      >
-        Save
-      </Button>
+      {isEditing ? (
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            onClick={onClose}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleSave}
+            className="bg-primary hover:bg-primary/90"
+          >
+            Save
+          </Button>
+        </>
+      ) : (
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            onClick={onClose}
+          >
+            Close
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleBeginEdit}
+            className="bg-primary hover:bg-primary/90"
+          >
+            Edit
+          </Button>
+        </>
+      )}
     </div>
   )
 
@@ -786,6 +897,8 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
         panelWidthRatio={panelWidthRatio}
         footer={footerContent}
       >
+        {isEditing ? (
+      <>
       {/* Scrollable Content */}
       <div className="px-6 py-6 space-y-4">
         {/* Title Section */}
@@ -1091,7 +1204,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
           </div>
 
           {/* Section 4: Hyperlink */}
-          <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+          {/* <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
             <SectionHeader
               title="Hyperlink"
               onRemove={() => {}}
@@ -1114,7 +1227,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                 className="w-full"
               />
             </div>
-          </div>
+          </div> */}
 
           {/* Section 5: Resources */}
           <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
@@ -1157,57 +1270,13 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
               )}
             </div>
           </div>
-
-          {/* Section 6: Live Chat */}
-          <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
-            <SectionHeader
-              title="Live Chat"
-              onRemove={() => {}}
-            />
-            <div className="bg-white p-4 space-y-4">
-              {/* Live Chat Label */}
-              <label className="block">
-                <span className="text-sm font-semibold text-slate-900">Live Chat</span>
-              </label>
-
-              {/* Chat Messages Area */}
-              <div className="w-full min-h-[200px] rounded-lg border border-slate-300 bg-slate-50 flex items-center justify-center">
-                <span className="text-slate-500 text-sm">Live chat will appear here</span>
-              </div>
-
-              {/* Comment Input Area */}
-              <div className="space-y-3">
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={formData.comment}
-                    onChange={(e) => setFormData(prev => ({ ...prev, comment: e.target.value }))}
-                    placeholder="Comment"
-                    className="flex-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-10 text-sm text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                  <button
-                    type="button"
-                    className="absolute right-2 p-1.5 text-slate-400 hover:text-primary transition-colors"
-                    aria-label="Send comment"
-                  >
-                    <Send01 className="h-5 w-5" />
-                  </button>
-                </div>
-
-                {/* Anonymous Checkbox */}
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formData.submitAnonymous}
-                    onChange={(e) => setFormData(prev => ({ ...prev, submitAnonymous: e.target.checked }))}
-                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
-                  />
-                  <span className="text-sm text-slate-700">Submit as anonymous</span>
-                </label>
-              </div>
-            </div>
-          </div>
         </div>
+      </>
+        ) : (
+          <div key="summary" className="px-6 py-4 min-h-[200px]">
+            <SessionSummaryView session={summaryDraft} />
+          </div>
+        )}
       </Slideout>
 
       <SectionPickerModal

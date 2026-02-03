@@ -57,8 +57,18 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     }
   }, [isOpen])
 
+  const prevIsOpenRef = useRef(false)
   useEffect(() => {
     if (!isOpen) {
+      prevIsOpenRef.current = false
+      return
+    }
+    // Only sync draft and isEditing when the slideout first opens (isOpen false → true).
+    // When parent updates after save (e.g. activeDraft=null), do not overwrite – we stay in summary view.
+    const justOpened = !prevIsOpenRef.current
+    prevIsOpenRef.current = true
+
+    if (!justOpened) {
       return
     }
 
@@ -379,14 +389,24 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
           </Button>
         </>
       ) : (
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={handleBeginEdit}
-        >
-          Edit
-        </Button>
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            size="md"
+            onClick={onClose}
+          >
+            Close
+          </Button>
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={handleBeginEdit}
+          >
+            Edit
+          </Button>
+        </>
       )}
     </>
   )

@@ -52,6 +52,14 @@ export const env = {
    * Is Production Mode
    */
   IS_PROD: import.meta.env.PROD,
+
+  /**
+   * CometChat (session live chat) – optional
+   * Set VITE_COMETCHAT_APP_ID, VITE_COMETCHAT_REGION, VITE_COMETCHAT_AUTH_KEY to enable.
+   */
+  COMETCHAT_APP_ID: import.meta.env.VITE_COMETCHAT_APP_ID || '',
+  COMETCHAT_REGION: import.meta.env.VITE_COMETCHAT_REGION || '',
+  COMETCHAT_AUTH_KEY: import.meta.env.VITE_COMETCHAT_AUTH_KEY || '',
 }
 
 /**
@@ -74,11 +82,7 @@ const PUBLIC_API_ROOT = PUBLIC_API_URL.includes('/api/v1/public')
  * All endpoints use full URLs to the Azure backend
  */
 export const API_ENDPOINTS = {
-  // Page Management endpoints (for editor)
-  // SAVE_PAGE: env.PAGE_API_URL ? `${env.PAGE_API_URL}/api/save-page` : '',
-  // GET_PAGES: env.PAGE_API_URL ? `${env.PAGE_API_URL}/api/pages` : '',
-  // GET_PAGE: (filename: string) => env.PAGE_API_URL ? `${env.PAGE_API_URL}/api/pages/${filename}` : '',
-  // Auth endpoints (authentication backend)
+
   AUTH: {
     REGISTER_SEND_OTP: `${env.AUTH_API_URL}${AUTH_API_BASE}register/send-otp/`,
     REGISTER_VERIFY_OTP: `${env.AUTH_API_URL}${AUTH_API_BASE}register/verify-otp/`,
@@ -99,9 +103,15 @@ export const API_ENDPOINTS = {
   },
   // Webpage endpoints
   WEBPAGE: {
-    CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/`,
+    CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/?event_id=${eventUuid}`,
     GET: (webpageUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/?event_id=${eventUuid}`,
+    UPDATE: (webpageUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/`,
+    DELETE: (webpageUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/`,
+  },
+  // Event website index (navigation + webpages list for event website)
+  WEBSITE: {
+    INDEX: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website/index/?event_id=${eventUuid}`,
   },
   // Public website endpoints (published pages + event details)
   PUBLIC: {
@@ -150,12 +160,12 @@ export const API_ENDPOINTS = {
   },
   // Schedule endpoints
   SCHEDULES: {
-    CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/`,
+    CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
   },
   // Sessions endpoints (schedule grid + bulk import)
   SESSIONS: {
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_id=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_uuid=${eventUuid}`,
     BULK_IMPORT: (scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/schedules/${scheduleUuid}/bulk-import/`,
   },
