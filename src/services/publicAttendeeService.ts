@@ -25,15 +25,14 @@ export const fetchPublicAttendees = async (
       throw new Error(errorMessage)
     }
 
+    // env.ts PUBLIC.ATTENDEES: LIST (all) or LIST_BY_TAG (tag_id=)
     const url = tagId
       ? API_ENDPOINTS.PUBLIC.ATTENDEES.LIST_BY_TAG(eventUuid, tagId)
       : API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid)
-    const organizationUuid = typeof window !== 'undefined' ? localStorage.getItem('organizationUuid') : null
-    console.log('[fetchPublicAttendees] organizationUuid', organizationUuid)
     if (tagId) {
-      console.log('[fetchPublicAttendees] LIST_BY_TAG', { eventUuid, tagId, url, organizationUuid })
+      console.log('[fetchPublicAttendees] LIST_BY_TAG', { eventUuid, tagId, url })
     } else {
-      console.log('[fetchPublicAttendees] LIST (all)', { eventUuid, url, organizationUuid })
+      console.log('[fetchPublicAttendees] LIST (all)', { eventUuid, url })
     }
     const response = await fetch(url, {
       method: 'GET',

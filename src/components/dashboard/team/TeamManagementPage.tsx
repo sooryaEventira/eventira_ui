@@ -5,6 +5,8 @@ import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { showToast } from '../../../utils/toast'
 import Slideout from '../../ui/untitled/Slideout'
 import { useTableHeader } from '../../ui/TableHeader'
+import { API_ENDPOINTS } from '../../../config/env'
+import { fetchTeamMembers, inviteTeamMember } from '../../../services/teamService'
 
 type TeamMemberStatus = 'active' | 'pending'
 type TeamMember = {
@@ -15,37 +17,18 @@ type TeamMember = {
   role: string
 }
 
-const ROLE_OPTIONS = ['Admin', 'Event manager', 'Team manager', 'Viewer'] as const
-const MOCK_TEAM_MEMBERS: TeamMember[] = [
-  { id: '1', name: 'Olivia Rhye', email: 'olivia@untitledui.com', status: 'pending', role: 'Event manager' },
-  { id: '2', name: 'Lana Steiner', email: 'lana@untitledui.com', status: 'active', role: 'Admin' },
-  { id: '3', name: 'Alec Whitten', email: 'alec@untitledui.com', status: 'active', role: 'Event manager' },
-  { id: '4', name: 'Lori Ray', email: 'lori@untitledui.com', status: 'pending', role: 'Event manager' },
-]
-
+const ROLE_OPTIONS = ['team_manager', 'event_admin', 'organizer'] as const
+const ROLE_LABELS: Record<string, string> = {
+  team_manager: 'Team manager',
+  event_admin: 'Event admin',
+  organizer: 'Organizer',
+}
 type EventAccess = {
   id: string
   name: string
   startDate: string
   endDate: string
   color: string
-}
-
-const MOCK_EVENT_ACCESS: Record<string, EventAccess[]> = {
-  '1': [
-    { id: 'e1', name: 'HIE 2025', startDate: '2026-11-28', endDate: '2026-12-03', color: '#111827' },
-    { id: 'e2', name: 'Creative Design Conference 2025', startDate: '2025-05-10', endDate: '2025-05-12', color: '#F97316' },
-    { id: 'e3', name: 'Sustainability in Tech Forum 2025', startDate: '2025-08-18', endDate: '2025-08-20', color: '#EC4899' },
-    { id: 'e4', name: 'Tech Innovators Summit 2025', startDate: '2025-01-15', endDate: '2025-01-17', color: '#111827' },
-    { id: 'e5', name: 'Global Startup Expo 2025', startDate: '2025-03-22', endDate: '2025-03-24', color: '#4F46E5' },
-  ],
-  '2': [],
-  '3': [
-    { id: 'e6', name: 'Web Summit 2026', startDate: '2026-06-01', endDate: '2026-06-03', color: '#6938EF' },
-  ],
-  '4': [
-    { id: 'e7', name: 'Eventira Partner Day', startDate: '2025-09-01', endDate: '2025-09-01', color: '#10B981' },
-  ],
 }
 
 const StatusBadge = ({ status }: { status: TeamMember['status'] }) => {
@@ -96,7 +79,7 @@ const RefreshIcon = ({ className }: { className?: string }) => (
 
 const ROLE_SELECT_OPTIONS = [
   { value: '', label: 'Select access level' },
-  ...ROLE_OPTIONS.map((r) => ({ value: r, label: r }))
+  ...ROLE_OPTIONS.map((r) => ({ value: r, label: ROLE_LABELS[r] ?? r }))
 ]
 
 const InviteTeamSlideout = ({
@@ -107,7 +90,7 @@ const InviteTeamSlideout = ({
 }: {
   isOpen: boolean
   onClose: () => void
-  onInvite: (email: string, role: string, eventIds?: string[]) => void
+  onInvite: (email: string, role: string, eventIds?: string[]) => void | Promise<void>
   eventOptions?: Array<{ id: string; name: string }>
 }) => {
   const [email, setEmail] = useState('')
@@ -129,8 +112,10 @@ const InviteTeamSlideout = ({
     if (!role) return
     setLoading(true)
     try {
-      onInvite(email.trim(), role, eventIds.length ? eventIds : undefined)
+      await Promise.resolve(onInvite(email.trim(), role, eventIds.length ? eventIds : undefined))
       onClose()
+    } catch {
+      // leave slideout open so user can retry
     } finally {
       setLoading(false)
     }
@@ -219,6 +204,7 @@ const TeamManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [activeTabId, setActiveTabId] = useState('team-members')
+  const [eventOptions, setEventOptions] = useState<Array<{ id: string; name: string }>>([])
 
   const [inviteOpen, setInviteOpen] = useState(false)
   const [confirmRemove, setConfirmRemove] = useState<TeamMember | null>(null)
@@ -233,12 +219,62 @@ const TeamManagementPage: React.FC = () => {
   const [draftRole, setDraftRole] = useState<string>(ROLE_OPTIONS[1])
 
   useEffect(() => {
-    // Simulate initial load for skeleton UX (no APIs yet)
-    const t = setTimeout(() => {
-      setMembers(MOCK_TEAM_MEMBERS)
-      setLoading(false)
-    }, 600)
-    return () => clearTimeout(t)
+    let cancelled = false
+    fetchTeamMembers()
+      .then((list) => {
+        if (!cancelled) setMembers(list)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMembers([])
+          showToast.error('Failed to load team members.')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    const accessToken = localStorage.getItem('accessToken')
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!accessToken || !organizationUuid) {
+      setEventOptions([])
+      return
+    }
+    const url = API_ENDPOINTS.EVENT.LIST
+    fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
+      .then((data: unknown) => {
+        const raw = data as any
+        const list: any[] = Array.isArray(raw)
+          ? raw
+          : raw?.status === 'success' && Array.isArray(raw?.data)
+            ? raw.data
+            : Array.isArray(raw?.results)
+              ? raw.results
+              : Array.isArray(raw?.data)
+                ? raw.data
+                : Array.isArray(raw?.data?.results)
+                  ? raw.data.results
+                  : []
+        setEventOptions(
+          list.map((e: any) => ({
+            id: String(e?.uuid ?? e?.id ?? ''),
+            name: String(e?.name ?? e?.title ?? e?.eventName ?? 'Untitled event')
+          })).filter((e) => e.id)
+        )
+      })
+      .catch(() => setEventOptions([]))
   }, [])
 
   const activeMember = useMemo(
@@ -246,24 +282,12 @@ const TeamManagementPage: React.FC = () => {
     [activeMemberId, members]
   )
 
-  const activeEvents = useMemo(() => {
+  const activeEvents: EventAccess[] = useMemo(() => {
     if (!activeMemberId) return []
-    return MOCK_EVENT_ACCESS[activeMemberId] || []
+    return []
   }, [activeMemberId])
 
-  const inviteEventOptions = useMemo(() => {
-    const seen = new Set<string>()
-    const list: Array<{ id: string; name: string }> = []
-    Object.values(MOCK_EVENT_ACCESS)
-      .flat()
-      .forEach((e) => {
-        if (!seen.has(e.id)) {
-          seen.add(e.id)
-          list.push({ id: e.id, name: e.name })
-        }
-      })
-    return list
-  }, [])
+  const inviteEventOptions = eventOptions
 
   const openDrawerFor = (member: TeamMember) => {
     setActiveMemberId(member.id)
@@ -296,11 +320,13 @@ const TeamManagementPage: React.FC = () => {
     const q = search.trim().toLowerCase()
     if (!q) return members
     return members.filter((m) => {
-      return (
-        m.name.toLowerCase().includes(q) ||
-        m.email.toLowerCase().includes(q) ||
-        m.role.toLowerCase().includes(q)
-      )
+      const roleLabel = ROLE_LABELS[m.role] ?? m.role
+        return (
+          m.name.toLowerCase().includes(q) ||
+          m.email.toLowerCase().includes(q) ||
+          m.role.toLowerCase().includes(q) ||
+          roleLabel.toLowerCase().includes(q)
+        )
     })
   }, [members, search])
 
@@ -433,7 +459,7 @@ const TeamManagementPage: React.FC = () => {
           if (item.__skeleton) return <div className="h-4 w-28 rounded bg-slate-100 animate-pulse" />
           return (
             <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">
-              {item.role}
+              {ROLE_LABELS[item.role] ?? item.role}
             </span>
           )
         }
@@ -551,15 +577,10 @@ const TeamManagementPage: React.FC = () => {
         isOpen={inviteOpen}
         onClose={() => setInviteOpen(false)}
         eventOptions={inviteEventOptions}
-        onInvite={(email, role) => {
-          const newMember: TeamMember = {
-            id: `local-${Date.now()}`,
-            name: email.split('@')[0] || 'New member',
-            email,
-            status: 'pending',
-            role,
-          }
-          setMembers((prev) => [newMember, ...prev])
+        onInvite={async (email, role) => {
+          await inviteTeamMember({ email, role })
+          const list = await fetchTeamMembers()
+          setMembers(list)
           showToast.success('Invite sent.')
         }}
       />
@@ -604,7 +625,7 @@ const TeamManagementPage: React.FC = () => {
               ) : (
                 <div className="text-lg font-semibold text-slate-900">{activeMember?.name || '—'}</div>
               )}
-              <div className="mt-1 text-sm text-slate-500">{drawerLoading ? ' ' : (activeMember?.role || '')}</div>
+              <div className="mt-1 text-sm text-slate-500">{drawerLoading ? ' ' : (activeMember?.role ? (ROLE_LABELS[activeMember.role] ?? activeMember.role) : '')}</div>
             </div>
           </div>
         }
@@ -682,7 +703,7 @@ const TeamManagementPage: React.FC = () => {
                 >
                   {ROLE_OPTIONS.map((r) => (
                     <option key={r} value={r}>
-                      {r}
+                      {ROLE_LABELS[r] ?? r}
                     </option>
                   ))}
                 </select>

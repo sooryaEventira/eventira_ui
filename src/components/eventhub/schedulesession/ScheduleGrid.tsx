@@ -366,16 +366,14 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
 
-  // Filter sessions for selected date
+  // Filter sessions for selected date (session.date is UTC noon so local day matches API day in any TZ)
   const filteredSessions = useMemo(() => {
     return sessions.filter(session => {
       if (!session.date) return true
       const sessionDate = new Date(session.date)
       const selected = new Date(selectedDate)
-      
       const sessionDateOnly = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate())
       const selectedDateOnly = new Date(selected.getFullYear(), selected.getMonth(), selected.getDate())
-      
       return sessionDateOnly.getTime() === selectedDateOnly.getTime()
     })
   }, [sessions, selectedDate])

@@ -866,21 +866,21 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           const isYmdOnly = Boolean(rawStr && /^\d{4}-\d{2}-\d{2}$/.test(rawStr))
           const isIsoDateTime = Boolean(rawStr && /^\d{4}-\d{2}-\d{2}T/.test(rawStr))
 
-          // Session day for grid: use calendar date from start_at/date so grid filter matches.
+          // Session day for grid: use UTC noon on that day so local getDate() equals API day in any timezone.
           let date: Date | undefined
+          const parseYmdToUtcNoon = (ymd: string) => {
+            const y = parseInt(ymd.slice(0, 4), 10)
+            const m = parseInt(ymd.slice(5, 7), 10) - 1
+            const day = parseInt(ymd.slice(8, 10), 10)
+            if (Number.isNaN(y) || Number.isNaN(m) || Number.isNaN(day)) return undefined
+            const d = new Date(Date.UTC(y, m, day, 12, 0, 0))
+            return Number.isNaN(d.getTime()) ? undefined : d
+          }
           if (isYmdOnly) {
-            const d = new Date(`${rawStr}T00:00:00`)
-            if (!Number.isNaN(d.getTime())) {
-              d.setHours(0, 0, 0, 0)
-              date = d
-            }
+            date = parseYmdToUtcNoon(rawStr)
           } else if (isIsoDateTime) {
             const ymd = rawStr.slice(0, 10)
-            const d = new Date(`${ymd}T00:00:00`)
-            if (!Number.isNaN(d.getTime())) {
-              d.setHours(0, 0, 0, 0)
-              date = d
-            }
+            date = parseYmdToUtcNoon(ymd)
           }
           if (!date && rawDate) {
             const rawDateObj = new Date(rawDate as any)

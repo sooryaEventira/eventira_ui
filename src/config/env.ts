@@ -135,6 +135,7 @@ export const API_ENDPOINTS = {
     },
     SPEAKERS: {
       LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/speakers/`,
+      LIST_BY_TAG: (eventUuid: string, tagUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/speakers/?tag_id=${tagUuid}`,
     },
     ATTENDEES: {
       /** List all attendees: .../attendees/ */
@@ -261,13 +262,9 @@ export const API_ENDPOINTS = {
   },
 
   TEAM: {
-    // The backend (per 404 URLconf) exposes `/api/v1/users/`.
-    // We keep invite/resend endpoints as placeholders; the service will try fallbacks and show friendly errors if missing.
-    LIST: `${env.AUTH_API_URL}${API_V1_BASE}users/`,
-    INVITE: `${env.AUTH_API_URL}${ADMIN_API_BASE}team-invites/`,
-    UPDATE_MEMBER: (memberUuid: string) => `${env.AUTH_API_URL}${API_V1_BASE}users/${memberUuid}/`,
-    REMOVE_MEMBER: (memberUuid: string) => `${env.AUTH_API_URL}${API_V1_BASE}users/${memberUuid}/`,
-    RESEND_INVITE: (inviteUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}team-invites/${inviteUuid}/resend/`,
+
+    INVITE: `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/`,
+   
   },
 }
 
