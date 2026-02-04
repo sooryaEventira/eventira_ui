@@ -120,57 +120,34 @@ function parseBrandPrimaryColor(raw: Record<string, unknown>): string | undefine
 
 /**
  * Fetch website settings for the published site (no auth).
- * Tries public API first; falls back to admin URL in case backend allows unauthenticated GET.
- * Returns brand_primary_color so the saved primary color reflects on the published website.
+ * Uses public endpoint: {{url}}{{public_url}}events/{{event_uuid}}/website-settings/
+ * to get brand_primary_color for the published website.
  */
 export async function fetchPublicWebsiteSettings(
   eventUuid: string
 ): Promise<{ brand_primary_color?: string } | null> {
   if (!eventUuid) return null
+  const url = API_ENDPOINTS.PUBLIC.WEBSITE_SETTINGS(eventUuid)
   const opts: RequestInit = {
     method: 'GET',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
   }
-
-  // Try admin URL first (same as PATCH) - backend often allows unauthenticated GET for public events
-  const adminUrl = API_ENDPOINTS.WEBSITE.SETTINGS(eventUuid)
-  const eventUrl = API_ENDPOINTS.PUBLIC.EVENT.GET(eventUuid)
-  const publicBase = eventUrl.slice(0, eventUrl.indexOf('/event/'))
-  const publicUrl = `${publicBase}/events/${eventUuid}/website-settings/`
-
-  console.log('[GET website-settings] eventId:', eventUuid, '| will try: 1) admin, 2) public')
-
-  for (const [label, url] of [
-    ['admin', adminUrl],
-    ['public', publicUrl]
-  ] as const) {
-    try {
-      console.log('[GET website-settings]', label, '→', url)
-      const response = await fetch(url, opts)
-      const text = await response.text()
-      console.log('[GET website-settings]', label, '←', response.status, response.statusText, '| body:', text?.slice(0, 200) || '(empty)')
-      if (!response.ok) continue
-      if (!text?.trim()) continue
-      const data = JSON.parse(text)
-      const raw = (data?.data ?? data) as Record<string, unknown>
-      if (!raw || typeof raw !== 'object') continue
-      let brand_primary_color = parseBrandPrimaryColor(raw)
-      if (!brand_primary_color && raw && typeof (raw as any).data === 'object' && (raw as any).data !== null) {
-        brand_primary_color = parseBrandPrimaryColor((raw as any).data as Record<string, unknown>)
-      }
-      if (brand_primary_color) {
-        console.log('[GET website-settings]', label, '✓ brand_primary_color:', brand_primary_color)
-        return { brand_primary_color }
-      }
-      return {}
-    } catch (e) {
-      console.warn('[GET website-settings]', label, 'fetch failed', e)
-      continue
+  try {
+    const response = await fetch(url, opts)
+    const text = await response.text()
+    if (!response.ok || !text?.trim()) return null
+    const data = JSON.parse(text)
+    const raw = (data?.data ?? data) as Record<string, unknown>
+    if (!raw || typeof raw !== 'object') return null
+    let brand_primary_color = parseBrandPrimaryColor(raw)
+    if (!brand_primary_color && raw && typeof (raw as any).data === 'object' && (raw as any).data !== null) {
+      brand_primary_color = parseBrandPrimaryColor((raw as any).data as Record<string, unknown>)
     }
+    return brand_primary_color ? { brand_primary_color } : {}
+  } catch {
+    return null
   }
-  console.warn('[GET website-settings] No brand_primary_color from any URL. Backend must allow unauthenticated GET or include it in public event response.')
-  return null
 }
 
 /**

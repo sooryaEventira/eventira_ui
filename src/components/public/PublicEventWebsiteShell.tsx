@@ -3,6 +3,7 @@ import PublicNavbar from './PublicNavbar'
 import { fetchPublicEvent, type PublicEventData } from '../../services/publicEventService'
 import { fetchPublicWebsiteSettings } from '../../services/websiteSettingsService'
 import { fetchPublicWebpages, type PublicWebpageData } from '../../services/publicWebpageService'
+import { fetchPublicWebsiteIndex, type WebsiteIndexData } from '../../services/webpageService'
 import PublicWebpageRenderer from './PublicWebpageRenderer'
 import { buildPublicThemeVars, getPrimaryDarkHex } from '../../config/publicTheme'
 import type { NavigationItem, NavigationPageItem, PublicNavNode } from '../../types/navigation'
@@ -100,6 +101,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const [event, setEvent] = useState<PublicEventData | null>(null)
   const [webpages, setWebpages] = useState<PublicWebpageData[]>([])
   const [websiteSettings, setWebsiteSettings] = useState<{ brand_primary_color?: string } | null>(null)
+  const [websiteIndex, setWebsiteIndex] = useState<WebsiteIndexData | null>(null)
   const [primaryColorFromWebpage, setPrimaryColorFromWebpage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -110,14 +112,21 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     setLoadError(null)
     setPrimaryColorFromWebpage(null)
     try {
-      const [evt, pages, settings] = await Promise.all([
+      const [evt, pages, settings, indexData] = await Promise.all([
         fetchPublicEvent(eventUuid),
         fetchPublicWebpages(eventUuid),
-        fetchPublicWebsiteSettings(eventUuid)
+        fetchPublicWebsiteSettings(eventUuid),
+        fetchPublicWebsiteIndex(eventUuid)
       ])
       setEvent(evt)
       setWebpages(Array.isArray(pages) ? pages : [])
       setWebsiteSettings(settings)
+      setWebsiteIndex(indexData)
+      try {
+        localStorage.setItem(`website-index-${eventUuid}`, JSON.stringify(indexData))
+      } catch {
+        // ignore
+      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load website.'
       setLoadError(msg)
@@ -177,18 +186,20 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     if (hasAttendees) SYSTEM_PAGES.push({ id: 'system:attendees', label: 'Attendees', path: `/events/${eventUuid}/attendees` })
     if (hasSchedule) SYSTEM_PAGES.push({ id: 'system:schedule', label: 'Schedule', path: `/events/${eventUuid}/schedule` })
 
-    // Use website index order (saved on Publish) so navbar matches indexed menus. Include speaker/attendee tags for grouped listing.
+    // Use website index from public API ({{public_url}}events/{{event_uuid}}/index/) or fallback to localStorage.
     let orderedWebpages = webpages
     let hasIndexData = false
     const indexSpeakerTags: Array<{ uuid: string; name: string }> = []
     const indexAttendeeTags: Array<{ uuid: string; name: string }> = []
-    try {
+    const indexData = websiteIndex ?? (() => {
       const indexRaw = typeof window !== 'undefined' ? localStorage.getItem(`website-index-${eventUuid}`) : null
-      const indexData = indexRaw ? (() => { try { return JSON.parse(indexRaw) } catch { return null } })() : null
-      const indexWebpages = Array.isArray(indexData?.webpages) ? indexData.webpages : []
+      return indexRaw ? (() => { try { return JSON.parse(indexRaw) } catch { return null } })() : null
+    })()
+    if (indexData) {
+      const indexWebpages = Array.isArray(indexData.webpages) ? indexData.webpages : []
       if (indexWebpages.length > 0) hasIndexData = true
-      const rawSpeakerTags = Array.isArray(indexData?.speaker_tags) ? indexData.speaker_tags : []
-      const rawAttendeeTags = Array.isArray(indexData?.attendee_tags) ? indexData.attendee_tags : []
+      const rawSpeakerTags = Array.isArray(indexData.speaker_tags) ? indexData.speaker_tags : []
+      const rawAttendeeTags = Array.isArray(indexData.attendee_tags) ? indexData.attendee_tags : []
       rawSpeakerTags.forEach((t: { uuid?: string; name?: string }) => {
         if (t?.uuid) indexSpeakerTags.push({ uuid: String(t.uuid), name: String(t?.name ?? '').trim() || 'Speakers' })
       })
@@ -209,8 +220,6 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           return ai - bi
         })
       }
-    } catch {
-      // use webpages as-is
     }
 
     const dynamicPages: Array<{ id: string; label: string; path: string }> = orderedWebpages.map((p) => ({
@@ -315,7 +324,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       : (stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat)
     const baseItems = pruneUnavailableSystemPages(baseItemsRaw)
 
-    const defaultFlatPagesForUpsert = systemAndWebpageItems
+    const defaultFlatPagesForUpsert = systemAndWebpageItems as NavigationPageItem[]
     // Reconcile: ensure newly created pages appear even if the tree is stale.
     const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlatPagesForUpsert)
 
@@ -330,7 +339,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     const visibleTree = pruneHidden(reconciled, hiddenIds)
 
     return mapToPublicNav(visibleTree, pagePathById)
-  }, [eventUuid, webpages])
+  }, [eventUuid, webpages, websiteIndex])
 
   const current = useMemo(() => getSectionFromPath(eventUuid, activePath), [eventUuid, activePath])
   const fallbackWebpageUuid = webpages[0]?.uuid

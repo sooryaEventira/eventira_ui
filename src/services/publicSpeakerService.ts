@@ -23,11 +23,19 @@ export const fetchPublicSpeakers = async (eventUuid: string): Promise<PublicSpea
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.PUBLIC.SPEAKERS.LIST(eventUuid)
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+
+    const url = tagId
+    ? API_ENDPOINTS.PUBLIC.SPEAKERS.LIST_BY_TAG(eventUuid, tagId)
+    : API_ENDPOINTS.PUBLIC.SPEAKERS.LIST(eventUuid)
+  if (tagId) {
+    console.log('[fetchPublicSpeakers] LIST_BY_TAG', { eventUuid, tagId, url })
+  } else {
+    console.log('[fetchPublicSpeakers] LIST (all)', { eventUuid, url })
+  }
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
 
     if (!response || !response.ok) {
       if (!response) {

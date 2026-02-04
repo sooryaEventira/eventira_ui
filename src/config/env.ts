@@ -153,6 +153,12 @@ export const API_ENDPOINTS = {
       LIST: (eventUuid: string, scheduleUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/${scheduleUuid}/sessions/`,
     },
+    /** Website settings for published site (no auth). GET brand_primary_color etc. */
+    WEBSITE_SETTINGS: (eventUuid: string) =>
+      `${PUBLIC_API_ROOT}events/${eventUuid}/website-settings/`,
+    /** Website index for published site (no auth). GET webpages + speaker_tags + attendee_tags for nav. */
+    INDEX: (eventUuid: string) =>
+      `${PUBLIC_API_ROOT}events/${eventUuid}/index/`,
   },
   // User Management endpoints
   ATTENDEE_MANAGEMENT: {

@@ -130,6 +130,7 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
           src={embedSrc}
           className="h-full w-full"
           loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
           allow="autoplay; encrypted-media; picture-in-picture"
           allowFullScreen
         />

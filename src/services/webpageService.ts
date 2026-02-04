@@ -435,6 +435,34 @@ export const fetchWebsiteIndex = async (eventUuid: string): Promise<WebsiteIndex
   }
 }
 
+/**
+ * Fetch website index for the published site (no auth).
+ * Endpoint: {{url}}{{public_url}}events/{{event_uuid}}/index/
+ */
+export async function fetchPublicWebsiteIndex(eventUuid: string): Promise<WebsiteIndexData> {
+  if (!eventUuid) return { webpages: [], speaker_tags: [], attendee_tags: [] }
+  const url = API_ENDPOINTS.PUBLIC.INDEX(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  })
+  if (!response.ok) return { webpages: [], speaker_tags: [], attendee_tags: [] }
+  const text = await response.text()
+  if (!text?.trim()) return { webpages: [], speaker_tags: [], attendee_tags: [] }
+  try {
+    const data = JSON.parse(text)
+    if (data?.status === 'error') return { webpages: [], speaker_tags: [], attendee_tags: [] }
+    const raw = data?.data ?? data
+    const webpages = Array.isArray(raw?.webpages) ? raw.webpages : []
+    const speaker_tags = Array.isArray(raw?.speaker_tags) ? raw.speaker_tags : []
+    const attendee_tags = Array.isArray(raw?.attendee_tags) ? raw.attendee_tags : []
+    return { webpages, speaker_tags, attendee_tags }
+  } catch {
+    return { webpages: [], speaker_tags: [], attendee_tags: [] }
+  }
+}
+
 /** Return set of tag UUIDs that have a published group page (for Build page checkbox state). Listing from API only. */
 export async function fetchPublishedTagIds(eventUuid: string): Promise<Set<string>> {
   try {
