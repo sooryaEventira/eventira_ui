@@ -35,43 +35,45 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
-  
-  // Handle date from props (can be Date or ISO string from Puck)
-  const getInitialDate = (): Date => {
-    if (propSelectedDate) {
-      if (propSelectedDate instanceof Date) {
-        const date = new Date(propSelectedDate)
-        date.setHours(0, 0, 0, 0)
-        return date
-      } else if (typeof propSelectedDate === 'string') {
-        const date = new Date(propSelectedDate)
-        date.setHours(0, 0, 0, 0)
-        return date
-      }
+  const didNotifyInitialDateRef = useRef(false)
+
+  // Parse to local calendar date (year, month-1, day) so weekday selector shows correct day; no UTC shift for YYYY-MM-DD
+  const parseToLocalDate = useMemo(() => (value: Date | string | undefined | null): Date | null => {
+    if (value == null) return null
+    if (value instanceof Date) {
+      const d = new Date(value.getTime())
+      d.setHours(0, 0, 0, 0)
+      return Number.isNaN(d.getTime()) ? null : d
     }
+    const r = String(value).trim()
+    if (!r) return null
+    const datePart = r.slice(0, 10)
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      const d = new Date(year, month, day)
+      return Number.isNaN(d.getTime()) ? null : d
+    }
+    const d = new Date(r)
+    if (Number.isNaN(d.getTime())) return null
+    d.setHours(0, 0, 0, 0)
+    return d
+  }, [])
+
+  const getInitialDate = (): Date => {
+    const d = parseToLocalDate(propSelectedDate)
+    if (d) return d
     const date = new Date()
     date.setHours(0, 0, 0, 0)
     return date
   }
-  
+
   const [selectedDate, setSelectedDate] = useState<Date>(getInitialDate)
-  const didNotifyInitialDateRef = useRef(false)
 
-  const normalizedRangeStart = useMemo(() => {
-    if (!rangeStartDate) return null
-    const d = rangeStartDate instanceof Date ? new Date(rangeStartDate) : new Date(String(rangeStartDate))
-    if (Number.isNaN(d.getTime())) return null
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [rangeStartDate])
-
-  const normalizedRangeEnd = useMemo(() => {
-    if (!rangeEndDate) return null
-    const d = rangeEndDate instanceof Date ? new Date(rangeEndDate) : new Date(String(rangeEndDate))
-    if (Number.isNaN(d.getTime())) return null
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [rangeEndDate])
+  const normalizedRangeStart = useMemo(() => parseToLocalDate(rangeStartDate), [rangeStartDate, parseToLocalDate])
+  const normalizedRangeEnd = useMemo(() => parseToLocalDate(rangeEndDate), [rangeEndDate, parseToLocalDate])
 
   useEffect(() => {
     // Initialize date when component mounts or prop changes
@@ -247,8 +249,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       </div>
 
       <div className="mt-6 flex min-h-[22rem] flex-col gap-6 overflow-hidden rounded border border-slate-200 bg-white px-4 py-6 shadow-sm md:min-h-[819px] md:px-8">
-        {/* Date Selector */}
+        {/* Date Selector - key by range so switching events remounts and shows that event's dates */}
         <WeekDateSelector 
+          key={normalizedRangeStart && normalizedRangeEnd
+            ? `${normalizedRangeStart.getTime()}-${normalizedRangeEnd.getTime()}`
+            : 'no-range'}
           initialDate={selectedDate} 
           initialRangeStartDate={normalizedRangeStart}
           initialRangeEndDate={normalizedRangeEnd}

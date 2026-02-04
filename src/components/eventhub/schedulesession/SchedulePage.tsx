@@ -4,7 +4,7 @@ import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import ScheduleContent from './ScheduleContent'
 import SessionSlideout from './SessionSlideout'
-import TemplateSessionSlideout from './TemplateSessionSlideout'
+import TemplateSessionSlideout, { type TemplateSessionData } from './TemplateSessionSlideout'
 import ScheduleDetailsSlideout from './ScheduleDetailsSlideout'
 import SavedSchedulesTable from './SavedSchedulesTable'
 import { SavedSchedule, SavedSession, SessionDraft } from './sessionTypes'
@@ -14,6 +14,13 @@ import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import { API_ENDPOINTS } from '../../../config/env'
 import { showToast } from '../../../utils/toast'
 import { fetchTimezones } from '../../../services/timezoneService'
+import {
+  createSession,
+  createSessionSections,
+  createSessionResources,
+  type CreateSessionBody,
+  type CreateSessionSectionsBody
+} from '../../../services/sessionService'
 import * as XLSX from 'xlsx'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
 
@@ -335,35 +342,56 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const [availableTags, setAvailableTags] = React.useState<string[]>([])
   const [availableLocations, setAvailableLocations] = React.useState<string[]>([])
 
-  const parseEventStartDate = React.useCallback((): Date | null => {
-    const raw =
-      (createdEvent as any)?.startDate ??
-      (createdEvent as any)?.start_date ??
-      (eventData as any)?.startDate ??
-      (eventData as any)?.start_date
-    if (!raw) return null
-    const d = new Date(raw as any)
+  // Parse event date as local calendar date (no UTC shift). Handles YYYY-MM-DD and ISO strings like 2026-02-02T00:00:00Z.
+  const parseEventDate = React.useCallback((raw: unknown): Date | null => {
+    const r = raw != null ? String(raw).trim() : ''
+    if (!r) return null
+    const datePart = r.slice(0, 10)
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart)
+    if (match) {
+      const year = parseInt(match[1], 10)
+      const month = parseInt(match[2], 10) - 1
+      const day = parseInt(match[3], 10)
+      const d = new Date(year, month, day)
+      if (Number.isNaN(d.getTime())) return null
+      return d
+    }
+    const d = new Date(r as string)
     if (Number.isNaN(d.getTime())) return null
     d.setHours(0, 0, 0, 0)
     return d
-  }, [createdEvent, eventData])
+  }, [])
+
+  // Use same source as dashboard "EVENT DATE" column: event_date first, then startDate/start_date
+  const parseEventStartDate = React.useCallback((): Date | null => {
+    const raw =
+      (createdEvent as any)?.event_date ??
+      (createdEvent as any)?.startDate ??
+      (createdEvent as any)?.start_date ??
+      (eventData as any)?.event_date ??
+      (eventData as any)?.startDate ??
+      (eventData as any)?.start_date
+    return parseEventDate(raw)
+  }, [createdEvent, eventData, parseEventDate])
 
   const parseEventEndDate = React.useCallback((): Date | null => {
     const raw =
-      (createdEvent as any)?.endDate ??
       (createdEvent as any)?.end_date ??
-      (eventData as any)?.endDate ??
-      (eventData as any)?.end_date
-    if (!raw) return null
-    const d = new Date(raw as any)
-    if (Number.isNaN(d.getTime())) return null
-    d.setHours(0, 0, 0, 0)
-    return d
-  }, [createdEvent, eventData])
+      (createdEvent as any)?.endDate ??
+      (eventData as any)?.end_date ??
+      (eventData as any)?.endDate
+    return parseEventDate(raw)
+  }, [createdEvent, eventData, parseEventDate])
 
   // Memoize range dates so we don't create new Date instances every render.
+  // If API only returns event_date (no end_date), use event start as end so weekday selector still gets a range.
   const rangeStartDate = useMemo(() => parseEventStartDate() || undefined, [parseEventStartDate])
-  const rangeEndDate = useMemo(() => parseEventEndDate() || undefined, [parseEventEndDate])
+  const rangeEndDate = useMemo(() => {
+    const end = parseEventEndDate()
+    if (end) return end
+    const start = parseEventStartDate()
+    return start ?? undefined
+  }, [parseEventStartDate, parseEventEndDate])
 
   const [selectedDate, setSelectedDate] = React.useState<Date>(() => {
     const eventStart = parseEventStartDate()
@@ -374,25 +402,25 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   })
   const [parentSessionId, setParentSessionId] = React.useState<string | undefined>(undefined)
 
-  // If the event start date becomes available after initial render, sync once.
-  const didInitSelectedFromEventRef = React.useRef(false)
+  // When the user switches event, sync selected date to that event's start so the weekday selector shows the correct event dates.
   React.useEffect(() => {
     const eventStart = parseEventStartDate()
     if (!eventStart) return
-    if (didInitSelectedFromEventRef.current) return
-    didInitSelectedFromEventRef.current = true
     setSelectedDate(eventStart)
-  }, [parseEventStartDate])
+  }, [createdEvent?.uuid, parseEventStartDate])
 
   // After refresh, selectedDate becomes "today". If today's date has no sessions, the grid looks empty.
-  // Auto-pick the first session day for the active schedule so sessions show immediately.
+  // Auto-pick a day that has sessions, but only within the event date range (never use schedule-created or out-of-range dates).
   React.useEffect(() => {
     const schedule =
-      (activeScheduleId ? savedSchedules.find((s) => s.id === activeScheduleId) : undefined) ??
+      (activeScheduleId ? savedSchedules.find((s) => String(s.id) === String(activeScheduleId)) : undefined) ??
       savedSchedules[0]
     if (!schedule) return
     const list = Array.isArray(schedule.sessions) ? schedule.sessions : []
     if (list.length === 0) return
+
+    const eventStart = parseEventStartDate()
+    const eventEnd = parseEventEndDate()
 
     const dates: Date[] = []
     for (const s of list) {
@@ -400,6 +428,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       const d = new Date(s.date as any)
       if (Number.isNaN(d.getTime())) continue
       d.setHours(0, 0, 0, 0)
+      // Only include session dates that fall within the event range (ignore schedule-created or wrong dates)
+      if (eventStart && eventEnd) {
+        const t = d.getTime()
+        if (t < eventStart.getTime() || t > eventEnd.getTime()) continue
+      }
       dates.push(d)
     }
     if (dates.length === 0) return
@@ -409,9 +442,14 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     normalizedSelected.setHours(0, 0, 0, 0)
     const hasSelected = dates.some((d) => d.getTime() === normalizedSelected.getTime())
     if (!hasSelected) {
-      setSelectedDate(dates[0])
+      // Prefer first session day within event range; if we have event range and selected is outside, use event start
+      if (eventStart && (normalizedSelected.getTime() < eventStart.getTime() || (eventEnd && normalizedSelected.getTime() > eventEnd.getTime()))) {
+        setSelectedDate(eventStart)
+      } else {
+        setSelectedDate(dates[0])
+      }
     }
-  }, [activeScheduleId, savedSchedules, selectedDate])
+  }, [activeScheduleId, savedSchedules, selectedDate, parseEventStartDate, parseEventEndDate])
 
   const loadSchedules = useCallback(async () => {
     const eventUuid = createdEvent?.uuid
@@ -487,7 +525,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         sample: items[0]
       })
       const mapped: SavedSchedule[] = items.map((s: any) => {
-        const id = s?.uuid ?? s?.id ?? `schedule-${Math.random().toString(36).slice(2)}`
+        const id = String(s?.uuid ?? s?.id ?? `schedule-${Math.random().toString(36).slice(2)}`)
         const name = s?.name ?? s?.title ?? 'Schedule'
         const tags: string[] = Array.isArray(s?.tags) ? s.tags : Array.isArray(s?.availableTags) ? s.availableTags : []
         const locations: string[] = Array.isArray(s?.locations) ? s.locations : Array.isArray(s?.availableLocations) ? s.availableLocations : []
@@ -548,16 +586,20 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
   const loadSessions = useCallback(async (fallbackScheduleUuid?: string | null) => {
     const eventUuid = createdEvent?.uuid
+    const scheduleUuid = fallbackScheduleUuid ?? activeScheduleId
     const accessToken = localStorage.getItem('accessToken')
     const organizationUuid = localStorage.getItem('organizationUuid')
 
     if (!eventUuid || !accessToken || !organizationUuid) {
       return
     }
+    if (!scheduleUuid) {
+      return
+    }
 
     try {
-      const url = API_ENDPOINTS.SESSIONS.LIST(eventUuid)
-      console.log('📥 [Sessions] LIST request:', { url, eventUuid })
+      const url = API_ENDPOINTS.SESSIONS.LIST(eventUuid, scheduleUuid)
+      console.log('📥 [Sessions] LIST request:', { url, eventUuid, scheduleUuid })
 
       const response = await fetch(url, {
         method: 'GET',
@@ -599,9 +641,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         if (Array.isArray(payload)) return payload
         if (payload.status === 'success' && Array.isArray(payload.data)) return payload.data
         if (payload.status === 'success' && Array.isArray(payload.data?.results)) return payload.data.results
+        if (payload.status === 'success' && Array.isArray(payload.data?.sessions)) return payload.data.sessions
         if (Array.isArray(payload.results)) return payload.results
         if (Array.isArray(payload.data?.results)) return payload.data.results
         if (Array.isArray(payload.data)) return payload.data
+        if (Array.isArray(payload.sessions)) return payload.sessions
         return []
       }
 
@@ -843,9 +887,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             null
           const rawStr = typeof rawDate === 'string' ? rawDate.trim() : ''
           const isYmdOnly = Boolean(rawStr && /^\d{4}-\d{2}-\d{2}$/.test(rawStr))
+          const isIsoDateTime = Boolean(rawStr && /^\d{4}-\d{2}-\d{2}T/.test(rawStr))
 
-          // Important: if backend returns YYYY-MM-DD, do NOT timezone-shift it.
-          // Treat it as the intended session day.
+          // Session day for grid: use calendar date from start_at/date so grid filter matches.
           let date: Date | undefined
           if (isYmdOnly) {
             const d = new Date(`${rawStr}T00:00:00`)
@@ -853,39 +897,37 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
               d.setHours(0, 0, 0, 0)
               date = d
             }
-          } else {
-            const rawDateObj = rawDate ? new Date(rawDate as any) : undefined
-            date = rawDateObj && !Number.isNaN(rawDateObj.getTime()) ? rawDateObj : undefined
-
-            if (date && eventTimeZone) {
-              // Normalize to event timezone day (for full datetimes)
-              try {
-                const ymd = new Intl.DateTimeFormat('en-CA', {
-                  timeZone: eventTimeZone,
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit'
-                }).format(date)
-                const d = new Date(`${ymd}T00:00:00`)
-                if (!Number.isNaN(d.getTime())) {
-                  d.setHours(0, 0, 0, 0)
-                  date = d
-                }
-              } catch {
-                // keep local fallback
-              }
-            } else if (date && !Number.isNaN(date.getTime())) {
-              // If we have an ISO datetime but no timezone info, at least anchor to local day
-              // using the date portion (avoids UTC -> local shifting issues).
-              if (rawStr && rawStr.includes('T') && /^\d{4}-\d{2}-\d{2}T/.test(rawStr)) {
-                const ymd = rawStr.slice(0, 10)
-                const d = new Date(`${ymd}T00:00:00`)
-                if (!Number.isNaN(d.getTime())) {
-                  d.setHours(0, 0, 0, 0)
-                  date = d
+          } else if (isIsoDateTime) {
+            const ymd = rawStr.slice(0, 10)
+            const d = new Date(`${ymd}T00:00:00`)
+            if (!Number.isNaN(d.getTime())) {
+              d.setHours(0, 0, 0, 0)
+              date = d
+            }
+          }
+          if (!date && rawDate) {
+            const rawDateObj = new Date(rawDate as any)
+            if (!Number.isNaN(rawDateObj.getTime())) {
+              if (eventTimeZone) {
+                try {
+                  const ymd = new Intl.DateTimeFormat('en-CA', {
+                    timeZone: eventTimeZone,
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit'
+                  }).format(rawDateObj)
+                  const d = new Date(`${ymd}T00:00:00`)
+                  if (!Number.isNaN(d.getTime())) {
+                    d.setHours(0, 0, 0, 0)
+                    date = d
+                  }
+                } catch {
+                  rawDateObj.setHours(0, 0, 0, 0)
+                  date = rawDateObj
                 }
               } else {
-                date.setHours(0, 0, 0, 0)
+                rawDateObj.setHours(0, 0, 0, 0)
+                date = rawDateObj
               }
             }
           }
@@ -1343,9 +1385,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
       const sessionsBySchedule: Record<string, SavedSession[]> = {}
       for (const item of deduped) {
+        // Prefer the schedule we requested so sessions attach to the correct schedule (schedule.id)
         const scheduleUuid =
-          item.scheduleUuid ??
-          (fallbackScheduleUuid ? fallbackScheduleUuid : null)
+          (fallbackScheduleUuid ?? null) ?? item.scheduleUuid ?? null
         if (!scheduleUuid) continue
         if (!sessionsBySchedule[scheduleUuid]) sessionsBySchedule[scheduleUuid] = []
         sessionsBySchedule[scheduleUuid].push(item.session)
@@ -1381,7 +1423,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
       setSavedSchedules((previous) =>
         previous.map((schedule) => {
-          const nextSessions = sessionsBySchedule[schedule.id]
+          const nextSessions =
+            sessionsBySchedule[schedule.id] ??
+            (fallbackScheduleUuid && String(schedule.id) === String(fallbackScheduleUuid)
+              ? sessionsBySchedule[fallbackScheduleUuid]
+              : undefined)
           return nextSessions
             ? { ...schedule, sessions: nextSessions }
             : schedule
@@ -1390,7 +1436,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     } catch {
       // keep current UI state on failure
     }
-  }, [createdEvent?.uuid, eventTimeZone, buildSessionSignature])
+  }, [createdEvent?.uuid, activeScheduleId, eventTimeZone, buildSessionSignature])
 
   // When timezone resolves (or changes), reload sessions for active schedule
   useEffect(() => {
@@ -1426,7 +1472,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('event_uuid', eventUuid)
+        formData.append('event_id', eventUuid)
 
         const response = await fetch(API_ENDPOINTS.SESSIONS.BULK_IMPORT(scheduleUuid), {
           method: 'POST',
@@ -1479,7 +1525,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('event_uuid', eventUuid)
+        formData.append('event_id', eventUuid)
 
         const response = await fetch(API_ENDPOINTS.SESSIONS.BULK_IMPORT(scheduleId), {
           method: 'POST',
@@ -1548,69 +1594,230 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     setParentSessionId(undefined)
   }
 
-  const handleSaveSession = (session: SessionDraft) => {
-    setSavedSchedules((previous) => {
-      const normalizedSession: SessionDraft = {
-        ...defaultSessionDraft,
-        ...session,
-        title: session.title?.trim() || currentScheduleName,
-        tags: session.tags ? [...session.tags] : [],
-        sections: session.sections ? session.sections.map((section) => ({ ...section })) : []
-      }
+  /** Build ISO UTC string for API from selected date + time so "9 AM" local is sent as UTC (e.g. 9 AM India → 03:30Z). */
+  const toUTCISO = (date: Date, time: string, period: 'AM' | 'PM'): string => {
+    const [h = 0, min = 0] = time.split(':').map(Number)
+    let hours = h
+    if (period === 'PM' && hours !== 12) hours += 12
+    if (period === 'AM' && hours === 12) hours = 0
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, min, 0)
+    return d.toISOString()
+  }
 
-      if (activeScheduleId) {
-        // Add session to existing schedule
-        const existingSchedule = previous.find((item) => item.id === activeScheduleId)
-        if (existingSchedule) {
-          // Normalize date to start of day for consistent comparison
-          const sessionDate = new Date(selectedDate)
-          sessionDate.setHours(0, 0, 0, 0)
-          
-          const newSession: SavedSession = {
+  /** Build ISO UTC from date + 24h time string (e.g. "09:00") for template form. */
+  const toUTCISOFrom24h = (date: Date, time24: string): string => {
+    const [h = 0, min = 0] = time24.split(':').map(Number)
+    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, min, 0)
+    return d.toISOString()
+  }
+
+  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
+  const handleSaveSession = async (session: SessionDraft) => {
+    const normalizedSession: SessionDraft = {
+      ...defaultSessionDraft,
+      ...session,
+      title: session.title?.trim() || currentScheduleName,
+      tags: session.tags ? [...session.tags] : [],
+      sections: session.sections ? session.sections.map((section) => ({ ...section })) : []
+    }
+
+    const eventUuid = createdEvent?.uuid
+    const startAt = toUTCISO(
+      selectedDate,
+      normalizedSession.startTime || '00:00',
+      normalizedSession.startPeriod || 'AM'
+    )
+    const endAt = toUTCISO(
+      selectedDate,
+      normalizedSession.endTime || '00:00',
+      normalizedSession.endPeriod || 'PM'
+    )
+    const tagUuids = (normalizedSession.tags ?? []).filter((t) => typeof t === 'string' && UUID_REGEX.test(t.trim()))
+
+    if (eventUuid && activeScheduleId) {
+      try {
+        const sessionBody: CreateSessionBody = {
+          event_uuid: eventUuid,
+          schedule_uuid: activeScheduleId,
+          title: normalizedSession.title || currentScheduleName,
+          description: normalizedSession.sections?.[0]?.description ?? '',
+          start_at: startAt,
+          end_at: endAt,
+          location: normalizedSession.location ?? '',
+          session_type: (normalizedSession.sessionType?.trim() || 'keynote'),
+          tag_uuids: tagUuids
+        }
+        const created = await createSession(eventUuid, sessionBody)
+        const sessionUuid = (created?.uuid ?? (created as any)?.id) as string | undefined
+
+        if (normalizedSession.sections && normalizedSession.sections.length > 0 && sessionUuid) {
+          const sectionsBody: CreateSessionSectionsBody = {
+            session_uuid: sessionUuid,
+            sections: normalizedSession.sections.map((s, index) => {
+              const sectionType = (s.type === 'speaker' ? 'speakers' : s.type) || 'text'
+              let content: Record<string, unknown>
+              if (sectionType === 'text') {
+                content = {
+                  title: s.title || 'Section',
+                  body: s.description ?? ''
+                }
+              } else if (sectionType === 'speakers') {
+                content = {
+                  speaker_uuids: Array.isArray(s.data?.speaker_uuids) ? s.data.speaker_uuids : []
+                }
+              } else {
+                content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
+                if (s.title) content.title = s.title
+                if (s.description) content.body = s.description
+              }
+              return {
+                section_type: sectionType,
+                order: index + 1,
+                content
+              }
+            })
+          }
+          await createSessionSections(eventUuid, sectionsBody)
+        }
+
+        const files = normalizedSession.attachments ?? []
+        if (files.length > 0) {
+          await createSessionResources(eventUuid, files, sessionUuid ? { session_uuid: sessionUuid } : undefined)
+        }
+        if (activeScheduleId) {
+          await loadSessions(activeScheduleId)
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Failed to save session.'
+        showToast.error(msg)
+        throw e
+      }
+    }
+
+    const refreshedFromApi = eventUuid && activeScheduleId
+    if (!refreshedFromApi) {
+      setSavedSchedules((previous) => {
+        if (activeScheduleId) {
+          const existingSchedule = previous.find((item) => item.id === activeScheduleId)
+          if (existingSchedule) {
+            const sessionDate = new Date(selectedDate)
+            sessionDate.setHours(0, 0, 0, 0)
+            const newSession: SavedSession = {
+              ...normalizedSession,
+              id: `session-${Date.now()}`,
+              date: sessionDate,
+              parentId: parentSessionId
+            }
+            const existingSessions = existingSchedule.sessions || []
+            return previous.map((item) =>
+              item.id === activeScheduleId
+                ? {
+                    ...item,
+                    sessions: [...existingSessions, newSession],
+                    availableTags: existingSchedule?.availableTags,
+                    availableLocations: existingSchedule?.availableLocations
+                  }
+                : item
+            )
+          }
+        }
+
+        const sessionDate = new Date(selectedDate)
+        sessionDate.setHours(0, 0, 0, 0)
+        const newSchedule: SavedSchedule = {
+          id: `schedule-${Date.now()}`,
+          name: currentScheduleName,
+          sessions: [{
             ...normalizedSession,
             id: `session-${Date.now()}`,
-            date: sessionDate,
-            parentId: parentSessionId
-          }
-          const existingSessions = existingSchedule.sessions || []
-          return previous.map((item) =>
-            item.id === activeScheduleId 
-              ? { 
-                  ...item, 
-                  sessions: [...existingSessions, newSession],
-                  availableTags: existingSchedule?.availableTags,
-                  availableLocations: existingSchedule?.availableLocations
-                } 
-              : item
-          )
+            date: sessionDate
+          }],
+          availableTags: availableTags,
+          availableLocations: availableLocations
         }
-      }
-
-      // If no active schedule, create new one (shouldn't happen in content view)
-      const sessionDate = new Date(selectedDate)
-      sessionDate.setHours(0, 0, 0, 0)
-      
-      const newSchedule: SavedSchedule = {
-        id: `schedule-${Date.now()}`,
-        name: currentScheduleName,
-        sessions: [{
-          ...normalizedSession,
-          id: `session-${Date.now()}`,
-          date: sessionDate
-        }],
-        availableTags: availableTags,
-        availableLocations: availableLocations
-      }
-
-      return [...previous, newSchedule]
-    })
+        return [...previous, newSchedule]
+      })
+    }
 
     setActiveDraft(null)
     setStartInEditMode(false)
     setParentSessionId(undefined)
-    // Do not close slideout here – SessionSlideout switches to summary view after save;
-    // user closes via the slideout's Close button.
-    // setIsSessionSlideoutOpen(false)
+  }
+
+  const handleSaveTemplateSession = async (data: TemplateSessionData) => {
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid || !activeScheduleId) {
+      showToast.error('Select a schedule first (Manage a schedule) to save the session.')
+      return
+    }
+    const startAt = toUTCISOFrom24h(selectedDate, data.startTime || '00:00')
+    const endAt = toUTCISOFrom24h(selectedDate, data.endTime || '00:00')
+    const tagUuids = (data.tags ?? []).filter((t: string) => typeof t === 'string' && UUID_REGEX.test(String(t).trim()))
+    try {
+      const sessionBody: CreateSessionBody = {
+        event_uuid: eventUuid,
+        schedule_uuid: String(activeScheduleId),
+        title: (data.title || '').trim() || currentScheduleName,
+        description: data.description?.trim() ?? '',
+        start_at: startAt,
+        end_at: endAt,
+        location: data.location ?? '',
+        session_type: (data.sessionType?.trim() || 'keynote'),
+        tag_uuids: tagUuids
+      }
+      const created = await createSession(eventUuid, sessionBody)
+      const sessionUuid = (created?.uuid ?? (created as any)?.id) as string | undefined
+
+      const sectionsToSend: CreateSessionSectionsBody['sections'] = []
+      let order = 1
+      for (const s of data.sections ?? []) {
+        const sectionType = (s.type === 'speaker' ? 'speakers' : s.type) || 'text'
+        let content: Record<string, unknown>
+        if (sectionType === 'text') {
+          content = { title: s.title || 'Section', body: s.description ?? '' }
+        } else if (sectionType === 'speakers') {
+          content = { speaker_uuids: Array.isArray(s.data?.speakers) ? (s.data.speakers as { id: string }[]).map((sp) => sp.id) : (Array.isArray(s.data?.speaker_uuids) ? s.data.speaker_uuids : []) }
+        } else {
+          content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
+          if (s.title) content.title = s.title
+          if (s.description) content.body = s.description
+        }
+        sectionsToSend.push({ section_type: sectionType, order: order++, content })
+      }
+      if (data.description?.trim()) {
+        sectionsToSend.push({
+          section_type: 'text',
+          order: order++,
+          content: { title: 'Description', body: data.description.trim() }
+        })
+      }
+      if ((data.speakers ?? []).length > 0) {
+        sectionsToSend.push({
+          section_type: 'speakers',
+          order: order++,
+          content: { speaker_uuids: data.speakers!.map((sp: { id: string }) => sp.id) }
+        })
+      }
+      if (sectionsToSend.length > 0 && sessionUuid) {
+        await createSessionSections(eventUuid, {
+          session_uuid: sessionUuid,
+          sections: sectionsToSend
+        })
+      }
+
+      const files = data.resources ?? []
+      if (files.length > 0) {
+        await createSessionResources(eventUuid, files, sessionUuid ? { session_uuid: sessionUuid } : undefined)
+      }
+
+      await loadSessions(activeScheduleId)
+      showToast.success('Session saved')
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to save session.'
+      showToast.error(msg)
+      throw e
+    }
   }
 
   const handleCreateScheduleFromList = () => {
@@ -1793,12 +2000,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           />
         ) : (
           <ScheduleContent
+            key={createdEvent?.uuid ?? 'no-event'}
             scheduleName={currentScheduleName}
             onUpload={handleUpload}
             onUploadFiles={handleUploadSessions}
             onAddSession={handleAddSessionClick}
             onBack={handleBackToTable}
-            sessions={activeScheduleId ? savedSchedules.find(s => s.id === activeScheduleId)?.sessions || [] : []}
+            sessions={activeScheduleId ? (savedSchedules.find(s => String(s.id) === String(activeScheduleId))?.sessions ?? []) : []}
             selectedDate={selectedDate}
             rangeStartDate={rangeStartDate}
             rangeEndDate={rangeEndDate}
@@ -1826,15 +2034,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       <TemplateSessionSlideout
         isOpen={isTemplateSessionSlideoutOpen}
         onClose={() => setIsTemplateSessionSlideoutOpen(false)}
-        onSave={(data) => {
-          // Convert template data to SessionDraft format if needed
-          console.log('Template session data:', data)
-          // Do not close slideout here – TemplateSessionSlideout switches to summary view after save;
-          // user closes via the slideout's Close button.
-          // setIsTemplateSessionSlideoutOpen(false)
-        }}
+        onSave={handleSaveTemplateSession}
         availableTags={availableTags}
         availableLocations={availableLocations}
+        eventUuid={createdEvent?.uuid ?? ''}
         topOffset={64}
         panelWidthRatio={0.8}
       />

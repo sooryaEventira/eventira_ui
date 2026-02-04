@@ -1,21 +1,30 @@
 import React, { useState, useEffect } from 'react'
 import { ChevronDown } from '@untitled-ui/icons-react'
-
-const WEBSITE_SETTINGS_API_KEY = 'event-website-settings-api'
+import { useEventForm } from '../../../contexts/EventFormContext'
+import { getWebsiteSettingsStorageKey } from '../../../services/websiteSettingsService'
 
 const DomainUrlTab: React.FC = () => {
-  const stored = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+  const { createdEvent } = useEventForm()
+  const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? null
+  const settingsKey = getWebsiteSettingsStorageKey(eventUuid)
+  const stored = typeof window !== 'undefined' ? localStorage.getItem(settingsKey) : null
   const parsed = stored ? (() => { try { return JSON.parse(stored) } catch { return null } })() : null
   const [subdomain, setSubdomain] = useState(parsed?.subdomain ?? 'HIC2025')
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   useEffect(() => {
-    const current = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+    const current = typeof window !== 'undefined' ? localStorage.getItem(settingsKey) : null
+    const prev = current ? (() => { try { return JSON.parse(current) } catch { return {} } })() : {}
+    setSubdomain(prev?.subdomain ?? 'HIC2025')
+  }, [eventUuid, settingsKey])
+
+  useEffect(() => {
+    const current = typeof window !== 'undefined' ? localStorage.getItem(settingsKey) : null
     const prev = current ? (() => { try { return JSON.parse(current) } catch { return {} } })() : {}
     const domain_url = subdomain ? `https://${subdomain}.example.com` : ''
     const payload = { ...prev, subdomain, domain_url }
-    localStorage.setItem(WEBSITE_SETTINGS_API_KEY, JSON.stringify(payload))
-  }, [subdomain])
+    localStorage.setItem(settingsKey, JSON.stringify(payload))
+  }, [subdomain, settingsKey])
 
   return (
     <div className="space-y-8">

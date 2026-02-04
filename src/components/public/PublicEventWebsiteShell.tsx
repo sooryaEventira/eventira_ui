@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import PublicNavbar from './PublicNavbar'
 import { fetchPublicEvent, type PublicEventData } from '../../services/publicEventService'
 import { fetchPublicWebsiteSettings } from '../../services/websiteSettingsService'
 import { fetchPublicWebpages, type PublicWebpageData } from '../../services/publicWebpageService'
 import PublicWebpageRenderer from './PublicWebpageRenderer'
-import { buildPublicThemeVars } from '../../config/publicTheme'
+import { buildPublicThemeVars, getPrimaryDarkHex } from '../../config/publicTheme'
 import type { NavigationItem, NavigationPageItem, PublicNavNode } from '../../types/navigation'
 import {
   loadNavigationConfigFromStorage,
@@ -30,6 +30,7 @@ interface PublicEventWebsiteShellProps {
   eventUuid: string
 }
 
+/** Path result includes optional tagId for grouped speaker/attendee list pages. */
 const getSectionFromPath = (
   eventUuid: string,
   pathname: string
@@ -39,6 +40,8 @@ const getSectionFromPath = (
   organizationId?: string
   speakerId?: string
   attendeeId?: string
+  speakerTagId?: string
+  attendeeTagId?: string
 } => {
   const base = `/events/${eventUuid}`
   const rest = pathname.startsWith(base) ? pathname.slice(base.length) : pathname
@@ -48,9 +51,21 @@ const getSectionFromPath = (
     return { section: 'webpage', webpageUuid: webpageMatch[1] }
   }
 
+  // Grouped speaker list: /speakers/tag/:tagUuid (must be before /speakers/:id detail)
+  const speakerTagMatch = rest.match(/^\/speakers\/tag\/([^/]+)\/?$/)
+  if (speakerTagMatch) {
+    return { section: 'speakers', speakerTagId: speakerTagMatch[1] }
+  }
+
   const speakerDetailMatch = rest.match(/^\/speakers\/([^/]+)\/?$/)
   if (speakerDetailMatch) {
     return { section: 'speaker', speakerId: speakerDetailMatch[1] }
+  }
+
+  // Grouped attendee list: /attendees/tag/:tagUuid
+  const attendeeTagMatch = rest.match(/^\/attendees\/tag\/([^/]+)\/?$/)
+  if (attendeeTagMatch) {
+    return { section: 'attendees', attendeeTagId: attendeeTagMatch[1] }
   }
 
   const attendeeDetailMatch = rest.match(/^\/attendees\/([^/]+)\/?$/)
@@ -84,6 +99,8 @@ const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePag
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
   const [webpages, setWebpages] = useState<PublicWebpageData[]>([])
+  const [websiteSettings, setWebsiteSettings] = useState<{ brand_primary_color?: string } | null>(null)
+  const [primaryColorFromWebpage, setPrimaryColorFromWebpage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [activePath, setActivePath] = useState<string>(window.location.pathname)
@@ -91,13 +108,16 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const refresh = async () => {
     setIsLoading(true)
     setLoadError(null)
+    setPrimaryColorFromWebpage(null)
     try {
-      const [evt, pages] = await Promise.all([
+      const [evt, pages, settings] = await Promise.all([
         fetchPublicEvent(eventUuid),
-        fetchPublicWebpages(eventUuid)
+        fetchPublicWebpages(eventUuid),
+        fetchPublicWebsiteSettings(eventUuid)
       ])
       setEvent(evt)
       setWebpages(Array.isArray(pages) ? pages : [])
+      setWebsiteSettings(settings)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load website.'
       setLoadError(msg)
@@ -119,6 +139,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     const hiddenKey = `navigation-hidden-${eventUuid}`
     const treeKey = `navigation-tree-${eventUuid}`
 
+    // Same keys as admin (Event website → Navigation). Preview navbar = published navbar when same browser.
     let hiddenIds = new Set<string>()
     try {
       const raw = localStorage.getItem(hiddenKey)
@@ -156,32 +177,119 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     if (hasAttendees) SYSTEM_PAGES.push({ id: 'system:attendees', label: 'Attendees', path: `/events/${eventUuid}/attendees` })
     if (hasSchedule) SYSTEM_PAGES.push({ id: 'system:schedule', label: 'Schedule', path: `/events/${eventUuid}/schedule` })
 
-    const dynamicPages: Array<{ id: string; label: string; path: string }> = webpages.map((p) => ({
+    // Use website index order (saved on Publish) so navbar matches indexed menus. Include speaker/attendee tags for grouped listing.
+    let orderedWebpages = webpages
+    let hasIndexData = false
+    const indexSpeakerTags: Array<{ uuid: string; name: string }> = []
+    const indexAttendeeTags: Array<{ uuid: string; name: string }> = []
+    try {
+      const indexRaw = typeof window !== 'undefined' ? localStorage.getItem(`website-index-${eventUuid}`) : null
+      const indexData = indexRaw ? (() => { try { return JSON.parse(indexRaw) } catch { return null } })() : null
+      const indexWebpages = Array.isArray(indexData?.webpages) ? indexData.webpages : []
+      if (indexWebpages.length > 0) hasIndexData = true
+      const rawSpeakerTags = Array.isArray(indexData?.speaker_tags) ? indexData.speaker_tags : []
+      const rawAttendeeTags = Array.isArray(indexData?.attendee_tags) ? indexData.attendee_tags : []
+      rawSpeakerTags.forEach((t: { uuid?: string; name?: string }) => {
+        if (t?.uuid) indexSpeakerTags.push({ uuid: String(t.uuid), name: String(t?.name ?? '').trim() || 'Speakers' })
+      })
+      rawAttendeeTags.forEach((t: { uuid?: string; name?: string }) => {
+        if (t?.uuid) indexAttendeeTags.push({ uuid: String(t.uuid), name: String(t?.name ?? '').trim() || 'Attendees' })
+      })
+      if (indexWebpages.length > 0) {
+        const orderByUuid = new Map<string, number>()
+        indexWebpages.forEach((p: { uuid?: string; id?: string }, i: number) => {
+          const id = p?.uuid != null ? String(p.uuid) : (p?.id != null ? String(p.id) : '')
+          if (id) orderByUuid.set(id, i)
+        })
+        orderedWebpages = [...webpages].sort((a, b) => {
+          const aId = String((a as any)?.uuid ?? (a as any)?.id ?? '')
+          const bId = String((b as any)?.uuid ?? (b as any)?.id ?? '')
+          const ai = orderByUuid.get(aId) ?? 9999
+          const bi = orderByUuid.get(bId) ?? 9999
+          return ai - bi
+        })
+      }
+    } catch {
+      // use webpages as-is
+    }
+
+    const dynamicPages: Array<{ id: string; label: string; path: string }> = orderedWebpages.map((p) => ({
       id: String(p.uuid),
       label: p.name,
       path: `/events/${eventUuid}/webpages/${p.uuid}`
     }))
 
+    // Tag pages for grouped speaker/attendee lists (paths used when nav has Speaker / Attendees folders from website index)
+    const speakerTagEntries = indexSpeakerTags.map((t) => [
+      `speaker-tag:${t.uuid}`,
+      { label: t.name, path: `/events/${eventUuid}/speakers/tag/${t.uuid}` }
+    ] as const)
+    const attendeeTagEntries = indexAttendeeTags.map((t) => [
+      `attendee-tag:${t.uuid}`,
+      { label: t.name, path: `/events/${eventUuid}/attendees/tag/${t.uuid}` }
+    ] as const)
+
     const pagePathById = new Map<string, { label: string; path: string }>([
       ...SYSTEM_PAGES.map((i) => [i.id, { label: i.label, path: i.path }] as const),
+      ...speakerTagEntries,
+      ...attendeeTagEntries,
       ...dynamicPages.map((i) => [i.id, { label: i.label, path: i.path }] as const)
     ])
 
-    const defaultFlat: NavigationItem[] = [
+    const systemAndWebpageItems: NavigationItem[] = [
       ...SYSTEM_PAGES.map<NavigationPageItem>((p) => ({
         id: p.id,
-        type: 'page',
+        type: 'page' as const,
         title: p.label,
         slug: p.id,
         pageId: p.id
       })),
       ...dynamicPages.map<NavigationPageItem>((p) => ({
         id: p.id,
-        type: 'page',
+        type: 'page' as const,
         title: p.label,
         slug: String(p.label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
         pageId: p.id
       }))
+    ]
+
+    const speakerFolder: NavigationItem | null =
+      indexSpeakerTags.length > 0
+        ? {
+            id: 'folder:speaker',
+            type: 'folder',
+            title: 'Speaker',
+            children: indexSpeakerTags.map((t) => ({
+              id: `speaker-tag:${t.uuid}`,
+              type: 'page' as const,
+              title: t.name,
+              slug: String(t.name).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+              pageId: `speaker-tag:${t.uuid}`
+            }))
+          }
+        : null
+
+    const attendeeFolder: NavigationItem | null =
+      indexAttendeeTags.length > 0
+        ? {
+            id: 'folder:attendees',
+            type: 'folder',
+            title: 'Attendees',
+            children: indexAttendeeTags.map((t) => ({
+              id: `attendee-tag:${t.uuid}`,
+              type: 'page' as const,
+              title: t.name,
+              slug: String(t.name).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+              pageId: `attendee-tag:${t.uuid}`
+            }))
+          }
+        : null
+
+    const defaultFlat: NavigationItem[] = [
+      ...systemAndWebpageItems.slice(0, SYSTEM_PAGES.length),
+      ...(speakerFolder ? [speakerFolder] : []),
+      ...(attendeeFolder ? [attendeeFolder] : []),
+      ...systemAndWebpageItems.slice(SYSTEM_PAGES.length)
     ]
     const allowedSystemIds = new Set(SYSTEM_PAGES.map((p) => p.id))
 
@@ -200,13 +308,16 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       return out
     }
 
-    // Load tree (folder-capable). If missing, migrate to a flat tree.
+    // When we have website index (saved on Publish), use index-ordered list so navbar shows indexed menu. Otherwise use stored tree or default.
     const stored = loadNavigationConfigFromStorage(treeKey)
-    const baseItemsRaw = stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat
+    const baseItemsRaw = hasIndexData
+      ? defaultFlat
+      : (stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat)
     const baseItems = pruneUnavailableSystemPages(baseItemsRaw)
 
+    const defaultFlatPagesForUpsert = systemAndWebpageItems
     // Reconcile: ensure newly created pages appear even if the tree is stale.
-    const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlat.filter((i) => i.type === 'page'))
+    const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlatPagesForUpsert)
 
     // Persist reconciliation so future loads are stable.
     try {
@@ -230,20 +341,59 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
-  // Public-site theme: use saved website settings brand color so it reflects on published website.
-  const publicThemeVars = useMemo(() => {
+  // Theme: read brand_primary_color from API → convert to --color-primary / --color-primary-dark → apply at root.
+  // Navbar and all Puck components then use it automatically via Tailwind (bg-primary, text-primary, bg-primary-dark).
+  // Sources (in order): website-settings API, event GET, webpage GET, then default.
+  const getResolvedPrimary = () => {
     const fromSettings = websiteSettings?.brand_primary_color?.trim() || ''
+    const ev = event as any
     const fromEvent =
-      (event as any)?.brand_primary_color ||
-      (event as any)?.website_settings?.brand_primary_color ||
-      (event as any)?.primaryColor ||
-      (event as any)?.primary_color ||
-      (event as any)?.brandColor ||
-      (event as any)?.brand_color ||
+      ev?.brand_primary_color ||
+      ev?.website_settings?.brand_primary_color ||
+      ev?.websiteSettings?.brand_primary_color ||
+      ev?.settings?.brand_primary_color ||
+      ev?.primaryColor ||
+      ev?.primary_color ||
+      ev?.brandColor ||
+      ev?.brand_color ||
       ''
-    const primaryHex = (fromSettings || fromEvent || '').trim()
+    const fromWebpage = (primaryColorFromWebpage || '').trim()
+    return (fromSettings || fromEvent || fromWebpage || '').trim() || undefined
+  }
+
+  const publicThemeVars = useMemo(() => {
+    const primaryHex = getResolvedPrimary()
+    if (import.meta.env.DEV) {
+      const source = websiteSettings?.brand_primary_color
+        ? 'website-settings'
+        : (event as any)?.brand_primary_color || (event as any)?.website_settings?.brand_primary_color || (event as any)?.settings?.brand_primary_color
+        ? 'event'
+        : primaryColorFromWebpage
+        ? 'webpage'
+        : 'default'
+      console.log('[public theme]', primaryHex ? `${primaryHex} from ${source}` : 'using default (no color from API)')
+    }
     return buildPublicThemeVars(primaryHex || undefined)
-  }, [event, websiteSettings])
+  }, [event, websiteSettings, primaryColorFromWebpage])
+
+  const primaryHex = useMemo(() => getResolvedPrimary(), [event, websiteSettings, primaryColorFromWebpage])
+  const navbarBackgroundColor = useMemo(() => getPrimaryDarkHex(primaryHex), [primaryHex])
+
+  // Apply --color-primary and --color-primary-dark at published site root (html + body).
+  useLayoutEffect(() => {
+    const vars = publicThemeVars as Record<string, string>
+    const apply = (el: HTMLElement) => {
+      Object.keys(vars).forEach((key) => el.style.setProperty(key, vars[key]))
+    }
+    apply(document.documentElement)
+    apply(document.body)
+    return () => {
+      Object.keys(vars).forEach((key) => {
+        document.documentElement.style.removeProperty(key)
+        document.body.style.removeProperty(key)
+      })
+    }
+  }, [publicThemeVars])
 
   return (
     <div className="min-h-screen bg-white" style={publicThemeVars as any}>
@@ -253,6 +403,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         items={navbarItems}
         activePath={activePath}
         onNavigate={handleNavigate}
+        navbarBackgroundColor={navbarBackgroundColor}
       />
 
       <main className="mx-auto max-w-7xl px-4 pb-12 pt-20 sm:px-6">
@@ -261,9 +412,20 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
             <div className="text-sm font-medium text-slate-600">Loading website…</div>
           </div>
         ) : loadError ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-6">
-            <div className="text-lg font-semibold text-rose-900">Unable to load this event</div>
-            <div className="mt-1 text-sm text-rose-800">{loadError}</div>
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-6">
+            <div className="text-lg font-semibold text-amber-900">This event isn’t available yet</div>
+            <div className="mt-1 text-sm text-amber-800">
+              If you just published, the site may need a moment to go live. If the event stays unavailable, in the admin go to <strong>Website settings → Access control</strong>, set <strong>Visibility</strong> to <strong>Public</strong>, then try again.
+            </div>
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => refresh()}
+                className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+              >
+                Retry
+              </button>
+            </div>
           </div>
         ) : current.section === 'organizations' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
@@ -274,7 +436,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           </React.Suspense>
         ) : current.section === 'speakers' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <SpeakersListPage eventUuid={eventUuid} onNavigate={handleNavigate} />
+            <SpeakersListPage
+              eventUuid={eventUuid}
+              onNavigate={handleNavigate}
+              tagId={current.speakerTagId}
+            />
           </React.Suspense>
         ) : current.section === 'speaker' ? (
           <React.Suspense
@@ -300,7 +466,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           </React.Suspense>
         ) : current.section === 'attendees' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <AttendeesListPage eventUuid={eventUuid} onNavigate={handleNavigate} />
+            <AttendeesListPage
+              eventUuid={eventUuid}
+              onNavigate={handleNavigate}
+              tagId={current.attendeeTagId}
+            />
           </React.Suspense>
         ) : current.section === 'attendee' ? (
           <React.Suspense
@@ -337,7 +507,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           </React.Suspense>
         ) : current.section === 'webpage' ? (
           webpageUuid ? (
-            <PublicWebpageRenderer eventUuid={eventUuid} webpageUuid={webpageUuid} />
+            <PublicWebpageRenderer
+              eventUuid={eventUuid}
+              webpageUuid={webpageUuid}
+              onPrimaryColor={setPrimaryColorFromWebpage}
+            />
           ) : (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
               <div className="text-lg font-semibold text-slate-900">No pages yet</div>

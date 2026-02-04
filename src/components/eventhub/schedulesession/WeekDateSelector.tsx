@@ -615,5 +615,3 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
 }
 
 export default WeekDateSelector
-
-

@@ -10,49 +10,29 @@ interface EventDetailsStepProps {
 }
 
 const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFormData }) => {
-  const isSingleDay = formData.isSingleDayEvent ?? false
-
-  // Validate that end date is after start date (only when not single-day)
   const dateValidationError = useMemo(() => {
-    if (isSingleDay || !formData.startDate || !formData.endDate) {
-      return null
-    }
+    if (!formData.startDate || !formData.endDate) return null
     const startDate = new Date(formData.startDate)
     const endDate = new Date(formData.endDate)
     startDate.setHours(0, 0, 0, 0)
     endDate.setHours(0, 0, 0, 0)
-    if (endDate <= startDate) {
-      return 'End date must be after start date'
-    }
+    if (endDate < startDate) return 'End date must be on or after start date'
     return null
-  }, [isSingleDay, formData.startDate, formData.endDate])
+  }, [formData.startDate, formData.endDate])
 
   const handleStartDateChange = (value: string) => {
     updateFormData({ startDate: value })
-    if (isSingleDay) {
-      updateFormData({ endDate: value })
-    } else if (formData.endDate) {
+    if (formData.endDate) {
       const start = new Date(value)
       const end = new Date(formData.endDate)
       start.setHours(0, 0, 0, 0)
       end.setHours(0, 0, 0, 0)
-      if (end <= start) updateFormData({ endDate: '' })
+      if (end < start) updateFormData({ endDate: '' })
     }
   }
 
   const handleEndDateChange = (value: string) => {
     updateFormData({ endDate: value })
-  }
-
-  const handleSingleDayToggle = (checked: boolean) => {
-    updateFormData({ isSingleDayEvent: checked })
-    if (checked) {
-      updateFormData({ endDate: formData.startDate || '' })
-    }
-  }
-
-  const handleEventDateChange = (value: string) => {
-    updateFormData({ startDate: value, endDate: value })
   }
 
   return (
@@ -71,64 +51,34 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
         />
       </div>
 
-      {/* Single day event checkbox */}
-      <div className="flex items-center gap-2">
-        <input
-          type="checkbox"
-          id="single-day-event"
-          checked={isSingleDay}
-          onChange={(e) => handleSingleDayToggle(e.target.checked)}
-          className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-        />
-        <label htmlFor="single-day-event" className="text-sm text-slate-700 cursor-pointer">
-          Single day event
-        </label>
-      </div>
-
-      {/* Date(s) and Timezone: one date picker for single day, two for multi-day */}
-      <div className={`grid grid-cols-1 gap-4 ${isSingleDay ? 'md:grid-cols-[180px_1fr]' : 'md:grid-cols-[180px_180px_1fr]'}`}>
-        {isSingleDay ? (
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-              Event date<span className="text-red-500">*</span>
-            </label>
-            <DatePicker
-              id="event-date"
-              value={formData.startDate}
-              onChange={handleEventDateChange}
-              placeholder="Select date"
-            />
-          </div>
-        ) : (
-          <>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                Start date<span className="text-red-500">*</span>
-              </label>
-              <DatePicker
-                id="start-date"
-                value={formData.startDate}
-                onChange={handleStartDateChange}
-                placeholder="Select date"
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                End date<span className="text-red-500">*</span>
-              </label>
-              <DatePicker
-                id="end-date"
-                value={formData.endDate}
-                onChange={handleEndDateChange}
-                placeholder="Select date"
-                minDate={formData.startDate ? formData.startDate : undefined}
-              />
-              {dateValidationError && (
-                <span className="text-xs text-red-500 mt-0.5">{dateValidationError}</span>
-              )}
-            </div>
-          </>
-        )}
+      {/* Start date, End date, and Timezone */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_180px_1fr]">
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            Start date<span className="text-red-500">*</span>
+          </label>
+          <DatePicker
+            id="start-date"
+            value={formData.startDate}
+            onChange={handleStartDateChange}
+            placeholder="Select date"
+          />
+        </div>
+        <div className="flex flex-col gap-1">
+          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+            End date<span className="text-red-500">*</span>
+          </label>
+          <DatePicker
+            id="end-date"
+            value={formData.endDate}
+            onChange={handleEndDateChange}
+            placeholder="Select date"
+            minDate={formData.startDate ? formData.startDate : undefined}
+          />
+          {dateValidationError && (
+            <span className="text-xs text-red-500 mt-0.5">{dateValidationError}</span>
+          )}
+        </div>
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
             Timezone<span className="text-red-500">*</span>

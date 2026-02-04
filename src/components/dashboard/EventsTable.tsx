@@ -224,14 +224,14 @@ const EventsTable: React.FC<EventsTableProps> = ({
       />
 
       <ConfirmDeleteModal
-        isVisible={isDeleteModalOpen}
-        onClose={() => {
+        isOpen={isDeleteModalOpen}
+        onCancel={() => {
           if (isDeleting) return
           setIsDeleteModalOpen(false)
           setDeleteTarget(null)
         }}
         title="Delete event"
-        itemLabel={deleteTarget?.name}
+        itemName={deleteTarget?.name}
         isLoading={isDeleting}
         onConfirm={async () => {
           if (!deleteTarget?.id) return

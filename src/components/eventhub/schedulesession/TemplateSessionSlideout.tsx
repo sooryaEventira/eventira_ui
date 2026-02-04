@@ -1,13 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Slideout from '../../ui/untitled/Slideout'
 import Input from '../../ui/untitled/Input'
 import Select from '../../ui/untitled/Select'
 import Button from '../../ui/untitled/Button'
 import SectionPickerModal from './SectionPickerModal'
 import SessionSummaryView from './SessionSummaryView'
-import { XClose, Plus, Upload01, Settings01, Trash01 } from '@untitled-ui/icons-react'
+import { XClose, Plus, Upload01, Settings01, Trash01, SearchLg } from '@untitled-ui/icons-react'
 import { defaultSessionDraft, sectionOptions } from './sessionConfig'
 import type { SessionSection } from './sessionTypes'
+import { fetchSpeakers, type SpeakerData } from '../../../services/speakerService'
 
 // Drag handle icon component (3x3 grid)
 const DragHandleIcon = ({ className }: { className?: string }) => (
@@ -31,7 +33,7 @@ const DragHandleIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-interface TemplateSessionData {
+export interface TemplateSessionData {
   title: string
   startTime: string
   endTime: string
@@ -51,12 +53,20 @@ interface TemplateSessionData {
   sections: SessionSection[]
 }
 
+function getSpeakerDisplayName(s: SpeakerData): string {
+  if (s.name && String(s.name).trim()) return String(s.name).trim()
+  const first = s.first_name ? String(s.first_name).trim() : ''
+  const last = s.last_name ? String(s.last_name).trim() : ''
+  return [first, last].filter(Boolean).join(' ') || 'Speaker'
+}
+
 interface TemplateSessionSlideoutProps {
   isOpen: boolean
   onClose: () => void
-  onSave?: (data: TemplateSessionData) => void
+  onSave?: (data: TemplateSessionData) => void | Promise<void>
   availableTags?: string[]
   availableLocations?: string[]
+  eventUuid?: string
   topOffset?: number
   panelWidthRatio?: number
 }
@@ -68,6 +78,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   onSave,
   availableTags = [],
   availableLocations = [],
+  eventUuid = '',
   topOffset = 64,
   panelWidthRatio = 0.8
 }) => {
@@ -94,6 +105,15 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sectionOptions[0]?.id ?? 'slides')
   const [isEditing, setIsEditing] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+
+  const [showSpeakerSearch, setShowSpeakerSearch] = useState(false)
+  const [speakerSearchQuery, setSpeakerSearchQuery] = useState('')
+  const [speakersList, setSpeakersList] = useState<SpeakerData[]>([])
+  const [isLoadingSpeakers, setIsLoadingSpeakers] = useState(false)
+  const [speakerSearchPosition, setSpeakerSearchPosition] = useState<{ top: number; left: number } | null>(null)
+  const speakerSearchAnchorRef = useRef<HTMLButtonElement | null>(null)
+  const speakerSearchInputRef = useRef<HTMLInputElement | null>(null)
 
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const videoElRef = useRef<HTMLVideoElement | null>(null)
@@ -177,7 +197,67 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     }))
   }
 
-  const handleAddSpeaker = () => {
+  const loadSpeakers = useCallback(async () => {
+    if (!eventUuid) return
+    setIsLoadingSpeakers(true)
+    try {
+      const list = await fetchSpeakers(eventUuid)
+      setSpeakersList(Array.isArray(list) ? list : [])
+    } catch {
+      setSpeakersList([])
+    } finally {
+      setIsLoadingSpeakers(false)
+    }
+  }, [eventUuid])
+
+  const openSpeakerSearch = () => {
+    setSpeakerSearchPosition(null)
+    setShowSpeakerSearch(true)
+    setSpeakerSearchQuery('')
+    if (eventUuid && speakersList.length === 0) {
+      loadSpeakers()
+    }
+    setTimeout(() => speakerSearchInputRef.current?.focus(), 100)
+  }
+
+  useLayoutEffect(() => {
+    if (!showSpeakerSearch || !speakerSearchAnchorRef.current) return
+    const el = speakerSearchAnchorRef.current
+    const rect = el.getBoundingClientRect()
+    setSpeakerSearchPosition({ top: rect.bottom + 4, left: rect.left })
+  }, [showSpeakerSearch])
+
+  const closeSpeakerSearch = () => {
+    setShowSpeakerSearch(false)
+    setSpeakerSearchQuery('')
+    setSpeakerSearchPosition(null)
+  }
+
+  const alreadyAddedIds = new Set(formData.speakers.map((s) => s.id))
+  const filteredSpeakers = speakersList.filter((s) => {
+    const id = s.uuid ?? s.id
+    if (id != null && alreadyAddedIds.has(String(id))) return false
+    const name = getSpeakerDisplayName(s)
+    const q = speakerSearchQuery.trim().toLowerCase()
+    if (!q) return true
+    return name.toLowerCase().includes(q)
+  })
+
+  const handleAddSpeaker = (speaker?: SpeakerData) => {
+    if (speaker) {
+      const id = String(speaker.uuid ?? speaker.id ?? `speaker-${Date.now()}`)
+      const name = getSpeakerDisplayName(speaker)
+      setFormData(prev => ({
+        ...prev,
+        speakers: [...prev.speakers, { id, name, role: 'Chairman' }]
+      }))
+      closeSpeakerSearch()
+      return
+    }
+    if (eventUuid) {
+      openSpeakerSearch()
+      return
+    }
     const newSpeaker = {
       id: `speaker-${Date.now()}`,
       name: 'Speaker Name',
@@ -187,6 +267,10 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
       ...prev,
       speakers: [...prev.speakers, newSpeaker]
     }))
+  }
+
+  const handleSelectSpeakerFromSearch = (speaker: SpeakerData) => {
+    handleAddSpeaker(speaker)
   }
 
   const handleAddSection = () => {
@@ -824,9 +908,10 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
             variant="primary"
             size="md"
             onClick={handleSave}
+            disabled={isSaving}
             className="bg-primary hover:bg-primary/90"
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </>
       ) : (
@@ -1153,7 +1238,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                       </button>
                     </div>
                     {/* Role Dropdown */}
-                    <select
+                    {/* <select
                       value={speaker.role}
                       onChange={(e) => {
                         setFormData(prev => ({
@@ -1169,19 +1254,82 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                       <option value="Speaker">Speaker</option>
                       <option value="Panelist">Panelist</option>
                       <option value="Moderator">Moderator</option>
-                    </select>
+                    </select> */}
                   </div>
                 ))}
 
-                {/* Add User Button */}
-                <button
-                  type="button"
-                  onClick={handleAddSpeaker}
-                  className="flex items-center gap-1 text-primary hover:text-primary/80 text-sm font-medium transition-colors self-center"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add user
-                </button>
+                {/* Add User Button – opens speaker search when eventUuid is set */}
+                <div className="relative self-center">
+                  <button
+                    ref={speakerSearchAnchorRef}
+                    type="button"
+                    onClick={() => handleAddSpeaker()}
+                    className="flex items-center gap-1 text-primary hover:text-primary/80 text-sm font-medium transition-colors"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add user
+                  </button>
+                  {showSpeakerSearch &&
+                    speakerSearchPosition &&
+                    typeof document !== 'undefined' &&
+                    createPortal(
+                      <>
+                        <div
+                          className="fixed inset-0 z-[9998]"
+                          aria-hidden
+                          onClick={closeSpeakerSearch}
+                        />
+                        <div
+                          className="fixed z-[9999] w-[min(320px,calc(100vw-24px))] rounded-xl border-2 border-slate-200 bg-white shadow-xl"
+                          style={{
+                            top: speakerSearchPosition.top,
+                            left: speakerSearchPosition.left
+                          }}
+                        >
+                          <div className="p-3 border-b border-slate-100">
+                            <label className="sr-only">Search speakers by name</label>
+                            <div className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-white px-3 py-2.5 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                              <SearchLg className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                              <input
+                                ref={speakerSearchInputRef}
+                                type="text"
+                                value={speakerSearchQuery}
+                                onChange={(e) => setSpeakerSearchQuery(e.target.value)}
+                                placeholder="Search by name..."
+                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none"
+                                autoComplete="off"
+                              />
+                            </div>
+                          </div>
+                          <div className="max-h-[240px] overflow-y-auto p-2">
+                            {isLoadingSpeakers ? (
+                              <div className="py-6 text-center text-sm text-slate-500">Loading speakers...</div>
+                            ) : filteredSpeakers.length === 0 ? (
+                              <div className="py-6 text-center text-sm text-slate-500">
+                                {speakerSearchQuery.trim() ? 'No matching speakers' : 'No speakers in this event'}
+                              </div>
+                            ) : (
+                              filteredSpeakers.map((s) => {
+                                const id = s.uuid ?? s.id
+                                const name = getSpeakerDisplayName(s)
+                                return (
+                                  <button
+                                    key={id ?? name}
+                                    type="button"
+                                    onClick={() => handleSelectSpeakerFromSearch(s)}
+                                    className="w-full rounded-lg px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:bg-primary/10 focus:bg-primary/10 focus:outline-none"
+                                  >
+                                    {name}
+                                  </button>
+                                )
+                              })
+                            )}
+                          </div>
+                        </div>
+                      </>,
+                      document.body
+                    )}
+                </div>
               </div>
             </div>
           </div>

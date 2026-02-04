@@ -97,3 +97,62 @@ export const fetchPublicEvent = async (eventUuid: string): Promise<PublicEventDa
   }
 }
 
+/**
+ * Fetch public events filtered by tag.
+ * Endpoint: {{public_url}}events/?tag_id={{tag_uuid}}
+ */
+export const fetchPublicEventsByTag = async (tagId: string): Promise<PublicEventData[]> => {
+  try {
+    if (!tagId) {
+      const errorMessage = handleApiError('Tag ID is required.', undefined, 'Tag ID is required.')
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.PUBLIC.EVENT.LIST_BY_TAG(tagId)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response?.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        if (responseText?.trim()) {
+          throw new Error(handleApiError(responseText.trim(), response, 'Failed to fetch events. Please try again.'))
+        }
+      }
+      throw new Error(handleApiError(errorData ?? null, response, 'Failed to fetch events. Please try again.'))
+    }
+
+    let data: any
+    try {
+      data = await response.json()
+    } catch {
+      const errorMessage = handleParseError('Invalid response from server. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    if (data?.status === 'error') {
+      throw new Error(handleApiError(data, undefined, 'Failed to fetch events. Please try again.'))
+    }
+
+    const raw = data?.data ?? data?.results ?? data
+    if (Array.isArray(raw)) return raw as PublicEventData[]
+    if (raw && typeof raw === 'object' && Array.isArray(raw.results)) return raw.results as PublicEventData[]
+    return []
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) handleNetworkError(error)
+      throw new Error(error.message || 'Network error occurred')
+    }
+    throw error instanceof Error ? error : new Error('Failed to fetch events. Please try again.')
+  }
+}
+

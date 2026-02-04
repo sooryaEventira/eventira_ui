@@ -390,14 +390,14 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
       </div>
 
       <ConfirmDeleteModal
-        isVisible={isDeleteModalOpen}
-        onClose={() => {
+        isOpen={isDeleteModalOpen}
+        onCancel={() => {
           if (isDeletingOrganization) return
           setIsDeleteModalOpen(false)
           setDeleteTarget(null)
         }}
         title="Delete organization"
-        itemLabel={deleteTarget?.name}
+        itemName={deleteTarget?.name}
         isLoading={isDeletingOrganization}
         onConfirm={async () => {
           if (!deleteTarget?.id) return

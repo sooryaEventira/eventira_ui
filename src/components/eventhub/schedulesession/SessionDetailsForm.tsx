@@ -116,8 +116,8 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
             onChange={(event) => onFieldChange('sessionType', event.target.value)}
             options={[
               { value: '', label: 'Select session type' },
-              { value: 'keynote', label: 'Online' },
-              { value: 'workshop', label: 'In person' }
+              { value: 'online', label: 'Online' },
+              { value: 'inperson', label: 'In person' }
             ]}
             className="h-10"
           />

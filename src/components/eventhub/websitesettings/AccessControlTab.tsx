@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react'
-
-const WEBSITE_SETTINGS_API_KEY = 'event-website-settings-api'
+import { useEventForm } from '../../../contexts/EventFormContext'
+import {
+  getWebsiteSettingsStorageKey,
+  buildWebsiteSettingsBodyFromStorage,
+  updateWebsiteSettings,
+} from '../../../services/websiteSettingsService'
+import { showToast } from '../../../utils/toast'
 
 const AccessControlTab: React.FC = () => {
-  const stored = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+  const { createdEvent } = useEventForm()
+  const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? null
+  const settingsKey = getWebsiteSettingsStorageKey(eventUuid)
+  const stored = typeof window !== 'undefined' ? localStorage.getItem(settingsKey) : null
   const parsed = stored ? (() => { try { return JSON.parse(stored) } catch { return null } })() : null
   const [visibility, setVisibility] = useState<'public' | 'private' | 'hidden'>(parsed?.visibility ?? 'public')
   const [pages, setPages] = useState({
@@ -14,18 +22,42 @@ const AccessControlTab: React.FC = () => {
   })
   const [requireRegistration, setRequireRegistration] = useState(parsed?.require_registration ?? true)
 
+  // When event changes, load from event-scoped storage so we don't show another event's data
   useEffect(() => {
-    const current = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+    const current = typeof window !== 'undefined' ? localStorage.getItem(settingsKey) : null
+    const prev = current ? (() => { try { return JSON.parse(current) } catch { return {} } })() : {}
+    setVisibility(prev?.visibility === 'public' || prev?.visibility === 'hidden' ? prev.visibility : 'private')
+    setRequireRegistration(prev?.require_registration ?? true)
+  }, [eventUuid, settingsKey])
+
+  useEffect(() => {
+    const current = typeof window !== 'undefined' ? localStorage.getItem(settingsKey) : null
     const prev = current ? (() => { try { return JSON.parse(current) } catch { return {} } })() : {}
     const payload = { ...prev, visibility, require_registration: requireRegistration }
-    localStorage.setItem(WEBSITE_SETTINGS_API_KEY, JSON.stringify(payload))
-  }, [visibility, requireRegistration])
+    localStorage.setItem(settingsKey, JSON.stringify(payload))
+  }, [visibility, requireRegistration, settingsKey])
 
   const handlePageToggle = (page: keyof typeof pages) => {
     setPages(prev => ({
       ...prev,
       [page]: !prev[page]
     }))
+  }
+
+  const persistVisibilityToApi = (newVisibility: 'public' | 'private' | 'hidden') => {
+    if (!eventUuid) return
+    const body = buildWebsiteSettingsBodyFromStorage(eventUuid)
+    body.visibility = newVisibility
+    body.require_registration = requireRegistration
+    updateWebsiteSettings(eventUuid, body).catch(() => showToast.error('Failed to save visibility'))
+  }
+
+  const persistRequireRegistrationToApi = (newValue: boolean) => {
+    if (!eventUuid) return
+    const body = buildWebsiteSettingsBodyFromStorage(eventUuid)
+    body.visibility = visibility
+    body.require_registration = newValue
+    updateWebsiteSettings(eventUuid, body).catch(() => showToast.error('Failed to save setting'))
   }
 
   return (
@@ -40,7 +72,11 @@ const AccessControlTab: React.FC = () => {
               name="visibility"
               value="public"
               checked={visibility === 'public'}
-              onChange={(e) => setVisibility(e.target.value as 'public' | 'private' | 'hidden')}
+              onChange={(e) => {
+              const v = e.target.value as 'public' | 'private' | 'hidden'
+              setVisibility(v)
+              persistVisibilityToApi(v)
+            }}
               className="h-4 w-4 text-primary focus:ring-2 focus:ring-primary/20 "
             />
             <span className={`text-sm font-medium px-4 py-2 rounded-lg transition ${
@@ -58,7 +94,11 @@ const AccessControlTab: React.FC = () => {
               name="visibility"
               value="private"
               checked={visibility === 'private'}
-              onChange={(e) => setVisibility(e.target.value as 'public' | 'private' | 'hidden')}
+              onChange={(e) => {
+              const v = e.target.value as 'public' | 'private' | 'hidden'
+              setVisibility(v)
+              persistVisibilityToApi(v)
+            }}
               className="h-4 w-4 text-primary focus:ring-2 focus:ring-primary/20"
             />
             <span className={`text-sm font-medium px-4 py-2 rounded-lg transition ${
@@ -76,7 +116,11 @@ const AccessControlTab: React.FC = () => {
               name="visibility"
               value="hidden"
               checked={visibility === 'hidden'}
-              onChange={(e) => setVisibility(e.target.value as 'public' | 'private' | 'hidden')}
+              onChange={(e) => {
+              const v = e.target.value as 'public' | 'private' | 'hidden'
+              setVisibility(v)
+              persistVisibilityToApi(v)
+            }}
               className="h-4 w-4 text-primary focus:ring-2 focus:ring-primary/20 border-slate-300"
             />
             <span className={`text-sm font-medium px-4 py-2 rounded-lg transition ${
@@ -169,7 +213,11 @@ const AccessControlTab: React.FC = () => {
           </div>
           <button
             type="button"
-            onClick={() => setRequireRegistration(!requireRegistration)}
+            onClick={() => {
+              const next = !requireRegistration
+              setRequireRegistration(next)
+              persistRequireRegistrationToApi(next)
+            }}
             className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary/20 focus:ring-offset-2 ${
               requireRegistration ? 'bg-primary' : 'bg-slate-300'
             }`}

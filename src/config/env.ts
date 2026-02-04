@@ -95,6 +95,7 @@ export const API_ENDPOINTS = {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}event/`,
     LIST: `${env.AUTH_API_URL}${ADMIN_API_BASE}event/`,
     GET: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
+    DELETE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
     PUBLISH: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/publish/`,
   },
   // Timezone endpoints
@@ -120,6 +121,11 @@ export const API_ENDPOINTS = {
     EVENT: {
       // Public event endpoint (backend expects singular `event/`)
       GET: (eventUuid: string) => `${PUBLIC_API_ROOT}event/${eventUuid}`,
+      /** List all events */
+      LIST: () => `${PUBLIC_API_ROOT}events/`,
+      /** List events by tag: .../events/?tag_id={{tag_uuid}} */
+      LIST_BY_TAG: (tagId: string) =>
+        `${PUBLIC_API_ROOT}events/?tag_id=${encodeURIComponent(tagId)}`,
     },
     WEBPAGES: {
       LIST: (eventUuid: string) =>
@@ -131,7 +137,11 @@ export const API_ENDPOINTS = {
       LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/speakers/`,
     },
     ATTENDEES: {
+      /** List all attendees: .../attendees/ */
       LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/attendees/`,
+      /** List attendees by group/tag: .../attendees/?tag_id={{tag_uuid}} */
+      LIST_BY_TAG: (eventUuid: string, tagUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/attendees/?tag_id=${tagUuid}`,
     },
     SCHEDULES: {
       LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/`,
@@ -145,7 +155,6 @@ export const API_ENDPOINTS = {
   ATTENDEE_MANAGEMENT: {
     UPLOAD_USER: `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/upload-excel/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
-    /** Attendee tag/group listing: GET .../attendees/tags/?event_id={eventUuid} */
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
     UPDATE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`,
@@ -174,16 +183,40 @@ export const API_ENDPOINTS = {
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
   },
-  // Sessions endpoints (schedule grid + bulk import)
+  // Sessions endpoints (schedule grid, create, delete, retrieve, bulk import)
   SESSIONS: {
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_uuid=${eventUuid}`,
+    /** List sessions: GET .../sessions/?event_id=&schedule_uuid= */
+    LIST: (eventUuid: string, scheduleUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_id=${eventUuid}&schedule_uuid=${scheduleUuid}`,
+    /** Create session: POST .../sessions/?event_id= */
+    CREATE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_id=${eventUuid}`,
+    /** Delete session: DELETE .../sessions/{{session_uuid}}/?schedule_uuid= */
+    DELETE: (sessionUuid: string, scheduleUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/${sessionUuid}/?schedule_uuid=${scheduleUuid}`,
+    /** Retrieve single session: GET .../sessions/{{session_uuid}}/?event_id=&schedule_uuid= */
+    RETRIEVE: (sessionUuid: string, eventUuid: string, scheduleUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/${sessionUuid}/?event_id=${eventUuid}&schedule_uuid=${scheduleUuid}`,
+    /** Bulk import: POST {{url}}{{admin_url}}sessions/schedules/{{schedule_uuid}}/bulk-import/ — pass event_id in body (form-data). */
     BULK_IMPORT: (scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/schedules/${scheduleUuid}/bulk-import/`,
+  },
+  // Session sections (create section)
+  SESSION_SECTIONS: {
+    /** Create session section: POST .../session-sections/?event_id= */
+    CREATE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}session-sections/?event_id=${eventUuid}`,
+  },
+  // Session resources (create resource)
+  SESSION_RESOURCES: {
+    /** Create session resource: POST .../session-resources/?event_id= */
+    CREATE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}session-resources/?event_id=${eventUuid}`,
   },
   // Communication endpoints
   COMMUNICATION: {
     SEND: `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_id=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_uuid=${eventUuid}`,
   },
   // Speaker Management endpoints
   SPEAKER_MANAGEMENT: {
@@ -198,12 +231,12 @@ export const API_ENDPOINTS = {
   // Organization/Exhibitors endpoints
   EXHIBITORS: {
  
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_id=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_uuid=${eventUuid}`,
  
     DELETE: (exhibitorUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/${exhibitorUuid}/`,
 
     IMPORT: (eventUuid: string) =>
-      `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/import/?event_id=${eventUuid}`,
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/import/?event_uuid=${eventUuid}`,
   },
   // Resource Management endpoints
   RESOURCE: {
@@ -226,8 +259,7 @@ export const API_ENDPOINTS = {
       return url
     },
   },
-  // Team Management endpoints (dashboard)
-  // NOTE: If backend paths differ, override in the service via env vars later.
+
   TEAM: {
     // The backend (per 404 URLconf) exposes `/api/v1/users/`.
     // We keep invite/resend endpoints as placeholders; the service will try fallbacks and show friendly errors if missing.

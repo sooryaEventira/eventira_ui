@@ -68,6 +68,7 @@ export async function setTagPublished(tagUuid: string, eventUuid: string): Promi
 
 /**
  * Call event-tags set-unpublished API so the group page is removed from navigation.
+ * Uses the same set-published endpoint with is_published: false when SET_UNPUBLISHED returns 404 (backend may only expose one endpoint).
  */
 export async function setTagUnpublished(tagUuid: string, eventUuid: string): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
@@ -84,7 +85,7 @@ export async function setTagUnpublished(tagUuid: string, eventUuid: string): Pro
     throw new Error('Tag UUID and Event UUID are required.')
   }
 
-  const url = API_ENDPOINTS.EVENT_TAGS.SET_UNPUBLISHED(tagUuid, eventUuid)
+  const url = API_ENDPOINTS.EVENT_TAGS.SET_PUBLISHED(tagUuid, eventUuid)
   const response = await fetch(url, {
     method: 'POST',
     headers: {

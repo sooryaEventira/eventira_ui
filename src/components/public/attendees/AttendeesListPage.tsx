@@ -15,6 +15,8 @@ type PublicAttendee = {
 interface AttendeesListPageProps {
   eventUuid: string
   onNavigate: (path: string) => void
+  /** When set, list attendees by this tag (uses LIST_BY_TAG API). */
+  tagId?: string
 }
 
 const AttendeeRow = ({ attendee }: { attendee: PublicAttendee }) => {
@@ -46,7 +48,7 @@ const AttendeeRow = ({ attendee }: { attendee: PublicAttendee }) => {
   )
 }
 
-const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavigate }) => {
+const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavigate, tagId }) => {
   const [queryInput, setQueryInput] = useState('') // live query
   const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [apiAttendees, setApiAttendees] = useState<PublicAttendee[] | null>(null)
@@ -57,7 +59,8 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     const run = async () => {
       setIsLoading(true)
       try {
-        const raw = await fetchPublicAttendees(eventUuid)
+        const raw = await fetchPublicAttendees(eventUuid, tagId)
+        if (cancelled) return
         const mapped: PublicAttendee[] = (Array.isArray(raw) ? raw : []).map((a: any, idx: number) => {
           const id = String(a.uuid ?? a.id ?? `attendee-${idx}`)
           const name =
@@ -72,7 +75,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? undefined,
           }
         })
-        if (!cancelled) setApiAttendees(mapped)
+        setApiAttendees(mapped)
       } catch {
         if (!cancelled) setApiAttendees(null)
       } finally {
@@ -83,7 +86,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     return () => {
       cancelled = true
     }
-  }, [eventUuid])
+  }, [eventUuid, tagId])
 
   const attendees = useMemo(() => {
     return apiAttendees ?? readEventStoreJSON<PublicAttendee[]>(eventUuid, 'attendees', [])
@@ -130,11 +133,35 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
       .map((e) => e.item)
   }, [attendeeIndex, baseAttendees, queryInput])
 
+  const tagLabel = useMemo(() => {
+    if (!tagId || typeof window === 'undefined') return null
+    try {
+      const raw = localStorage.getItem(`website-index-${eventUuid}`)
+      const data = raw ? JSON.parse(raw) : null
+      const tags = Array.isArray(data?.attendee_tags) ? data.attendee_tags : []
+      const t = tags.find((x: { uuid?: string }) => String(x?.uuid) === String(tagId))
+      return t?.name ?? null
+    } catch {
+      return null
+    }
+  }, [eventUuid, tagId])
+
+  const pageTitle = tagLabel ?? 'Attendees'
+
   return (
     <div className="space-y-6">
+      {tagId ? (
+        <button
+          type="button"
+          onClick={() => onNavigate(`/events/${eventUuid}/attendees`)}
+          className="text-sm text-slate-500 hover:text-slate-700 focus:outline-none"
+        >
+          ← Back to all attendees
+        </button>
+      ) : null}
       {/* Header row with search + filter (match screenshot) */}
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-xl font-semibold text-slate-900">Attendees</h1>
+        <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
 
         <div className="flex items-center gap-2">
           {/* Search input */}
@@ -200,7 +227,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             {isLoading ? 'Loading attendees…' : 'No attendees found'}
           </div>
           <div className="mt-1 text-sm text-slate-600">
-            Add attendees in Attendee Management to see them here.
+            {tagId ? 'No attendees in this group.' : 'Add attendees in Attendee Management to see them here.'}
           </div>
         </div>
       ) : (

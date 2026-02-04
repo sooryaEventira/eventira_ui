@@ -311,16 +311,37 @@ const TemplateSelectionPage: React.FC = () => {
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
-  // Format date for display
-  const formatEventDate = () => {
-    if (!displayStartDate) return 'Jan 13, 2025'
-    try {
-      const date = new Date(displayStartDate)
-      if (isNaN(date.getTime())) return 'Jan 13, 2025'
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    } catch {
-      return 'Jan 13, 2025'
+  // Parse as local calendar date (no UTC shift) so date matches Schedule/HeroSection after navigation
+  const parseLocalDate = (raw: string | undefined): Date | null => {
+    const r = (raw ?? '').trim()
+    if (!r) return null
+    const datePart = r.slice(0, 10)
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart)
+    if (match) {
+      const d = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10))
+      return Number.isNaN(d.getTime()) ? null : d
     }
+    const d = new Date(r)
+    return Number.isNaN(d.getTime()) ? null : d
+  }
+
+  const formatEventDate = () => {
+    const displayEndDate = createdEvent?.endDate || eventData?.endDate
+    const start = parseLocalDate(displayStartDate)
+    const end = parseLocalDate(displayEndDate)
+    if (!start && !end) return 'Jan 13, 2025'
+    const fmt = (d: Date) => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    const fmtMonth = (d: Date) => d.toLocaleDateString('en-US', { month: 'short' })
+    if (start && !end) return fmt(start)
+    if (end && !start) return fmt(end)
+    if (start!.toDateString() === end!.toDateString()) return fmt(start!)
+    if (start!.getFullYear() === end!.getFullYear() && start!.getMonth() === end!.getMonth()) {
+      return `${fmtMonth(start!)} ${start!.getDate()}-${end!.getDate()}, ${start!.getFullYear()}`
+    }
+    if (start!.getFullYear() === end!.getFullYear()) {
+      return `${fmtMonth(start!)} ${start!.getDate()} - ${fmtMonth(end!)} ${end!.getDate()}, ${start!.getFullYear()}`
+    }
+    return `${fmt(start!)} - ${fmt(end!)}`
   }
 
   // Default speakers data

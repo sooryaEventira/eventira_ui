@@ -44,9 +44,15 @@ const extractPageData = (webpage: PublicWebpageData): PageData | null => {
 interface PublicWebpageRendererProps {
   eventUuid: string
   webpageUuid: string
+  /** If the webpage GET response includes brand_primary_color, it will be passed here so the shell can apply it. */
+  onPrimaryColor?: (color: string | null) => void
 }
 
-const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({ eventUuid, webpageUuid }) => {
+const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({
+  eventUuid,
+  webpageUuid,
+  onPrimaryColor
+}) => {
   const [webpage, setWebpage] = useState<PublicWebpageData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -58,7 +64,16 @@ const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({ eventUuid
       setError(null)
       try {
         const data = await fetchPublicWebpage(eventUuid, webpageUuid)
-        if (!cancelled) setWebpage(data)
+        if (!cancelled) {
+          setWebpage(data)
+          // If backend includes primary color in webpage GET response, use it for theme
+          const color =
+            (data as any)?.brand_primary_color?.trim() ||
+            (data as any)?.website_settings?.brand_primary_color?.trim() ||
+            (data as any)?.websiteSettings?.brand_primary_color?.trim() ||
+            null
+          if (color && onPrimaryColor) onPrimaryColor(color)
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load page.'
         if (!cancelled) setError(msg)
@@ -70,7 +85,7 @@ const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({ eventUuid
     return () => {
       cancelled = true
     }
-  }, [eventUuid, webpageUuid])
+  }, [eventUuid, webpageUuid, onPrimaryColor])
 
   const pageData = useMemo(() => (webpage ? extractPageData(webpage) : null), [webpage])
   const pageType = pageData?.root?.props?.pageType

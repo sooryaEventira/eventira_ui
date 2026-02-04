@@ -12,7 +12,7 @@ import { SessionDraft, SessionSection } from './sessionTypes'
 interface SessionSlideoutProps {
   isOpen: boolean
   onClose: () => void
-  onSave?: (session: SessionDraft) => void
+  onSave?: (session: SessionDraft) => void | Promise<void>
   initialDraft?: SessionDraft | null
   startInEditMode?: boolean
   topOffset?: number
@@ -38,6 +38,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sectionOptions[0]?.id ?? 'slides')
   const [isEditing, setIsEditing] = useState(startInEditMode)
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState<Record<string, number>>({})
+  const [isSaving, setIsSaving] = useState(false)
 
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const imageUploadSectionIdRef = useRef<string | null>(null)
@@ -353,13 +354,17 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [draft.tags.join(','), availableTags.length])
 
-  const handleSave = () => {
-    if (onSave) {
-      onSave(draft)
+  const handleSave = async () => {
+    if (!onSave) return
+    setIsSaving(true)
+    try {
+      await onSave(draft)
+      setIsEditing(false)
+      setIsSectionModalOpen(false)
+      setTagsInput(draft.tags.join(', '))
+    } finally {
+      setIsSaving(false)
     }
-    setIsEditing(false)
-    setIsSectionModalOpen(false)
-    setTagsInput(draft.tags.join(', '))
   }
 
   const handleBeginEdit = () => {
@@ -384,8 +389,9 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
             variant="primary"
             size="md"
             onClick={handleSave}
+            disabled={isSaving}
           >
-            Save
+            {isSaving ? 'Saving...' : 'Save'}
           </Button>
         </>
       ) : (

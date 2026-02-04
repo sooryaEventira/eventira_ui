@@ -52,6 +52,26 @@ export interface EventData {
 }
 
 /**
+ * Normalize single-event API response so startDate/endDate match the dashboard "EVENT DATE" (event_date).
+ * Prefer event_date for startDate so weekday selector shows the same date as the events table.
+ */
+function normalizeSingleEventResponse(raw: any): EventData {
+  const obj = raw?.event && typeof raw.event === 'object' ? raw.event : raw
+  if (!obj || typeof obj !== 'object') return raw as EventData
+  const startDate = obj.event_date ?? obj.start_date ?? obj.startDate
+  const endDate = obj.end_date ?? obj.endDate
+  return {
+    ...obj,
+    uuid: String(obj.uuid || ''),
+    eventName: String(obj.title ?? obj.eventName ?? ''),
+    startDate: startDate != null && String(startDate).trim() !== '' ? String(startDate) : undefined,
+    endDate: endDate != null && String(endDate).trim() !== '' ? String(endDate) : undefined,
+    location: obj.location ?? undefined,
+    createdAt: obj.created_at ?? obj.createdAt ?? obj.created_date,
+  }
+}
+
+/**
  * Create a new event
  */
 export const createEvent = async (request: CreateEventRequest): Promise<CreateEventResponseData> => {
@@ -527,13 +547,13 @@ export const fetchEvent = async (eventUuid: string): Promise<EventData> => {
       }
 
       if (apiResponse.status === 'success' && apiResponse.data) {
-        return apiResponse.data
+        return normalizeSingleEventResponse(apiResponse.data) as EventData
       }
     }
 
     // Handle direct EventData response
-    if (typeof data === 'object' && ('uuid' in data || 'eventName' in data)) {
-      return data as EventData
+    if (typeof data === 'object' && ('uuid' in data || 'eventName' in data || 'title' in data)) {
+      return normalizeSingleEventResponse(data) as EventData
     }
 
     throw new Error('No event data returned from server')
@@ -659,8 +679,8 @@ export const deleteEvent = async (eventUuid: string): Promise<void> => {
 }
 
 /**
- * Publish an event by UUID
- * Endpoint: {{admin_url}}event/{{event_uuid}}/publish/
+ * Publish an event by UUID (used when clicking Publish on Event website page).
+ * Endpoint: {{url}}{{admin_url}}event/{{event_uuid}}/publish/  (POST)
  */
 export const publishEvent = async (eventUuid: string): Promise<any> => {
   try {

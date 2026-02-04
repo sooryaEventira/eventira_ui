@@ -16,6 +16,7 @@ import {
 } from '../../services/webpageService'
 import { publishEvent } from '../../services/eventService'
 import { fetchPublicEvent } from '../../services/publicEventService'
+import { fetchPublicWebpages } from '../../services/publicWebpageService'
 import Button from '../ui/untitled/Button'
 import { readEventStoreJSON } from '../../utils/eventLocalStore'
 import { showToast } from '../../utils/toast'
@@ -693,28 +694,46 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     if (isPublishing) return
     setIsPublishing(true)
     try {
+      showToast.info('Publishing event…')
       await publishEvent(eventUuid)
 
-      // Publishing can be eventually-consistent. Wait briefly for the public endpoint to start serving it.
+      // Fetch website index (indexed menus) and store so published navbar can use the same order.
+      try {
+        const indexData = await fetchWebsiteIndex(eventUuid)
+        localStorage.setItem(`website-index-${eventUuid}`, JSON.stringify(indexData))
+      } catch {
+        // ignore; published tab will fall back to API webpages order
+      }
+
+      // Backend may take a moment to expose the event on the public API. Wait for both event and webpages.
       const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
       let published = false
-      for (let attempt = 0; attempt < 6; attempt++) {
+      const maxAttempts = 10
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
         try {
-          await fetchPublicEvent(eventUuid)
+          await Promise.all([
+            fetchPublicEvent(eventUuid),
+            fetchPublicWebpages(eventUuid)
+          ])
           published = true
           break
         } catch {
-          await sleep(800)
+          await sleep(attempt === 0 ? 500 : 1200)
         }
       }
 
       if (!published) {
-        showToast.error('Published, but the public site is not available yet. Please try again in a moment.')
+        showToast.error(
+          'Event is published, but the public site is not ready yet. Try opening the link in a minute or refresh the public tab.'
+        )
+        const url = `${window.location.origin}/events/${eventUuid}`
+        setTimeout(() => {
+          window.open(url, '_blank', 'noopener,noreferrer')
+        }, 100)
         return
       }
 
-      // Open public website shell in a new tab after successful publish.
-      // The public shell will load navbar items from the public endpoints and render pages read-only.
+      showToast.success('Published. Opening site…')
       const url = `${window.location.origin}/events/${eventUuid}`
       window.open(url, '_blank', 'noopener,noreferrer')
     } finally {

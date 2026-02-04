@@ -3,15 +3,11 @@ import { Button } from '../../ui/untitled'
 import { XClose, Upload01, ChevronDown } from '@untitled-ui/icons-react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import { showToast } from '../../../utils/toast'
-import { fetchWebsiteSettings, updateWebsiteSettings, type WebsiteSettingsBody } from '../../../services/websiteSettingsService'
-
-const BRANDING_STORAGE_KEY = 'event-website-branding'
-/** Persisted for API body: visibility, require_registration, domain_url (used by Access control & Domain tabs). */
-const WEBSITE_SETTINGS_API_KEY = 'event-website-settings-api'
+import { fetchWebsiteSettings, updateWebsiteSettings, getWebsiteSettingsStorageKey, getBrandingStorageKey, type WebsiteSettingsBody } from '../../../services/websiteSettingsService'
 
 const BrandingTab: React.FC = () => {
   const { createdEvent } = useEventForm()
-  const eventUuid = typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null
+  const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? null
 
   // Get banner and logo: prefer localStorage, then fall back to event from API
   const [bannerUrl, setBannerUrl] = useState<string>(() => {
@@ -40,16 +36,27 @@ const BrandingTab: React.FC = () => {
     }
   }, [createdEvent?.banner, createdEvent?.logo, eventUuid])
 
-  // Load saved branding (colors, fonts) from localStorage first, then from GET website-settings
-  const savedBranding = typeof window !== 'undefined' ? localStorage.getItem(BRANDING_STORAGE_KEY) : null
-  const parsed = savedBranding ? (() => { try { return JSON.parse(savedBranding) } catch { return null } })() : null
-
-  const [primaryColor, setPrimaryColor] = useState(parsed?.primaryColor ?? '#6366f1')
-  const [headingFont, setHeadingFont] = useState(parsed?.headingFont ?? 'Inter')
-  const [bodyFont, setBodyFont] = useState(parsed?.bodyFont ?? 'Inter')
+  const [primaryColor, setPrimaryColor] = useState('#6366f1')
+  const [headingFont, setHeadingFont] = useState('Inter')
+  const [bodyFont, setBodyFont] = useState('Inter')
   const [showThemeDropdown, setShowThemeDropdown] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [settingsLoaded, setSettingsLoaded] = useState(false)
+
+  // When event changes, load from event-scoped storage (or defaults) and refetch from API so we don't show another event's data
+  useEffect(() => {
+    if (!eventUuid) return
+    setSettingsLoaded(false)
+    const key = getBrandingStorageKey(eventUuid)
+    const saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null
+    const parsed = saved ? (() => { try { return JSON.parse(saved) } catch { return null } })() : null
+    if (parsed?.primaryColor) setPrimaryColor(parsed.primaryColor)
+    else setPrimaryColor('#6366f1')
+    if (parsed?.headingFont) setHeadingFont(parsed.headingFont)
+    else setHeadingFont('Inter')
+    if (parsed?.bodyFont) setBodyFont(parsed.bodyFont)
+    else setBodyFont('Inter')
+  }, [eventUuid])
 
   // Fetch saved website settings from API so form reflects saved values and published site can use them
   useEffect(() => {
@@ -159,13 +166,15 @@ const BrandingTab: React.FC = () => {
       if (eventUuid) {
         localStorage.setItem(`event-form-banner-${eventUuid}`, bannerUrl)
       }
-      localStorage.setItem(BRANDING_STORAGE_KEY, JSON.stringify({
+      const brandingKey = getBrandingStorageKey(eventUuid)
+      const settingsKey = getWebsiteSettingsStorageKey(eventUuid)
+      localStorage.setItem(brandingKey, JSON.stringify({
         primaryColor,
         headingFont,
         bodyFont
       }))
 
-      const stored = typeof window !== 'undefined' ? localStorage.getItem(WEBSITE_SETTINGS_API_KEY) : null
+      const stored = typeof window !== 'undefined' ? localStorage.getItem(settingsKey) : null
       const parsed = stored ? (() => { try { return JSON.parse(stored) } catch { return null } })() : null
       const body: WebsiteSettingsBody = {
         heading_font: headingFont,

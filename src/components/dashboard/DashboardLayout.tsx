@@ -282,8 +282,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                          localStorage.getItem('userEmail')?.split('@')[0] || 
                          'Unknown'
         
+        const rawId = eventData.uuid ?? (eventData as any).id ?? (eventData as any).pk
         return {
-          id: eventData.uuid,
+          id: rawId != null && rawId !== '' ? String(rawId) : '',
           name: eventData.eventName,
           status: statusMap[eventData.status || ''] || 'Draft',
           attendanceType: attendanceTypeMap[eventData.eventExperience || ''] || 'Online',
@@ -321,9 +322,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }
 
   const handleDeleteEvent = async (eventId: string) => {
+    if (!eventId) return
+    const idToRemove = String(eventId).trim()
+    if (!idToRemove) return
     try {
-      await deleteEvent(eventId)
-      setEvents((prev) => prev.filter((e) => e.id !== eventId))
+      await deleteEvent(idToRemove)
+      setEvents((prev) => prev.filter((e) => String(e.id).trim() !== idToRemove))
+      await loadEvents()
+      showToast.success('Event deleted')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to delete event. Please try again.'
       showToast.error(msg)

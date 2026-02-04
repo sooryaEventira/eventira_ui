@@ -8,6 +8,8 @@ interface PublicNavbarProps {
   items: PublicNavNode[]
   activePath?: string
   onNavigate: (path: string) => void
+  /** Dark variant for navbar background so saved primary color always shows even if CSS vars don't apply. */
+  navbarBackgroundColor?: string
 }
 
 const PublicNavbar: React.FC<PublicNavbarProps> = ({
@@ -15,9 +17,14 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   logoUrl,
   items,
   activePath,
-  onNavigate
+  onNavigate,
+  navbarBackgroundColor
 }) => {
   void eventName
+  const headerStyle = useMemo(
+    () => (navbarBackgroundColor ? { backgroundColor: navbarBackgroundColor } : undefined),
+    [navbarBackgroundColor]
+  )
 
   const normalizePath = (p?: string) => {
     const s = (p || '').trim()
@@ -27,10 +34,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
 
   // Keep section nav highlighted for nested routes like:
   // /events/:uuid/attendees/:attendeeId  -> Attendees
-  const isActiveForItem = (currentPath: string, itemPath: string) => {
+  const isActiveForItem = (currentPath: string, itemPath: string): boolean => {
     const cur = normalizePath(currentPath)
     const base = normalizePath(itemPath)
-    return cur === base || (base && cur.startsWith(`${base}/`))
+    return Boolean(cur === base || (base && cur.startsWith(`${base}/`)))
   }
 
   const isActiveForNode = useMemo(() => {
@@ -189,7 +196,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   }
 
   return (
-    <header className="fixed top-0 left-0 z-[1000] w-full border-b border-slate-200 bg-primary-dark backdrop-blur">
+    <header
+      className="fixed top-0 left-0 z-[1000] w-full border-b border-slate-200 bg-primary-dark backdrop-blur"
+      style={headerStyle}
+    >
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
         <button
           type="button"

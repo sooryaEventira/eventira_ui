@@ -2,15 +2,25 @@
 // Matches the app primary used across the admin UI.
 export const PUBLIC_PRIMARY_HEX_DEFAULT = '#6938EF'
 
-const isHexColor = (value: string) => /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test((value || '').trim())
+const isHexColor = (value: string) => /^#?([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test((value || '').trim())
+
+/** Normalize so we always have #rrggbb (e.g. "#14b8a6") for consistent rendering. */
+function normalizeHex(value: string): string {
+  const v = (value || '').trim()
+  if (!v) return v
+  const withHash = v.startsWith('#') ? v : `#${v}`
+  if (!isHexColor(withHash)) return value
+  return withHash.length === 4 ? withHash : withHash.toLowerCase()
+}
 
 const hexToRgb = (hex: string): { r: number; g: number; b: number } | null => {
   const v = (hex || '').trim()
-  if (!isHexColor(v)) return null
+  const withHash = v.startsWith('#') ? v : `#${v}`
+  if (!isHexColor(withHash)) return null
   const normalized =
-    v.length === 4
-      ? `#${v[1]}${v[1]}${v[2]}${v[2]}${v[3]}${v[3]}`
-      : v
+    withHash.length === 4
+      ? `#${withHash[1]}${withHash[1]}${withHash[2]}${withHash[2]}${withHash[3]}${withHash[3]}`
+      : withHash
   const n = parseInt(normalized.slice(1), 16)
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
 }
@@ -26,12 +36,26 @@ const darkenHex = (hex: string, amount: number) => {
   return `#${[r, g, b].map((x) => x.toString(16).padStart(2, '0')).join('')}`
 }
 
+/** Dark variant of primary (for navbar background). Use when CSS vars may not apply (e.g. fixed elements). */
+export const getPrimaryDarkHex = (primaryHex?: string): string => {
+  const raw = (primaryHex || '').trim()
+  const primary = raw && isHexColor(raw.startsWith('#') ? raw : `#${raw}`) ? normalizeHex(raw) : PUBLIC_PRIMARY_HEX_DEFAULT
+  return darkenHex(primary, 0.42) || '#000000'
+}
+
 const toRgbTriplet = (hex: string): string | null => {
   const rgb = hexToRgb(hex)
   if (!rgb) return null
   return `${rgb.r} ${rgb.g} ${rgb.b}`
 }
 
+/**
+ * Convert brand_primary_color (hex, e.g. "#3b82f6") from API to CSS variables for the published site.
+ * Returns:
+ *   --color-primary   (RGB triplet, e.g. "59 130 246") — used by Tailwind primary / bg-primary / text-primary
+ *   --color-primary-dark (darkened variant) — used by bg-primary-dark (navbar, etc.)
+ * Applied at published site root so navbar and all Puck components use it automatically.
+ */
 export const buildPublicThemeVars = (primaryHex?: string) => {
   const primary = isHexColor(primaryHex || '') ? (primaryHex as string).trim() : PUBLIC_PRIMARY_HEX_DEFAULT
   const dark = darkenHex(primary, 0.42) || '#000000'
@@ -40,7 +64,6 @@ export const buildPublicThemeVars = (primaryHex?: string) => {
   const darkTriplet = toRgbTriplet(dark) || '0 0 0'
 
   return {
-    // Tailwind uses these via tailwind.config.js colors.primary
     ['--color-primary' as any]: primaryTriplet,
     ['--color-primary-dark' as any]: darkTriplet,
   } as Record<string, string>

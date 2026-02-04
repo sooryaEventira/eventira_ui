@@ -30,11 +30,10 @@ export const EventFormProvider: React.FC<{ children: ReactNode }> = ({ children 
   })
 
   const [createdEvent, setCreatedEventState] = useState<CreateEventResponseData | null>(() => {
-    // Load created event from localStorage on mount
     const stored = localStorage.getItem('created-event')
     if (stored) {
       try {
-        return JSON.parse(stored)
+        return JSON.parse(stored) as CreateEventResponseData
       } catch {
         return null
       }
@@ -87,10 +86,9 @@ export const EventFormProvider: React.FC<{ children: ReactNode }> = ({ children 
   }
 
   const setCreatedEvent = (event: CreateEventResponseData) => {
-    // Update state first
+    if (!event || !event.uuid) return
     setCreatedEventState(event)
-    
-    // Then update localStorage synchronously to ensure consistency
+
     try {
       localStorage.setItem('created-event', JSON.stringify(event))
       // Also store the UUID separately for easy access
@@ -147,4 +145,10 @@ export const useEventForm = () => {
     throw new Error('useEventForm must be used within an EventFormProvider')
   }
   return context
+}
+
+/** Use when component may render outside EventFormProvider (e.g. HeroSection on public page). Returns null if outside provider. */
+export const useOptionalEventForm = (): EventFormContextType | null => {
+  const context = useContext(EventFormContext)
+  return context ?? null
 }

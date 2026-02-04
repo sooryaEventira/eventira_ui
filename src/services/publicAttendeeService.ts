@@ -15,14 +15,24 @@ export interface PublicAttendeeData {
   [key: string]: any
 }
 
-export const fetchPublicAttendees = async (eventUuid: string): Promise<PublicAttendeeData[]> => {
+export const fetchPublicAttendees = async (
+  eventUuid: string,
+  tagId?: string
+): Promise<PublicAttendeeData[]> => {
   try {
     if (!eventUuid) {
       const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid)
+    const url = tagId
+      ? API_ENDPOINTS.PUBLIC.ATTENDEES.LIST_BY_TAG(eventUuid, tagId)
+      : API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid)
+    if (tagId) {
+      console.log('[fetchPublicAttendees] LIST_BY_TAG', { eventUuid, tagId, url })
+    } else {
+      console.log('[fetchPublicAttendees] LIST (all)', { eventUuid, url })
+    }
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },
@@ -71,11 +81,20 @@ export const fetchPublicAttendees = async (eventUuid: string): Promise<PublicAtt
     }
 
     const responseData = data?.data ?? data?.results ?? data
-    if (Array.isArray(responseData)) return responseData as PublicAttendeeData[]
-    if (responseData && typeof responseData === 'object' && Array.isArray(responseData.results)) {
-      return responseData.results as PublicAttendeeData[]
+    let result: PublicAttendeeData[]
+    if (Array.isArray(responseData)) {
+      result = responseData as PublicAttendeeData[]
+    } else if (responseData && typeof responseData === 'object' && Array.isArray(responseData.results)) {
+      result = responseData.results as PublicAttendeeData[]
+    } else {
+      result = []
     }
-    return []
+    if (tagId) {
+      console.log('[fetchPublicAttendees] LIST_BY_TAG response', { tagId, count: result.length, data: result })
+    } else {
+      console.log('[fetchPublicAttendees] LIST (all) response', { count: result.length, data: result })
+    }
+    return result
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
       if (!error.message.includes('Cannot connect')) {

@@ -1,6 +1,7 @@
 import React, { useRef, useEffect } from 'react'
 import { registerOverlayPortal } from '@measured/puck'
 import { HeroSectionProps, HeroButton } from '../../types'
+import { useOptionalEventForm } from '../../contexts/EventFormContext'
 
 const HeroSection = ({ 
   title, 
@@ -25,6 +26,7 @@ const HeroSection = ({
   overlayOpacity = 0.4,
   buttonSpacing = '12px'
 }: HeroSectionProps) => {
+  const optionalEventForm = useOptionalEventForm()
   const buttonRefs = useRef<(HTMLAnchorElement | null)[]>([])
 
   // Puck sometimes wraps text fields as React elements with a `value` prop.
@@ -90,11 +92,21 @@ const HeroSection = ({
   }
 
   const formatDateText = () => {
-    let sRaw = getStringValue(startDate).trim()
-    let eRaw = getStringValue(endDate).trim()
+    let sRaw = ''
+    let eRaw = ''
 
-    // If component props are missing/incomplete, fall back to event creation data
-    // so dragging the component immediately shows the event date range.
+    // 1) Prefer current event from context first so each event shows its own date (not the date baked into saved page content).
+    if (optionalEventForm?.createdEvent) {
+      const e = optionalEventForm.createdEvent as any
+      sRaw = (e.startDate ?? e.start_date ?? e.event_date ?? '').toString().trim()
+      eRaw = (e.endDate ?? e.end_date ?? '').toString().trim()
+    }
+    // 2) Fall back to saved page props (startDate/endDate from content).
+    if (!sRaw || !eRaw) {
+      sRaw = sRaw || getStringValue(startDate).trim()
+      eRaw = eRaw || getStringValue(endDate).trim()
+    }
+    // 3) Then localStorage when outside provider or no dates elsewhere.
     if (!sRaw || !eRaw) {
       const stored = readEventMetaFromStorage()
       if (!sRaw && stored.startDate) sRaw = stored.startDate
@@ -103,12 +115,14 @@ const HeroSection = ({
 
     if (!sRaw && !eRaw) return ''
 
+    // Parse as local calendar date (year, month-1, day) so date matches template selection and schedule
     const parseDate = (raw: string): Date | null => {
       const r = (raw || '').trim()
       if (!r) return null
-      // Support YYYY-MM-DD (treat as local date at midnight to avoid timezone shift)
-      if (/^\d{4}-\d{2}-\d{2}$/.test(r)) {
-        const d = new Date(`${r}T00:00:00`)
+      const datePart = r.slice(0, 10)
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(datePart)
+      if (match) {
+        const d = new Date(parseInt(match[1], 10), parseInt(match[2], 10) - 1, parseInt(match[3], 10))
         return Number.isNaN(d.getTime()) ? null : d
       }
       const d = new Date(r)
@@ -123,9 +137,9 @@ const HeroSection = ({
       if (sRaw && eRaw) return `${sRaw} - ${eRaw}`
       return sRaw || eRaw
     }
-    // If only one side parses, still return a compact date when possible
-    if (s && !e) return `${s.getDate()}, ${s.getFullYear()}`
-    if (!s && e) return `${e.getDate()}, ${e.getFullYear()}`
+    // If only one side parses, still return a compact date with month
+    if (s && !e) return s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    if (!s && e) return e.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 
     const sDay = s!.getDate()
     const eDay = e!.getDate()
@@ -133,23 +147,21 @@ const HeroSection = ({
     const eMonth = e!.getMonth()
     const sYear = s!.getFullYear()
     const eYear = e!.getFullYear()
+    const fmtShort = (d: Date) => d.toLocaleDateString('en-US', { month: 'short' })
 
-    // Desired compact format (example): "12-15, 2026"
+    // Include month so "2-4, 2026" becomes "Feb 2-4, 2026"
     if (sYear === eYear) {
       if (sMonth === eMonth) {
-        if (sDay === eDay) return `${sDay}, ${sYear}`
-        return `${sDay}-${eDay}, ${sYear}`
+        const monthLabel = fmtShort(s!)
+        if (sDay === eDay) return `${monthLabel} ${sDay}, ${sYear}`
+        return `${monthLabel} ${sDay}-${eDay}, ${sYear}`
       }
-      // Different months but same year: include month numbers for clarity.
-      const sm = sMonth + 1
-      const em = eMonth + 1
-      return `${sm}/${sDay}-${em}/${eDay}, ${sYear}`
+      // Different months but same year: "Jan 31 - Feb 2, 2026"
+      return `${fmtShort(s!)} ${sDay} - ${fmtShort(e!)} ${eDay}, ${sYear}`
     }
 
-    // Different years: include both years.
-    const sm = sMonth + 1
-    const em = eMonth + 1
-    return `${sm}/${sDay}, ${sYear} - ${em}/${eDay}, ${eYear}`
+    // Different years: "Jan 31, 2025 - Feb 2, 2026"
+    return `${fmtShort(s!)} ${sDay}, ${sYear} - ${fmtShort(e!)} ${eDay}, ${eYear}`
   }
 
   const dateText = formatDateText()
