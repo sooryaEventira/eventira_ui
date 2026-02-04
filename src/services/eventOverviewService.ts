@@ -11,6 +11,7 @@ export interface EventOverviewPayload {
     startDate: string
     endDate: string
     location: string
+    timezone: string
     mode: OverviewEventMode
   }
   stats: {
@@ -29,16 +30,25 @@ export interface EventOverviewPayload {
   }
 }
 
-/** API overview response shape: { status, message, data: { name, start_date, end_date, timezone, location, registrations_total, communications_sent, communications_scheduled } } */
+/** API overview response shape: { status, message, data: { name, status?, start_date, end_date, timezone, location, venue?, address?, registrations_total, ... } } */
 interface OverviewApiData {
   name?: string
+  status?: string
   start_date?: string
   end_date?: string
   timezone?: string
   location?: string
+  venue?: string
+  address?: string
   registrations_total?: number
   communications_sent?: number
   communications_scheduled?: number
+}
+
+function statusFromApi(raw: string | undefined): OverviewEventStatus {
+  const s = String(raw ?? '').toLowerCase().trim()
+  if (s === 'live' || s === 'published' || s === 'publish') return 'live'
+  return 'draft'
 }
 
 function modeFromLocation(location: string): OverviewEventMode {
@@ -91,19 +101,24 @@ export async function fetchEventOverview(eventUuid: string): Promise<EventOvervi
     throw new Error(handleApiError(json, undefined, 'Failed to load overview.'))
   }
 
-  const d: OverviewApiData = json.data ?? {}
+  // Support both { data: { name, location, ... } } and { data: { data: { name, ... } } }
+  const rawData = json.data ?? {}
+  const d: OverviewApiData = typeof (rawData as any)?.data === 'object' ? (rawData as any).data : rawData
   const title = String(d.name ?? '').trim() || 'Untitled event'
   const startDate = String(d.start_date ?? '').trim()
   const endDate = String(d.end_date ?? '').trim()
-  const location = String(d.location ?? '').trim()
+  // Location: prefer location, then venue, then address (API may use any of these)
+  const location = String(d.location ?? d.venue ?? d.address ?? '').trim()
+  const timezone = String(d.timezone ?? '').trim()
 
   return {
     event: {
       title,
-      status: 'draft',
+      status: statusFromApi(d.status),
       startDate,
       endDate,
       location,
+      timezone,
       mode: modeFromLocation(location),
     },
     stats: {

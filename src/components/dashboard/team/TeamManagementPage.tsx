@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Plus, XClose, Pencil01, Trash03, RefreshCcw02, Mail01 } from '@untitled-ui/icons-react'
 import { Button, DividerLineTable, Input, Select, type DividerLineTableColumn } from '../../ui/untitled'
-import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { showToast } from '../../../utils/toast'
 import Slideout from '../../ui/untitled/Slideout'
 import { useTableHeader } from '../../ui/TableHeader'
@@ -207,7 +206,6 @@ const TeamManagementPage: React.FC = () => {
   const [eventOptions, setEventOptions] = useState<Array<{ id: string; name: string }>>([])
 
   const [inviteOpen, setInviteOpen] = useState(false)
-  const [confirmRemove, setConfirmRemove] = useState<TeamMember | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -353,9 +351,18 @@ const TeamManagementPage: React.FC = () => {
     })
   }
 
+  const performRemove = (targetIds: string[]) => {
+    if (targetIds.length === 0) return
+    setMembers((prev) => prev.filter((m) => !targetIds.includes(m.id)))
+    setSelectedIds(new Set())
+    if (activeMemberId && targetIds.includes(activeMemberId)) {
+      closeDrawer()
+    }
+    showToast.success('Removed from team.')
+  }
+
   const bulkRemove = () => {
-    const first = members.find((m) => selectedIds.has(m.id)) || null
-    setConfirmRemove(first)
+    performRemove(Array.from(selectedIds))
   }
 
   const { leading: tableHeaderLeading, actions: tableHeaderActions } = useTableHeader({
@@ -506,7 +513,7 @@ const TeamManagementPage: React.FC = () => {
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setConfirmRemove(item)
+                  performRemove([item.id])
                 }}
                 className="text-slate-500 hover:text-rose-600 transition-colors"
                 aria-label={`Remove ${item.name}`}
@@ -519,7 +526,7 @@ const TeamManagementPage: React.FC = () => {
         }
       }
     ],
-    [allVisibleSelected, filtered.length, loading, openDrawerFor, selectedIds, toggleAllVisible, toggleOne]
+    [allVisibleSelected, filtered.length, loading, openDrawerFor, performRemove, selectedIds, toggleAllVisible, toggleOne]
   )
 
   return (
@@ -578,10 +585,15 @@ const TeamManagementPage: React.FC = () => {
         onClose={() => setInviteOpen(false)}
         eventOptions={inviteEventOptions}
         onInvite={async (email, role, eventIds) => {
-          await inviteTeamMember({ email, role, events: eventIds ?? [] })
+          const { teamInviteUuid } = await inviteTeamMember({ email, role, events: eventIds ?? [] })
           const list = await fetchTeamMembers()
           setMembers(list)
           showToast.success('Invite sent.')
+          if (teamInviteUuid) {
+            setInviteOpen(false)
+            window.history.pushState({}, '', `/dashboard?invite=${teamInviteUuid}`)
+            window.dispatchEvent(new Event('locationchange'))
+          }
         }}
       />
 
@@ -636,7 +648,7 @@ const TeamManagementPage: React.FC = () => {
                 variant="destructive"
                 onClick={() => {
                   if (!activeMember) return
-                  setConfirmRemove(activeMember)
+                  performRemove([activeMember.id])
                 }}
                 disabled={!activeMember}
               >
@@ -748,26 +760,6 @@ const TeamManagementPage: React.FC = () => {
         </div>
       </Slideout>
 
-      <ConfirmDeleteModal
-        isOpen={Boolean(confirmRemove)}
-        onCancel={() => setConfirmRemove(null)}
-        title="Remove from team"
-        itemName={confirmRemove?.name}
-        confirmText="Remove"
-        onConfirm={async () => {
-          const targetIds = selectedIds.size > 0 ? Array.from(selectedIds) : confirmRemove ? [confirmRemove.id] : []
-          if (targetIds.length === 0) return
-          setMembers((prev) => prev.filter((m) => !targetIds.includes(m.id)))
-          setSelectedIds(new Set())
-          if (confirmRemove && targetIds.includes(confirmRemove.id)) {
-            // If we removed the currently open member, close the drawer.
-            if (activeMemberId && targetIds.includes(activeMemberId)) {
-              closeDrawer()
-            }
-          }
-          showToast.success('Removed from team.')
-        }}
-      />
     </div>
   )
 }

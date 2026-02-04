@@ -8,6 +8,7 @@ import {
   Calendar,
   Clock,
   Building01,
+  Globe01,
   Settings01,
   UploadCloud01,
   Mail01
@@ -52,22 +53,33 @@ function formatDateRange(startISO: string, endISO: string): string {
   const end = endISO ? new Date(endISO) : null
   if (!start || Number.isNaN(start.getTime())) return '—'
 
-  const df = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'long', day: 'numeric' })
+  const df = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
   const tf = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
 
   const startDate = df.format(start)
   const startTime = tf.format(start)
-  if (!end || Number.isNaN(end.getTime())) return `${startDate} | ${startTime}`
+  if (!end || Number.isNaN(end.getTime())) return `${startDate}, ${startTime}`
 
   const endDate = df.format(end)
   const endTime = tf.format(end)
-  return `${startDate} | ${startTime} - ${endDate} | ${endTime}`
+  const sameDay = startDate === endDate
+  if (sameDay) return `${startDate}, ${startTime} – ${endTime}`
+  return `${startDate}, ${startTime} – ${endDate}, ${endTime}`
 }
 
 function prettyMode(mode: EventOverviewPayload['event']['mode']) {
   if (mode === 'online') return 'Online'
   if (mode === 'offline') return 'Offline'
   return 'Hybrid'
+}
+
+function prettyLocation(location: string) {
+  if (!location) return '—'
+  const s = location.toLowerCase().trim()
+  if (s === 'in-person') return 'In-person'
+  if (s === 'virtual' || s === 'online') return 'Virtual'
+  if (s === 'hybrid') return 'Hybrid'
+  return location
 }
 
 const StatusBadge = ({ status }: { status: EventOverviewPayload['event']['status'] }) => {
@@ -214,11 +226,19 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-sm">
-                  <Building01 className="h-4 w-4" aria-hidden="true" />
+                  <Building01 className="h-4 w-4 flex-shrink-0" aria-hidden="true" />
                   {loading ? (
                     <SkeletonBlock className="h-4 w-56 bg-white/20" />
                   ) : (
-                    <span>{data?.event.location || '—'}</span>
+                    <span>{prettyLocation(data?.event?.location ?? '') || '—'}</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 text-sm">
+                  <Globe01 className="h-4 w-4" aria-hidden="true" />
+                  {loading ? (
+                    <SkeletonBlock className="h-4 w-40 bg-white/20" />
+                  ) : (
+                    <span>{data?.event.timezone || '—'}</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2 text-sm">

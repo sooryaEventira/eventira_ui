@@ -130,7 +130,12 @@ export async function fetchTeamMembers(): Promise<TeamMember[]> {
   }
 }
 
-export async function inviteTeamMember(request: InviteTeamMemberRequest): Promise<void> {
+/** Response from invite API: contains teamInviteUuid used for accept/revoke and for the invite link (dashboard?invite=uuid). */
+export interface InviteTeamMemberResponse {
+  teamInviteUuid: string
+}
+
+export async function inviteTeamMember(request: InviteTeamMemberRequest): Promise<InviteTeamMemberResponse> {
   const accessToken = localStorage.getItem('accessToken')
   const organizationUuid = localStorage.getItem('organizationUuid')
   if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
@@ -154,13 +159,32 @@ export async function inviteTeamMember(request: InviteTeamMemberRequest): Promis
     body: JSON.stringify(body),
   })
 
+  const responseText = await response.text()
+
   if (!response.ok) {
-    const txt = await response.text()
-    if (isHtmlResponse(response, txt)) throw new Error(friendlyHttpError(response))
+    if (isHtmlResponse(response, responseText)) throw new Error(friendlyHttpError(response))
     let err: any = null
-    try { err = txt ? JSON.parse(txt) : null } catch {}
-    throw new Error(handleApiError(err || txt, response, 'Failed to invite team member.'))
+    try { err = responseText ? JSON.parse(responseText) : null } catch {}
+    throw new Error(handleApiError(err || responseText, response, 'Failed to invite team member.'))
   }
+
+  let data: any = null
+  try {
+    data = responseText ? JSON.parse(responseText) : null
+  } catch {
+    console.log('[inviteTeamMember] response:', { status: response.status, raw: responseText })
+    throw new Error(handleApiError(null, response, 'Invalid invite response.'))
+  }
+
+  console.log('[inviteTeamMember] response:', { status: response.status, data })
+
+  const inner = data?.data
+  const uuid = inner?.uuid ?? data?.uuid ?? ''
+  if (!uuid) {
+    console.warn('[inviteTeamMember] No uuid in response; accept/revoke link will be unavailable.', data)
+  }
+
+  return { teamInviteUuid: String(uuid || '') }
 }
 
 export async function acceptTeamInvite(teamInviteUuid: string): Promise<void> {
