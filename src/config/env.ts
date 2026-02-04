@@ -97,6 +97,8 @@ export const API_ENDPOINTS = {
     GET: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
     DELETE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
     PUBLISH: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/publish/`,
+    /** Event hub overview: GET overview/?event_id={{event_uuid}} */
+    OVERVIEW: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}overview/?event_id=${eventUuid}`,
   },
   // Timezone endpoints
   TIMEZONE: {
@@ -262,9 +264,14 @@ export const API_ENDPOINTS = {
   },
 
   TEAM: {
-
     INVITE: `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/`,
-   
+    LIST: `${env.AUTH_API_URL}${ADMIN_API_BASE}list-invites/`,
+    /** Accept team invite: POST invites/{{team_invite_uuid}}/accept/ */
+    ACCEPT_INVITE: (teamInviteUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/${teamInviteUuid}/accept/`,
+    /** Revoke team invite: POST invites/{{team_invite_uuid}}/revoke/ */
+    REVOKE_INVITE: (teamInviteUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/${teamInviteUuid}/revoke/`,
   },
 }
 

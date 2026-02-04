@@ -577,8 +577,8 @@ const TeamManagementPage: React.FC = () => {
         isOpen={inviteOpen}
         onClose={() => setInviteOpen(false)}
         eventOptions={inviteEventOptions}
-        onInvite={async (email, role) => {
-          await inviteTeamMember({ email, role })
+        onInvite={async (email, role, eventIds) => {
+          await inviteTeamMember({ email, role, events: eventIds ?? [] })
           const list = await fetchTeamMembers()
           setMembers(list)
           showToast.success('Invite sent.')
@@ -749,10 +749,10 @@ const TeamManagementPage: React.FC = () => {
       </Slideout>
 
       <ConfirmDeleteModal
-        isVisible={Boolean(confirmRemove)}
-        onClose={() => setConfirmRemove(null)}
+        isOpen={Boolean(confirmRemove)}
+        onCancel={() => setConfirmRemove(null)}
         title="Remove from team"
-        itemLabel={confirmRemove?.name}
+        itemName={confirmRemove?.name}
         confirmText="Remove"
         onConfirm={async () => {
           const targetIds = selectedIds.size > 0 ? Array.from(selectedIds) : confirmRemove ? [confirmRemove.id] : []

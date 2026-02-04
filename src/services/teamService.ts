@@ -18,6 +18,10 @@ export interface TeamMember {
 export interface InviteTeamMemberRequest {
   email: string
   role: string
+  /** Organization UUID (defaults to localStorage organizationUuid when not provided). */
+  organization?: string
+  /** Event UUIDs to grant access to. */
+  events?: string[]
 }
 
 function getBaseHost(): string {
@@ -60,14 +64,7 @@ export async function fetchTeamMembers(): Promise<TeamMember[]> {
     if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
     if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
 
-    const base = getBaseHost()
-    const candidates = [
-      API_ENDPOINTS.TEAM.LIST,
-      `${base}/api/v1/users/`,
-      `${base}/api/v1/admin/users/`,
-      `${base}/api/v1/admin/team-members/`,
-    ].filter(Boolean)
-
+    const url = API_ENDPOINTS.TEAM.LIST
     const init: RequestInit = {
       method: 'GET',
       headers: {
@@ -78,36 +75,17 @@ export async function fetchTeamMembers(): Promise<TeamMember[]> {
       credentials: 'include',
     }
 
-    let lastError: { response: Response; text: string } | null = null
-    let data: any = null
-
-    for (const url of candidates) {
-      const res = await tryFetchJson(url, init)
-      if (res.ok) {
-        data = res.json
-        // If we got HTML back with 200, treat as failure and continue.
-        if (typeof data === 'string' && data.includes('<html')) {
-          continue
-        }
-        break
-      }
-      // If 404, try next candidate; otherwise stop and surface error.
-      if (res.response.status === 404) {
-        lastError = { response: res.response, text: res.text }
-        continue
-      }
-      lastError = { response: res.response, text: res.text }
-      break
+    const res = await tryFetchJson(url, init)
+    if (!res.ok) {
+      if (isHtmlResponse(res.response, res.text)) throw new Error(friendlyHttpError(res.response))
+      let err: any = null
+      try { err = res.text ? JSON.parse(res.text) : null } catch {}
+      throw new Error(handleApiError(err || res.text, res.response, 'Failed to fetch team members.'))
     }
 
-    if (data == null) {
-      if (!lastError) throw new Error('Failed to fetch team members.')
-      if (isHtmlResponse(lastError.response, lastError.text)) {
-        throw new Error(friendlyHttpError(lastError.response))
-      }
-      let err: any = null
-      try { err = lastError.text ? JSON.parse(lastError.text) : null } catch {}
-      throw new Error(handleApiError(err || lastError.text, lastError.response, 'Failed to fetch team members.'))
+    let data: any = res.json
+    if (typeof data === 'string' && data.includes('<html')) {
+      throw new Error('Invalid response from server.')
     }
 
     // Support multiple shapes:
@@ -158,15 +136,14 @@ export async function inviteTeamMember(request: InviteTeamMemberRequest): Promis
   if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
   if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
 
-  const base = getBaseHost()
-  const candidates = [
-    API_ENDPOINTS.TEAM.INVITE,
-    `${base}/api/v1/admin/team-invites/`,
-    `${base}/api/v1/users/invite/`,
-    `${base}/api/v1/admin/users/invite/`,
-  ].filter(Boolean)
-
-  const init: RequestInit = {
+  const url = API_ENDPOINTS.TEAM.INVITE
+  const body = {
+    email: request.email.trim(),
+    organization: request.organization ?? organizationUuid,
+    role: request.role,
+    events: Array.isArray(request.events) ? request.events : [],
+  }
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -174,156 +151,151 @@ export async function inviteTeamMember(request: InviteTeamMemberRequest): Promis
       'X-Organization': organizationUuid,
     },
     credentials: 'include',
-    body: JSON.stringify({ email: request.email.trim(), role: request.role }),
-  }
+    body: JSON.stringify(body),
+  })
 
-  let last: { response: Response; text: string } | null = null
-  for (const url of candidates) {
-    const response = await fetch(url, init)
+  if (!response.ok) {
     const txt = await response.text()
-    if (response.ok) return
-    if (response.status === 404) {
-      last = { response, text: txt }
-      continue
-    }
-    last = { response, text: txt }
-    break
-  }
-
-  if (last) {
-    if (isHtmlResponse(last.response, last.text)) throw new Error(friendlyHttpError(last.response))
+    if (isHtmlResponse(response, txt)) throw new Error(friendlyHttpError(response))
     let err: any = null
-    try { err = last.text ? JSON.parse(last.text) : null } catch {}
-    throw new Error(handleApiError(err || last.text, last.response, 'Failed to invite team member.'))
+    try { err = txt ? JSON.parse(txt) : null } catch {}
+    throw new Error(handleApiError(err || txt, response, 'Failed to invite team member.'))
   }
-  throw new Error('Failed to invite team member.')
 }
 
-export async function updateTeamMemberRole(memberUuid: string, role: string): Promise<void> {
+export async function acceptTeamInvite(teamInviteUuid: string): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
   const organizationUuid = localStorage.getItem('organizationUuid')
-  if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
+  if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
   if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
 
-  const base = getBaseHost()
-  const candidates = [
-    API_ENDPOINTS.TEAM.UPDATE_MEMBER(memberUuid),
-    `${base}/api/v1/users/${memberUuid}/`,
-    `${base}/api/v1/admin/users/${memberUuid}/`,
-    `${base}/api/v1/admin/team-members/${memberUuid}/`,
-  ].filter(Boolean)
+  const url = API_ENDPOINTS.TEAM.ACCEPT_INVITE(teamInviteUuid)
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
 
-  let last: { response: Response; text: string } | null = null
-  for (const url of candidates) {
-    const response = await fetch(url, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Organization': organizationUuid,
-      },
-      credentials: 'include',
-      body: JSON.stringify({ role }),
-    })
+  if (!response.ok) {
     const txt = await response.text()
-    if (response.ok) return
-    if (response.status === 404) {
-      last = { response, text: txt }
-      continue
-    }
-    last = { response, text: txt }
-    break
-  }
-  if (last) {
-    if (isHtmlResponse(last.response, last.text)) throw new Error(friendlyHttpError(last.response))
+    if (isHtmlResponse(response, txt)) throw new Error(friendlyHttpError(response))
     let err: any = null
-    try { err = last.text ? JSON.parse(last.text) : null } catch {}
-    throw new Error(handleApiError(err || last.text, last.response, 'Failed to update role.'))
+    try { err = txt ? JSON.parse(txt) : null } catch {}
+    throw new Error(handleApiError(err || txt, response, 'Failed to accept invitation.'))
   }
-  throw new Error('Failed to update role.')
 }
 
-export async function removeTeamMember(memberUuid: string): Promise<void> {
+export async function revokeTeamInvite(teamInviteUuid: string): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
   const organizationUuid = localStorage.getItem('organizationUuid')
-  if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
+  if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
   if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
 
-  const base = getBaseHost()
-  const candidates = [
-    API_ENDPOINTS.TEAM.REMOVE_MEMBER(memberUuid),
-    `${base}/api/v1/users/${memberUuid}/`,
-    `${base}/api/v1/admin/users/${memberUuid}/`,
-    `${base}/api/v1/admin/team-members/${memberUuid}/`,
-  ].filter(Boolean)
+  const url = API_ENDPOINTS.TEAM.REVOKE_INVITE(teamInviteUuid)
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
 
-  let last: { response: Response; text: string } | null = null
-  for (const url of candidates) {
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Organization': organizationUuid,
-      },
-      credentials: 'include',
-    })
+  if (!response.ok) {
     const txt = await response.text()
-    if (response.ok) return
-    if (response.status === 404) {
-      last = { response, text: txt }
-      continue
-    }
-    last = { response, text: txt }
-    break
-  }
-
-  if (last) {
-    if (isHtmlResponse(last.response, last.text)) throw new Error(friendlyHttpError(last.response))
+    if (isHtmlResponse(response, txt)) throw new Error(friendlyHttpError(response))
     let err: any = null
-    try { err = last.text ? JSON.parse(last.text) : null } catch {}
-    throw new Error(handleApiError(err || last.text, last.response, 'Failed to remove team member.'))
+    try { err = txt ? JSON.parse(txt) : null } catch {}
+    throw new Error(handleApiError(err || txt, response, 'Failed to revoke invitation.'))
   }
-  throw new Error('Failed to remove team member.')
 }
 
-export async function resendTeamInvite(inviteUuid: string): Promise<void> {
-  const accessToken = localStorage.getItem('accessToken')
-  const organizationUuid = localStorage.getItem('organizationUuid')
-  if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
-  if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
+// export async function removeTeamMember(memberUuid: string): Promise<void> {
+//   const accessToken = localStorage.getItem('accessToken')
+//   const organizationUuid = localStorage.getItem('organizationUuid')
+//   if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
+//   if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
 
-  const base = getBaseHost()
-  const candidates = [
-    API_ENDPOINTS.TEAM.RESEND_INVITE(inviteUuid),
-    `${base}/api/v1/admin/team-invites/${inviteUuid}/resend/`,
-  ].filter(Boolean)
+//   const base = getBaseHost()
+//   const candidates = [
+//     API_ENDPOINTS.TEAM.REMOVE_MEMBER(memberUuid),
+//     `${base}/api/v1/users/${memberUuid}/`,
+//     `${base}/api/v1/admin/users/${memberUuid}/`,
+//     `${base}/api/v1/admin/team-members/${memberUuid}/`,
+//   ].filter(Boolean)
 
-  let last: { response: Response; text: string } | null = null
-  for (const url of candidates) {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Organization': organizationUuid,
-      },
-      credentials: 'include',
-    })
-    const txt = await response.text()
-    if (response.ok) return
-    if (response.status === 404) {
-      last = { response, text: txt }
-      continue
-    }
-    last = { response, text: txt }
-    break
-  }
+//   let last: { response: Response; text: string } | null = null
+//   for (const url of candidates) {
+//     const response = await fetch(url, {
+//       method: 'DELETE',
+//       headers: {
+//         'Authorization': `Bearer ${accessToken}`,
+//         'X-Organization': organizationUuid,
+//       },
+//       credentials: 'include',
+//     })
+//     const txt = await response.text()
+//     if (response.ok) return
+//     if (response.status === 404) {
+//       last = { response, text: txt }
+//       continue
+//     }
+//     last = { response, text: txt }
+//     break
+//   }
 
-  if (last) {
-    if (isHtmlResponse(last.response, last.text)) throw new Error(friendlyHttpError(last.response))
-    let err: any = null
-    try { err = last.text ? JSON.parse(last.text) : null } catch {}
-    throw new Error(handleApiError(err || last.text, last.response, 'Failed to resend invite.'))
-  }
-  throw new Error('Failed to resend invite.')
-}
+//   if (last) {
+//     if (isHtmlResponse(last.response, last.text)) throw new Error(friendlyHttpError(last.response))
+//     let err: any = null
+//     try { err = last.text ? JSON.parse(last.text) : null } catch {}
+//     throw new Error(handleApiError(err || last.text, last.response, 'Failed to remove team member.'))
+//   }
+//   throw new Error('Failed to remove team member.')
+// }
+
+// export async function resendTeamInvite(inviteUuid: string): Promise<void> {
+//   const accessToken = localStorage.getItem('accessToken')
+//   const organizationUuid = localStorage.getItem('organizationUuid')
+//   if (!accessToken) throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
+//   if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
+
+//   const base = getBaseHost()
+//   const candidates = [
+//     API_ENDPOINTS.TEAM.RESEND_INVITE(inviteUuid),
+//     `${base}/api/v1/admin/team-invites/${inviteUuid}/resend/`,
+//   ].filter(Boolean)
+
+//   let last: { response: Response; text: string } | null = null
+//   for (const url of candidates) {
+//     const response = await fetch(url, {
+//       method: 'POST',
+//       headers: {
+//         'Authorization': `Bearer ${accessToken}`,
+//         'X-Organization': organizationUuid,
+//       },
+//       credentials: 'include',
+//     })
+//     const txt = await response.text()
+//     if (response.ok) return
+//     if (response.status === 404) {
+//       last = { response, text: txt }
+//       continue
+//     }
+//     last = { response, text: txt }
+//     break
+//   }
+
+//   if (last) {
+//     if (isHtmlResponse(last.response, last.text)) throw new Error(friendlyHttpError(last.response))
+//     let err: any = null
+//     try { err = last.text ? JSON.parse(last.text) : null } catch {}
+//     throw new Error(handleApiError(err || last.text, last.response, 'Failed to resend invite.'))
+//   }
+//   throw new Error('Failed to resend invite.')
+// }
 

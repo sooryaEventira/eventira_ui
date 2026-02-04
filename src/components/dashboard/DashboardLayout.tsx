@@ -12,6 +12,8 @@ import type { DateRange } from '../ui/untitled'
 import { deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { showToast } from '../../utils/toast'
+import { acceptTeamInvite, revokeTeamInvite } from '../../services/teamService'
+import ConfirmDeleteModal from '../ui/ConfirmDeleteModal'
 
 interface DashboardLayoutProps {
   organizationName?: string
@@ -71,6 +73,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [showEventWebsitePage, setShowEventWebsitePage] = useState(false)
   const [showPreviewPage, setShowPreviewPage] = useState(false)
   const [previewPageId, setPreviewPageId] = useState<string>('')
+  const [inviteUuid, setInviteUuid] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('invite') || params.get('team_invite_uuid') || null
+  })
+  const [inviteModalLoading, setInviteModalLoading] = useState(false)
 
   const getDashboardPathForItem = (itemId: string) => {
     if (itemId === 'events') return '/dashboard'
@@ -179,6 +186,15 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       window.removeEventListener('open-event-form', handleOpenForm)
     }
   }, []) // Only run on mount - checkRoute reads latest event from ref, not from closure
+
+  // Sync invite param from URL when on dashboard (e.g. user clicked email link)
+  useEffect(() => {
+    const path = window.location.pathname
+    if (path !== '/dashboard' && path !== '/') return
+    const params = new URLSearchParams(window.location.search)
+    const uuid = params.get('invite') || params.get('team_invite_uuid') || null
+    setInviteUuid(uuid)
+  }, [routePath])
   
   // Events data - fetched from API
   const [events, setEvents] = useState<Event[]>([])
@@ -536,6 +552,36 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   }
 
+  const handleAcceptInvite = async () => {
+    if (!inviteUuid || inviteModalLoading) return
+    setInviteModalLoading(true)
+    try {
+      await acceptTeamInvite(inviteUuid)
+      showToast.success('Invitation accepted.')
+      setInviteUuid(null)
+      window.history.replaceState({}, '', '/dashboard')
+      window.dispatchEvent(new Event('locationchange'))
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to accept invitation.')
+    } finally {
+      setInviteModalLoading(false)
+    }
+  }
+
+  const handleRevokeInvite = async () => {
+    if (!inviteUuid || inviteModalLoading) return
+    setInviteModalLoading(true)
+    try {
+      await revokeTeamInvite(inviteUuid)
+      setInviteUuid(null)
+      onLogout?.()
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to revoke invitation.')
+    } finally {
+      setInviteModalLoading(false)
+    }
+  }
+
   // Use routePath as the source of truth for what is rendered.
   // This prevents stale boolean flags from showing the wrong page (e.g., URL=/dashboard but website page still mounted).
   const pathname = routePath
@@ -667,6 +713,18 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           />
         )}
       </main>
+
+      {/* Team invite confirmation modal (when user lands on /dashboard?invite= or ?team_invite_uuid=) */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(inviteUuid)}
+        title="Team invitation"
+        description="You've been invited to join the team. Accept this invitation?"
+        confirmText="Confirm"
+        cancelText="Revoke"
+        isLoading={inviteModalLoading}
+        onCancel={handleRevokeInvite}
+        onConfirm={handleAcceptInvite}
+      />
     </div>
   )
 }
