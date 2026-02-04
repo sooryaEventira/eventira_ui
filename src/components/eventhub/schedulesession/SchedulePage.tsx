@@ -15,6 +15,7 @@ import { API_ENDPOINTS } from '../../../config/env'
 import { showToast } from '../../../utils/toast'
 import { fetchTimezones } from '../../../services/timezoneService'
 import {
+  listSessions,
   createSession,
   createSessionSections,
   createSessionResources,
@@ -598,43 +599,19 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     }
 
     try {
-      const url = API_ENDPOINTS.SESSIONS.LIST(eventUuid, scheduleUuid)
-      console.log('📥 [Sessions] LIST request:', { url, eventUuid, scheduleUuid })
+      console.log('📥 [Sessions] LIST request (env SESSIONS.LIST):', { eventUuid, scheduleUuid })
+      const result = await listSessions(eventUuid, scheduleUuid)
 
-      const response = await fetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Organization': organizationUuid
-        },
-        credentials: 'include'
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '')
+      if (!result.ok) {
         console.log('❌ [Sessions] LIST failed:', {
-          status: response.status,
-          statusText: response.statusText,
-          rawText: errorText
+          status: result.status,
+          rawText: result.errorText
         })
         return
       }
 
-      const rawText = await response.text().catch(() => '')
-      let data: any = null
-      try {
-        data = rawText ? JSON.parse(rawText) : null
-      } catch {
-        data = null
-      }
-
-      console.log('✅ [Sessions] LIST response:', {
-        status: response.status,
-        statusText: response.statusText,
-        rawText,
-        parsed: data
-      })
+      const data = result.data as any
+      console.log('✅ [Sessions] LIST response:', { parsed: data })
 
       const extractArray = (payload: any): any[] => {
         if (!payload) return []

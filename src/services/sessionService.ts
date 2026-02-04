@@ -38,6 +38,39 @@ export interface CreateSessionSectionsBody {
   sections: CreateSessionSectionItem[]
 }
 
+/** List sessions for a schedule. GET {{admin_url}}sessions/?event_id=&schedule_uuid= (admin/schedule page only; published website uses event store). */
+export async function listSessions(
+  eventUuid: string,
+  scheduleUuid: string
+): Promise<{ ok: true; data: unknown } | { ok: false; status: number; errorText: string }> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) {
+    return { ok: false, status: 401, errorText: 'Missing auth or organization context' }
+  }
+  const url = API_ENDPOINTS.SESSIONS.LIST(eventUuid, scheduleUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+  const rawText = await response.text().catch(() => '')
+  if (!response.ok) {
+    return { ok: false, status: response.status, errorText: rawText }
+  }
+  let data: unknown = null
+  try {
+    data = rawText ? JSON.parse(rawText) : null
+  } catch {
+    data = null
+  }
+  return { ok: true, data }
+}
+
 /** Create a session. POST {{admin_url}}sessions/?event_id={{event_uuid}} */
 export async function createSession(eventUuid: string, body: CreateSessionBody): Promise<{ uuid?: string; [key: string]: unknown }> {
   const accessToken = localStorage.getItem('accessToken')

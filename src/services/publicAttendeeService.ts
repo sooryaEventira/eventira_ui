@@ -28,10 +28,12 @@ export const fetchPublicAttendees = async (
     const url = tagId
       ? API_ENDPOINTS.PUBLIC.ATTENDEES.LIST_BY_TAG(eventUuid, tagId)
       : API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid)
+    const organizationUuid = typeof window !== 'undefined' ? localStorage.getItem('organizationUuid') : null
+    console.log('[fetchPublicAttendees] organizationUuid', organizationUuid)
     if (tagId) {
-      console.log('[fetchPublicAttendees] LIST_BY_TAG', { eventUuid, tagId, url })
+      console.log('[fetchPublicAttendees] LIST_BY_TAG', { eventUuid, tagId, url, organizationUuid })
     } else {
-      console.log('[fetchPublicAttendees] LIST (all)', { eventUuid, url })
+      console.log('[fetchPublicAttendees] LIST (all)', { eventUuid, url, organizationUuid })
     }
     const response = await fetch(url, {
       method: 'GET',
