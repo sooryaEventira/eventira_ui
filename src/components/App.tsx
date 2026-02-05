@@ -22,7 +22,7 @@ const RegistrationPage = lazy(() => import('../pages').then(module => ({ default
 const EmailVerificationPage = lazy(() => import('../pages').then(module => ({ default: module.EmailVerificationPage })))
 const CreatePasswordPage = lazy(() => import('../pages').then(module => ({ default: module.CreatePasswordPage })))
 const EventspaceSetupPage = lazy(() => import('../pages').then(module => ({ default: module.EventspaceSetupPage })))
-const DashboardLayout = lazy(() => import('./dashboard').then(module => ({ default: module.DashboardLayout })))
+const DashboardLayout = lazy(() => import('./dashboard/DashboardLayout'))
 
 // Loading component
 const LoadingFallback = () => (

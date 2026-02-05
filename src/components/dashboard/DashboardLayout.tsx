@@ -12,8 +12,6 @@ import type { DateRange } from '../ui/untitled'
 import { deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { showToast } from '../../utils/toast'
-import { acceptTeamInvite, revokeTeamInvite } from '../../services/teamService'
-import Modal from '../ui/Modal'
 
 interface DashboardLayoutProps {
   organizationName?: string
@@ -73,11 +71,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [showEventWebsitePage, setShowEventWebsitePage] = useState(false)
   const [showPreviewPage, setShowPreviewPage] = useState(false)
   const [previewPageId, setPreviewPageId] = useState<string>('')
-  const [inviteUuid, setInviteUuid] = useState<string | null>(() => {
-    const params = new URLSearchParams(window.location.search)
-    return params.get('invite') || params.get('team_invite_uuid') || null
-  })
-  const [inviteModalLoading, setInviteModalLoading] = useState(false)
 
   const getDashboardPathForItem = (itemId: string) => {
     if (itemId === 'events') return '/dashboard'
@@ -146,9 +139,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         setShowPreviewPage(false)
       } else if (path === '/dashboard' || path === '/') {
         setActiveItemId('events')
-        // Sync invite param so modal shows when URL has ?invite= or ?team_invite_uuid=
-        const params = new URLSearchParams(window.location.search)
-        setInviteUuid(params.get('invite') || params.get('team_invite_uuid') || null)
       } else {
         // Support dashboard sub-routes like /dashboard/team
         if (path.startsWith('/dashboard/')) {
@@ -190,15 +180,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   }, []) // Only run on mount - checkRoute reads latest event from ref, not from closure
 
-  // Sync invite param from URL when on dashboard (e.g. user clicked email link)
-  useEffect(() => {
-    const path = window.location.pathname
-    if (path !== '/dashboard' && path !== '/') return
-    const params = new URLSearchParams(window.location.search)
-    const uuid = params.get('invite') || params.get('team_invite_uuid') || null
-    setInviteUuid(uuid)
-  }, [routePath])
-  
   // Events data - fetched from API
   const [events, setEvents] = useState<Event[]>([])
   const [isLoadingEvents, setIsLoadingEvents] = useState<boolean>(true)
@@ -555,39 +536,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   }
 
-  const handleAcceptInvite = async () => {
-    if (!inviteUuid || inviteModalLoading) return
-    setInviteModalLoading(true)
-    try {
-      await acceptTeamInvite(inviteUuid)
-      showToast.success('Invitation accepted.')
-      setInviteUuid(null)
-      window.history.replaceState({}, '', '/dashboard')
-      setRoutePath('/dashboard')
-      window.dispatchEvent(new Event('locationchange'))
-      // Refresh dashboard so it shows correctly with updated team/access
-      loadEvents()
-    } catch (e) {
-      showToast.error(e instanceof Error ? e.message : 'Failed to accept invitation.')
-    } finally {
-      setInviteModalLoading(false)
-    }
-  }
-
-  const handleRevokeInvite = async () => {
-    if (!inviteUuid || inviteModalLoading) return
-    setInviteModalLoading(true)
-    try {
-      await revokeTeamInvite(inviteUuid)
-      setInviteUuid(null)
-      onLogout?.()
-    } catch (e) {
-      showToast.error(e instanceof Error ? e.message : 'Failed to revoke invitation.')
-    } finally {
-      setInviteModalLoading(false)
-    }
-  }
-
   // Use routePath as the source of truth for what is rendered.
   // This prevents stale boolean flags from showing the wrong page (e.g., URL=/dashboard but website page still mounted).
   const pathname = routePath
@@ -719,47 +667,6 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           />
         )}
       </main>
-
-      {/* Team invite modal: Accept or Revoke (when user lands on /dashboard?invite= or ?team_invite_uuid=) */}
-      <Modal
-        isVisible={Boolean(inviteUuid)}
-        onClose={() => {
-          if (!inviteModalLoading) handleRevokeInvite()
-        }}
-        title=""
-        width={480}
-        maxWidth="90vw"
-        padding={{ top: 20, right: 24, bottom: 24, left: 24 }}
-        showCloseButton={false}
-        showHeaderBorder={false}
-        customHeader={
-          <h2 className="text-xl font-semibold text-slate-900">Team invitation</h2>
-        }
-        footer={
-          <div className="flex items-center justify-end gap-3 py-2">
-            <button
-              type="button"
-              onClick={handleRevokeInvite}
-              disabled={inviteModalLoading}
-              className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Revoke
-            </button>
-            <button
-              type="button"
-              onClick={handleAcceptInvite}
-              disabled={inviteModalLoading}
-              className="px-4 py-2 text-sm font-semibold text-white bg-[#6938EF] rounded-md hover:bg-[#5925DC] transition-colors focus:outline-none focus:ring-2 focus:ring-[#6938EF]/40 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {inviteModalLoading ? 'Please wait...' : 'Accept'}
-            </button>
-          </div>
-        }
-      >
-        <div className="text-sm text-slate-600">
-          You&apos;ve been invited to join the team. Accept this invitation?
-        </div>
-      </Modal>
     </div>
   )
 }
