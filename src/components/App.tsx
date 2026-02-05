@@ -21,6 +21,7 @@ const RegistrationPage = lazy(() => import('../pages').then(module => ({ default
 const EmailVerificationPage = lazy(() => import('../pages').then(module => ({ default: module.EmailVerificationPage })))
 const CreatePasswordPage = lazy(() => import('../pages').then(module => ({ default: module.CreatePasswordPage })))
 const EventspaceSetupPage = lazy(() => import('../pages').then(module => ({ default: module.EventspaceSetupPage })))
+const OrganizationSelectPage = lazy(() => import('../pages').then(module => ({ default: module.OrganizationSelectPage })))
 const DashboardLayout = lazy(() => import('./dashboard/DashboardLayout'))
 
 // Loading component
@@ -39,6 +40,7 @@ const App: React.FC = () => {
   const [showEmailVerification, setShowEmailVerification] = useState(false)
   const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [showEventspaceSetup, setShowEventspaceSetup] = useState(false)
+  const [showOrganizationSelect, setShowOrganizationSelect] = useState(false)
   const [registrationEmail, setRegistrationEmail] = useState('')
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
   const [otpVerificationError, setOtpVerificationError] = useState<string | null>(null)
@@ -166,9 +168,9 @@ const App: React.FC = () => {
       // Call the sign in API
       const response = await signIn(email, password)
       
-      // Store tokens in localStorage if available
+      const organizations = response.data?.organizations
       if (response.data) {
-        const { access, refresh, organizations } = response.data
+        const { access, refresh } = response.data
         if (access) {
           localStorage.setItem('accessToken', access)
         }
@@ -179,17 +181,23 @@ const App: React.FC = () => {
         // Store email for reference
         localStorage.setItem('userEmail', email)
         
-        // Store organization if available, otherwise clear any existing organization data
+        // Store organizations from token (organization_uuid, organization_name, role)
         if (organizations && organizations.length > 0) {
-          const firstOrg = organizations[0]
-          if (firstOrg.uuid) {
-            localStorage.setItem('organizationUuid', firstOrg.uuid)
-          }
-          if (firstOrg.name) {
-            localStorage.setItem('organizationName', firstOrg.name)
+          localStorage.setItem('organizationsFromToken', JSON.stringify(organizations))
+          if (organizations.length === 1) {
+            const o = organizations[0]
+            const uuid = o.organization_uuid ?? o.uuid ?? o.id
+            const name = o.organization_name ?? o.name ?? o.title
+            if (uuid) localStorage.setItem('organizationUuid', String(uuid))
+            if (name) localStorage.setItem('organizationName', String(name))
+            if (o.role) localStorage.setItem('userRole', String(o.role))
+          } else {
+            localStorage.removeItem('organizationUuid')
+            localStorage.removeItem('organizationName')
+            localStorage.removeItem('userRole')
           }
         } else {
-          // Clear organization data if no organizations in response
+          localStorage.removeItem('organizationsFromToken')
           localStorage.removeItem('organizationUuid')
           localStorage.removeItem('organizationName')
         }
@@ -203,10 +211,12 @@ const App: React.FC = () => {
       const hasOrg = hasOrganization()
       
       if (hasOrg) {
-        // User has organization - navigate to dashboard
         setCurrentView('dashboard')
+      } else if (organizations && organizations.length > 0) {
+        // Multiple orgs - show org picker (organizations from token)
+        setShowOrganizationSelect(true)
       } else {
-        // User doesn't have organization - redirect to eventspace setup
+        // No orgs - redirect to create organization (eventspace setup)
         setShowEventspaceSetup(true)
       }
     } catch (error) {
@@ -332,6 +342,22 @@ const App: React.FC = () => {
     // TODO: Implement actual resend logic
   }
 
+  // Handle organization selection (from token org list)
+  const handleOrganizationSelect = (org: { uuid: string; name: string; role?: string }) => {
+    localStorage.setItem('organizationUuid', org.uuid)
+    localStorage.setItem('organizationName', org.name)
+    if (org.role) localStorage.setItem('userRole', org.role)
+    setShowOrganizationSelect(false)
+    setCurrentView('dashboard')
+    window.history.pushState({}, '', '/dashboard')
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }
+
+  const handleNeedToCreateOrg = () => {
+    setShowOrganizationSelect(false)
+    setShowEventspaceSetup(true)
+  }
+
   // Handle logout - clear all authentication data
   const handleLogout = () => {
     // Clear authentication state
@@ -344,6 +370,8 @@ const App: React.FC = () => {
     localStorage.removeItem('userEmail')
     localStorage.removeItem('organizationUuid')
     localStorage.removeItem('organizationName')
+    localStorage.removeItem('organizationsFromToken')
+    localStorage.removeItem('userRole')
     
     // Show logout confirmation
     showToast.success('Logged out successfully')
@@ -370,10 +398,19 @@ const App: React.FC = () => {
   useEffect(() => {
     if (isAuthenticated) {
       const hasOrg = hasOrganization()
-      
-      // If authenticated but no organization, show eventspace setup
-      if (!hasOrg && !showEventspaceSetup && !showCreatePassword && !showEmailVerification && !showRegistration) {
-        setShowEventspaceSetup(true)
+      const inRegistrationFlow = showCreatePassword || showEmailVerification || showRegistration
+      const orgsJson = localStorage.getItem('organizationsFromToken')
+      let orgsFromToken: any[] = []
+      try {
+        if (orgsJson) orgsFromToken = JSON.parse(orgsJson)
+      } catch { /* ignore */ }
+
+      if (!hasOrg && !inRegistrationFlow && !showEventspaceSetup) {
+        if (orgsFromToken.length > 0) {
+          setShowOrganizationSelect(true)
+        } else {
+          setShowEventspaceSetup(true)
+        }
       }
     }
   }, [isAuthenticated, showEventspaceSetup, showCreatePassword, showEmailVerification, showRegistration])
@@ -496,7 +533,20 @@ const App: React.FC = () => {
 
   // Public routes (event list, /events/:uuid) are handled by PublicApp in main.tsx – never reach here for public URLs
 
-  // Show eventspace setup if authenticated but no organization (or if explicitly shown during registration)
+  // Show organization picker (orgs from token) when authenticated, no org selected
+  if (isAuthenticated && !hasOrganization() && showOrganizationSelect && !showCreatePassword && !showEmailVerification && !showRegistration) {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <OrganizationSelectPage
+          onSelect={handleOrganizationSelect}
+          onNeedToCreateOrg={handleNeedToCreateOrg}
+          onLogout={handleLogout}
+        />
+      </Suspense>
+    )
+  }
+
+  // Show eventspace setup (create org) during registration or when no orgs from token
   if (showEventspaceSetup && (!isAuthenticated || !hasOrganization())) {
     return (
       <Suspense fallback={<LoadingFallback />}>
