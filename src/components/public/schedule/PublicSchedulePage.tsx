@@ -615,7 +615,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             <ScheduleGrid
               sessions={sessionsForDay}
               selectedDate={selectedGridDate}
-              onSessionClick={onNavigate ? (session) => onNavigate(`/events/${eventUuid}/schedule/session/${session.id}`) : undefined}
+              onSessionClick={onNavigate ? (session) => onNavigate(`/events/${eventUuid}/sessions/${session.id}`) : undefined}
             />
           </div>
         ) : (

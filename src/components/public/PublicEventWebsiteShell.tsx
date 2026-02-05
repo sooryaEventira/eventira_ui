@@ -85,6 +85,11 @@ const getSectionFromPath = (
     return { section: 'organization', organizationId: orgDetailMatch[1] }
   }
 
+  // Session detail: /sessions/:sessionUuid (canonical) or /schedule/session/:id (legacy)
+  const sessionsUuidMatch = rest.match(/^\/sessions\/([^/]+)\/?$/)
+  if (sessionsUuidMatch) {
+    return { section: 'session', sessionId: sessionsUuidMatch[1] }
+  }
   const sessionDetailMatch = rest.match(/^\/schedule\/session\/([^/]+)\/?$/)
   if (sessionDetailMatch) {
     return { section: 'session', sessionId: sessionDetailMatch[1] }
@@ -97,7 +102,7 @@ const getSectionFromPath = (
   if (rest.startsWith('/speakers')) return { section: 'speakers' }
   if (rest.startsWith('/attendees')) return { section: 'attendees' }
   if (rest.startsWith('/schedule')) return { section: 'schedule' }
-  if (rest.startsWith('/sessions')) return { section: 'sessions' }
+  if (rest === '/sessions' || rest === '/sessions/') return { section: 'sessions' }
 
   // Default: if no explicit section, treat it as "webpage" and show first available page
   return { section: 'webpage' }

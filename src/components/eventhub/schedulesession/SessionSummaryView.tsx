@@ -121,9 +121,9 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                   sessionTitle={session.title || undefined}
                   height={360}
                 />
-              ) : section.type === 'video' && section.data?.videoUrl ? (
+              ) : section.type === 'video' && (section.data?.videoUrl || section.data?.video_url) ? (
                 (() => {
-                  const videoUrl = String(section.data.videoUrl).trim()
+                  const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? '').trim()
                   const ytEmbed = getYouTubeEmbedUrl(videoUrl)
                   if (ytEmbed) {
                     return (
@@ -156,21 +156,39 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                   {section.description || 'Video added'}
                 </div>
               ) : section.type === 'resources' ? (() => {
+                const rawFiles = section.data?.files
                 const fileNames = Array.isArray(section.data?.fileNames) && section.data.fileNames.length > 0
                   ? section.data.fileNames as string[]
-                  : Array.isArray(section.data?.files) && section.data.files.length > 0
-                    ? (section.data.files as File[]).map((f: File) => f.name)
-                    : []
-                return fileNames.length > 0 ? (
+                  : []
+                const fileItems: { name: string; url?: string }[] = []
+                if (Array.isArray(rawFiles) && rawFiles.length > 0) {
+                  rawFiles.forEach((f: File | string | { name?: string; url?: string }) => {
+                    if (f instanceof File) {
+                      fileItems.push({ name: f.name })
+                    } else if (typeof f === 'string') {
+                      fileItems.push({ name: f.split('/').pop() ?? f, url: f })
+                    } else if (f && typeof f === 'object' && (f.name || f.url)) {
+                      fileItems.push({ name: f.name ?? f.url?.split('/').pop() ?? 'File', url: f.url })
+                    }
+                  })
+                }
+                if (fileItems.length === 0 && fileNames.length > 0) {
+                  fileNames.forEach((n) => fileItems.push({ name: n }))
+                }
+                return fileItems.length > 0 ? (
                   <ul className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
-                    {fileNames.map((name: string, i: number) => (
+                    {fileItems.map((item, i) => (
                       <li
-                        key={`${name}-${i}`}
+                        key={`${item.name}-${i}`}
                         className="flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700"
                       >
-                        <span className="min-w-0 truncate" title={name}>
-                          {name}
-                        </span>
+                        {item.url ? (
+                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-primary hover:underline" title={item.name}>
+                            {item.name}
+                          </a>
+                        ) : (
+                          <span className="min-w-0 truncate" title={item.name}>{item.name}</span>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -179,7 +197,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                     {section.description || 'No files added yet.'}
                   </p>
                 )
-              })() : section.type === 'speakers' && Array.isArray(section.data?.speakers) && section.data.speakers.length > 0 ? (
+              })() : (section.type === 'speakers' || section.type === 'speaker') && Array.isArray(section.data?.speakers) && section.data.speakers.length > 0 ? (
                 <ul className="space-y-2">
                   {section.data.speakers.map((s: { id: string; name: string; role: string }, i: number) => (
                     <li key={s.id || i} className="text-sm text-slate-600">

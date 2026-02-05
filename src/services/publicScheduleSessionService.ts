@@ -1,6 +1,76 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 
+/** Map API section format to UI SavedSession section format. Shared for public retrieve and admin. */
+export function mapApiSectionsToSavedSections(
+  apiSections: any[],
+  apiResources: any[],
+  sessionId: string,
+  fallbackDescription?: string
+): Array<{ id: string; type: string; title: string; description: string; data: Record<string, unknown> }> {
+  const sections = (apiSections ?? []).map((sec: any, i: number) => {
+    const content = sec?.content && typeof sec.content === 'object' ? sec.content : {}
+    const sectionType = (sec?.section_type ?? sec?.type ?? 'text').toString()
+    const uiType =
+      sectionType === 'poster'
+        ? 'slides'
+        : sectionType === 'image'
+          ? 'photo-gallery'
+          : sectionType === 'speakers'
+            ? 'speaker'
+            : sectionType === 'resource'
+              ? 'resources'
+              : sectionType
+    let sectionData: Record<string, unknown> = {
+      ...content,
+      speaker_uuids: content?.speaker_uuids ?? [],
+      url: content?.url ?? content?.video_url ?? '',
+      videoUrl: content?.videoUrl ?? content?.video_url ?? '',
+      video_url: content?.video_url ?? content?.videoUrl ?? ''
+    }
+    if (uiType === 'resources' && Array.isArray(content?.files)) {
+      sectionData = { ...sectionData, files: content.files }
+    } else if (uiType === 'resources' && (content?.file_url || content?.url)) {
+      sectionData = { ...sectionData, files: [{ url: content.file_url ?? content.url, name: content.file_name ?? content.name }] }
+    }
+    return {
+      id: `section-${sessionId}-${i}`,
+      type: uiType,
+      title: (content?.title ?? sec?.title ?? 'Section').toString(),
+      description: (content?.body ?? content?.body ?? sec?.description ?? '').toString(),
+      data: sectionData
+    }
+  })
+  const resourceFiles = (apiResources ?? []).map((r: any) =>
+    typeof r === 'string' ? r : { url: r?.file_url ?? r?.url ?? r?.file, name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File' }
+  )
+  if (resourceFiles.length > 0) {
+    const existing = sections.find((s: any) => s.type === 'resources')
+    if (existing) {
+      const current = (existing.data?.files as any[]) ?? []
+      existing.data = { ...existing.data, files: [...current, ...resourceFiles] }
+    } else {
+      sections.push({
+        id: `section-${sessionId}-resources`,
+        type: 'resources',
+        title: 'Resources',
+        description: '',
+        data: { files: resourceFiles }
+      })
+    }
+  }
+  if (!sections.length && fallbackDescription) {
+    sections.push({
+      id: `section-${sessionId}-desc`,
+      type: 'text',
+      title: 'Description',
+      description: fallbackDescription,
+      data: {}
+    })
+  }
+  return sections
+}
+
 export interface PublicScheduleSessionData {
   id?: string | number
   uuid?: string
@@ -102,6 +172,33 @@ export const fetchPublicScheduleSessions = async (
       throw new Error(error.message || 'Network error occurred')
     }
     throw error instanceof Error ? error : new Error('Failed to fetch sessions. Please try again.')
+  }
+}
+
+/** Fetch a single session with full details (sections, video, resources, speakers, text). Returns null if 404. */
+export const fetchPublicSession = async (
+  eventUuid: string,
+  scheduleUuid: string,
+  sessionUuid: string
+): Promise<Record<string, any> | null> => {
+  try {
+    if (!eventUuid || !scheduleUuid || !sessionUuid) return null
+    const url = API_ENDPOINTS.PUBLIC.SESSIONS.RETRIEVE(eventUuid, scheduleUuid, sessionUuid)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
+    if (!response || response.status === 404) return null
+    if (!response.ok) {
+      const text = await response.text().catch(() => '')
+      throw new Error(text || `HTTP ${response.status}`)
+    }
+    const data = await response.json().catch(() => null)
+    if (!data) return null
+    const raw = data?.data ?? data?.session ?? data
+    return raw && typeof raw === 'object' ? raw : null
+  } catch {
+    return null
   }
 }
 

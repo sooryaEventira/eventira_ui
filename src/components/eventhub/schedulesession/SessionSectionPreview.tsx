@@ -1,4 +1,4 @@
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Upload01, XClose, Plus, SearchLg } from '@untitled-ui/icons-react'
 import type { SessionSection } from './sessionTypes'
@@ -102,6 +102,19 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     }
     setTimeout(() => speakerSearchInputRef.current?.focus(), 100)
   }
+
+  useEffect(() => {
+    if (
+      (section.type === 'speakers' || section.type === 'speaker') &&
+      eventUuid &&
+      Array.isArray(section.data?.speaker_uuids) &&
+      section.data.speaker_uuids.length > 0 &&
+      speakersList.length === 0 &&
+      !isLoadingSpeakers
+    ) {
+      loadSpeakers()
+    }
+  }, [section.type, section.data?.speaker_uuids, eventUuid, speakersList.length, isLoadingSpeakers, loadSpeakers])
 
   useLayoutEffect(() => {
     if (!showSpeakerSearch || !speakerSearchAnchorRef.current) return
@@ -327,7 +340,28 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   }
 
   if (section.type === 'resources') {
-    const files = (section.data?.files as File[]) ?? []
+    const rawFiles = section.data?.files
+    const rawFileNames = section.data?.fileNames as string[] | undefined
+    const rawFile = section.data?.file as string | undefined
+    const fileItems: { name: string; url?: string; isFile: boolean; index: number }[] = []
+    if (Array.isArray(rawFiles) && rawFiles.length > 0) {
+      rawFiles.forEach((f: File | string | { name?: string; url?: string }, i: number) => {
+        if (f instanceof File) {
+          fileItems.push({ name: f.name, isFile: true, index: i })
+        } else if (typeof f === 'string') {
+          const name = f.split('/').pop() ?? f
+          fileItems.push({ name, url: f, isFile: false, index: i })
+        } else if (f && typeof f === 'object' && (f.name || f.url)) {
+          fileItems.push({ name: (f as { name?: string }).name ?? (f as { url?: string }).url?.split('/').pop() ?? 'File', url: (f as { url?: string }).url, isFile: false, index: i })
+        }
+      })
+    }
+    if (Array.isArray(rawFileNames) && rawFileNames.length > 0 && fileItems.length === 0) {
+      rawFileNames.forEach((name, i) => fileItems.push({ name, isFile: false, index: i }))
+    }
+    if (rawFile && typeof rawFile === 'string' && fileItems.length === 0) {
+      fileItems.push({ name: rawFile.split('/').pop() ?? rawFile, url: rawFile, isFile: false, index: 0 })
+    }
     return (
       <div className="p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -340,21 +374,27 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
             Upload docs
           </button>
         </div>
-        {files.length > 0 ? (
+        {fileItems.length > 0 ? (
           <ul className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
-            {files.map((file, i) => (
+            {fileItems.map((item) => (
               <li
-                key={`${file.name}-${i}`}
+                key={`${item.name}-${item.index}`}
                 className="flex items-center justify-between gap-2 rounded border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700"
               >
-                <span className="min-w-0 truncate" title={file.name}>
-                  {file.name}
-                </span>
+                {item.url ? (
+                  <a href={item.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-primary hover:underline" title={item.name}>
+                    {item.name}
+                  </a>
+                ) : (
+                  <span className="min-w-0 truncate" title={item.name}>
+                    {item.name}
+                  </span>
+                )}
                 <button
                   type="button"
-                  onClick={() => onRemoveResourcesFile(section.id, i)}
+                  onClick={() => onRemoveResourcesFile(section.id, item.index)}
                   className="shrink-0 p-1 text-slate-400 hover:text-red-600"
-                  aria-label={`Remove ${file.name}`}
+                  aria-label={`Remove ${item.name}`}
                 >
                   <XClose className="h-4 w-4" />
                 </button>
@@ -385,7 +425,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   }
 
   if (section.type === 'video') {
-    const videoUrl = String(section.data?.videoUrl ?? '').trim()
+    const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? '').trim()
     const embedUrl = getYouTubeEmbedUrl(videoUrl)
     return (
       <div className="p-4">
@@ -464,8 +504,16 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     )
   }
 
-  if (section.type === 'speakers') {
-    const speakers = (section.data?.speakers as Array<{ id: string; name: string; role?: string }>) ?? []
+  if (section.type === 'speakers' || section.type === 'speaker') {
+    const speakersRaw = section.data?.speakers as Array<{ id: string; name: string; role?: string }> | undefined
+    const speakerUuids = Array.isArray(section.data?.speaker_uuids) ? section.data.speaker_uuids as string[] : []
+    const resolveName = (uuid: string): string => {
+      const found = speakersList.find((s) => String(s.uuid ?? s.id) === String(uuid))
+      return found ? getSpeakerDisplayName(found) : 'Speaker'
+    }
+    const speakers = speakersRaw && speakersRaw.length > 0
+      ? speakersRaw
+      : speakerUuids.map((uuid) => ({ id: uuid, name: resolveName(uuid), role: '' as string | undefined }))
     const alreadyAddedIds = new Set(speakers.map((s) => s.id))
     const filteredSpeakers = speakersList.filter((s) => {
       const id = s.uuid ?? s.id

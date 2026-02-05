@@ -346,9 +346,13 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
       </div>
 
       {/* Session Cards Column */}
-      <div className="flex-1">
-        {/* Parent Session Card */}
-        <div className="border border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow">
+        <div className="flex-1">
+        {/* Parent Session Card — when onSessionClick is set (e.g. public schedule), card and title are clickable */}
+        <div
+          className={`border border-slate-200 rounded-lg bg-white shadow-sm transition-shadow ${onSessionClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : 'hover:shadow-md'}`}
+          role={onSessionClick ? 'button' : undefined}
+          onClick={onSessionClick ? (e) => { if (!(e.target as HTMLElement).closest('button')) onSessionClick(session) } : undefined}
+        >
           <div className="p-4">
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
@@ -363,7 +367,17 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                       <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
                     </svg>
                   </div>
-                  <h3 className="font-semibold text-slate-900 text-base">{session.title}</h3>
+                  {onSessionClick ? (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onSessionClick(session) }}
+                      className="font-semibold text-slate-900 text-base text-left hover:text-primary hover:underline"
+                    >
+                      {session.title}
+                    </button>
+                  ) : (
+                    <h3 className="font-semibold text-slate-900 text-base">{session.title}</h3>
+                  )}
                 </div>
               </div>
               <div className="flex items-center">

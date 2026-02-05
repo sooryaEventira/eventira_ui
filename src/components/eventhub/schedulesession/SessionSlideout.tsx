@@ -40,6 +40,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sectionOptions[0]?.id ?? 'slides')
   const [isEditing, setIsEditing] = useState(startInEditMode)
+  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState<Record<string, number>>({})
   const [isSaving, setIsSaving] = useState(false)
 
@@ -63,6 +64,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
       setIsSectionModalOpen(false)
       setSelectedSectionId(sectionOptions[0]?.id ?? 'slides')
       setIsEditing(true)
+      setActiveTab('edit')
     }
   }, [isOpen])
 
@@ -94,6 +96,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setIsSectionModalOpen(false)
     setSelectedSectionId(sectionOptions[0]?.id ?? 'slides')
     setIsEditing(startInEditMode || !initialDraft)
+    setActiveTab('edit')
   }, [initialDraft, isOpen, startInEditMode])
 
   const handleChange = <K extends keyof SessionDraft>(key: K, value: SessionDraft[K]) => {
@@ -475,7 +478,27 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         footer={footerContent}
       >
         <div className="px-6 py-4">
-          {isEditing ? (
+          <div className="mb-4 flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('edit')}
+              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'edit' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('preview')}
+              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                activeTab === 'preview' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Preview (as published)
+            </button>
+          </div>
+          {activeTab === 'edit' ? (
             <SessionDetailsForm
               draft={draft}
               tagsInput={tagsInput}
@@ -490,7 +513,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
               onRemoveSection={handleRemoveSection}
             />
           ) : (
-            <SessionSummaryView session={draft} />
+            <SessionSummaryView session={draft} sessionId={(draft as { id?: string }).id} eventId={eventUuid || undefined} />
           )}
         </div>
       </Slideout>

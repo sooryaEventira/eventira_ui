@@ -3,7 +3,7 @@ import { ArrowNarrowLeft } from '@untitled-ui/icons-react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 import SessionSummaryView from '../../eventhub/schedulesession/SessionSummaryView'
 import { fetchPublicSchedules } from '../../../services/publicScheduleService'
-import { fetchPublicScheduleSessions } from '../../../services/publicScheduleSessionService'
+import { fetchPublicScheduleSessions, fetchPublicSession, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
 
 const normalizeDate = (value: any): Date | null => {
   if (!value) return null
@@ -72,6 +72,10 @@ const mapApiSessionToSaved = (x: any, idx: number): SavedSession => {
   const attachmentsArr = Array.isArray(x.attachments) ? x.attachments : []
   const count = Number(x.attachments_count ?? x.attachmentsCount ?? attachmentsArr.length ?? 0)
   const attachments = attachmentsArr.length ? attachmentsArr : count > 0 ? new Array(count).fill({}) : []
+  const description = x.description ?? x.summary ?? ''
+  const apiSections = Array.isArray(x.sections) ? x.sections : Array.isArray(x.session_sections) ? x.session_sections : []
+  const apiResources = Array.isArray(x.session_resources) ? x.session_resources : Array.isArray(x.resources) ? x.resources : Array.isArray(x.resource_files) ? x.resource_files : []
+  const sections = mapApiSectionsToSavedSections(apiSections, apiResources, id, description)
   return {
     id,
     title,
@@ -82,7 +86,7 @@ const mapApiSessionToSaved = (x: any, idx: number): SavedSession => {
     location: String(x.location ?? x.room ?? x.venue ?? ''),
     sessionType: String(x.session_type ?? x.sessionType ?? ''),
     tags: Array.isArray(x.tags) ? x.tags : [],
-    sections: Array.isArray(x.sections) ? x.sections : [],
+    sections,
     attachments,
     date: date ?? undefined,
     parentId: x.parent_uuid ?? x.parentId ? String(x.parent_uuid ?? x.parentId) : undefined,
@@ -118,13 +122,15 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
         const schedules = await fetchPublicSchedules(eventUuid)
         const list = Array.isArray(schedules) ? schedules : []
         for (const schedule of list) {
-          const sid = String(schedule?.uuid ?? schedule?.id ?? '')
-          if (!sid) continue
-          const raw = await fetchPublicScheduleSessions(eventUuid, sid)
+          const scheduleUuid = String(schedule?.uuid ?? schedule?.id ?? '')
+          if (!scheduleUuid) continue
+          const raw = await fetchPublicScheduleSessions(eventUuid, scheduleUuid)
           const arr = Array.isArray(raw) ? raw : []
           const found = arr.find((x: any) => String(x.uuid ?? x.id ?? '') === sessionId)
           if (found) {
-            if (!cancelled) setSession(mapApiSessionToSaved(found, 0))
+            const fullSession = await fetchPublicSession(eventUuid, scheduleUuid, sessionId)
+            const data = fullSession ?? found
+            if (!cancelled) setSession(mapApiSessionToSaved(data, 0))
             return
           }
         }

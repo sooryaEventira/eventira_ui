@@ -87,6 +87,61 @@ export async function listSessions(
   return { ok: true, data }
 }
 
+/** Fallback: find session UUID from list when create response doesn't return it. Matches by title + start_at. */
+export async function findSessionUuidFromList(
+  eventUuid: string,
+  scheduleUuid: string,
+  match: { title: string; start_at: string }
+): Promise<string | undefined> {
+  const result = await listSessions(eventUuid, scheduleUuid)
+  if (!result.ok || !result.data) return undefined
+  const payload = result.data as Record<string, unknown>
+  const extractArray = (p: unknown): unknown[] => {
+    if (!p || typeof p !== 'object') return []
+    const x = p as Record<string, unknown>
+    if (Array.isArray(x)) return x
+    if (Array.isArray(x.data)) return x.data
+    if (Array.isArray(x.results)) return x.results
+    if (Array.isArray(x.sessions)) return x.sessions
+    const d = x.data as Record<string, unknown> | undefined
+    if (d && typeof d === 'object') {
+      if (Array.isArray(d.results)) return d.results
+      if (Array.isArray(d.sessions)) return d.sessions
+      if (Array.isArray(d.data)) return d.data
+    }
+    return []
+  }
+  const items = extractArray(payload)
+  const titleNorm = (match.title || '').trim().toLowerCase()
+  const startPrefix = (match.start_at || '').trim().slice(0, 19)
+  let matchByStartOnly: Record<string, unknown> | null = null
+  for (const item of items) {
+    if (!item || typeof item !== 'object') continue
+    const s = item as Record<string, unknown>
+    const t = String(s.title ?? s.name ?? '').trim().toLowerCase()
+    const start = String(s.start_at ?? s.startAt ?? s.start_datetime ?? '').trim()
+    const titleMatch = t === titleNorm || (titleNorm && t.includes(titleNorm))
+    const startMatch = !startPrefix || start === startPrefix || start.startsWith(startPrefix) || (start.length >= 19 && startPrefix.startsWith(start.slice(0, 19)))
+    if (titleMatch && startMatch) {
+      const uid = s.uuid ?? s.id ?? s.session_uuid ?? s.session_id
+      if (uid != null) return typeof uid === 'string' ? uid : String(uid)
+    }
+    if (startMatch && !matchByStartOnly) matchByStartOnly = s
+  }
+  if (matchByStartOnly) {
+    const uid = matchByStartOnly.uuid ?? matchByStartOnly.id ?? matchByStartOnly.session_uuid ?? matchByStartOnly.session_id
+    if (uid != null) return typeof uid === 'string' ? uid : String(uid)
+  }
+  if (items.length === 1) {
+    const s = items[0] as Record<string, unknown>
+    if (s) {
+      const uid = s.uuid ?? s.id ?? s.session_uuid ?? s.session_id
+      if (uid != null) return typeof uid === 'string' ? uid : String(uid)
+    }
+  }
+  return undefined
+}
+
 /** Retrieve a single session. GET {{admin_url}}sessions/{{session_uuid}}/?event_id=&schedule_uuid= */
 export async function getSession(
   eventUuid: string,
@@ -159,13 +214,24 @@ export async function createSession(eventUuid: string, body: CreateSessionBody):
   }
 
   const text = await response.text()
-  if (!text?.trim()) return {}
+  let result: Record<string, unknown> = {}
   try {
-    const data = JSON.parse(text)
-    const raw = data?.data ?? data
-    return (raw && typeof raw === 'object' ? raw : {}) as { uuid?: string; [key: string]: unknown }
+    if (text?.trim()) {
+      const data = JSON.parse(text)
+      const raw = data?.data ?? data
+      result = (raw && typeof raw === 'object' ? raw : {}) as Record<string, unknown>
+    }
+    // Fallback: extract uuid from Location header (e.g. .../sessions/{uuid}/)
+    const location = response.headers.get('Location')
+    if (location && !result.uuid && !result.id) {
+      const match = location.match(/sessions\/([a-f0-9-]{36})\/?/i) ?? location.match(/sessions\/([a-zA-Z0-9_-]+)\/?/)
+      if (match?.[1]) {
+        result = { ...result, uuid: match[1] }
+      }
+    }
+    return result as { uuid?: string; [key: string]: unknown }
   } catch {
-    return {}
+    return result as { uuid?: string; [key: string]: unknown }
   }
 }
 
@@ -357,7 +423,7 @@ export async function createSessionResources(
   }
 
   const formData = new FormData()
-  files.forEach((file) => formData.append('files', file))
+  files.forEach((file) => formData.append('file', file))
   if (options?.session_uuid) {
     formData.append('session_uuid', options.session_uuid)
   }

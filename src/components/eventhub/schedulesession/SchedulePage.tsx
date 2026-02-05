@@ -23,6 +23,7 @@ import {
   createSessionSections,
   createSessionResources,
   getSessionUuidFromResponse,
+  findSessionUuidFromList,
   deleteSession as deleteSessionApi,
   type CreateSessionBody,
   type UpdateSessionBody,
@@ -1745,14 +1746,39 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
                 : sectionType === 'resource'
                   ? 'resources'
                   : sectionType
+        let sectionData: Record<string, unknown> = { ...content, speaker_uuids: content?.speaker_uuids ?? [], url: content?.url ?? content?.video_url ?? '' }
+        if (uiType === 'resources' && Array.isArray(content?.files)) {
+          sectionData = { ...sectionData, files: content.files }
+        } else if (uiType === 'resources' && (content?.file_url || content?.url)) {
+          sectionData = { ...sectionData, files: [{ url: content.file_url ?? content.url, name: content.file_name ?? content.name }] }
+        }
         return {
           id: `section-${id}-${i}`,
           type: uiType,
           title: (content?.title ?? sec?.title ?? 'Section').toString(),
           description: (content?.body ?? content?.body ?? sec?.description ?? '').toString(),
-          data: { ...content, speaker_uuids: content?.speaker_uuids ?? [], url: content?.url ?? content?.video_url ?? '' }
+          data: sectionData
         }
       })
+      const apiResources = Array.isArray(raw?.session_resources) ? raw.session_resources : Array.isArray(raw?.resources) ? raw.resources : Array.isArray(raw?.resource_files) ? raw.resource_files : []
+      if (apiResources.length > 0) {
+        const resourceFiles = apiResources.map((r: any) =>
+          typeof r === 'string' ? r : { url: r?.file_url ?? r?.url ?? r?.file, name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File' }
+        )
+        const existingResources = sections.find((s: any) => s.type === 'resources')
+        if (existingResources) {
+          const current = (existingResources.data?.files as any[]) ?? []
+          existingResources.data = { ...existingResources.data, files: [...current, ...resourceFiles] }
+        } else {
+          sections.push({
+            id: `section-${id}-resources`,
+            type: 'resources',
+            title: 'Resources',
+            description: '',
+            data: { files: resourceFiles }
+          })
+        }
+      }
       if (!sections.length && description) {
         sections.push({
           id: `section-${id}-desc`,
@@ -1841,7 +1867,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     return map[normalized] ?? (normalized || 'text')
   }
 
-  /** Build section payload for session-sections API (speakers, text, video, image, resource, etc.). Strips File instances so content is JSON-serializable; files are sent via session-resources. */
+  /** Build section payload for session-sections API. Only text, video, speakers, image, poster. Resource sections (files) are sent via session-resources, not session-sections. */
   const buildSectionsPayload = (
     sections: SessionDraft['sections'],
     sessionUuid: string
@@ -1886,7 +1912,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         content = stripFiles(content)
       }
       return { section_type: sectionType, order: index + 1, content }
-    })
+    }).filter((item) => item.section_type !== 'resource')
     return { session_uuid: sessionUuid, sections: sectionItems }
   }
 
@@ -1966,14 +1992,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           const updateResponse = await updateSession(eventUuid, sessionUuidForUpdate, String(activeScheduleId), updateBody)
           console.log('[Session save] PATCH session response:', updateResponse)
 
-          if (normalizedSession.sections && normalizedSession.sections.length > 0) {
-            console.log('[Session save] Calling session-sections with', normalizedSession.sections.length, 'sections')
-            const sectionsBody = buildSectionsPayload(normalizedSession.sections, sessionUuidForUpdate)
-            const sectionsResponse = await createSessionSections(eventUuid, sectionsBody)
-            console.log('[Session save] session-sections response:', sectionsResponse)
-          } else {
-            console.log('[Session save] Skipping session-sections (no sections in draft)')
-          }
+          // Always call session-sections (create/update) when saving from SessionSlideout
+          const sectionsToSend = normalizedSession.sections ?? []
+          const sectionsBodyUpdate = buildSectionsPayload(sectionsToSend, sessionUuidForUpdate)
+          const sectionsResponseUpdate = await createSessionSections(eventUuid, sectionsBodyUpdate)
+          console.log('[Session save] session-sections response (update):', sectionsResponseUpdate)
 
           const filesFromSections = collectFilesFromSections(normalizedSession.sections)
           const allFiles = [...(normalizedSession.attachments ?? []), ...filesFromSections]
@@ -1985,8 +2008,6 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             })
             const resourcesResponse = await createSessionResources(eventUuid, allFiles, { session_uuid: sessionUuidForUpdate })
             console.log('[Session save] session-resources response:', resourcesResponse)
-          } else {
-            console.log('[Session save] Skipping session-resources (no files)')
           }
 
           await loadSessions(activeScheduleId)
@@ -2006,29 +2027,30 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           }
           const created = await createSession(eventUuid, sessionBody)
           console.log('[Session save] POST session response:', created, 'keys:', created && typeof created === 'object' ? Object.keys(created) : [])
-          const sessionUuid = getSessionUuidFromResponse(created)
-
-          if (normalizedSession.sections && normalizedSession.sections.length > 0 && sessionUuid) {
-            console.log('[Session save] Calling session-sections with', normalizedSession.sections.length, 'sections')
-            const sectionsBody = buildSectionsPayload(normalizedSession.sections, sessionUuid)
-            const sectionsResponse = await createSessionSections(eventUuid, sectionsBody)
-            console.log('[Session save] session-sections response:', sectionsResponse)
-          } else {
-            console.log('[Session save] Skipping session-sections:', {
-              sectionsCount: normalizedSession.sections?.length ?? 0,
-              sessionUuid: sessionUuid ?? '(missing)',
-              responseKeys: created && typeof created === 'object' ? Object.keys(created) : []
+          let sessionUuid = getSessionUuidFromResponse(created)
+          if (!sessionUuid && activeScheduleId) {
+            sessionUuid = await findSessionUuidFromList(eventUuid, activeScheduleId, {
+              title: sessionBody.title,
+              start_at: startAt
             })
+            if (sessionUuid) console.log('[Session save] Found session UUID from list:', sessionUuid)
           }
-
-          const filesFromSections = collectFilesFromSections(normalizedSession.sections)
-          const allFiles = [...(normalizedSession.attachments ?? []), ...filesFromSections]
-          if (allFiles.length > 0 && sessionUuid) {
-            console.log('[Session save] Calling session-resources with', allFiles.length, 'files')
-            const resourcesResponse = await createSessionResources(eventUuid, allFiles, { session_uuid: sessionUuid })
-            console.log('[Session save] session-resources response:', resourcesResponse)
+          if (!sessionUuid) {
+            console.warn('[Session save] No session UUID from create response or list; sections and resources will not be sent.')
           } else {
-            console.log('[Session save] Skipping session-resources (no files or no sessionUuid)')
+            // Always call session-sections (create) when we have sessionUuid after create
+            const sectionsToSend = normalizedSession.sections ?? []
+            const sectionsBody = buildSectionsPayload(sectionsToSend, sessionUuid)
+            const sectionsResponse = await createSessionSections(eventUuid, sectionsBody)
+            console.log('[Session save] session-sections response (create):', sectionsResponse)
+
+            const filesFromSections = collectFilesFromSections(normalizedSession.sections)
+            const allFiles = [...(normalizedSession.attachments ?? []), ...filesFromSections]
+            if (allFiles.length > 0) {
+              console.log('[Session save] Calling session-resources with', allFiles.length, 'files')
+              const resourcesResponse = await createSessionResources(eventUuid, allFiles, { session_uuid: sessionUuid })
+              console.log('[Session save] session-resources response:', resourcesResponse)
+            }
           }
           if (activeScheduleId) {
             await loadSessions(activeScheduleId)
@@ -2119,7 +2141,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       let order = 1
       for (const s of data.sections ?? []) {
         const rawType = (s.type === 'speaker' ? 'speakers' : s.type) || 'text'
+        if (rawType === 'resources' || rawType === 'resource') continue
         const sectionType = toApiSectionType(rawType)
+        if (sectionType === 'resource') continue
         let content: Record<string, unknown>
         if (sectionType === 'text') {
           content = { title: s.title || 'Section', body: s.description ?? '' }
