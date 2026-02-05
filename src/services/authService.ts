@@ -71,6 +71,72 @@ export interface OrganizationData {
   website_url?: string | null
 }
 
+/** Public: request login or register (sends OTP to email). POST {{public_url}}auth/request-login-or-register/ */
+export const requestLoginOrRegister = async (email: string): Promise<void> => {
+  const response = await fetch(API_ENDPOINTS.PUBLIC_AUTH.REQUEST_LOGIN_OR_REGISTER, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email: email.trim() }),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: any = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // use text
+    }
+    const msg = handleApiError(err, response, 'Failed to send verification code.')
+    throw new Error(msg)
+  }
+}
+
+/** Public: verify OTP and set password. POST {{public_url}}auth/verify-otp-set-password/ body: { email, otp, password } */
+export const verifyOtpSetPassword = async (
+  email: string,
+  otp: string,
+  password: string
+): Promise<void> => {
+  const response = await fetch(API_ENDPOINTS.PUBLIC_AUTH.VERIFY_OTP_SET_PASSWORD, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify({ email: email.trim(), otp: otp.trim(), password }),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: any = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // use text
+    }
+    const msg = handleApiError(err, response, 'Verification or password set failed.')
+    throw new Error(msg)
+  }
+}
+
+/** Public: fetch event list after registration. GET {{public_url}}event/ */
+export const fetchPublicEventList = async (): Promise<unknown> => {
+  const response = await fetch(API_ENDPOINTS.PUBLIC_AUTH.EVENT_LIST, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    throw new Error(text || 'Failed to load events.')
+  }
+  const text = await response.text()
+  if (!text?.trim()) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
 export const sendRegistrationOtp = async (email: string, otp?: string): Promise<ApiResponse<SendOtpResponse>> => {
   try {
     const requestBody: SendOtpRequest = { email }

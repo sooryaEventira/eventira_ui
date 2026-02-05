@@ -22,6 +22,7 @@ import {
   updateSession,
   createSessionSections,
   createSessionResources,
+  getSessionUuidFromResponse,
   deleteSession as deleteSessionApi,
   type CreateSessionBody,
   type UpdateSessionBody,
@@ -1818,12 +1819,16 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     return out
   }
 
-  /** Map UI section type to API-accepted section_type (backend may not accept e.g. "slides"). */
+  /** Map UI section type to API section_type. Backend expects "video"|"text"|"speakers"|"image"|"poster"|"resource". */
   const toApiSectionType = (uiType: string): string => {
     const map: Record<string, string> = {
       slides: 'poster',
       speaker: 'speakers',
       'photo-gallery': 'image',
+      image: 'image',
+      video: 'video',
+      text: 'text',
+      speakers: 'speakers',
       resources: 'resource',
       poll: 'text',
       location: 'text',
@@ -1866,6 +1871,14 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             ? (s.data.speakers as { id: string }[]).map((sp) => sp.id)
             : []
         content = { speaker_uuids: speakerUuids }
+      } else if (sectionType === 'video') {
+        const videoUrl = s.data?.videoUrl ?? s.data?.video_url ?? ''
+        content = { video_url: typeof videoUrl === 'string' ? videoUrl : String(videoUrl || ''), title: s.title || 'Video' }
+      } else if (sectionType === 'image' || sectionType === 'poster') {
+        content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
+        if (s.title) content.title = s.title
+        if (s.description != null) content.body = s.description
+        content = stripFiles(content)
       } else {
         content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
         if (s.title) content.title = s.title
@@ -1914,7 +1927,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       isEdit,
       sessionUuid: sessionUuidForUpdate ?? '(create)',
       sectionsCount,
-      sectionTypes: normalizedSession.sections?.map((s) => s.type) ?? [],
+      section_type: normalizedSession.sections?.map((s) => s.type) ?? [],
       filesCount: allFilesCount
     })
     normalizedSession.sections?.forEach((s, i) => {
@@ -1931,8 +1944,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       })
     })
 
-    if (eventUuid && activeScheduleId) {
-      try {
+    if (!eventUuid || !activeScheduleId) {
+      showToast.error('Please select an event and schedule before saving.')
+      return
+    }
+
+    try {
         if (isEdit && sessionUuidForUpdate) {
           const updateBody: UpdateSessionBody = {
             event_uuid: eventUuid,
@@ -1988,8 +2005,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             ...(parentSessionId ? { parent_session_uuid: parentSessionId } : {})
           }
           const created = await createSession(eventUuid, sessionBody)
-          console.log('[Session save] POST session response:', created)
-          const sessionUuid = (created?.uuid ?? (created as any)?.id) as string | undefined
+          console.log('[Session save] POST session response:', created, 'keys:', created && typeof created === 'object' ? Object.keys(created) : [])
+          const sessionUuid = getSessionUuidFromResponse(created)
 
           if (normalizedSession.sections && normalizedSession.sections.length > 0 && sessionUuid) {
             console.log('[Session save] Calling session-sections with', normalizedSession.sections.length, 'sections')
@@ -1997,7 +2014,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             const sectionsResponse = await createSessionSections(eventUuid, sectionsBody)
             console.log('[Session save] session-sections response:', sectionsResponse)
           } else {
-            console.log('[Session save] Skipping session-sections (no sections or no sessionUuid)')
+            console.log('[Session save] Skipping session-sections:', {
+              sectionsCount: normalizedSession.sections?.length ?? 0,
+              sessionUuid: sessionUuid ?? '(missing)',
+              responseKeys: created && typeof created === 'object' ? Object.keys(created) : []
+            })
           }
 
           const filesFromSections = collectFilesFromSections(normalizedSession.sections)
@@ -2014,11 +2035,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           }
           showToast.success('Session saved.')
         }
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Failed to save session.'
-        showToast.error(msg)
-        throw e
-      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to save session.'
+      showToast.error(msg)
+      throw e
     }
 
     const refreshedFromApi = eventUuid && activeScheduleId
@@ -2093,7 +2113,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         tag_uuids: tagUuids
       }
       const created = await createSession(eventUuid, sessionBody)
-      const sessionUuid = (created?.uuid ?? (created as any)?.id) as string | undefined
+      const sessionUuid = getSessionUuidFromResponse(created)
 
       const sectionsToSend: CreateSessionSectionsBody['sections'] = []
       let order = 1

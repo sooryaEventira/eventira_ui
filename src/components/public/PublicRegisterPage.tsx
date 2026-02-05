@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { sendRegistrationOtp } from '../../services/authService'
+import { requestLoginOrRegister } from '../../services/authService'
 
 const STORAGE_KEY = (eventUuid: string) => `public-register-verify-${eventUuid}`
 
@@ -29,7 +29,7 @@ const PublicRegisterPage: React.FC<PublicRegisterPageProps> = ({
     }
     setIsLoading(true)
     try {
-      await sendRegistrationOtp(email.trim())
+      await requestLoginOrRegister(email.trim())
       setStep('otp')
     } catch {
       setError('Failed to send verification code. Please try again.')

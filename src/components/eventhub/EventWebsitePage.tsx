@@ -57,6 +57,18 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const { eventData, createdEvent } = useEventForm()
   const { pages, addPage, deletePage, initializePages } = useWebsitePages()
 
+  // Static demo names used for flow understanding only — not from backend; hide from both Website pages and Navigation
+  const STATIC_DEMO_PAGE_NAMES = useMemo(
+    () => new Set(
+      ['Poster Presenter Group', 'Speakers Group', 'Observer Group', 'Participant Group'].map((s) => s.trim().toLowerCase())
+    ),
+    []
+  )
+  const isStaticDemoName = useCallback(
+    (name: string) => STATIC_DEMO_PAGE_NAMES.has(String(name || '').trim().toLowerCase()),
+    [STATIC_DEMO_PAGE_NAMES]
+  )
+
   // Prioritize createdEvent data from API, fallback to eventData from form
   // Use useMemo to ensure we always get the latest value and prevent stale reads
   const displayEventName = useMemo(() => {
@@ -84,6 +96,12 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
   const [navTreeRefresh, setNavTreeRefresh] = useState(0)
   const [isPublishing, setIsPublishing] = useState(false)
+
+  // Website pages list without static demo entries (Poster Presenter Group, etc.)
+  const filteredWebpages = useMemo(
+    () => webpages.filter((w) => !isStaticDemoName((w as any)?.name ?? '')),
+    [webpages, isStaticDemoName]
+  )
 
   const closeIconPicker = useCallback(() => {
     setIconPickerForNavId(null)
@@ -306,6 +324,44 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     const defaultFlatPagesForUpsert: NavigationPageItem[] = [...systemPages, ...webpagePages]
     const allowedSystemIds = new Set(systemPages.map((p) => String(p.pageId)))
 
+    // Allowed nav ids from website index API only (removes old static/demo entries like "Poster Presenter Group" that are not in backend)
+    const allowedNavigationIds = new Set<string>([
+      ...systemPages.map((p) => p.id),
+      ...(speakerFolder ? ['folder:speaker', ...speakerTagPages.map((p) => p.id)] : []),
+      ...(attendeeFolder ? ['folder:attendees', ...attendeeTagPages.map((p) => p.id)] : []),
+      ...webpagePages.map((p) => p.id)
+    ])
+    const filterToAllowedItems = (items: NavigationItem[]): NavigationItem[] => {
+      const out: NavigationItem[] = []
+      for (const it of items) {
+        if (isFolder(it)) {
+          if (!allowedNavigationIds.has(it.id)) continue
+          const children = filterToAllowedItems(it.children || [])
+          out.push({ ...it, children })
+        } else {
+          if (!allowedNavigationIds.has(it.id)) continue
+          out.push(it)
+        }
+      }
+      return out
+    }
+
+    const removeStaticDemoItems = (items: NavigationItem[]): NavigationItem[] => {
+      const out: NavigationItem[] = []
+      for (const it of items) {
+        if (isFolder(it)) {
+          const children = removeStaticDemoItems(it.children || [])
+          if (children.length === 0) continue
+          out.push({ ...it, children })
+        } else {
+          const title = String((it as any)?.title ?? (it as any)?.name ?? '').trim()
+          if (isStaticDemoName(title)) continue
+          out.push(it)
+        }
+      }
+      return out
+    }
+
     const pruneUnavailableSystemPages = (items: NavigationItem[]): NavigationItem[] => {
       const out: NavigationItem[] = []
       for (const it of items) {
@@ -363,12 +419,16 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       stored?.items && Array.isArray(stored.items)
         ? (stored.items as NavigationItem[])
         : defaultItems
+    // Drop any items not from website index (e.g. old static "Poster Presenter Group", "Speakers Group" etc.)
+    const baseItemsFiltered = filterToAllowedItems(baseItems)
+    const withoutStaticDemos = removeStaticDemoItems(baseItemsFiltered)
 
-    const prunedBaseItems = pruneUnavailableSystemPages(baseItems)
+    const prunedBaseItems = pruneUnavailableSystemPages(withoutStaticDemos)
     const withoutRootTagPages = removeRootLevelTagPages(prunedBaseItems)
     let reconciled = upsertMissingPagesToRoot(withoutRootTagPages, defaultFlatPagesForUpsert)
     reconciled = insertFoldersIfMissing(reconciled, speakerFolder, attendeeFolder)
     reconciled = syncFolderChildrenWithIndex(reconciled)
+    reconciled = removeStaticDemoItems(reconciled)
 
     try {
       saveNavigationConfigToStorage(treeKey, reconciled)
@@ -530,8 +590,6 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       }
 
       setWebpages(serverWebpages)
-      // Seed index pages list too (Navigation tab) if it hasn't been loaded yet.
-      setIndexWebpages((prev) => (prev.length ? prev : serverWebpages))
     } catch (error) {
       console.error('? [EventWebsitePage] Error fetching website index:', error)
       // Error is handled by errorHandler
@@ -1560,12 +1618,12 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                   <div className="flex items-center justify-center py-8 text-slate-500">
                     <p>Loading webpages...</p>
                   </div>
-                ) : webpages.length === 0 ? (
+                ) : filteredWebpages.length === 0 ? (
                   <div className="flex items-center justify-center py-8 text-slate-500">
                     <p>No pages yet. Click "+ New Page" to create one.</p>
                   </div>
                 ) : (
-                  webpages.map((webpage) => {
+                  filteredWebpages.map((webpage) => {
                     const isFirstPage = webpage.name.toLowerCase() === 'welcome'
                     return (
                       <div
@@ -1752,12 +1810,12 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                   <div className="flex items-center justify-center py-8 text-slate-500">
                     <p>Loading webpages...</p>
                   </div>
-                ) : webpages.length === 0 ? (
+                ) : filteredWebpages.length === 0 ? (
                   <div className="flex items-center justify-center py-8 text-slate-500">
                     <p>No pages yet. Click "+ New Page" to create one.</p>
                   </div>
                 ) : (
-                  webpages.map((webpage) => {
+                  filteredWebpages.map((webpage) => {
                     const isFirstPage = webpage.name.toLowerCase() === 'welcome'
                     return (
                       <div

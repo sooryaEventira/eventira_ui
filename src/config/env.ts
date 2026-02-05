@@ -88,7 +88,17 @@ export const API_ENDPOINTS = {
     REGISTER_VERIFY_OTP: `${env.AUTH_API_URL}${AUTH_API_BASE}register/verify-otp/`,
     CREATE_PASSWORD: `${env.AUTH_API_URL}${API_V1_BASE}register/`,
     CREATE_ORGANIZATION: `${env.AUTH_API_URL}${ADMIN_API_BASE}organizations/`,
+    /** Login with email/password. POST {{url}}/api/v1/token/ */
     SIGNIN: `${env.AUTH_API_URL}${API_V1_BASE}token/`,
+  },
+  /** Public auth (no auth headers): request OTP, verify OTP + set password, then event list */
+  PUBLIC_AUTH: {
+    /** Request login or register (sends OTP). POST {{url}}{{public_url}}auth/request-login-or-register/ */
+    REQUEST_LOGIN_OR_REGISTER: `${PUBLIC_API_ROOT}auth/request-login-or-register/`,
+    /** Verify OTP and set password. POST {{url}}{{public_url}}auth/verify-otp-set-password/ */
+    VERIFY_OTP_SET_PASSWORD: `${PUBLIC_API_ROOT}auth/verify-otp-set-password/`,
+    /** List events (e.g. after registration). GET {{url}}{{public_url}}event/ */
+    EVENT_LIST: `${PUBLIC_API_ROOT}event/`,
   },
   // Event endpoints
   EVENT: {
@@ -215,7 +225,7 @@ export const API_ENDPOINTS = {
   },
   // Session sections (create + list by session)
   SESSION_SECTIONS: {
-    /** Create session section: POST .../session-sections/?event_id= */
+    /** Create session section: POST .../session-sections/?event_id= — body: { session_uuid, section_type ("video"|"text"|"speakers"), order, content? } */
     CREATE: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}session-sections/?event_id=${eventUuid}`,
   },

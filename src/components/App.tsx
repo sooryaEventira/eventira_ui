@@ -16,7 +16,6 @@ const SchedulePage = lazy(() => import('./eventhub/schedulesession/SchedulePage'
 const CommunicationPage = lazy(() => import('./eventhub/communication/CommunicationPage'))
 const ResourceManagementPage = lazy(() => import('./eventhub/resourcemanagement/ResourceManagementPage'))
 const EditorView = lazy(() => import('./shared/EditorView'))
-const PublicEventWebsiteShell = lazy(() => import('./public/PublicEventWebsiteShell'))
 const LoginPage = lazy(() => import('../pages').then(module => ({ default: module.LoginPage })))
 const RegistrationPage = lazy(() => import('../pages').then(module => ({ default: module.RegistrationPage })))
 const EmailVerificationPage = lazy(() => import('../pages').then(module => ({ default: module.EmailVerificationPage })))
@@ -495,22 +494,7 @@ const App: React.FC = () => {
     }
   }, [isAuthenticated])
 
-  // Public website routes (no auth)
-  // Supported:
-  // - /events/:event_uuid/webpages/:webpage_uuid
-  // - /events/:event_uuid/speakers
-  // - /events/:event_uuid/attendees
-  // - /events/:event_uuid/schedule
-  // - /events/:event_uuid/sessions
-  const publicPathMatch = window.location.pathname.match(/^\/events\/([^/]+)(?:\/.*)?$/)
-  const publicEventUuid = publicPathMatch ? publicPathMatch[1] : null
-  if (publicEventUuid) {
-    return (
-      <Suspense fallback={<LoadingFallback />}>
-        <PublicEventWebsiteShell eventUuid={publicEventUuid} />
-      </Suspense>
-    )
-  }
+  // Public routes (event list, /events/:uuid) are handled by PublicApp in main.tsx – never reach here for public URLs
 
   // Show eventspace setup if authenticated but no organization (or if explicitly shown during registration)
   if (showEventspaceSetup && (!isAuthenticated || !hasOrganization())) {

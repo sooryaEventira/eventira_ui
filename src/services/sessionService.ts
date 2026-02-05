@@ -169,6 +169,25 @@ export async function createSession(eventUuid: string, body: CreateSessionBody):
   }
 }
 
+/** Extract session UUID from create/update session response. Handles common backend formats. */
+export function getSessionUuidFromResponse(res: unknown): string | undefined {
+  if (!res || typeof res !== 'object') return undefined
+  const r = res as Record<string, unknown>
+  const tryObj = (obj: Record<string, unknown>) =>
+    obj?.uuid ?? obj?.id ?? obj?.session_uuid ?? obj?.session_id
+  let val: unknown =
+    tryObj(r) ??
+    (r.data && typeof r.data === 'object' ? tryObj(r.data as Record<string, unknown>) : undefined) ??
+    (r.result && typeof r.result === 'object' ? tryObj(r.result as Record<string, unknown>) : undefined) ??
+    (r.session && typeof r.session === 'object' ? tryObj(r.session as Record<string, unknown>) : undefined)
+  if (Array.isArray(r.data) && r.data.length > 0 && typeof r.data[0] === 'object') {
+    val = val ?? tryObj(r.data[0] as Record<string, unknown>)
+  }
+  if (typeof val === 'string' && val.trim()) return val.trim()
+  if (typeof val === 'number' && !Number.isNaN(val)) return String(val)
+  return undefined
+}
+
 /** Update a session. PATCH .../sessions/{{session_uuid}}/?event_id=&schedule_uuid= */
 export async function updateSession(
   eventUuid: string,
@@ -303,6 +322,7 @@ export async function createSessionSections(
   body: CreateSessionSectionsBody
 ): Promise<unknown[]> {
   const { session_uuid, sections } = body
+  console.log('[Session-sections] createSessionSections called:', sections.length, 'sections, section_types:', sections.map((s) => s.section_type))
   const results: unknown[] = []
   for (let i = 0; i < sections.length; i++) {
     const s = sections[i]

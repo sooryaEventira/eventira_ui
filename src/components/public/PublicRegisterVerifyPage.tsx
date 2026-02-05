@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { verifyRegistrationOtp, createPassword } from '../../services/authService'
+import { verifyOtpSetPassword, fetchPublicEventList } from '../../services/authService'
 
 const STORAGE_KEY = (eventUuid: string) => `public-register-verify-${eventUuid}`
 
@@ -49,15 +49,22 @@ const PublicRegisterVerifyPage: React.FC<PublicRegisterVerifyPageProps> = ({
     }
     setIsLoading(true)
     try {
-      await verifyRegistrationOtp(email, otp)
-      await createPassword(email, password)
+      await verifyOtpSetPassword(email, otp, password)
+      await fetchPublicEventList()
       try {
         sessionStorage.removeItem(STORAGE_KEY(eventUuid))
       } catch {
         // ignore
       }
-      onNavigate(`/events/${eventUuid}/login`)
-      window.location.reload()
+      // Clear dashboard auth state so the app shows public event list, not dashboard
+      localStorage.removeItem('isAuthenticated')
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('refreshToken')
+      localStorage.removeItem('organizationUuid')
+      localStorage.removeItem('organizationName')
+      // Use hash URL so server only gets "/" and cannot redirect to dashboard
+      const origin = window.location.origin
+      window.location.replace(`${origin}/#event-list`)
     } catch {
       setError('Invalid code or failed to create account. Please try again.')
     } finally {
@@ -124,13 +131,13 @@ const PublicRegisterVerifyPage: React.FC<PublicRegisterVerifyPageProps> = ({
           >
             {isLoading ? 'Verifying…' : 'Verify'}
           </button>
-          <button
+          {/* <button
             type="button"
             onClick={() => onNavigate(`/events/${eventUuid}/register`)}
             className="text-sm text-slate-600 hover:text-slate-900"
           >
             ← Back to register
-          </button>
+          </button> */}
         </div>
       </form>
     </div>
