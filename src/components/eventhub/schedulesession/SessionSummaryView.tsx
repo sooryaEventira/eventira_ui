@@ -12,6 +12,18 @@ interface SessionSummaryViewProps {
   cometChatUser?: CometChatUser | null
 }
 
+/** Get YouTube embed URL from watch URL, youtu.be, Shorts, or existing embed URL. */
+function getYouTubeEmbedUrl(input: string): string {
+  const raw = String(input || '').trim()
+  if (!raw) return ''
+  const watchMatch = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (watchMatch?.[1]) return `https://www.youtube.com/embed/${watchMatch[1]}`
+  const shortsMatch = raw.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/)
+  if (shortsMatch?.[1]) return `https://www.youtube.com/embed/${shortsMatch[1]}`
+  if (raw.includes('youtube.com/embed/')) return raw
+  return ''
+}
+
 const formatTime = (time: string, period: 'AM' | 'PM') => {
   if (!time) return ''
 
@@ -110,16 +122,35 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                   height={360}
                 />
               ) : section.type === 'video' && section.data?.videoUrl ? (
-                <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900">
-                  <video
-                    src={section.data.videoUrl}
-                    controls
-                    playsInline
-                    className="w-full max-h-80 object-contain"
-                  >
-                    Your browser does not support the video tag.
-                  </video>
-                </div>
+                (() => {
+                  const videoUrl = String(section.data.videoUrl).trim()
+                  const ytEmbed = getYouTubeEmbedUrl(videoUrl)
+                  if (ytEmbed) {
+                    return (
+                      <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900" style={{ paddingBottom: '56.25%', position: 'relative' }}>
+                        <iframe
+                          title="YouTube video"
+                          className="absolute inset-0 h-full w-full"
+                          src={ytEmbed}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    )
+                  }
+                  return (
+                    <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900">
+                      <video
+                        src={videoUrl}
+                        controls
+                        playsInline
+                        className="w-full max-h-80 object-contain"
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                  )
+                })()
               ) : section.type === 'video' ? (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
                   {section.description || 'Video added'}

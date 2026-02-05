@@ -16,26 +16,28 @@ export interface PublicSpeakerData {
   [key: string]: any
 }
 
-export const fetchPublicSpeakers = async (eventUuid: string): Promise<PublicSpeakerData[]> => {
+export const fetchPublicSpeakers = async (
+  eventUuid: string,
+  tagId?: string
+): Promise<PublicSpeakerData[]> => {
   try {
     if (!eventUuid) {
       const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
       throw new Error(errorMessage)
     }
 
-
     const url = tagId
-    ? API_ENDPOINTS.PUBLIC.SPEAKERS.LIST_BY_TAG(eventUuid, tagId)
-    : API_ENDPOINTS.PUBLIC.SPEAKERS.LIST(eventUuid)
-  if (tagId) {
-    console.log('[fetchPublicSpeakers] LIST_BY_TAG', { eventUuid, tagId, url })
-  } else {
-    console.log('[fetchPublicSpeakers] LIST (all)', { eventUuid, url })
-  }
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
-  })
+      ? API_ENDPOINTS.PUBLIC.SPEAKERS.LIST_BY_TAG(eventUuid, tagId)
+      : API_ENDPOINTS.PUBLIC.SPEAKERS.LIST(eventUuid)
+    if (tagId) {
+      console.log('[fetchPublicSpeakers] LIST_BY_TAG', { eventUuid, tagId, url })
+    } else {
+      console.log('[fetchPublicSpeakers] LIST (all)', { eventUuid, url })
+    }
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    })
 
     if (!response || !response.ok) {
       if (!response) {
@@ -80,11 +82,18 @@ export const fetchPublicSpeakers = async (eventUuid: string): Promise<PublicSpea
     }
 
     const responseData = data?.data ?? data?.results ?? data
-    if (Array.isArray(responseData)) return responseData as PublicSpeakerData[]
-    if (responseData && typeof responseData === 'object' && Array.isArray(responseData.results)) {
-      return responseData.results as PublicSpeakerData[]
+    let result: PublicSpeakerData[]
+    if (Array.isArray(responseData)) {
+      result = responseData as PublicSpeakerData[]
+    } else if (responseData && typeof responseData === 'object' && Array.isArray(responseData.results)) {
+      result = responseData.results as PublicSpeakerData[]
+    } else {
+      result = []
     }
-    return []
+    if (tagId) {
+      console.log('Speakers by tag: fetchPublicSpeakers(eventUuid, tagUuid) response', { eventUuid, tagId, count: result.length, data: result })
+    }
+    return result
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
       if (!error.message.includes('Cannot connect')) {

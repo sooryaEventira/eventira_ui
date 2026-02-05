@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useMemo } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MultiValue, ActionMeta } from 'react-select'
-import Slideout from '../../ui/untitled/Slideout'
+import Slideout, { type SlideoutHandle } from '../../ui/untitled/Slideout'
 import Input from '../../ui/untitled/Input'
 import Button from '../../ui/untitled/Button'
 import CreatableMultiSelect, { CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
@@ -35,6 +35,12 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   availableTags = [],
   availableLocations = []
 }) => {
+  const slideoutRef = useRef<SlideoutHandle>(null)
+  const handleClose = useCallback(() => {
+    slideoutRef.current?.returnFocus()
+    onClose()
+  }, [onClose])
+
   const { createdEvent } = useEventForm()
   const [details, setDetails] = useState<ScheduleDetails>({
     title: '',
@@ -282,7 +288,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
     if (onSave) {
       onSave(details)
     }
-    onClose()
+    handleClose()
   }
 
   const footerContent = (
@@ -291,7 +297,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
         type="button"
         variant="secondary"
         size="md"
-        onClick={onClose}
+        onClick={handleClose}
       >
         Cancel
       </Button>
@@ -309,8 +315,9 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
 
   return (
     <Slideout
+      ref={slideoutRef}
       isOpen={isOpen}
-      onClose={onClose}
+      onClose={handleClose}
       title="Schedule details"
       topOffset={topOffset}
       panelWidthRatio={panelWidthRatio}

@@ -89,8 +89,9 @@ export const fetchPublicScheduleSessions = async (
 
     const responseData = data?.data ?? data?.results ?? data
     if (Array.isArray(responseData)) return responseData as PublicScheduleSessionData[]
-    if (responseData && typeof responseData === 'object' && Array.isArray(responseData.results)) {
-      return responseData.results as PublicScheduleSessionData[]
+    if (responseData && typeof responseData === 'object') {
+      if (Array.isArray(responseData.results)) return responseData.results as PublicScheduleSessionData[]
+      if (Array.isArray(responseData.sessions)) return responseData.sessions as PublicScheduleSessionData[]
     }
     return []
   } catch (error) {

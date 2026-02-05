@@ -91,7 +91,7 @@ export const fetchPublicAttendees = async (
       result = []
     }
     if (tagId) {
-      console.log('[fetchPublicAttendees] LIST_BY_TAG response', { tagId, count: result.length, data: result })
+      console.log('Attendees by tag: fetchPublicAttendees(eventUuid, tagUuid) response', { eventUuid, tagId, count: result.length, data: result })
     } else {
       console.log('[fetchPublicAttendees] LIST (all) response', { count: result.length, data: result })
     }

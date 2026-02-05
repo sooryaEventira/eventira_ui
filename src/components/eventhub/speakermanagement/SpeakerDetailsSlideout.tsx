@@ -1,14 +1,18 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { XClose, Camera01, Eye } from '@untitled-ui/icons-react'
 import { Speaker, SpeakerGroup } from './speakerTypes'
 import { Badge, Slideout } from '../../ui/untitled'
 import profileBackground from '../../../assets/images/profile_background.jpg'
 
+export interface SpeakerSaveOptions {
+  profileImageFile?: File
+}
+
 interface SpeakerDetailsSlideoutProps {
   isOpen: boolean
   onClose: () => void
   speaker: Speaker | null
-  onSave?: (speaker: Speaker) => void | Promise<void>
+  onSave?: (speaker: Speaker, options?: SpeakerSaveOptions) => void | Promise<void>
   topOffset?: number
 }
 
@@ -29,6 +33,9 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
   const [selectedGroups, setSelectedGroups] = useState<SpeakerGroup[]>([])
   const [groupsText, setGroupsText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
+  const [profilePreviewUrl, setProfilePreviewUrl] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (speaker && isOpen) {
@@ -43,6 +50,11 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
       setBio(speaker.bio || '')
       setSelectedGroups([...speaker.groups])
       setGroupsText((speaker.groups || []).map((g) => g.name).filter(Boolean).join(', '))
+      setProfileImageFile(null)
+      setProfilePreviewUrl((prev) => {
+        if (prev) URL.revokeObjectURL(prev)
+        return null
+      })
     }
   }, [speaker, isOpen])
 
@@ -99,7 +111,7 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
     }
 
     try {
-      await onSave?.(updatedSpeaker)
+      await onSave?.(updatedSpeaker, { profileImageFile: profileImageFile ?? undefined })
       onClose()
     } finally {
       setIsSaving(false)
@@ -153,6 +165,25 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
         </button>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/svg+xml,image/png,image/jpeg,image/jpg,image/gif"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (file) {
+            const valid = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/jpg', 'image/gif'].includes(file.type)
+            if (valid) {
+              setProfilePreviewUrl((prev) => {
+                if (prev) URL.revokeObjectURL(prev)
+                return URL.createObjectURL(file)
+              })
+              setProfileImageFile(file)
+            }
+          }
+        }}
+      />
       {/* Profile Section */}
       <div className="relative -mt-20 px-6 pb-4">
         <div className="flex items-center justify-center gap-3">
@@ -160,7 +191,13 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
             {speaker.status === 'active' ? 'Active' : speaker.status === 'pending' ? 'Pending' : 'Inactive'}
           </Badge>
           <div className="relative">
-            {speaker.avatarUrl ? (
+            {profilePreviewUrl ? (
+              <img
+                src={profilePreviewUrl}
+                alt={speaker.name}
+                className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-lg"
+              />
+            ) : speaker.avatarUrl ? (
               <img
                 src={speaker.avatarUrl}
                 alt={speaker.name}
@@ -178,6 +215,7 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
             )}
             <button
               type="button"
+              onClick={() => fileInputRef.current?.click()}
               className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow-md transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               aria-label="Change profile picture"
             >

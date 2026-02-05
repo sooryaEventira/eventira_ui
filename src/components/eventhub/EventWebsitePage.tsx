@@ -167,6 +167,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     const organizations = readEventStoreJSON<any[]>(eventUuid, 'organizations', [])
     const sessionsMap = readEventStoreJSON<Record<string, any[]>>(eventUuid, 'sessions', {})
     const sessionsCount = Object.values(sessionsMap || {}).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
+    const scheduleList = readEventStoreJSON<any[]>(eventUuid, 'schedule', [])
+    const hasSchedulesInStore = Array.isArray(scheduleList) && scheduleList.length > 0
 
     const hasNamedItem = (arr: any[], fields: string[]) => {
       return (Array.isArray(arr) ? arr : []).some((x) =>
@@ -178,8 +180,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     const hasOrganizations = hasNamedItem(organizations, ['name', 'title', 'company', 'organization', 'organisation'])
     const hasSpeakers = hasNamedItem(speakers, ['name', 'email'])
     const hasAttendees = hasNamedItem(attendees, ['name', 'email'])
-    // For schedule, require sessions (a schedule record can exist without any sessions)
-    const hasSchedule = sessionsCount > 0
+    // Show Schedule when there are sessions or at least one schedule (so nav appears after adding a schedule)
+    const hasSchedule = sessionsCount > 0 || hasSchedulesInStore
 
     const out: Array<{ id: string; label: string; kind: 'system' }> = []
     if (hasOrganizations) out.push({ id: 'system:organizations', label: 'Organizations', kind: 'system' })

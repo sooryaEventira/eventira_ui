@@ -33,6 +33,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
   const [bio, setBio] = useState('')
   const [group, setGroup] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -48,7 +49,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
         alert('Please upload a valid image file (SVG, PNG, JPG, or GIF)')
         return
       }
-
+      setProfileImageFile(file)
       const reader = new FileReader()
       reader.onloadend = () => {
         setAvatarUrl(reader.result as string)
@@ -116,8 +117,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
     }
 
     try {
-      // Persist to DB:
-      // POST {{url}}{{admin_url}}speakers/?event_id={{event_uuid}}
+      // Persist to DB (same API with optional profile image upload)
       await createSpeaker(eventUuid, {
         first_name: payload.firstName,
         last_name: payload.lastName,
@@ -126,6 +126,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
         designation: payload.role,
         bio: payload.bio,
         groups: payload.group ? [payload.group] : undefined,
+        image: profileImageFile ?? undefined,
       })
 
       // Let parent refresh UI if needed
@@ -140,6 +141,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
       setBio('')
       setGroup('')
       setAvatarUrl(null)
+      setProfileImageFile(null)
       setCustomFields([])
       onClose()
     } catch (err) {
@@ -162,6 +164,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
     setBio('')
     setGroup('')
     setAvatarUrl(null)
+    setProfileImageFile(null)
     setCustomFields([])
     onClose()
   }

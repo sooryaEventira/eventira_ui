@@ -64,10 +64,13 @@ export const fetchPublicSchedules = async (eventUuid: string): Promise<PublicSch
       throw new Error(errorMessage)
     }
 
-    const responseData = data?.data ?? data?.results ?? data
+    const responseData = data?.data ?? data?.results ?? data?.schedules ?? data
     if (Array.isArray(responseData)) return responseData as PublicScheduleData[]
     if (responseData && typeof responseData === 'object' && Array.isArray(responseData.results)) {
       return responseData.results as PublicScheduleData[]
+    }
+    if (responseData && typeof responseData === 'object' && Array.isArray(responseData.schedules)) {
+      return responseData.schedules as PublicScheduleData[]
     }
     return []
   } catch (error) {

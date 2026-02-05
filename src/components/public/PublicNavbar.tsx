@@ -3,6 +3,7 @@ import type { PublicNavNode } from '../../types/navigation'
 import { renderNavIcon } from '../../utils/navIcons'
 
 interface PublicNavbarProps {
+  eventUuid?: string
   eventName?: string
   logoUrl?: string | null
   items: PublicNavNode[]
@@ -13,6 +14,7 @@ interface PublicNavbarProps {
 }
 
 const PublicNavbar: React.FC<PublicNavbarProps> = ({
+  eventUuid,
   eventName,
   logoUrl,
   items,
@@ -21,6 +23,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   navbarBackgroundColor
 }) => {
   void eventName
+  const loginPath = eventUuid ? `/events/${eventUuid}/login` : '/login'
   const headerStyle = useMemo(
     () => (navbarBackgroundColor ? { backgroundColor: navbarBackgroundColor } : undefined),
     [navbarBackgroundColor]
@@ -242,6 +245,24 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
           {items.map(renderDesktopNode)}
         </nav>
 
+        {/* Login: public event login page (email, password, login button) */}
+        {eventUuid ? (
+          <button
+            type="button"
+            onClick={() => onNavigate(loginPath)}
+            className="hidden md:inline-flex items-center justify-center rounded-lg border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
+          >
+            Login
+          </button>
+        ) : (
+          <a
+            href="/login"
+            className="hidden md:inline-flex items-center justify-center rounded-lg border border-white/40 bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50"
+          >
+            Login
+          </a>
+        )}
+
         {/* Mobile: hamburger + accordion */}
         <div className="flex items-center gap-2 md:hidden">
           <button
@@ -333,6 +354,26 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                   </div>
                 )
               })}
+              {/* Login: public event login or app login */}
+              {eventUuid ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false)
+                    onNavigate(loginPath)
+                  }}
+                  className="mt-2 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-semibold text-slate-800 hover:bg-slate-100"
+                >
+                  Login
+                </button>
+              ) : (
+                <a
+                  href="/login"
+                  className="mt-2 block w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-center text-sm font-semibold text-slate-800 hover:bg-slate-100"
+                >
+                  Login
+                </a>
+              )}
             </div>
           </div>
         </div>

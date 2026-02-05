@@ -127,6 +127,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
         designation: payload.role,
         bio: payload.description,
         groups: payload.group ? [payload.group] : undefined,
+        avatar_url: payload.avatarUrl,
       })
 
       onSave(payload)
@@ -194,8 +195,9 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
 
         {/* Content */}
         <div className="px-6 py-4 space-y-4 max-h-[min(600px,calc(100vh-250px))] overflow-y-auto">
-          {/* Profile Picture Upload */}
+          {/* Profile photo */}
           <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1.5">Profile photo</label>
             <div
               className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors cursor-pointer ${
                 isDragging

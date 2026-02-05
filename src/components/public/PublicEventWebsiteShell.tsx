@@ -4,6 +4,7 @@ import { fetchPublicEvent, type PublicEventData } from '../../services/publicEve
 import { fetchPublicWebsiteSettings } from '../../services/websiteSettingsService'
 import { fetchPublicWebpages, type PublicWebpageData } from '../../services/publicWebpageService'
 import { fetchPublicWebsiteIndex, type WebsiteIndexData } from '../../services/webpageService'
+import { fetchPublicSchedules } from '../../services/publicScheduleService'
 import PublicWebpageRenderer from './PublicWebpageRenderer'
 import { buildPublicThemeVars, getPrimaryDarkHex } from '../../config/publicTheme'
 import type { NavigationItem, NavigationPageItem, PublicNavNode } from '../../types/navigation'
@@ -24,8 +25,12 @@ type PublicSection =
   | 'attendee'
   | 'schedule'
   | 'sessions'
+  | 'session'
   | 'organizations'
   | 'organization'
+  | 'login'
+  | 'register'
+  | 'register_verify'
 
 interface PublicEventWebsiteShellProps {
   eventUuid: string
@@ -43,6 +48,7 @@ const getSectionFromPath = (
   attendeeId?: string
   speakerTagId?: string
   attendeeTagId?: string
+  sessionId?: string
 } => {
   const base = `/events/${eventUuid}`
   const rest = pathname.startsWith(base) ? pathname.slice(base.length) : pathname
@@ -79,6 +85,14 @@ const getSectionFromPath = (
     return { section: 'organization', organizationId: orgDetailMatch[1] }
   }
 
+  const sessionDetailMatch = rest.match(/^\/schedule\/session\/([^/]+)\/?$/)
+  if (sessionDetailMatch) {
+    return { section: 'session', sessionId: sessionDetailMatch[1] }
+  }
+
+  if (rest === '/login' || rest.startsWith('/login/')) return { section: 'login' }
+  if (rest === '/register/verify' || rest.startsWith('/register/verify/')) return { section: 'register_verify' }
+  if (rest === '/register' || rest.startsWith('/register/')) return { section: 'register' }
   if (rest.startsWith('/organizations')) return { section: 'organizations' }
   if (rest.startsWith('/speakers')) return { section: 'speakers' }
   if (rest.startsWith('/attendees')) return { section: 'attendees' }
@@ -96,6 +110,10 @@ const SpeakerDetailPage = React.lazy(() => import('./speakers/SpeakerDetailPage'
 const AttendeesListPage = React.lazy(() => import('./attendees/AttendeesListPage'))
 const AttendeeDetailPage = React.lazy(() => import('./attendees/AttendeeDetailPage'))
 const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePage'))
+const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
+const PublicLoginPage = React.lazy(() => import('./PublicLoginPage'))
+const PublicRegisterPage = React.lazy(() => import('./PublicRegisterPage'))
+const PublicRegisterVerifyPage = React.lazy(() => import('./PublicRegisterVerifyPage'))
 
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
@@ -106,22 +124,25 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
   const [activePath, setActivePath] = useState<string>(window.location.pathname)
+  const [hasScheduleFromApi, setHasScheduleFromApi] = useState(false)
 
   const refresh = async () => {
     setIsLoading(true)
     setLoadError(null)
     setPrimaryColorFromWebpage(null)
     try {
-      const [evt, pages, settings, indexData] = await Promise.all([
+      const [evt, pages, settings, indexData, schedules] = await Promise.all([
         fetchPublicEvent(eventUuid),
         fetchPublicWebpages(eventUuid),
         fetchPublicWebsiteSettings(eventUuid),
-        fetchPublicWebsiteIndex(eventUuid)
+        fetchPublicWebsiteIndex(eventUuid),
+        fetchPublicSchedules(eventUuid).catch(() => [])
       ])
       setEvent(evt)
       setWebpages(Array.isArray(pages) ? pages : [])
       setWebsiteSettings(settings)
       setWebsiteIndex(indexData)
+      setHasScheduleFromApi(Array.isArray(schedules) && schedules.length > 0)
       try {
         localStorage.setItem(`website-index-${eventUuid}`, JSON.stringify(indexData))
       } catch {
@@ -168,6 +189,8 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       (sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0),
       0
     )
+    const scheduleList = readEventStoreJSON<any[]>(eventUuid, 'schedule', [])
+    const hasScheduleFromStorage = Array.isArray(scheduleList) && scheduleList.length > 0
 
     const hasNamedItem = (arr: any[], fields: string[]) => {
       return (Array.isArray(arr) ? arr : []).some((x) =>
@@ -178,7 +201,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     const hasOrganizations = hasNamedItem(organizations, ['name', 'title', 'company', 'organization', 'organisation'])
     const hasSpeakers = hasNamedItem(speakers, ['name', 'email'])
     const hasAttendees = hasNamedItem(attendees, ['name', 'email'])
-    const hasSchedule = sessionsCount > 0
+    const hasSchedule = sessionsCount > 0 || hasScheduleFromApi || hasScheduleFromStorage
 
     const SYSTEM_PAGES: Array<{ id: string; label: string; path: string }> = []
     if (hasOrganizations) SYSTEM_PAGES.push({ id: 'system:organizations', label: 'Organizations', path: `/events/${eventUuid}/organizations` })
@@ -339,7 +362,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     const visibleTree = pruneHidden(reconciled, hiddenIds)
 
     return mapToPublicNav(visibleTree, pagePathById)
-  }, [eventUuid, webpages, websiteIndex])
+  }, [eventUuid, webpages, websiteIndex, hasScheduleFromApi])
 
   const current = useMemo(() => getSectionFromPath(eventUuid, activePath), [eventUuid, activePath])
   const fallbackWebpageUuid = webpages[0]?.uuid
@@ -404,9 +427,12 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     }
   }, [publicThemeVars])
 
+  const isAuthSection = current.section === 'login' || current.section === 'register' || current.section === 'register_verify'
+
   return (
-    <div className="min-h-screen bg-white" style={publicThemeVars as any}>
+    <div className="flex min-h-screen flex-col bg-white" style={publicThemeVars as any}>
       <PublicNavbar
+        eventUuid={eventUuid}
         eventName={event?.eventName}
         logoUrl={event?.logo ?? null}
         items={navbarItems}
@@ -415,7 +441,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         navbarBackgroundColor={navbarBackgroundColor}
       />
 
-      <main className="mx-auto max-w-7xl px-4 pb-12 pt-20 sm:px-6">
+      <main className={`mx-auto w-full max-w-7xl flex-1 px-4 pb-12 pt-20 sm:px-6 ${isAuthSection ? 'flex flex-col' : ''}`}>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="text-sm font-medium text-slate-600">Loading website…</div>
@@ -510,10 +536,48 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
               onNavigate={handleNavigate}
             />
           </React.Suspense>
+        ) : current.section === 'session' ? (
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <PublicSessionDetailPage
+              eventUuid={eventUuid}
+              sessionId={current.sessionId || ''}
+              onNavigate={handleNavigate}
+            />
+          </React.Suspense>
         ) : current.section === 'schedule' || current.section === 'sessions' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <PublicSchedulePage eventUuid={eventUuid} />
+            <PublicSchedulePage eventUuid={eventUuid} onNavigate={handleNavigate} />
           </React.Suspense>
+        ) : current.section === 'login' ? (
+          <div className="flex flex-1 flex-col items-center justify-center">
+            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+              <PublicLoginPage
+                eventUuid={eventUuid}
+                eventName={event?.eventName}
+                onNavigate={handleNavigate}
+              />
+            </React.Suspense>
+          </div>
+        ) : current.section === 'register' ? (
+          <div className="flex flex-1 flex-col items-center justify-center">
+            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+              <PublicRegisterPage
+                eventUuid={eventUuid}
+                eventName={event?.eventName}
+                onNavigate={handleNavigate}
+              />
+            </React.Suspense>
+          </div>
+        ) : current.section === 'register_verify' ? (
+          <div className="flex flex-1 flex-col items-center justify-center">
+            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+              <PublicRegisterVerifyPage
+                eventUuid={eventUuid}
+                eventName={event?.eventName}
+                onNavigate={handleNavigate}
+              />
+            </React.Suspense>
+          </div>
         ) : current.section === 'webpage' ? (
           webpageUuid ? (
             <PublicWebpageRenderer

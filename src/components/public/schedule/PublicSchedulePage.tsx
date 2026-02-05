@@ -7,6 +7,7 @@ import { fetchPublicScheduleSessions } from '../../../services/publicScheduleSes
 
 interface PublicSchedulePageProps {
   eventUuid: string
+  onNavigate?: (path: string) => void
 }
 
 const startOfDayKey = (d: Date) => {
@@ -165,7 +166,7 @@ const formatRange = (start: Date, end: Date) => {
   return `${monthShort.format(start)} ${start.getDate()}, ${start.getFullYear()} – ${monthShort.format(end)} ${end.getDate()}, ${end.getFullYear()}`
 }
 
-const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid }) => {
+const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNavigate }) => {
   const [apiSchedules, setApiSchedules] = useState<SavedSchedule[]>([])
   const [isLoadingSchedules, setIsLoadingSchedules] = useState(false)
 
@@ -282,7 +283,8 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid }) =>
     return Array.isArray(byId) ? byId : []
   }, [activeScheduleId, fallbackActiveSchedule, fallbackSessionsMap])
 
-  // Load sessions for active schedule from published API
+  // Load sessions for the active schedule from the public API:
+  // GET events/{eventUuid}/schedules/{scheduleUuid}/sessions/ (see API_ENDPOINTS.PUBLIC.SESSIONS.LIST)
   useEffect(() => {
     let cancelled = false
     const run = async () => {
@@ -613,6 +615,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid }) =>
             <ScheduleGrid
               sessions={sessionsForDay}
               selectedDate={selectedGridDate}
+              onSessionClick={onNavigate ? (session) => onNavigate(`/events/${eventUuid}/schedule/session/${session.id}`) : undefined}
             />
           </div>
         ) : (

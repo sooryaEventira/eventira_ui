@@ -19,6 +19,8 @@ interface ScheduleContentProps {
   selectedDate?: Date | string // Allow string for Puck (ISO string)
   rangeStartDate?: Date | string
   rangeEndDate?: Date | string
+  onEditSession?: (session: SavedSession) => void
+  onDeleteSession?: (session: SavedSession) => void
 }
 
 const ScheduleContent: React.FC<ScheduleContentProps> = ({
@@ -31,7 +33,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   onDateChange,
   selectedDate: propSelectedDate,
   rangeStartDate,
-  rangeEndDate
+  rangeEndDate,
+  onEditSession,
+  onDeleteSession
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
@@ -131,59 +135,41 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
           id,
           date,
           sessionType: sessionTypeRaw || session?.sessionType,
-          // IMPORTANT: for mapping in UI, use parentId to store parent UUID.
-          parentId:
-            sessionTypeRaw === 'child'
-              ? (parentUuid ? String(parentUuid) : undefined)
-              : undefined,
+          // Set parentId whenever a parent reference exists so the grid nests children under parents (combined view).
+          parentId: parentUuid ? String(parentUuid) : undefined,
         }
 
         return normalizedSession
       })
       .filter(Boolean) as SavedSession[]
 
-    // 2) Build parent map using sessionType === 'parent'
-    const parents = normalized.filter(
-      (s) => String(s.sessionType ?? '').toLowerCase() === 'parent'
-    )
-    const parentById = new Map<string, SavedSession>()
-    parents.forEach((p) => parentById.set(p.id, p))
-
-    // 3) Attach children to parents by matching child's parentUuid (stored in parentId) to parent.id
-    const children = normalized.filter(
-      (s) => String(s.sessionType ?? '').toLowerCase() === 'child'
-    )
-
-    const childrenByParent = new Map<string, SavedSession[]>()
-    const orphanChildrenAsParents: SavedSession[] = []
-
-    for (const child of children) {
-      const pid = child.parentId
-      if (pid && parentById.has(pid)) {
-        const arr = childrenByParent.get(pid) ?? []
-        arr.push(child)
-        childrenByParent.set(pid, arr)
-      } else {
-        // If no valid parent match, render as standalone (parent) so it's still visible.
-        orphanChildrenAsParents.push({ ...child, sessionType: 'parent', parentId: undefined })
-      }
-    }
-
-    // 4) Output: parents first, then their children (sorted by time)
+    // 2) Group by parentId so parent+child show as combined grid (don't rely on sessionType)
+    const idSet = new Set(normalized.map((s) => String(s.id)))
     const sortByStart = (a: SavedSession, b: SavedSession) =>
       toMinutes(a.startTime, a.startPeriod) - toMinutes(b.startTime, b.startPeriod) ||
       String(a.title ?? '').localeCompare(String(b.title ?? ''))
 
-    const uniqueParents = Array.from(
-      new Map<string, SavedSession>(
-        [...parents, ...orphanChildrenAsParents].map((p) => [p.id, p])
-      ).values()
-    ).sort(sortByStart)
+    // Roots = no parentId, or parent not in this list (show as top-level row)
+    const roots = normalized
+      .filter((s) => !s.parentId || !idSet.has(String(s.parentId)))
+      .sort(sortByStart)
 
+    // Children by parent (any session whose parentId is in the list)
+    const childrenByParentId = new Map<string, SavedSession[]>()
+    for (const s of normalized) {
+      const pid = s.parentId ? String(s.parentId) : ''
+      if (pid && idSet.has(pid)) {
+        const arr = childrenByParentId.get(pid) ?? []
+        arr.push(s)
+        childrenByParentId.set(pid, arr)
+      }
+    }
+
+    // 3) Output: each root then its children (combined grid), so grid can nest them
     const output: SavedSession[] = []
-    for (const p of uniqueParents) {
-      output.push(p)
-      const kids = (childrenByParent.get(p.id) ?? []).slice().sort(sortByStart)
+    for (const root of roots) {
+      output.push(root)
+      const kids = (childrenByParentId.get(String(root.id)) ?? []).slice().sort(sortByStart)
       output.push(...kids)
     }
 
@@ -279,7 +265,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
           <ScheduleGrid 
             sessions={gridSessions} 
             selectedDate={selectedDate} 
-            onAddParallelSession={(parentId) => onAddSession?.(parentId)} 
+            onAddParallelSession={(parentId) => onAddSession?.(parentId)}
+            onEditSession={onEditSession}
+            onDeleteSession={onDeleteSession}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-center text-base text-slate-500">

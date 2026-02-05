@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { Plus, ChevronUp, ChevronDown, Calendar, Attachment01, User01 } from '@untitled-ui/icons-react'
 import { SavedSession } from './sessionTypes'
 
@@ -6,6 +6,10 @@ interface ScheduleGridProps {
   sessions: SavedSession[]
   selectedDate: Date
   onAddParallelSession?: (parentSessionId?: string) => void
+  onEditSession?: (session: SavedSession) => void
+  onDeleteSession?: (session: SavedSession) => void
+  /** When provided, session cards are clickable and open this (e.g. public schedule → session detail page). */
+  onSessionClick?: (session: SavedSession) => void
 }
 
 // SessionContainer component that manages time column and session cards
@@ -14,6 +18,9 @@ interface SessionContainerProps {
   parallelSessions: SavedSession[]
   isExpanded: boolean
   onToggleExpand: () => void
+  /** Combined time range for parent + all children (so time column spans the whole block) */
+  timeRangeStart?: string
+  timeRangeEnd?: string
   getNestedParallelSessions?: (parentId: string) => SavedSession[]
   isSessionExpanded?: (sessionId: string) => boolean
   onToggleSessionExpand?: (sessionId: string) => void
@@ -23,6 +30,87 @@ interface SessionContainerProps {
   getLocationLabel: (location: string) => string
   getSessionTypeLabel: (type: string) => string
   isTimeValid: (parallelSession: SavedSession, parentSession: SavedSession) => boolean
+  onEditSession?: (session: SavedSession) => void
+  onDeleteSession?: (session: SavedSession) => void
+  onSessionClick?: (session: SavedSession) => void
+}
+
+// Small dropdown for session card 3-dots: Edit and Delete
+function SessionMenuDropdown({
+  session,
+  isOpen,
+  onToggle,
+  onClose,
+  onEdit,
+  onDelete,
+  className = '',
+  iconSize = 'h-4 w-4',
+}: {
+  session: SavedSession
+  isOpen: boolean
+  onToggle: (e: React.MouseEvent) => void
+  onClose: () => void
+  onEdit: (s: SavedSession) => void
+  onDelete: (s: SavedSession) => void
+  className?: string
+  iconSize?: string
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    }
+    document.addEventListener('click', handleClick)
+    return () => document.removeEventListener('click', handleClick)
+  }, [isOpen, onClose])
+
+  return (
+    <div className={`relative ${className}`} ref={ref}>
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          onToggle(e)
+        }}
+        className="p-1 text-slate-400 hover:text-slate-600 rounded"
+        aria-label="More options"
+        aria-expanded={isOpen}
+      >
+        <svg className={iconSize} fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+        </svg>
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 z-[100] min-w-[120px]">
+          <button
+            type="button"
+            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-t-lg"
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              onClose()
+              onEdit(session)
+            }}
+          >
+            Edit
+          </button>
+          <button
+            type="button"
+            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 rounded-b-lg"
+            onClick={(e) => {
+              e.stopPropagation()
+              e.preventDefault()
+              onClose()
+              onDelete(session)
+            }}
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const SessionContainer: React.FC<SessionContainerProps> = ({
@@ -30,6 +118,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   parallelSessions,
   isExpanded,
   onToggleExpand,
+  timeRangeStart,
+  timeRangeEnd,
   getNestedParallelSessions,
   isSessionExpanded,
   onToggleSessionExpand,
@@ -38,10 +128,16 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   formatTimeRange,
   getLocationLabel,
   getSessionTypeLabel,
-  isTimeValid
+  isTimeValid,
+  onEditSession,
+  onDeleteSession,
+  onSessionClick
 }) => {
+  const [menuOpenForId, setMenuOpenForId] = useState<string | null>(null)
+  const timeStart = timeRangeStart ?? formatTime(session.startTime, session.startPeriod || 'AM')
+  const timeEnd = timeRangeEnd ?? formatTime(session.endTime, session.endPeriod || 'AM')
   const hasParallelSessions = parallelSessions.length > 0
-  const showAddButton = !hasParallelSessions && onAddParallelSession
+  const showAddButton = Boolean(onAddParallelSession)
   const showExpandButton = hasParallelSessions
 
   const getChildren = React.useCallback(
@@ -103,7 +199,17 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                               <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
                             </svg>
                           </div>
-                          <h3 className="font-semibold text-slate-900 text-sm">{child.title}</h3>
+                          {onSessionClick ? (
+                            <button
+                              type="button"
+                              onClick={() => onSessionClick(child)}
+                              className="font-semibold text-slate-900 text-sm text-left hover:text-primary hover:underline"
+                            >
+                              {child.title}
+                            </button>
+                          ) : (
+                            <h3 className="font-semibold text-slate-900 text-sm">{child.title}</h3>
+                          )}
                         </div>
                       </div>
 
@@ -122,23 +228,23 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                             )}
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                          aria-label="More options"
-                        >
-                          <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                          </svg>
-                        </button>
+                        <SessionMenuDropdown
+                          session={child}
+                          isOpen={menuOpenForId === child.id}
+                          onToggle={() => setMenuOpenForId((id) => (id === child.id ? null : child.id))}
+                          onClose={() => setMenuOpenForId(null)}
+                          onEdit={(s) => onEditSession?.(s)}
+                          onDelete={(s) => onDeleteSession?.(s)}
+                          iconSize="h-3.5 w-3.5"
+                        />
                       </div>
                     </div>
 
                     {/* Metadata Row */}
                     <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
                       <div className="flex items-center gap-2 flex-wrap">
-                        {/* Child sessions have no duration in Excel -> don't display time */}
-                        {!child.parentId && (
+                        {/* Display session time for both parent and child when time is present */}
+                        {child.startTime && child.endTime && (
                           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                             <Calendar className="h-3 w-3" />
                             {formatTimeRange(child)}
@@ -219,12 +325,12 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
 
   return (
     <div className="flex items-stretch gap-6">
-      {/* Time Column - stretches to match session column height */}
+      {/* Time Column - spans parent + all children so the block shares one time range column */}
       <div className="flex-shrink-0 w-24 self-stretch">
         <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
           <div className="text-center pt-3 flex-shrink-0">
             <div className="text-sm font-semibold text-slate-900">
-              {formatTime(session.startTime, session.startPeriod || 'AM')}
+              {timeStart}
             </div>
           </div>
           <div className="flex-1 flex items-center justify-center min-h-0">
@@ -233,7 +339,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
           </div>
           <div className="text-center pb-3 flex-shrink-0">
             <div className="text-sm font-semibold text-slate-900">
-              {formatTime(session.endTime, session.endPeriod || 'AM')}
+              {timeEnd}
             </div>
           </div>
         </div>
@@ -261,15 +367,14 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                 </div>
               </div>
               <div className="flex items-center">
-                <button
-                  type="button"
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                  aria-label="More options"
-                >
-                  <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                  </svg>
-                </button>
+                <SessionMenuDropdown
+                  session={session}
+                  isOpen={menuOpenForId === session.id}
+                  onToggle={() => setMenuOpenForId((id) => (id === session.id ? null : session.id))}
+                  onClose={() => setMenuOpenForId(null)}
+                  onEdit={(s) => onEditSession?.(s)}
+                  onDelete={(s) => onDeleteSession?.(s)}
+                />
               </div>
             </div>
 
@@ -349,11 +454,15 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Child sessions inside parent card */}
+            {hasParallelSessions && isExpanded && (
+              <div className="mt-3 pt-3 border-t border-slate-200">
+                {renderNestedSessions(session, 1)}
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Parallel Sessions - Nested design (supports multi-level) */}
-        {hasParallelSessions && isExpanded && renderNestedSessions(session, 1)}
       </div>
     </div>
   )
@@ -362,7 +471,10 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
 const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   sessions,
   selectedDate,
-  onAddParallelSession
+  onAddParallelSession,
+  onEditSession,
+  onDeleteSession,
+  onSessionClick
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
 
@@ -378,19 +490,17 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     })
   }, [sessions, selectedDate])
 
-  // Separate parent sessions from parallel sessions
+  // Separate root sessions from children (by parentId) so we render one combined row per parent
   const { parentSessions, parallelSessionsMap } = useMemo(() => {
     const parents: SavedSession[] = []
-    const parallelMap: { [parentId: string]: SavedSession[] } = {}
-    const idSet = new Set(filteredSessions.map((s) => s.id))
+    const parallelMap: Record<string, SavedSession[]> = {}
+    const idSet = new Set(filteredSessions.map((s) => String(s.id)))
     
     filteredSessions.forEach(session => {
-      // Only treat as child if its parent exists in this list; otherwise render as top-level.
-      if (session.parentId && idSet.has(session.parentId)) {
-        if (!parallelMap[session.parentId]) {
-          parallelMap[session.parentId] = []
-        }
-        parallelMap[session.parentId].push(session)
+      const parentId = session.parentId ? String(session.parentId) : ''
+      if (parentId && idSet.has(parentId)) {
+        if (!parallelMap[parentId]) parallelMap[parentId] = []
+        parallelMap[parentId].push(session)
       } else {
         parents.push(session)
       }
@@ -520,9 +630,17 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
       {groupedSessions.map((group, groupIndex) => (
         <div key={groupIndex} className="space-y-4">
           {group.sessions.map((session) => {
-            const parallelSessions = parallelSessionsMap[session.id] || []
+            const parallelSessions = parallelSessionsMap[String(session.id)] || []
             const isExpanded = expandedSessions.has(session.id)
-            
+            const timeRange = (() => {
+              let minM = timeToMinutes(session.startTime, session.startPeriod || 'AM')
+              let maxM = timeToMinutes(session.endTime, session.endPeriod || 'PM')
+              parallelSessions.forEach((s) => {
+                minM = Math.min(minM, timeToMinutes(s.startTime, s.startPeriod || 'AM'))
+                maxM = Math.max(maxM, timeToMinutes(s.endTime, s.endPeriod || 'PM'))
+              })
+              return { start: minutesToTime24(minM), end: minutesToTime24(maxM) }
+            })()
             return (
               <SessionContainer
                 key={session.id}
@@ -530,8 +648,10 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 parallelSessions={parallelSessions}
                 isExpanded={isExpanded}
                 onToggleExpand={() => toggleExpand(session.id)}
+                timeRangeStart={timeRange.start}
+                timeRangeEnd={timeRange.end}
                 getNestedParallelSessions={(parentId) => {
-                  const kids = parallelSessionsMap[parentId] || []
+                  const kids = parallelSessionsMap[String(parentId)] || []
                   // Ensure stable chronological ordering within the parent
                   return [...kids].sort((a, b) => {
                     const am = timeToMinutes(a.startTime, a.startPeriod || 'AM')
@@ -548,6 +668,9 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 getLocationLabel={getLocationLabel}
                 getSessionTypeLabel={getSessionTypeLabel}
                 isTimeValid={isTimeValid}
+                onEditSession={onEditSession}
+                onDeleteSession={onDeleteSession}
+                onSessionClick={onSessionClick}
               />
             )
           })}

@@ -518,7 +518,8 @@ type UpdateSpeakerInput = {
   email?: string
   organization?: string
   designation?: string
-  // if backend supports tags/groups, callers can pass them through
+  /** Profile picture file; when set, request is sent as multipart/form-data. */
+  image?: File
   [key: string]: any
 }
 
@@ -560,9 +561,52 @@ export const updateSpeaker = async (
     }
 
     const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.UPDATE(speakerUuid)
+    const hasImage = input.image instanceof File
 
-    // Backends in this repo have returned both `organization` and `organisation`,
-    // and both `email` and `user_email` depending on endpoint.
+    if (hasImage) {
+      const form = new FormData()
+      if (input.first_name != null) form.append('first_name', input.first_name)
+      if (input.last_name != null) form.append('last_name', input.last_name)
+      if (input.email != null) form.append('email', input.email)
+      if (input.organization != null) form.append('organisation', input.organization)
+      if (input.designation != null) form.append('designation', input.designation)
+      if (input.bio != null && input.bio !== '') form.append('bio', input.bio)
+      if (Array.isArray(input.groups)) input.groups.forEach((g) => form.append('group_names', g))
+      form.append('image', input.image!)
+
+      const response = await fetch(url, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid,
+        },
+        credentials: 'include',
+        body: form,
+      })
+
+      if (response.ok) {
+        let responseData: any = null
+        try {
+          responseData = await response.json()
+        } catch {
+          responseData = null
+        }
+        console.log('PATCH speaker API response (with image):', responseData)
+        showToast.success('Speaker updated successfully')
+        return responseData
+      }
+
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to update speaker. Please try again.')
+      throw new Error(errorMessage)
+    }
+
     const designation = input.designation
     const organization = input.organization
     const email = input.email
@@ -572,6 +616,7 @@ export const updateSpeaker = async (
       organization,
       email,
     })
+    delete (base as any).image
 
     const candidates: Array<Record<string, any>> = [
       base,
@@ -580,9 +625,9 @@ export const updateSpeaker = async (
         designation,
         organisation: organization,
         user_email: email,
-        // avoid sending conflicting keys in this attempt
         organization: undefined,
         email: undefined,
+        image: undefined,
       }),
     ]
 
@@ -738,6 +783,8 @@ type CreateSpeakerInput = {
   designation?: string
   bio?: string
   groups?: string[]
+  /** Profile picture file; when set, request is sent as multipart/form-data. */
+  image?: File
   [key: string]: any
 }
 
@@ -775,39 +822,68 @@ export const createSpeaker = async (
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid)
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.CREATE(eventUuid)
+    const hasImage = input.image instanceof File
 
-    // Try a couple payload shapes for backend compatibility.
-    // IMPORTANT: backend list responses commonly use `organisation`, so send that on create as well
-    // to ensure the value is actually persisted.
+    if (hasImage) {
+      const form = new FormData()
+      form.append('user_email', input.email)
+      form.append('first_name', input.first_name)
+      form.append('last_name', input.last_name)
+      if (input.organization != null && input.organization !== '') form.append('organisation', input.organization)
+      const description = (input as any).description ?? input.designation ?? input.bio ?? ''
+      if (description !== '') form.append('description', description)
+      if (input.bio != null && input.bio !== '') form.append('bio', input.bio)
+      if (Array.isArray(input.groups) && input.groups.length) {
+        input.groups.forEach((g) => form.append('groups', g))
+      }
+      form.append('image', input.image!)
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid,
+        },
+        credentials: 'include',
+        body: form,
+      })
+
+      if (response.ok) {
+        let responseData: any = null
+        try {
+          responseData = await response.json()
+        } catch {
+          responseData = null
+        }
+        showToast.success('Speaker created successfully')
+        return responseData
+      }
+
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to create speaker. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    // No image: JSON body — payload shape: user_email, first_name, last_name, organisation, description, groups, bio
+    const description = (input as any).description ?? input.designation ?? input.bio ?? ''
     const base = cleanObject({
-      ...input,
-      // Some backends require `user_email` instead of `email`
       user_email: input.email,
-      organization: input.organization,
+      first_name: input.first_name,
+      last_name: input.last_name,
       organisation: input.organization,
-      designation: input.designation,
-      // some endpoints use role/title instead of designation
-      role: input.designation,
-      title: input.designation,
+      description: description || undefined,
+      groups: Array.isArray(input.groups) && input.groups.length ? input.groups : undefined,
       bio: input.bio,
-      groups: input.groups,
     })
 
-    const candidates: Array<Record<string, any>> = [
-      base,
-      cleanObject({
-        ...input,
-        user_email: input.email,
-        organisation: input.organization,
-        // some endpoints use role/title instead of designation
-        role: input.designation,
-        title: input.designation,
-        // keep `organization`/`designation` out of this attempt to avoid conflicts
-        organization: undefined,
-        designation: undefined,
-      }),
-    ]
+    const candidates: Array<Record<string, any>> = [base]
 
     let lastError: any = null
 

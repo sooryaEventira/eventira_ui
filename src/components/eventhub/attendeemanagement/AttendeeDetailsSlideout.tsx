@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { XClose, Camera01, Eye, CheckCircle } from '@untitled-ui/icons-react'
 import { Attendee, AttendeeGroup } from './attendeeTypes'
 import { Badge, Slideout } from '../../ui/untitled'
@@ -29,7 +29,8 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
   const [selectedGroups, setSelectedGroups] = useState<AttendeeGroup[]>([])
   const [groupsText, setGroupsText] = useState('')
   const [isSaving, setIsSaving] = useState(false)
-
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (attendee && isOpen) {
@@ -40,12 +41,25 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
       setEmail(attendee.email || '')
       setOrganization(attendee.organization || '')
       setPost(attendee.post || '')
-      // Backend sometimes uses `bio`; UI model uses `description`
       setDescription(attendee.description || (attendee as any).bio || '')
       setSelectedGroups([...attendee.groups])
       setGroupsText((attendee.groups || []).map((g) => g.name).filter(Boolean).join(', '))
+      setAvatarUrl(attendee.avatarUrl || null)
     }
   }, [attendee, isOpen])
+
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const validTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/jpg', 'image/gif']
+    if (!validTypes.includes(file.type)) {
+      return
+    }
+    const reader = new FileReader()
+    reader.onloadend = () => setAvatarUrl(reader.result as string)
+    reader.readAsDataURL(file)
+    e.target.value = ''
+  }
 
   const parseGroupsFromText = (text: string, prev: AttendeeGroup[]): AttendeeGroup[] => {
     const parts = String(text || '')
@@ -159,9 +173,16 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
             Active
           </Badge>
           <div className="relative">
-            {attendee.avatarUrl ? (
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/svg+xml,image/png,image/jpeg,image/jpg,image/gif"
+              onChange={handleAvatarFileChange}
+              className="hidden"
+            />
+            {avatarUrl ? (
               <img
-                src={attendee.avatarUrl}
+                src={avatarUrl}
                 alt={attendee.name}
                 className="h-24 w-24 rounded-full border-4 border-white object-cover shadow-lg"
               />
@@ -177,6 +198,7 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
             )}
             <button
               type="button"
+              onClick={() => avatarInputRef.current?.click()}
               className="absolute bottom-0 right-0 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow-md transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               aria-label="Change profile picture"
             >

@@ -3,6 +3,8 @@ import { SessionDraft, SectionOption } from './sessionTypes'
 export const sectionOptions: SectionOption[] = [
   { id: 'slides', label: 'Slides/Poster' },
   { id: 'image', label: 'Image' },
+  { id: 'video', label: 'Video' },
+  { id: 'speakers', label: 'Speakers' },
   { id: 'text', label: 'Text' },
   { id: 'poll', label: 'Poll' },
   { id: 'location', label: 'Location' },

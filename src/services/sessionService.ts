@@ -12,6 +12,22 @@ export interface CreateSessionBody {
   location: string
   session_type: string
   tag_uuids: string[]
+  /** Optional: parent session UUID when creating a child/parallel session */
+  parent_session_uuid?: string
+}
+
+/** Payload for PUT/PATCH sessions (update session). Backend requires event_uuid and schedule_uuid in body. */
+export interface UpdateSessionBody {
+  event_uuid: string
+  schedule_uuid: string
+  title: string
+  description?: string
+  start_at: string
+  end_at: string
+  location: string
+  session_type: string
+  tag_uuids: string[]
+  parent_session_uuid?: string | null
 }
 
 /** Content shape for text section. API expects content: { title, body }. */
@@ -49,6 +65,40 @@ export async function listSessions(
     return { ok: false, status: 401, errorText: 'Missing auth or organization context' }
   }
   const url = API_ENDPOINTS.SESSIONS.LIST(eventUuid, scheduleUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+  const rawText = await response.text().catch(() => '')
+  if (!response.ok) {
+    return { ok: false, status: response.status, errorText: rawText }
+  }
+  let data: unknown = null
+  try {
+    data = rawText ? JSON.parse(rawText) : null
+  } catch {
+    data = null
+  }
+  return { ok: true, data }
+}
+
+/** Retrieve a single session. GET {{admin_url}}sessions/{{session_uuid}}/?event_id=&schedule_uuid= */
+export async function getSession(
+  eventUuid: string,
+  scheduleUuid: string,
+  sessionUuid: string
+): Promise<{ ok: true; data: unknown } | { ok: false; status: number; errorText: string }> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) {
+    return { ok: false, status: 401, errorText: 'Missing auth or organization context' }
+  }
+  const url = API_ENDPOINTS.SESSIONS.RETRIEVE(sessionUuid, eventUuid, scheduleUuid)
   const response = await fetch(url, {
     method: 'GET',
     headers: {
@@ -116,6 +166,86 @@ export async function createSession(eventUuid: string, body: CreateSessionBody):
     return (raw && typeof raw === 'object' ? raw : {}) as { uuid?: string; [key: string]: unknown }
   } catch {
     return {}
+  }
+}
+
+/** Update a session. PATCH .../sessions/{{session_uuid}}/?event_id=&schedule_uuid= */
+export async function updateSession(
+  eventUuid: string,
+  sessionUuid: string,
+  scheduleUuid: string,
+  body: UpdateSessionBody
+): Promise<{ uuid?: string; [key: string]: unknown }> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) {
+    throw new Error('Authentication or organization context missing.')
+  }
+  const url = API_ENDPOINTS.SESSIONS.UPDATE(sessionUuid, eventUuid, scheduleUuid)
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: unknown = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // use text as message
+    }
+    const message = handleApiError(err, response, 'Failed to update session.')
+    throw new Error(message)
+  }
+  const text = await response.text()
+  if (!text?.trim()) return {}
+  try {
+    const data = JSON.parse(text)
+    const raw = data?.data ?? data
+    return (raw && typeof raw === 'object' ? raw : {}) as { uuid?: string; [key: string]: unknown }
+  } catch {
+    return {}
+  }
+}
+
+/** Delete a session. DELETE .../sessions/{{session_uuid}}/?schedule_uuid= with body { event_id }. */
+export async function deleteSession(
+  eventUuid: string,
+  sessionUuid: string,
+  scheduleUuid: string
+): Promise<void> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) {
+    throw new Error('Authentication or organization context missing.')
+  }
+  const url = API_ENDPOINTS.SESSIONS.DELETE(sessionUuid, scheduleUuid)
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ event_id: eventUuid }),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: unknown = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // use text as message
+    }
+    const message = handleApiError(err, response, 'Failed to delete session.')
+    throw new Error(message)
   }
 }
 

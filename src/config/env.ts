@@ -200,6 +200,9 @@ export const API_ENDPOINTS = {
     /** Create session: POST .../sessions/?event_id= */
     CREATE: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/?event_id=${eventUuid}`,
+    /** Update session: PATCH .../sessions/{{session_uuid}}/?event_id=&schedule_uuid= */
+    UPDATE: (sessionUuid: string, eventUuid: string, scheduleUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/${sessionUuid}/?event_id=${eventUuid}&schedule_uuid=${scheduleUuid}`,
     /** Delete session: DELETE .../sessions/{{session_uuid}}/?schedule_uuid= */
     DELETE: (sessionUuid: string, scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/${sessionUuid}/?schedule_uuid=${scheduleUuid}`,
@@ -210,7 +213,7 @@ export const API_ENDPOINTS = {
     BULK_IMPORT: (scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/schedules/${scheduleUuid}/bulk-import/`,
   },
-  // Session sections (create section)
+  // Session sections (create + list by session)
   SESSION_SECTIONS: {
     /** Create session section: POST .../session-sections/?event_id= */
     CREATE: (eventUuid: string) =>

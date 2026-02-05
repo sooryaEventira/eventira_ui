@@ -359,6 +359,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
       designation: updatedAttendee.post || undefined,
       bio: updatedAttendee.description,
       groups: groupValues.length ? groupValues : undefined,
+      avatar_url: updatedAttendee.avatarUrl,
     })
 
     setAttendees((prev) => prev.map((a) => (a.id === updatedAttendee.id ? updatedAttendee : a)))

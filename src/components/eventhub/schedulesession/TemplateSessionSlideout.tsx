@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import Slideout from '../../ui/untitled/Slideout'
+import Slideout, { type SlideoutHandle } from '../../ui/untitled/Slideout'
 import Input from '../../ui/untitled/Input'
 import Select from '../../ui/untitled/Select'
 import Button from '../../ui/untitled/Button'
@@ -60,6 +60,18 @@ function getSpeakerDisplayName(s: SpeakerData): string {
   return [first, last].filter(Boolean).join(' ') || 'Speaker'
 }
 
+/** Get YouTube embed URL from watch URL, youtu.be, Shorts, or existing embed URL. */
+function getYouTubeEmbedUrl(input: string): string {
+  const raw = String(input || '').trim()
+  if (!raw) return ''
+  const watchMatch = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+  if (watchMatch?.[1]) return `https://www.youtube.com/embed/${watchMatch[1]}`
+  const shortsMatch = raw.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/)
+  if (shortsMatch?.[1]) return `https://www.youtube.com/embed/${shortsMatch[1]}`
+  if (raw.includes('youtube.com/embed/')) return raw
+  return ''
+}
+
 interface TemplateSessionSlideoutProps {
   isOpen: boolean
   onClose: () => void
@@ -114,6 +126,12 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const [speakerSearchPosition, setSpeakerSearchPosition] = useState<{ top: number; left: number } | null>(null)
   const speakerSearchAnchorRef = useRef<HTMLButtonElement | null>(null)
   const speakerSearchInputRef = useRef<HTMLInputElement | null>(null)
+  const slideoutRef = useRef<SlideoutHandle>(null)
+
+  const handleClose = useCallback(() => {
+    slideoutRef.current?.returnFocus()
+    onClose()
+  }, [onClose])
 
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const videoElRef = useRef<HTMLVideoElement | null>(null)
@@ -129,66 +147,12 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
   const topLevelResourcesInputRef = useRef<HTMLInputElement | null>(null)
 
-  useEffect(() => {
-    return () => {
-      if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
-        try {
-          URL.revokeObjectURL(videoPreviewUrl)
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }, [videoPreviewUrl])
-
   // Reset to edit mode when slideout opens
   useEffect(() => {
     if (isOpen) {
       setIsEditing(true)
     }
   }, [isOpen])
-
-  const openVideoPicker = () => {
-    videoInputRef.current?.click()
-  }
-
-  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    if (!file.type || !file.type.startsWith('video/')) {
-      // reset input so user can pick again
-      e.target.value = ''
-      return
-    }
-
-    // Revoke previous preview url
-    if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
-      try {
-        URL.revokeObjectURL(videoPreviewUrl)
-      } catch {
-        // ignore
-      }
-    }
-
-    const url = URL.createObjectURL(file)
-    setVideoPreviewUrl(url)
-    setFormData((prev) => ({ ...prev, videoFile: file, videoUrl: url }))
-  }
-
-  const handleRemoveVideo = () => {
-    if (videoPreviewUrl && videoPreviewUrl.startsWith('blob:')) {
-      try {
-        URL.revokeObjectURL(videoPreviewUrl)
-      } catch {
-        // ignore
-      }
-    }
-    setVideoPreviewUrl('')
-    setIsVideoPlaying(false)
-    setFormData((prev) => ({ ...prev, videoFile: null, videoUrl: '' }))
-    if (videoInputRef.current) videoInputRef.current.value = ''
-  }
-
 
   const handleRemoveSpeaker = (speakerId: string) => {
     setFormData(prev => ({
@@ -298,7 +262,11 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                 ? { images: [] } // user can upload multiple images
                 : selectedSection.id === 'resources'
                   ? { files: [] } // user can upload docs
-                  : undefined
+                  : selectedSection.id === 'video'
+                    ? { videoUrl: '' } // YouTube URL
+                    : selectedSection.id === 'speakers'
+                      ? { speakers: [] } // list of { id, name, role }
+                      : undefined
       }
       setFormData((prev) => ({ ...prev, sections: [...(prev.sections || []), newSection] }))
     }
@@ -688,6 +656,78 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
       )
     }
 
+    if (section.type === 'video') {
+      const videoUrl = String(section.data?.videoUrl ?? '').trim()
+      const embedUrl = getYouTubeEmbedUrl(videoUrl)
+      return (
+        <div className="p-4">
+          <div className="mb-3">
+            <label className="mb-1 block text-xs font-semibold text-slate-700">YouTube URL</label>
+            <input
+              type="url"
+              value={videoUrl}
+              onChange={(e) =>
+                updateSection(section.id, { data: { ...(section.data || {}), videoUrl: e.target.value } })
+              }
+              placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          {embedUrl ? (
+            <div
+              className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900"
+              style={{ paddingBottom: '56.25%' }}
+            >
+              <iframe
+                title="YouTube video"
+                className="absolute inset-0 h-full w-full"
+                src={embedUrl}
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center">
+              <p className="text-sm text-slate-500">Paste a YouTube URL to show the video here.</p>
+            </div>
+          )}
+        </div>
+      )
+    }
+
+    if (section.type === 'speakers') {
+      const speakers = (section.data?.speakers as Array<{ id: string; name: string; role?: string }>) ?? []
+      return (
+        <div className="p-4">
+          <p className="mb-3 text-xs font-semibold text-slate-700">Speakers</p>
+          {speakers.length > 0 ? (
+            <div className="flex flex-wrap gap-3">
+              {speakers.map((s) => (
+                <div
+                  key={s.id}
+                  className="flex min-w-[160px] flex-col rounded-lg border border-slate-200 bg-white p-3"
+                >
+                  <div className="mb-1 flex items-center gap-2">
+                    <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-100">
+                      <span className="text-sm font-medium text-amber-700">
+                        {(s.name || ' ').charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="min-w-0 truncate text-sm font-medium text-slate-700">{s.name || 'Speaker'}</span>
+                  </div>
+                  {s.role && <span className="text-xs text-slate-500">{s.role}</span>}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-6 text-center text-sm text-slate-500">
+              No speakers added yet. Speakers can be added in the main Speakers block or when editing this section elsewhere.
+            </div>
+          )}
+        </div>
+      )
+    }
+
     if (section.type === 'location') {
       const embedValue = String(section.data?.embed ?? section.description ?? '').trim()
       const embedSrc = parseEmbedToSrc(embedValue) || 'https://www.google.com/maps?q=Melbourne&output=embed'
@@ -899,7 +939,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
             type="button"
             variant="secondary"
             size="md"
-            onClick={onClose}
+            onClick={handleClose}
           >
             Cancel
           </Button>
@@ -920,7 +960,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
             type="button"
             variant="secondary"
             size="md"
-            onClick={onClose}
+            onClick={handleClose}
           >
             Close
           </Button>
@@ -976,16 +1016,17 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
         aria-hidden
       />
       <Slideout
+        ref={slideoutRef}
         isOpen={isOpen}
-        onClose={onClose}
+        onClose={handleClose}
         topOffset={topOffset}
         panelWidthRatio={panelWidthRatio}
         footer={footerContent}
       >
         {isEditing ? (
-      <>
-      {/* Scrollable Content */}
-      <div className="px-6 py-6 space-y-4">
+          <>
+            {/* Scrollable Content */}
+            <div className="px-6 py-6 space-y-4">
         {/* Title Section */}
         <div className="flex items-start justify-between">
           <div className="flex-1 pr-4">
@@ -1002,7 +1043,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
           </div>
           <button
             type="button"
-            onClick={onClose}
+            onClick={handleClose}
             className="mt-7 p-2 text-slate-500 hover:text-slate-700 transition-colors"
             aria-label="Close"
           >
@@ -1092,114 +1133,46 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
             </div>
           ))}
 
-          {/* Section 1: Video */}
+          {/* Section 1: Video (YouTube URL) */}
           <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
             <SectionHeader
               title="Video"
               onRemove={() => {}}
             />
             <div className="p-4">
+              <label className="mb-2 block text-xs font-semibold text-slate-700">YouTube URL</label>
               <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/*"
-                className="hidden"
-                onChange={handleVideoFileChange}
+                type="url"
+                value={formData.videoUrl ?? ''}
+                onChange={(e) => setFormData((prev) => ({ ...prev, videoUrl: e.target.value }))}
+                placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
+                className="mb-3 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
-
-              <div
-                role={!formData.videoUrl && !videoPreviewUrl ? 'button' : undefined}
-                tabIndex={!formData.videoUrl && !videoPreviewUrl ? 0 : -1}
-                onClick={
-                  !formData.videoUrl && !videoPreviewUrl
-                    ? openVideoPicker
-                    : undefined
-                }
-                onKeyDown={
-                  !formData.videoUrl && !videoPreviewUrl
-                    ? (e) => {
-                        if (e.key === 'Enter' || e.key === ' ') openVideoPicker()
-                      }
-                    : undefined
-                }
-                className="group relative w-full h-64 bg-slate-900 rounded-lg overflow-hidden flex items-center justify-center cursor-pointer"
-                aria-label="Upload video"
-              >
-                {(formData.videoUrl || videoPreviewUrl) ? (
-                  <>
-                    <video
-                      ref={videoElRef}
-                      src={videoPreviewUrl || formData.videoUrl}
-                      className="h-full w-full object-contain bg-black"
-                      controls
-                      playsInline
-                      onPlay={() => setIsVideoPlaying(true)}
-                      onPause={() => setIsVideoPlaying(false)}
-                      onEnded={() => setIsVideoPlaying(false)}
-                    />
-                    {/* Visual hover overlay; must not block video controls */}
-                    <div className="pointer-events-none absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors" />
-
-                    {/* Play overlay (click to play) */}
-                    {!isVideoPlaying ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          const el = videoElRef.current
-                          if (!el) return
-                          el.play().catch(() => {
-                            // ignore autoplay restrictions (user gesture should allow)
-                          })
-                        }}
-                        className="absolute inset-0 flex items-center justify-center"
-                        aria-label="Play video"
-                      >
-                        <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur transition hover:bg-white/20">
-                          <svg className="h-8 w-8" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                            <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                          </svg>
-                        </span>
-                      </button>
-                    ) : null}
-
-                    <div className="absolute right-3 top-3 flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openVideoPicker()
-                        }}
-                        className="inline-flex items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-white/15"
-                      >
-                        <Upload01 className="h-4 w-4" />
-                        Replace
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleRemoveVideo()
-                        }}
-                        className="inline-flex items-center gap-2 rounded-md bg-rose-500/20 px-3 py-2 text-xs font-semibold text-white backdrop-blur transition hover:bg-rose-500/30"
-                      >
-                        <Trash01 className="h-4 w-4" />
-                        Remove
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center">
-                    <div className="w-16 h-16 mx-auto mb-2 rounded-full bg-white/10 flex items-center justify-center">
-                      <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M6.3 2.841A1.5 1.5 0 004 4.11V15.89a1.5 1.5 0 002.3 1.269l9.344-5.89a1.5 1.5 0 000-2.538L6.3 2.84z" />
-                      </svg>
-                    </div>
-                    <div className="text-slate-200 text-sm font-semibold">Upload video</div>
-                    <div className="mt-1 text-slate-400 text-xs">Click to choose a video file</div>
+              {effectiveVideoUrl ? (
+                <div className="relative w-full rounded-lg overflow-hidden border border-slate-200 bg-slate-900" style={{ paddingBottom: '56.25%' }}>
+                  <iframe
+                    title="YouTube video"
+                    className="absolute inset-0 h-full w-full"
+                    src={getYouTubeEmbedUrl(formData.videoUrl ?? '')}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  />
+                  <div className="absolute right-2 top-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, videoUrl: '' }))}
+                      className="inline-flex items-center gap-1.5 rounded-md bg-rose-500/90 px-2.5 py-1.5 text-xs font-semibold text-white backdrop-blur hover:bg-rose-500"
+                    >
+                      <Trash01 className="h-3.5 w-3.5" />
+                      Remove
+                    </button>
                   </div>
-                )}
-              </div>
+                </div>
+              ) : (
+                <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center">
+                  <p className="text-sm text-slate-500">Paste a YouTube URL above to preview the video here.</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1419,7 +1392,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
             </div>
           </div>
         </div>
-      </>
+          </>
         ) : (
           <div key="summary" className="px-6 py-4 min-h-[200px]">
             <SessionSummaryView session={summaryDraft} />

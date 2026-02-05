@@ -528,8 +528,10 @@ const App: React.FC = () => {
 
   // Show login, registration, email verification, password creation pages if not authenticated
   if (!isAuthenticated) {
-    
-    if (showCreatePassword) {
+    // Canonical path for login page: /login (email, password, login button)
+    const isLoginPath = window.location.pathname === '/login'
+
+    if (showCreatePassword && !isLoginPath) {
       return (
         <Suspense fallback={<LoadingFallback />}>
           <CreatePasswordPage
@@ -542,7 +544,7 @@ const App: React.FC = () => {
       )
     }
     
-    if (showEmailVerification) {
+    if (showEmailVerification && !isLoginPath) {
       return (
         <Suspense fallback={<LoadingFallback />}>
           <EmailVerificationPage
@@ -557,7 +559,7 @@ const App: React.FC = () => {
       )
     }
     
-    if (showRegistration) {
+    if (showRegistration && !isLoginPath) {
       return (
         <Suspense fallback={<LoadingFallback />}>
           <RegistrationPage

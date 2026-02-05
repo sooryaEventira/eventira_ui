@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import Slideout from '../../ui/untitled/Slideout'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import Slideout, { type SlideoutHandle } from '../../ui/untitled/Slideout'
 import Button from '../../ui/untitled/Button'
 import SessionDetailsForm from './SessionDetailsForm'
 import SectionPickerModal from './SectionPickerModal'
@@ -19,6 +19,8 @@ interface SessionSlideoutProps {
   panelWidthRatio?: number
   availableTags?: string[]
   availableLocations?: string[]
+  /** When set, Speakers sections can search and add event speakers. */
+  eventUuid?: string
 }
 
 const SessionSlideout: React.FC<SessionSlideoutProps> = ({
@@ -30,7 +32,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   topOffset = 64,
   panelWidthRatio = 0.5,
   availableTags = [],
-  availableLocations = []
+  availableLocations = [],
+  eventUuid = ''
 }) => {
   const [draft, setDraft] = useState<SessionDraft>(defaultSessionDraft)
   const [tagsInput, setTagsInput] = useState('')
@@ -46,7 +49,12 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const galleryUploadSectionIdRef = useRef<string | null>(null)
   const resourcesInputRef = useRef<HTMLInputElement | null>(null)
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
+  const slideoutRef = useRef<SlideoutHandle>(null)
 
+  const handleClose = useCallback(() => {
+    slideoutRef.current?.returnFocus()
+    onClose()
+  }, [onClose])
 
   useEffect(() => {
     if (!isOpen) {
@@ -65,7 +73,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
       return
     }
     // Only sync draft and isEditing when the slideout first opens (isOpen false → true).
-    // When parent updates after save (e.g. activeDraft=null), do not overwrite – we stay in summary view.
     const justOpened = !prevIsOpenRef.current
     prevIsOpenRef.current = true
 
@@ -125,7 +132,11 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
             ? { images: [] }
             : section.id === 'resources'
               ? { files: [] }
-              : undefined
+              : section.id === 'video'
+                ? { videoUrl: '' }
+                : section.id === 'speakers'
+                  ? { speakers: [] }
+                  : undefined
 
     setDraft((prev) => ({
       ...prev,
@@ -322,7 +333,14 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     onOpenGalleryPicker: openGalleryPicker,
     onRemoveGalleryImage: handleRemoveGalleryImage,
     onOpenResourcesPicker: openResourcesPicker,
-    onRemoveResourcesFile: handleRemoveResourcesFile
+    onRemoveResourcesFile: handleRemoveResourcesFile,
+    eventUuid: eventUuid || undefined,
+    onAddSpeakerToSection: (sectionId: string, speaker: { id: string; name: string; role?: string }) => {
+      const sec = draft.sections.find((s) => s.id === sectionId)
+      if (!sec) return
+      const current = (sec.data?.speakers as Array<{ id: string; name: string; role?: string }>) ?? []
+      updateSection(sectionId, { data: { ...(sec.data || {}), speakers: [...current, speaker] } })
+    }
   }
 
   const handleCloseSectionModal = () => {
@@ -359,9 +377,9 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setIsSaving(true)
     try {
       await onSave(draft)
-      setIsEditing(false)
       setIsSectionModalOpen(false)
       setTagsInput(draft.tags.join(', '))
+      handleClose()
     } finally {
       setIsSaving(false)
     }
@@ -380,7 +398,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
             type="button"
             variant="secondary"
             size="md"
-            onClick={onClose}
+            onClick={handleClose}
           >
             Cancel
           </Button>
@@ -400,7 +418,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
             type="button"
             variant="secondary"
             size="md"
-            onClick={onClose}
+            onClick={handleClose}
           >
             Close
           </Button>
@@ -449,8 +467,9 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         aria-hidden
       />
       <Slideout
+        ref={slideoutRef}
         isOpen={isOpen}
-        onClose={onClose}
+        onClose={handleClose}
         topOffset={topOffset}
         panelWidthRatio={panelWidthRatio}
         footer={footerContent}

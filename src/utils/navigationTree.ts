@@ -8,6 +8,16 @@ import type {
 
 export const NAVIGATION_CONFIG_VERSION = 1 as const
 
+/** System page ids and labels used for nav index (organizations, speakers, attendees, schedule). */
+export const SYSTEM_PAGE_CONFIG = [
+  { id: 'system:organizations', label: 'Organizations' },
+  { id: 'system:speakers', label: 'Speakers' },
+  { id: 'system:attendees', label: 'Attendees' },
+  { id: 'system:schedule', label: 'Schedule' },
+] as const
+
+export const SYSTEM_PAGE_IDS = SYSTEM_PAGE_CONFIG.map((p) => p.id)
+
 export function isFolder(item: NavigationItem): item is NavigationFolderItem {
   return item.type === 'folder'
 }

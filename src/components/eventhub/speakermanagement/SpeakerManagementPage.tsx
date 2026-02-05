@@ -412,7 +412,13 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
           inviteCode: inviteCode || undefined,
           // Keep both role & title populated so existing UI columns work.
           role: designation || '',
-          avatarUrl: (speakerData as any).avatar_url || profile?.avatar_url || user?.avatar_url,
+          avatarUrl:
+            (speakerData as any).avatar_url ||
+            (speakerData as any).image ||
+            profile?.avatar_url ||
+            (profile as any)?.image ||
+            user?.avatar_url ||
+            (user as any)?.image,
           bannerUrl: undefined,
           status: normalizeStatus((speakerData as any).status ?? profile?.status ?? user?.status),
           bio: pickStr((speakerData as any).bio, profile?.bio, user?.bio) || undefined,
@@ -544,30 +550,42 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     }
   }
 
-  const handleSaveSpeaker = async (updatedSpeaker: Speaker) => {
+  const handleSaveSpeaker = async (
+    updatedSpeaker: Speaker,
+    options?: { profileImageFile?: File }
+  ) => {
     const designation = updatedSpeaker.role || updatedSpeaker.title || ''
-    // Send name for new groups (client-generated id like "1770124605561-1") so backend creates tag with correct name; send id for existing tags
     const isNewGroupId = (id: string) => /^\d+-\d+$/.test(String(id))
     const groupValues = (updatedSpeaker.groups || [])
       .map((g) => (isNewGroupId(String(g.id)) ? (g.name || g.id) : (g.id || g.name)))
       .filter(Boolean)
 
-    // Persist to DB
-    await updateSpeaker(updatedSpeaker.id, {
+    const response = await updateSpeaker(updatedSpeaker.id, {
       first_name: updatedSpeaker.firstName,
       last_name: updatedSpeaker.lastName,
       email: updatedSpeaker.email,
       organization: updatedSpeaker.organization,
       designation: designation || undefined,
+      bio: updatedSpeaker.bio,
       groups: groupValues.length ? groupValues : undefined,
+      image: options?.profileImageFile,
     })
 
-    // Refetch tags so the Groups tab shows any newly created group immediately and with correct name
+    // Use image URL from PATCH response so avatar shows the uploaded image
+    const imageUrl =
+      (response as any)?.data?.image ??
+      (response as any)?.image ??
+      (response as any)?.data?.avatar_url ??
+      (response as any)?.avatar_url
+    const speakerWithAvatar: Speaker =
+      typeof imageUrl === 'string' && imageUrl
+        ? { ...updatedSpeaker, avatarUrl: imageUrl }
+        : updatedSpeaker
+
     await loadTags()
 
-    // Update UI state (optimistic merge)
-    setSpeakers((prev) => prev.map((s) => (s.id === updatedSpeaker.id ? updatedSpeaker : s)))
-    setSelectedSpeaker(updatedSpeaker)
+    setSpeakers((prev) => prev.map((s) => (s.id === updatedSpeaker.id ? speakerWithAvatar : s)))
+    setSelectedSpeaker(speakerWithAvatar)
   }
 
   const handleDeleteSpeaker = async (speakerId: string) => {
