@@ -80,7 +80,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
           {/* Icons Container */}
           <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             {/* Search Icon */}
-            <button
+            {/* <button
               type="button"
               onClick={onSearchClick}
               className="flex items-center svg-ic  justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-md hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0"
@@ -89,7 +89,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
               <SearchLg 
                 className="h-5 w-5 text-slate-700 stroke-[#334155] stroke-[2] fill-none" 
               />
-            </button>
+            </button> */}
 
             {/* Notification Icon */}
             <button

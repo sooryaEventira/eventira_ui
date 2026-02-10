@@ -79,7 +79,7 @@ export const defaultCards: ContentCard[] = [
   },
   {
     id: 'registration-form',
-    title: 'Registration form',
+    title: 'Registration ',
     icon: <Folder className="h-5 w-5" aria-hidden="true" />,
     items: [
       { label: 'Configure and preview the registration form used for event signups.' }
@@ -95,7 +95,7 @@ export const defaultCards: ContentCard[] = [
   },
   {
     id: 'website-settings',
-    title: 'Website Settings',
+    title: 'Event Settings',
     icon: <Globe01 className="h-5 w-5" aria-hidden="true" />,
     items: [
       { label: 'Customize your event website, branding, and public-facing pages.' }

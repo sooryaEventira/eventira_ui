@@ -115,7 +115,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
     }))
 
     return [
-      { id: 'overview', label: 'Overview', icon: <InfoCircle className="h-5 w-5" /> },
+      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       {
         id: 'event-hub',

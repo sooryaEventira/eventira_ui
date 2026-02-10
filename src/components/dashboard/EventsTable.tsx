@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { Trash03 } from '@untitled-ui/icons-react'
-import { DividerLineTable, type DividerLineTableColumn, type DividerLineTableSortDescriptor } from '../ui/untitled'
+import { DividerLineTable, type DividerLineTableColumn, type DividerLineTableSortDescriptor, type DateRange } from '../ui/untitled'
 import { TablePagination } from '../ui/TablePagination'
 import { ConfirmDeleteModal } from '../ui'
 
@@ -8,7 +8,7 @@ export interface Event {
   id: string
   name: string
   status: 'Live' | 'Draft'
-  attendanceType: 'Online' | 'Offline' | 'Hybrid'
+  attendanceType: 'Virtual' | 'In-person' | 'Hybrid'
   registrations: number
   eventDate: string
   createdBy: string
@@ -22,6 +22,10 @@ interface EventsTableProps {
   onRowClick?: (event: Event) => void
   onSort?: (column: string) => void
   searchValue?: string
+  dateRange?: DateRange
+  statusFilter?: string
+  attendanceTypeFilter?: string
+  createdByFilter?: string
 }
 
 const StatusBadge: React.FC<{ status: 'Live' | 'Draft' }> = ({ status }) => {
@@ -36,11 +40,11 @@ const StatusBadge: React.FC<{ status: 'Live' | 'Draft' }> = ({ status }) => {
   )
 }
 
-const AttendanceTypeBadge: React.FC<{ type: 'Online' | 'Offline' | 'Hybrid' }> = ({ type }) => {
-  const styles = {
-    Online: 'bg-purple-100 text-purple-700',
-    Offline: 'bg-pink-100 text-pink-700',
-    Hybrid: 'bg-blue-100 text-blue-700'
+const AttendanceTypeBadge: React.FC<{ type: 'Virtual' | 'In-person' | 'Hybrid' }> = ({ type }) => {
+  const styles: Record<string, string> = {
+    'Virtual': 'bg-purple-100 text-purple-700',
+    'In-person': 'bg-pink-100 text-pink-700',
+    'Hybrid': 'bg-blue-100 text-blue-700'
   }
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[type]}`}>
@@ -55,7 +59,11 @@ const EventsTable: React.FC<EventsTableProps> = ({
   onDeleteClick,
   onRowClick,
   onSort,
-  searchValue = ''
+  searchValue = '',
+  dateRange,
+  statusFilter,
+  attendanceTypeFilter,
+  createdByFilter
 }) => {
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>()
   const [currentPage, setCurrentPage] = useState(1)
@@ -75,26 +83,92 @@ const EventsTable: React.FC<EventsTableProps> = ({
     onSort?.(descriptor.column)
   }
 
-  // Filter events based on search value
+  // Filter events based on search value, date range, status, attendance type, and created by
   const filteredEvents = useMemo(() => {
-    if (!searchValue.trim()) return events
+    let result = events
 
-    const query = searchValue.trim().toLowerCase()
-    return events.filter((event) => {
-      const haystack = [
-        event.name,
-        event.status,
-        event.attendanceType,
-        event.createdBy,
-        event.eventDate
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
+    // Apply search filter
+    if (searchValue.trim()) {
+      const query = searchValue.trim().toLowerCase()
+      result = result.filter((event) => {
+        const haystack = [
+          event.name,
+          event.status,
+          event.attendanceType,
+          event.createdBy,
+          event.eventDate
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
 
-      return haystack.includes(query)
-    })
-  }, [events, searchValue])
+        return haystack.includes(query)
+      })
+    }
+
+    // Apply date range filter
+    if (dateRange?.start || dateRange?.end) {
+      result = result.filter((event) => {
+        try {
+          // Parse event date (handle various formats: ISO, MM/DD/YYYY, YYYY-MM-DD, etc.)
+          let eventDate: Date | null = null
+          
+          if (event.eventDate) {
+            // Try parsing as ISO date first
+            const isoDate = new Date(event.eventDate)
+            if (!isNaN(isoDate.getTime())) {
+              eventDate = isoDate
+            }
+          }
+
+          if (!eventDate) return true // If cannot parse, include the event
+
+          // Normalize dates to compare only the date part (ignore time)
+          const eventTime = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()).getTime()
+
+          // If only start date is set
+          if (dateRange.start && !dateRange.end) {
+            const startTime = new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), dateRange.start.getDate()).getTime()
+            return eventTime >= startTime
+          }
+
+          // If only end date is set
+          if (dateRange.end && !dateRange.start) {
+            const endTime = new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), dateRange.end.getDate()).getTime()
+            return eventTime <= endTime
+          }
+
+          // If both start and end dates are set
+          if (dateRange.start && dateRange.end) {
+            const startTime = new Date(dateRange.start.getFullYear(), dateRange.start.getMonth(), dateRange.start.getDate()).getTime()
+            const endTime = new Date(dateRange.end.getFullYear(), dateRange.end.getMonth(), dateRange.end.getDate()).getTime()
+            return eventTime >= startTime && eventTime <= endTime
+          }
+
+          return true
+        } catch {
+          return true // If any error, include the event
+        }
+      })
+    }
+
+    // Apply status filter
+    if (statusFilter) {
+      result = result.filter((event) => event.status === statusFilter)
+    }
+
+    // Apply attendance type filter
+    if (attendanceTypeFilter) {
+      result = result.filter((event) => event.attendanceType === attendanceTypeFilter)
+    }
+
+    // Apply created by filter
+    if (createdByFilter) {
+      result = result.filter((event) => event.createdBy === createdByFilter)
+    }
+
+    return result
+  }, [events, searchValue, dateRange, statusFilter, attendanceTypeFilter, createdByFilter])
 
   // Paginate filtered events
   const paginatedEvents = useMemo(() => {
@@ -108,10 +182,10 @@ const EventsTable: React.FC<EventsTableProps> = ({
     return Math.ceil(filteredEvents.length / itemsPerPage)
   }, [filteredEvents.length])
 
-  // Reset to page 1 when search value changes
+  // Reset to page 1 when search value, date range, or any filter changes
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchValue])
+  }, [searchValue, dateRange, statusFilter, attendanceTypeFilter, createdByFilter])
 
   const columns: Array<DividerLineTableColumn<Event>> = useMemo(
     () => [
@@ -133,7 +207,7 @@ const EventsTable: React.FC<EventsTableProps> = ({
       },
       {
         id: 'attendanceType',
-        header: 'Attendance type',
+        header: 'Event type',
         sortable: true,
         sortAccessor: (item) => item.attendanceType,
         render: (item) => <AttendanceTypeBadge type={item.attendanceType} />
@@ -157,7 +231,7 @@ const EventsTable: React.FC<EventsTableProps> = ({
         header: 'Created by',
         sortable: true,
         sortAccessor: (item) => item.createdBy,
-        render: (item) => <div>{item.createdBy}</div>
+        render: (item) => <div>{item.createdBy ? item.createdBy.charAt(0).toUpperCase() + item.createdBy.slice(1) : ''}</div>
       },
       {
         id: 'actions',

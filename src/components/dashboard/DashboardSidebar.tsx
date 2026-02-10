@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useMemo } from 'react'
 import { 
   Home01, 
   Users01, 
@@ -11,6 +11,16 @@ import {
 } from '@untitled-ui/icons-react'
 import logoImage from '../../assets/images/Logo_text.png'
 
+interface Organization {
+  organization_uuid?: string
+  organization_name?: string
+  uuid?: string
+  name?: string
+  id?: string
+  role?: string
+  [key: string]: any
+}
+
 interface SidebarItem {
   id: string
   label: string
@@ -22,7 +32,7 @@ interface DashboardSidebarProps {
   organizationName?: string
   activeItemId?: string
   onItemClick?: (itemId: string, path?: string) => void
-  onOrganizationChange?: () => void
+  onOrganizationChange?: (org: { uuid: string; name: string; role?: string }) => void
   isOpen?: boolean
   onClose?: () => void
 }
@@ -45,6 +55,36 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
   onClose
 }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+
+  // Fetch organizations from localStorage
+  const organizations = useMemo(() => {
+    try {
+      const raw = localStorage.getItem('organizationsFromToken')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        return Array.isArray(parsed) ? parsed : []
+      }
+    } catch {
+      // ignore
+    }
+    return []
+  }, [])
+
+  const handleOrganizationSelect = (org: Organization) => {
+    const uuid = org.organization_uuid ?? org.uuid ?? org.id
+    const name = org.organization_name ?? org.name ?? org.title ?? 'Organization'
+    const role = org.role ?? undefined
+    
+    if (uuid) {
+      onOrganizationChange?.({
+        uuid: String(uuid),
+        name: String(name),
+        role: role ? String(role) : undefined
+      })
+      setIsDropdownOpen(false)
+      onClose?.() // Close sidebar on mobile when organization is switched
+    }
+  }
 
   return (
     <>
@@ -112,20 +152,29 @@ const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
           </div>
 
           {/* Dropdown Menu */}
-          {isDropdownOpen && (
-            <div className="self-stretch -mt-5 p-3 bg-[rgba(39,17,95,0.95)] rounded-xl border border-[rgba(77,239,142,0.3)]">
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  setIsDropdownOpen(false)
-                  onOrganizationChange?.()
-                }}
-                className="w-full py-2 px-3 text-left text-white text-sm font-medium rounded-md bg-transparent border-none cursor-pointer hover:bg-white/10 transition-colors"
-                style={{ fontFamily: 'Inter' }}
-              >
-                Switch organization
-              </button>
+          {isDropdownOpen && organizations.length > 0 && (
+            <div className="self-stretch -mt-5 p-2 bg-[rgba(39,17,95,0.95)] rounded-xl border border-[rgba(77,239,142,0.3)] max-h-64 overflow-y-auto">
+              {organizations.map((org) => {
+                const uuid = org.organization_uuid ?? org.uuid ?? org.id
+                const name = org.organization_name ?? org.name ?? org.title ?? 'Organization'
+                const isCurrentOrg = organizationName === name
+                
+                return (
+                  <button
+                    key={uuid}
+                    type="button"
+                    onClick={() => handleOrganizationSelect(org)}
+                    className={`w-full py-2.5 px-3 text-left text-sm font-medium rounded-md border-none cursor-pointer transition-all ${
+                      isCurrentOrg
+                        ? 'bg-[#6938EF] text-white'
+                        : 'text-[#D9D6FE] hover:bg-white/10'
+                    }`}
+                    style={{ fontFamily: 'Inter' }}
+                  >
+                    <div className="font-semibold">{name}</div>
+                  </button>
+                )
+              })}
             </div>
           )}
         </div>

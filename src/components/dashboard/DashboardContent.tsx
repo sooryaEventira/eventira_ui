@@ -1,6 +1,6 @@
 import React from 'react'
 import SummaryCards from './SummaryCards'
-import SearchAndFilterBar from './SearchAndFilterBar'
+import SearchAndFilterBar, { type FilterState } from './SearchAndFilterBar'
 import EventsTable from './EventsTable'
 import type { Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
@@ -12,7 +12,9 @@ interface DashboardContentProps {
   onSearchChange?: (value: string) => void
   dateRange?: DateRange
   onDateRangeChange?: (range: DateRange) => void
-  onFilterClick?: () => void
+  onFilterApply?: (filters: FilterState) => void
+  createdByOptions?: Array<{ name: string; id: string; avatar?: string }>
+  currentFilters?: FilterState
   onEditEvent?: (eventId: string) => void
   onDeleteEvent?: (eventId: string) => void | Promise<void>
   onEventRowClick?: (event: Event) => void
@@ -24,13 +26,14 @@ interface DashboardContentProps {
 }
 
 const DashboardContent: React.FC<DashboardContentProps> = ({
-  title = 'Web Submit Events',
   onNewEventClick,
   searchValue,
   onSearchChange,
   dateRange,
   onDateRangeChange,
-  onFilterClick,
+  onFilterApply,
+  createdByOptions = [],
+  currentFilters = {},
   onEditEvent,
   onDeleteEvent,
   onEventRowClick,
@@ -45,7 +48,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
       {/* Header Section */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <h1 className="text-xl sm:text-2xl font-semibold text-primary-dark">
-          {title}
+          Overview
         </h1>
         <button
           type="button"
@@ -70,7 +73,9 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         onSearchChange={onSearchChange}
         dateRange={dateRange}
         onDateRangeChange={onDateRangeChange}
-        onFilterClick={onFilterClick}
+        onFilterApply={onFilterApply}
+        createdByOptions={createdByOptions}
+        currentFilters={currentFilters}
       />
 
       {/* Events Table */}
@@ -81,6 +86,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         onRowClick={onEventRowClick}
         onSort={onSortEvents}
         searchValue={searchValue}
+        dateRange={dateRange}
       />
     </div>
   )

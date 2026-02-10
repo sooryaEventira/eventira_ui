@@ -62,6 +62,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
             value={formData.startDate}
             onChange={handleStartDateChange}
             placeholder="Select date"
+            className="w-[250px] "
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -74,6 +75,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
             onChange={handleEndDateChange}
             placeholder="Select date"
             minDate={formData.startDate ? formData.startDate : undefined}
+            className="w-[250px] "
           />
           {dateValidationError && (
             <span className="text-xs text-red-500 mt-0.5">{dateValidationError}</span>
@@ -136,7 +138,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
 
         <div className="flex flex-col gap-1">
           <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Attendees<span className="text-red-500">*</span>
+            Total Attendees<span className="text-red-500">*</span>
           </label>
           <input
             type="number"

@@ -9,6 +9,7 @@ interface DatePickerProps {
   disabled?: boolean
   minDate?: string // ISO date string (YYYY-MM-DD)
   maxDate?: string // ISO date string (YYYY-MM-DD)
+  className?: string // Custom calendar width class
 }
 
 const formatIsoDate = (date: Date) => {
@@ -58,7 +59,8 @@ const DatePicker: React.FC<DatePickerProps> = ({
   label,
   disabled = false,
   minDate,
-  maxDate
+  maxDate,
+  className
 }) => {
   const parsedDate = useMemo(() => parseIsoDate(value), [value])
   const [isOpen, setIsOpen] = useState(false)
@@ -180,7 +182,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-[320px] max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-xl">
+        <div className={`absolute right-0 z-50 mt-2 rounded-2xl border border-slate-200 bg-white p-4 shadow-xl ${className || 'w-[320px]'}`}>
           <div className="flex items-center justify-between pb-3">
             <button
               type="button"

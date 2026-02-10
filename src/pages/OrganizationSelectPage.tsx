@@ -76,25 +76,36 @@ const OrganizationSelectPage: React.FC<OrganizationSelectPageProps> = ({
               )}
             </div>
           ) : (
-            organizations.map((org) => {
-              const uuid = org.organization_uuid ?? org.uuid ?? org.id
-              const name = org.organization_name ?? org.name ?? org.title ?? 'Organization'
-              const role = org.role ?? ''
-              return (
+            <>
+              {organizations.map((org) => {
+                const uuid = org.organization_uuid ?? org.uuid ?? org.id
+                const name = org.organization_name ?? org.name ?? org.title ?? 'Organization'
+                const role = org.role ?? ''
+                return (
+                  <button
+                    key={uuid}
+                    type="button"
+                    onClick={() => handleSelect(org)}
+                    className="flex flex-col items-start gap-0.5 rounded-lg border border-[#D5D7DA] bg-white px-4 py-3 text-left transition-colors hover:border-[#6938EF] hover:bg-[#F5F3FF] focus:outline-none focus:ring-2 focus:ring-[#6938EF]/20"
+                  >
+                    <span className="text-sm font-semibold text-[#181D27]">{name}</span>
+                    {role && <span className="text-xs text-[#717680]">{role}</span>}
+                  </button>
+                )
+              })}
+              {onNeedToCreateOrg && (
                 <button
-                  key={uuid}
                   type="button"
-                  onClick={() => handleSelect(org)}
-                  className="flex flex-col items-start gap-0.5 rounded-lg border border-[#D5D7DA] bg-white px-4 py-3 text-left transition-colors hover:border-[#6938EF] hover:bg-[#F5F3FF] focus:outline-none focus:ring-2 focus:ring-[#6938EF]/20"
+                  onClick={onNeedToCreateOrg}
+                  className="mt-2 inline-flex w-full items-center justify-center rounded-lg border-2 border-[#6938EF] bg-white px-4 py-2.5 text-sm font-semibold text-[#6938EF] hover:bg-[#F5F3FF]"
                 >
-                  <span className="text-sm font-semibold text-[#181D27]">{name}</span>
-                  {role && <span className="text-xs text-[#717680]">{role}</span>}
+                  + Create new organization
                 </button>
-              )
-            })
+              )}
+            </>
           )}
         </div>
-
+{/* 
         {onLogout && (
           <button
             type="button"
@@ -103,7 +114,7 @@ const OrganizationSelectPage: React.FC<OrganizationSelectPageProps> = ({
           >
             Sign out
           </button>
-        )}
+        )} */}
       </div>
     </div>
   )

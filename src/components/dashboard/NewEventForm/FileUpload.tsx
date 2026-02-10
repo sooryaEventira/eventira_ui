@@ -27,6 +27,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   maxHeight: _maxHeight
 }) => {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const uploadIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -49,6 +50,13 @@ const FileUpload: React.FC<FileUploadProps> = ({
     }
 
     onChange(file)
+    
+    // Create preview URL for image files
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      setPreviewUrl(e.target?.result as string)
+    }
+    reader.readAsDataURL(file)
     
     // Simulate upload progress
     const uploadFile: UploadedFile = {
@@ -154,6 +162,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
     
     onChange(null)
     setUploadedFile(null)
+    setPreviewUrl(null)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
     }
@@ -183,35 +192,44 @@ const FileUpload: React.FC<FileUploadProps> = ({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         onClick={handleClick}
-        className={`self-stretch px-6 py-4 bg-white rounded-xl outline outline-1 outline-offset-[-1px] flex flex-col items-center gap-1 cursor-pointer transition-colors ${
+        className={`self-stretch px-6 py-4 bg-white rounded-xl outline outline-1 outline-offset-[-1px] flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors min-h-[180px] ${
           isDragging 
             ? 'outline-[#6938EF] outline-2 bg-[#6938EF]/5' 
             : 'outline-[#D5D7DA]'
         }`}
       >
-        <div className="self-stretch flex flex-col items-center gap-3">
-          {/* Icon Container */}
-          <div className="w-10 h-10 relative bg-white shadow-[0px_1px_2px_rgba(10,12.67,18,0.05)] rounded-lg outline outline-1 outline-[#D5D7DA] outline-offset-[-1px] flex items-center justify-center">
-            <div className="w-5 h-5 relative overflow-hidden">
-              <Upload01 className="w-[16.67px] h-[15px] text-[#414651]" strokeWidth={1.67} />
+        {/* Show Preview or Upload UI */}
+        {previewUrl && accept?.includes('image') ? (
+          <img
+            src={previewUrl}
+            alt={uploadedFile?.file.name}
+            className="max-w-20 max-h-20 object-contain"
+          />
+        ) : (
+          <div className="self-stretch flex flex-col items-center gap-3">
+            {/* Icon Container */}
+            <div className="w-10 h-10 relative bg-white shadow-[0px_1px_2px_rgba(10,12.67,18,0.05)] rounded-lg outline outline-1 outline-[#D5D7DA] outline-offset-[-1px] flex items-center justify-center">
+              <div className="w-5 h-5 relative overflow-hidden">
+                <Upload01 className="w-[16.67px] h-[15px] text-[#414651]" strokeWidth={1.67} />
+              </div>
             </div>
-          </div>
 
-          {/* Text Section */}
-          <div className="self-stretch flex flex-col items-center gap-1">
-            <div className="self-stretch flex justify-center items-start gap-1">
-              <div className="text-[#5925DC] text-sm font-semibold leading-5">
-                Click to upload
+            {/* Text Section */}
+            <div className="self-stretch flex flex-col items-center gap-1">
+              <div className="self-stretch flex justify-center items-start gap-1">
+                <div className="text-[#5925DC] text-sm font-semibold leading-5">
+                  Click to upload
+                </div>
+                <div className="text-[#535862] text-sm font-normal leading-5">
+                  or drag and drop
+                </div>
               </div>
-              <div className="text-[#535862] text-sm font-normal leading-5">
-                or drag and drop
+              <div className="self-stretch text-center text-[#535862] text-xs font-normal leading-[18px]">
+                SVG, PNG, JPG or GIF (max. {maxSize})
               </div>
-            </div>
-            <div className="self-stretch text-center text-[#535862] text-xs font-normal leading-[18px]">
-              SVG, PNG, JPG or GIF (max. {maxSize})
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Hidden File Input */}
@@ -223,7 +241,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
         className="hidden"
       />
 
-      {/* Uploaded File Preview */}
+      {/* Uploaded File Details */}
       {value && uploadedFile && (
         <div className="self-stretch flex flex-col gap-3">
           <div className="self-stretch p-4 relative bg-white rounded-xl outline outline-1 outline-[#E9EAEB] outline-offset-[-1px] flex items-start">

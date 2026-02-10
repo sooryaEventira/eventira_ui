@@ -9,6 +9,7 @@ import WebsitePreviewPage from '../eventhub/WebsitePreviewPage'
 import TeamManagementPage from './team/TeamManagementPage'
 import { type Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
+import type { FilterState } from './SearchAndFilterBar'
 import { deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { showToast } from '../../utils/toast'
@@ -26,6 +27,7 @@ interface DashboardLayoutProps {
   onNewEventClick?: () => void
   onEditEvent?: (eventId: string) => void
   onSortEvents?: (column: string) => void
+  onOrganizationChange?: (org: { uuid: string; name: string; role?: string }) => void
 }
 
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({
@@ -40,7 +42,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onLogout,
   onNewEventClick,
   onEditEvent,
-  onSortEvents
+  onSortEvents,
+  onOrganizationChange
 }) => {
   const { setCreatedEvent, createdEvent } = useEventForm()
   // Use ref to store latest createdEvent so checkRoute always has access to current value
@@ -65,6 +68,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [routePath, setRoutePath] = useState<string>(() => window.location.pathname)
   const [searchValue, setSearchValue] = useState('')
   const [dateRange, setDateRange] = useState<DateRange>({ start: null, end: null })
+  const [filterState, setFilterState] = useState<FilterState>({})
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [showNewEventForm, setShowNewEventForm] = useState(false)
   const [showTemplatePage, setShowTemplatePage] = useState(false)
@@ -244,9 +248,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       // Map API response to Event interface format (already sorted)
       const mappedEvents: Event[] = sortedEventDataList.map((eventData: EventData) => {
         // Map eventExperience to attendanceType
-        const attendanceTypeMap: Record<string, 'Online' | 'Offline' | 'Hybrid'> = {
-          'virtual': 'Online',
-          'in-person': 'Offline',
+        const attendanceTypeMap: Record<string, 'Virtual' | 'In-person' | 'Hybrid'> = {
+          'virtual': 'Virtual',
+          'in-person': 'In-person',
           'hybrid': 'Hybrid',
         }
         
@@ -409,9 +413,49 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   }, [events])
 
+  // Extract unique created by options
+  const createdByOptions = useMemo(() => {
+    const unique = new Map<string, string>()
+    events.forEach(event => {
+      if (event.createdBy && !unique.has(event.createdBy)) {
+        unique.set(event.createdBy, event.createdBy)
+      }
+    })
+    return Array.from(unique.entries()).map(([name, id]) => ({
+      name,
+      id,
+      avatar: undefined
+    }))
+  }, [events])
+
+  const handleFilterApply = (filters: FilterState) => {
+    setFilterState(filters)
+  }
+
   // Filter events based on search query and date range
   const filteredEvents = useMemo(() => {
     let filtered = events
+
+    // Apply status filter
+    if (filterState.status) {
+      filtered = filtered.filter((event) => 
+        event.status.toLowerCase() === filterState.status?.toLowerCase()
+      )
+    }
+
+    // Apply attendance type filter
+    if (filterState.attendanceType) {
+      filtered = filtered.filter((event) => 
+        event.attendanceType.toLowerCase() === filterState.attendanceType?.toLowerCase()
+      )
+    }
+
+    // Apply created by filter
+    if (filterState.createdBy && filterState.createdBy.length > 0) {
+      filtered = filtered.filter((event) => 
+        filterState.createdBy?.includes(event.createdBy)
+      )
+    }
 
     // Apply date range filter
     if (dateRange.start && dateRange.end) {
@@ -455,7 +499,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
 
     return filtered
-  }, [events, searchValue, dateRange])
+  }, [events, searchValue, dateRange, filterState])
 
   const handleSidebarItemClick = (itemId: string, pathOverride?: string) => {
     setActiveItemId(itemId)
@@ -604,6 +648,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         organizationName={organizationName}
         activeItemId={activeItemId}
         onItemClick={handleSidebarItemClick}
+        onOrganizationChange={onOrganizationChange}
         isOpen={isSidebarOpen}
         onClose={() => setIsSidebarOpen(false)}
       />
@@ -656,6 +701,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             onSearchChange={setSearchValue}
             dateRange={dateRange}
             onDateRangeChange={setDateRange}
+            onFilterApply={handleFilterApply}
+            createdByOptions={createdByOptions}
+            currentFilters={filterState}
             onEditEvent={onEditEvent}
             onDeleteEvent={handleDeleteEvent}
             onEventRowClick={handleEventRowClick}

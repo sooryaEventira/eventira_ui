@@ -174,6 +174,7 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
 
   const eventTitle = data?.event.title ?? (createdEvent?.eventName || eventData?.eventName || 'Event Overview')
   const status = data?.event.status ?? 'draft'
+  console.log('Overview data:', data)
 
   return (
     <div className="flex-1 p-8 bg-white overflow-x-auto overflow-y-auto min-w-0">

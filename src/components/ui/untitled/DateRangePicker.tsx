@@ -210,11 +210,16 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
       setTempStartDate(date)
       setTempEndDate(null)
     } else if (tempStartDate && !tempEndDate) {
-      // Complete selection
-      if (date < tempStartDate) {
+      // Check if clicking the same date (single date selection)
+      if (isSameDay(tempStartDate, date)) {
+        // Single date selected
+        setTempEndDate(date)
+      } else if (date < tempStartDate) {
+        // Date is before start date, swap them
         setTempEndDate(tempStartDate)
         setTempStartDate(date)
       } else {
+        // Complete the range
         setTempEndDate(date)
       }
     }
@@ -228,8 +233,10 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
   }
 
   const handleApply = () => {
-    if (tempStartDate && tempEndDate) {
-      onChange({ start: tempStartDate, end: tempEndDate })
+    if (tempStartDate) {
+      // If only start date is selected, use it as both start and end (single date)
+      const endDate = tempEndDate || tempStartDate
+      onChange({ start: tempStartDate, end: endDate })
       setIsOpen(false)
     }
   }
@@ -404,7 +411,7 @@ const DateRangePicker: React.FC<DateRangePickerProps> = ({
             <button
               type="button"
               onClick={handleApply}
-              disabled={!tempStartDate || !tempEndDate}
+              disabled={!tempStartDate}
               className="flex-1 rounded-lg bg-[#6938EF] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#5925DC] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#6938EF]"
             >
               Apply

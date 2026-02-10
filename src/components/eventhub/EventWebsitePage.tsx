@@ -696,7 +696,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     }))
 
     return [
-      { id: 'overview', label: 'Overview', icon: <InfoCircle className="h-5 w-5" /> },
+      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       {
         id: 'event-hub',
@@ -713,8 +713,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     }
     
     // Top-level navigation items
-    if (itemId === 'overview') {
-      window.history.pushState({ section: 'overview' }, '', '/event/hub?section=overview')
+    if (itemId === 'summary') {
+      window.history.pushState({ section: 'summary' }, '', '/event/hub?section=summary')
       window.dispatchEvent(new PopStateEvent('popstate'))
       return
     }

@@ -75,7 +75,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
     }))
 
     return [
-      { id: 'overview', label: 'Overview', icon: <InfoCircle className="h-5 w-5" /> },
+      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       {
         id: 'event-hub',
@@ -93,7 +93,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
 
   const handleSidebarItemClick = useCallback((itemId: string) => {
     // Handle top-level menu items
-    if (itemId === 'event-hub' || itemId === 'event-website' || itemId === 'overview') {
+    if (itemId === 'event-hub' || itemId === 'event-website' || itemId === 'summary') {
       setActiveSection(itemId)
       // Update URL to reflect the change
       const newUrl = itemId === 'event-hub' ? '/event/hub' : `/event/hub?section=${itemId}`
@@ -112,7 +112,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'overview':
+      case 'summary':
         return (
           <EventHubOverviewPage
             onNavigateSection={(sectionId) => {

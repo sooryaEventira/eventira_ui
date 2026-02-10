@@ -1,5 +1,5 @@
 import React from 'react'
-import { ArrowNarrowLeft, SearchLg, Bell01, User01 } from '@untitled-ui/icons-react'
+import { Home01, SearchLg, Bell01, User01 } from '@untitled-ui/icons-react'
 
 interface EventHubNavbarProps {
   eventName?: string
@@ -32,7 +32,7 @@ const EventHubNavbar: React.FC<EventHubNavbarProps> = ({
           className="flex shrink-0 items-center rounded-full p-2 text-white transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           aria-label="Go back"
         >
-          <ArrowNarrowLeft className="h-5 w-5" aria-hidden="true" />
+          <Home01 className="h-5 w-5" aria-hidden="true" />
         </button>
 
         <div className="hidden h-7 w-px bg-white/30 sm:block" aria-hidden="true" />

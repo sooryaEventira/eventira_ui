@@ -4,7 +4,7 @@ import { Model } from 'survey-core';
 import { RegistrationFormProps } from '../../types';
 
 const RegistrationForm: React.FC<RegistrationFormProps> = ({ 
-  title = "Registration Form",
+  title = "Registration ",
   puck 
 }) => {
   const surveyJson = {

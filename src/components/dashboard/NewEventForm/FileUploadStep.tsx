@@ -321,11 +321,11 @@ const FileUploadStep = forwardRef<FileUploadStepRef, FileUploadStepProps>(({
       <FileUpload
         label="Logo"
         accept="image/*"
-        maxSize="800×400px"
+        maxSize="500×500px"
         value={formData.logo}
         onChange={(file) => updateFormData({ logo: file })}
-        maxWidth="800"
-        maxHeight="400"
+        maxWidth="500"
+        maxHeight="500"
       />
 
       {/* Banner Upload */}
