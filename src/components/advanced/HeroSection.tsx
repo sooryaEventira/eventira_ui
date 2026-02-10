@@ -13,7 +13,7 @@ const HeroSection = ({
       text: 'Register Now',
       link: '#',
       color: '#8b5cf6',
-      textColor: 'white',
+      textColor: '#FFFFFF',
       size: 'large' as const
     }
   ],
@@ -271,9 +271,9 @@ const HeroSection = ({
 
   const getButtonStyle = (button: HeroButton): React.CSSProperties => ({
     backgroundColor: button.color || '#6938EF',
-    color: button.textColor || 'white',
+    color: button.textColor || '#FFFFFF',
     padding: getButtonPadding(button.size || 'large'),
-    border: (button.color || '#6938EF') === 'transparent' ? `2px solid ${button.textColor || 'white'}` : 'none',
+    border: (button.color || '#6938EF') === 'transparent' ? `2px solid ${button.textColor || '#FFFFFF'}` : 'none',
     fontSize: getButtonFontSize(button.size || 'large'),
     boxShadow: (button.color || '#6938EF') === 'transparent' ? 'none' : '0 4px 12px rgba(0,0,0,0.3)',
     marginRight: buttonSpacing
@@ -284,7 +284,7 @@ const HeroSection = ({
     const isTransparent = e.currentTarget.style.backgroundColor === 'transparent'
     if (isTransparent) {
       e.currentTarget.style.backgroundColor = e.currentTarget.style.color
-      e.currentTarget.style.color = 'white'
+      e.currentTarget.style.color = '#FFFFFF'
     } else {
       e.currentTarget.style.boxShadow = '0 6px 16px rgba(0,0,0,0.4)'
     }
@@ -295,7 +295,7 @@ const HeroSection = ({
     const isTransparent = e.currentTarget.style.backgroundColor === 'transparent'
     if (isTransparent) {
       e.currentTarget.style.backgroundColor = 'transparent'
-      e.currentTarget.style.color = e.currentTarget.dataset.originalColor || 'white'
+      e.currentTarget.style.color = e.currentTarget.dataset.originalColor || '#FFFFFF'
     } else {
       e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.3)'
     }

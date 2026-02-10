@@ -8,6 +8,13 @@ export interface DirectionItem {
   iconColor?: string
 }
 
+export interface ButtonItem {
+  text: string | React.ReactElement
+  url: string
+  color?: string
+  textColor?: string
+}
+
 export interface VenueDirectionsProps {
   title?: string | React.ReactElement
   titleColor?: string
@@ -26,6 +33,7 @@ export interface VenueDirectionsProps {
   directionTextColor?: string
   backgroundColor?: string
   textColor?: string
+  buttons?: ButtonItem[]
   buttonColor?: string
   buttonTextColor?: string
   openMapsUrl?: string
@@ -52,6 +60,7 @@ const VenueDirections: React.FC<VenueDirectionsProps> = ({
   directionTextColor,
   backgroundColor = '#f9fafb',
   textColor = '#1f2937',
+  buttons = [],
   buttonColor = '#3b82f6',
   buttonTextColor = '#ffffff',
   openMapsUrl,
@@ -236,6 +245,22 @@ const VenueDirections: React.FC<VenueDirectionsProps> = ({
   }, [mapUrlInput, openMapsUrl])
   const openMapsButtonBg = openMapsButtonColor || buttonColor
   const openMapsButtonFg = openMapsButtonTextColor || buttonTextColor
+
+  // Use buttons array if provided, otherwise fall back to individual properties
+  const renderButtons = buttons && buttons.length > 0 ? buttons : [
+    {
+      text: entranceLinkText || 'Get Directions',
+      url: entranceLinkUrl || '',
+      color: buttonColor,
+      textColor: buttonTextColor
+    },
+    {
+      text: openMapsText,
+      url: openMapsHref,
+      color: openMapsButtonBg,
+      textColor: openMapsButtonFg
+    }
+  ]
 
   const defaultDirections: DirectionItem[] = [
     {
@@ -440,21 +465,31 @@ const VenueDirections: React.FC<VenueDirectionsProps> = ({
               })}
             </div>
 
-            {/* Map Link Button */}
-            <div className="mt-8">
-              <a
-                href={openMapsHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-opacity hover:opacity-90"
-                style={{
-                  backgroundColor: openMapsButtonBg,
-                  color: openMapsButtonFg,
-                }}
-              >
-                {openMapsText}
-                <span>→</span>
-              </a>
+            {/* Action Buttons */}
+            <div className="mt-8 flex gap-4 flex-wrap">
+              {renderButtons.map((btn, idx) => {
+                const btnText = typeof btn.text === 'string' ? btn.text : btn.text?.props?.value || 'Button'
+                const btnUrl = btn.url || '#'
+                const btnColor = btn.color || buttonColor
+                const btnTextColor = btn.textColor || buttonTextColor
+
+                return (
+                  <a
+                    key={idx}
+                    href={btnUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-opacity hover:opacity-90"
+                    style={{
+                      backgroundColor: btnColor,
+                      color: btnTextColor,
+                    }}
+                  >
+                    {btn.text}
+                    <span>→</span>
+                  </a>
+                )
+              })}
             </div>
           </div>
         </div>

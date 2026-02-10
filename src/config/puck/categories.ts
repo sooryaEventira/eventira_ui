@@ -8,7 +8,7 @@ export const categories = {
   basic: {
     title: "Basic Elements",
     icon: "fa-solid fa-font",
-    defaultExpanded: true,
+    defaultExpanded: false,
     components: ["Heading", "Text", "Button", "Checkbox", "Divider", "Spacer", "TextBlock", "InputField", "SelectField"],
     subcategories: {
       typography: {
@@ -106,6 +106,14 @@ export const categories = {
         components: ["CountdownTimer", "ProgressCircleStats", "LiveChat", "ApiTestComponent"]
       }
     }
+  },
+
+  // Other Components Category
+  other: {
+    title: "Other",
+    icon: "fa-solid fa-ellipsis-h",
+    defaultExpanded: false,
+    components: ["GroupDirectory"]
   }
 }
 

@@ -34,7 +34,7 @@ export const config = {
     basic: {
       title: "Basic Elements",
       icon: "fa-solid fa-font",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["Heading", "Text", "Button", "Checkbox", "Divider", "Spacer", "TextBlock", "InputField", "SelectField"],
       subcategories: {
         typography: {
@@ -58,7 +58,7 @@ export const config = {
     layout: {
       title: "Layout & Containers",
       icon: "fa-solid fa-th-large",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["Container", "FlexContainer", "GridContainer", "SimpleContainer", "PositionedElement", "GridLayout"],
       subcategories: {
         containers: {
@@ -87,7 +87,7 @@ export const config = {
     content: {
       title: "Content Blocks",
       icon: "fa-solid fa-cube",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["Card", "List"],
       subcategories: {
         cards: {
@@ -106,35 +106,35 @@ export const config = {
     landing: {
       title: "Landing / Home Page",
       icon: "fa-solid fa-home",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["HeroSection", "EventNumbers", "SpeakerHighlight", "SessionHighlight", "Sponsors", "ContactFooter", "RegistrationCTA"]
     },
     // Venue Page Category
     venue: {
       title: "Venue Page",
       icon: "fa-solid fa-map-marker-alt",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["VenueBlock", "SplitVenueBlock", "HotelPartners", "VenueDirections"]
     },
     // Resource Category
     resource: {
       title: "Resource",
       icon: "fa-solid fa-folder-open",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["Image", "ResourceCards", "LocationFloorPlan"]
     },
     // General Page Category
     general: {
       title: "General Page",
       icon: "fa-solid fa-file-alt",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["GridBlock", "Article"]
     },
     // Table / List Category
     tableList: {
       title: "Table / List",
       icon: "fa-solid fa-table",
-      defaultExpanded: true,
+      defaultExpanded: false,
       components: ["Table"]
     },
     // Advanced Components Category
@@ -160,6 +160,13 @@ export const config = {
           components: ["SpeakerCard", "SpeakersSection", "ScheduleSection", "Navigation"]
         }
       }
+    },
+    // Other Components Category
+    other: {
+      title: "Other",
+      icon: "fa-solid fa-ellipsis-h",
+      defaultExpanded: false,
+      components: ["GroupDirectory"]
     }
   },
   components: {
@@ -840,10 +847,31 @@ export const config = {
           type: 'text' as const,
           label: 'Event Title',
         },
+        titleSize: {
+          type: 'select' as const,
+          label: 'Title Size',
+          options: [
+            { label: 'Small ', value: '2rem' },
+            { label: 'Medium ', value: '2.5rem' },
+            { label: 'Large ', value: '3rem' },
+            { label: 'Extra Large ', value: '3.5rem' },
+
+          ]
+        },
         subtitle: { 
           type: 'text' as const,
           label: 'Location',
           placeholder: 'Location (optional)'
+        },
+        subtitleSize: {
+          type: 'select' as const,
+          label: 'Subtitle Size',
+          options: [
+            { label: 'Small', value: '1rem' },
+            { label: 'Medium ', value: '1.125rem' },
+            { label: 'Large ', value: '1.25rem' },
+            { label: 'Extra Large', value: '1.5rem' }
+          ]
         },
         startDate: {
           type: 'text' as const,
@@ -872,19 +900,12 @@ export const config = {
               label: 'Button Color (hex code)',
               placeholder: '#6938EF'
             },
-            textColor: {
-              type: 'select' as const,
-              label: 'Button Text Color',
-              options: [
-                { label: 'White', value: 'white' },
-                { label: 'Black', value: 'black' },
-                { label: 'Blue', value: '#007bff' },
-                { label: 'Green', value: '#28a745' },
-                { label: 'Red', value: '#dc3545' },
-                { label: 'Orange', value: '#fd7e14' },
-                { label: 'Yellow', value: '#ffc107' }
-              ]
-            },
+textColor: {
+  type: 'text' as const,
+  label: 'Button Text Color (hex)',
+  placeholder: '#ffffff'
+},
+
             size: {
               type: 'select' as const,
               label: 'Button Size',
@@ -920,27 +941,8 @@ export const config = {
             { label: 'Right', value: 'right' }
           ]
         },
-        titleSize: {
-          type: 'select' as const,
-          label: 'Title Size',
-          options: [
-            { label: 'Small (2rem)', value: '2rem' },
-            { label: 'Medium (2.5rem)', value: '2.5rem' },
-            { label: 'Large (3rem)', value: '3rem' },
-            { label: 'Extra Large (3.5rem)', value: '3.5rem' },
-            { label: 'Huge (4rem)', value: '4rem' }
-          ]
-        },
-        subtitleSize: {
-          type: 'select' as const,
-          label: 'Subtitle Size',
-          options: [
-            { label: 'Small (1rem)', value: '1rem' },
-            { label: 'Medium (1.125rem)', value: '1.125rem' },
-            { label: 'Large (1.25rem)', value: '1.25rem' },
-            { label: 'Extra Large (1.5rem)', value: '1.5rem' }
-          ]
-        }
+
+
       },
       defaultProps: {
         showContent: true,
@@ -2326,10 +2328,31 @@ export const config = {
           label: 'Heading',
           placeholder: 'Headlining Speakers',
         },
+        headingColor: {
+          type: 'text' as const,
+          label: 'Heading Color',
+          placeholder: 'hex code',
+        },
+        headingSize: {
+          type: 'select' as const,
+          label: 'Heading Size',
+          options: [
+            { label: 'Small', value: '1rem' },
+            { label: 'Medium ', value: '1.25rem' },
+            { label: 'Large ', value: '1.5rem' },
+            { label: 'Extra Large', value: '1.75rem' }
+          ],
+          defaultValue: '1.5rem'
+        },
         subtitle: {
           type: 'text' as const,
           label: 'Subtitle',
           placeholder: 'Learn from the pioneers shaping the industry.',
+        },
+        subtitleColor: {
+          type: 'text' as const,
+          label: 'Subtitle Color(hex)',
+          placeholder: 'Leave empty for default gray',
         },
         speakers: {
           type: 'array' as const,
@@ -2370,34 +2393,54 @@ export const config = {
             return item?.name || `Speaker ${index + 1}`;
           }
         },
-        backgroundColor: {
-          type: 'text' as const,
-          label: 'Background Color (hex)',
-          placeholder: '#ffffff',
-        },
+        // backgroundColor: {
+        //   type: 'text' as const,
+        //   label: 'Background Color (hex)',
+        //   placeholder: '#ffffff',
+        // },
         textColor: {
           type: 'text' as const,
           label: 'Text Color (hex)',
           placeholder: '#000000',
         },
-        headingColor: {
-          type: 'text' as const,
-          label: 'Heading Color (hex, optional)',
-          placeholder: 'Leave empty to use Text Color',
-        },
-        subtitleColor: {
-          type: 'text' as const,
-          label: 'Subtitle Color (hex, optional)',
-          placeholder: 'Leave empty for default gray',
-        },
+
+
         speakerNameColor: {
           type: 'text' as const,
-          label: 'Photo Heading Color (hex, optional)',
+          label: 'Photo Heading Color (hex)',
           placeholder: 'Controls speaker name color',
         },
+        speakerNameSize: {
+          type: 'select' as const,
+          label: 'Speaker Name Size',
+          options: [
+            { label: 'Small', value: '0.875rem' },
+            { label: 'Medium', value: '1rem' },
+            { label: 'Large', value: '1.25rem' },
+            { label: 'Extra Large', value: '1.5rem' }
+          ],
+          defaultValue: '1.25rem'
+        },
+        columns: {
+          type: 'select' as const,
+          label: 'Columns',
+          options: [
+            { label: '1 Column', value: '1' },
+            { label: '2 Columns', value: '2' },
+            { label: '3 Columns', value: '3' },
+            { label: '4 Columns', value: '4' }
+          ],
+          defaultValue: '3'
+        },
+        imageShapeColor: {
+          type: 'text' as const,
+          label: 'Image Shape Color (hex)',
+          placeholder: '#6b7280',
+        },
+
         speakerMetaColor: {
           type: 'text' as const,
-          label: 'Photo Subheading Color (hex, optional)',
+          label: 'Photo Subheading Color (hex)',
           placeholder: 'Controls title/company color',
         },
         imageShape: {
@@ -2453,8 +2496,12 @@ export const config = {
         backgroundColor: '#ffffff',
         textColor: '#000000',
         headingColor: '',
+        headingSize: '1.25rem',
         subtitleColor: '',
         speakerNameColor: '',
+        speakerNameSize: '1.25rem',
+        columns: '3',
+        imageShapeColor: '#6b7280',
         speakerMetaColor: '',
         imageShape: 'circle',
         photoSize: 'md'
@@ -3435,26 +3482,26 @@ export const config = {
             { label: 'Size 3 (large)', value: 3 }
           ]
         },
-        mapUrl: {
-          type: 'text' as const,
-          label: 'Map URL / Location',
-          placeholder: 'Paste a Google Maps link (or type an address/place)'
-        },
+        // mapUrl: {
+        //   type: 'text' as const,
+        //   label: 'Map URL / Location',
+        //   placeholder: 'Paste a Google Maps link (or type an address/place)'
+        // },
         mapEmbedUrl: {
           type: 'text' as const,
           label: 'Google Maps Embed URL',
           placeholder: 'https://www.google.com/maps/embed?pb=... (or paste full <iframe> embed code)'
         },
-        mapImageUrl: {
-          type: 'text' as const,
-          label: 'Map Image URL (optional)',
-          placeholder: 'https://example.com/map.jpg'
-        },
-        mapPlaceholder: {
-          type: 'textarea' as const,
-          label: 'Map Placeholder Text',
-          placeholder: 'Interactive Map Component'
-        },
+        // mapImageUrl: {
+        //   type: 'text' as const,
+        //   label: 'Map Image URL (optional)',
+        //   placeholder: 'https://example.com/map.jpg'
+        // },
+        // mapPlaceholder: {
+        //   type: 'textarea' as const,
+        //   label: 'Map Placeholder Text',
+        //   placeholder: 'Interactive Map Component'
+        // },
         entranceTitle: {
           type: 'text' as const,
           label: 'Entrance Title',
@@ -3514,45 +3561,44 @@ export const config = {
             return item?.title || `Direction ${index + 1}`;
           }
         },
-        backgroundColor: {
-          type: 'text' as const,
-          label: 'Background Color (hex)',
-          placeholder: '#f9fafb'
-        },
-        textColor: {
-          type: 'text' as const,
-          label: 'Text Color (hex)',
-          placeholder: '#1f2937'
-        },
-        buttonColor: {
-          type: 'text' as const,
-          label: 'Button Color (hex)',
-          placeholder: '#3b82f6'
-        },
-        buttonTextColor: {
-          type: 'text' as const,
-          label: 'Button Text Color (hex)',
-          placeholder: '#ffffff'
-        },
-        openMapsUrl: {
-          type: 'text' as const,
-          label: 'Open Maps Link URL (optional)',
-          placeholder: 'https://www.google.com/maps/search/?api=1&query=...'
-        },
-        openMapsText: {
-          type: 'text' as const,
-          label: 'Open Maps Button Text',
-          placeholder: 'Open in Maps'
-        },
-        openMapsButtonColor: {
-          type: 'text' as const,
-          label: 'Open Maps Button Color (hex)',
-          placeholder: '#3b82f6'
-        },
-        openMapsButtonTextColor: {
-          type: 'text' as const,
-          label: 'Open Maps Button Text Color (hex)',
-          placeholder: '#ffffff'
+        // backgroundColor: {
+        //   type: 'text' as const,
+        //   label: 'Background Color (hex)',
+        //   placeholder: '#f9fafb'
+        // },
+        // textColor: {
+        //   type: 'text' as const,
+        //   label: 'Text Color (hex)',
+        //   placeholder: '#1f2937'
+        // },
+        buttons: {
+          type: 'array' as const,
+          label: 'Buttons',
+          arrayFields: {
+            text: {
+              type: 'text' as const,
+              label: 'Button Text',
+              placeholder: 'Get Directions',
+            },
+            url: {
+              type: 'text' as const,
+              label: 'Button URL',
+              placeholder: 'https://maps.google.com/...',
+            },
+            color: {
+              type: 'text' as const,
+              label: 'Button Color (hex)',
+              placeholder: '#3b82f6'
+            },
+            textColor: {
+              type: 'text' as const,
+              label: 'Button Text Color (hex)',
+              placeholder: '#ffffff'
+            }
+          },
+          getItemSummary: (item: any, index: number) => {
+            return item?.text || `Button ${index + 1}`;
+          }
         }
       },
       defaultProps: {
@@ -3595,12 +3641,20 @@ export const config = {
         directionTextColor: '#1f2937',
         backgroundColor: '#f9fafb',
         textColor: '#1f2937',
-        buttonColor: '#3b82f6',
-        buttonTextColor: '#ffffff',
-        openMapsUrl: '',
-        openMapsText: 'Open in Maps',
-        openMapsButtonColor: '#3b82f6',
-        openMapsButtonTextColor: '#ffffff'
+        buttons: [
+          {
+            text: 'Get Directions',
+            url: '',
+            color: '#3b82f6',
+            textColor: '#ffffff'
+          },
+          {
+            text: 'Open in Maps',
+            url: '',
+            color: '#3b82f6',
+            textColor: '#ffffff'
+          }
+        ]
       },
       render: VenueDirections
     },

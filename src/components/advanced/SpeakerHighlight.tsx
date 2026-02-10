@@ -18,10 +18,14 @@ export interface SpeakerHighlightProps {
   backgroundColor?: string
   textColor?: string
   headingColor?: string
+  headingSize?: string
   subtitleColor?: string
   speakerNameColor?: string
+  speakerNameSize?: string
   speakerMetaColor?: string
   accentColor?: string
+  imageShapeColor?: string
+  columns?: '1' | '2' | '3' | '4'
   padding?: string
   imageShape?: 'circle' | 'rectangle'
   photoSize?: 'sm' | 'md' | 'lg'
@@ -34,9 +38,13 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
   backgroundColor = '#ffffff',
   textColor = '#000000',
   headingColor,
+  headingSize = '1.5rem',
   subtitleColor,
   speakerNameColor,
+  speakerNameSize = '1.25rem',
   speakerMetaColor,
+  imageShapeColor = '#6b7280',
+  columns = '3',
   padding = '4rem 2rem',
   imageShape = 'circle',
   photoSize = 'md'
@@ -89,6 +97,15 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
         ? 'w-40 h-40 md:w-48 md:h-48'
         : 'w-32 h-32 md:w-40 md:h-40'
 
+  const gridColsClass =
+    columns === '1'
+      ? 'grid-cols-1'
+      : columns === '2'
+        ? 'grid-cols-1 md:grid-cols-2'
+        : columns === '4'
+          ? 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
+          : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+
   return (
     <section
       className="w-full"
@@ -103,8 +120,11 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
           <div className="text-center mb-12">
             {headingValue && (
               <h2
-                className="text-3xl md:text-4xl lg:text-5xl font-bold mb-4"
-                style={{ color: finalHeadingColor }}
+                className="font-bold mb-4"
+                style={{ 
+                  color: finalHeadingColor,
+                  fontSize: headingSize
+                }}
               >
                 {heading}
               </h2>
@@ -122,7 +142,7 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
 
         {/* Speakers Grid */}
         {speakers.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 lg:gap-12">
+          <div className={`grid ${gridColsClass} gap-8 lg:gap-12`}>
             {speakers.map((speaker) => {
               const nameValue = getStringValue(speaker.name);
               const titleValue = getStringValue(speaker.title);
@@ -130,8 +150,7 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
               const quoteValue = getStringValue(speaker.quote);
               const photoValue = getStringValue(speaker.photo);
               const linkValue = (speaker.link || '').trim()
-              // Always use gray for accent color
-              const speakerAccentColor = '#6b7280';
+              const speakerAccentColor = imageShapeColor;
 
               const SpeakerContent = () => (
                 <>
@@ -190,8 +209,11 @@ const SpeakerHighlight: React.FC<SpeakerHighlightProps> = ({
                   {/* Name (photo heading) */}
                   {nameValue && (
                     <h3
-                      className="text-xl md:text-2xl font-bold mb-2"
-                      style={{ color: finalSpeakerNameColor }}
+                      className="font-bold mb-2"
+                      style={{ 
+                        color: finalSpeakerNameColor,
+                        fontSize: speakerNameSize
+                      }}
                     >
                       {speaker.name}
                     </h3>

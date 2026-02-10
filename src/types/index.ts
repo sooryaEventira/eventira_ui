@@ -398,6 +398,12 @@ export interface VenueDirectionsProps {
   cardBackgroundColor?: string
   cardBorderColor?: string
   iconBackgroundColor?: string
+  buttons?: Array<{
+    text: string | React.ReactElement
+    url: string
+    color?: string
+    textColor?: string
+  }>
   buttonColor?: string
   buttonTextColor?: string
   padding?: string
