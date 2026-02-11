@@ -22,6 +22,7 @@ interface SponsorsProps {
   backgroundColor?: string
   textColor?: string
   padding?: string
+  columns?: number
 }
 
 const Sponsors: React.FC<SponsorsProps> = ({
@@ -39,7 +40,8 @@ const Sponsors: React.FC<SponsorsProps> = ({
   ],
   backgroundColor = "#ffffff",
   textColor = "#1f2937",
-  padding = "3rem 2rem"
+  padding = "3rem 2rem",
+  columns = 4
 }) => {
   const getStringValue = (prop: any): string => {
     if (typeof prop === 'string') return prop
@@ -64,6 +66,15 @@ const Sponsors: React.FC<SponsorsProps> = ({
 
   const subtitleSizeClass =
     subtitleSize === 1 ? 'text-sm md:text-base' : subtitleSize === 3 ? 'text-lg md:text-xl' : 'text-base md:text-lg'
+
+  const gridColsClass = {
+    1: 'grid-cols-1',
+    2: 'grid-cols-2',
+    3: 'grid-cols-3',
+    4: 'grid-cols-4',
+    5: 'grid-cols-5',
+    6: 'grid-cols-6'
+  }[columns] || 'grid-cols-4'
 
   // Default placeholder logos (matching the image description)
   const getDefaultLogo = (index: number) => {
@@ -104,7 +115,7 @@ const Sponsors: React.FC<SponsorsProps> = ({
             <div className="h-8" />
           </div>
         )}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-8 items-center justify-items-center">
+        <div className={`grid ${gridColsClass} gap-8 items-center justify-items-center`}>
           {sponsors.map((sponsor, index) => {
             const sponsorNameValue = getStringValue(sponsor.name)
             const sponsorTitleValue = getStringValue(sponsor.title) || sponsorNameValue

@@ -14,6 +14,7 @@ export interface GridBlockProps {
   itemTitleAlign?: 'left' | 'center' | 'right'
   itemTitleColor?: string
   layout?: '1' | '2x1' | '2x2' | '2x3'
+  columns?: number
   items?: GridItem[]
   backgroundColor?: string
   textColor?: string
@@ -23,6 +24,7 @@ export interface GridBlockProps {
   padding?: string
   gap?: string
   imageHeight?: string
+  linkDisplayMode?: 'link' | 'button'
 }
 
 const GridBlock: React.FC<GridBlockProps> = ({
@@ -30,6 +32,7 @@ const GridBlock: React.FC<GridBlockProps> = ({
   itemTitleAlign = 'left',
   itemTitleColor,
   layout = '2x2',
+  columns,
   items = [],
   backgroundColor = '#ffffff',
   textColor = '#1f2937',
@@ -38,7 +41,8 @@ const GridBlock: React.FC<GridBlockProps> = ({
   linkColor = '#3b82f6',
   padding = '4rem 2rem',
   gap = '1.5rem',
-  imageHeight = '200px'
+  imageHeight = '200px',
+  linkDisplayMode = 'link'
 }) => {
   const getStringValue = (prop: any): string => {
     if (typeof prop === 'string') return prop
@@ -57,6 +61,20 @@ const GridBlock: React.FC<GridBlockProps> = ({
   const titleValue = getStringValue(title)
 
   const getGridClass = () => {
+    // If columns is specified, use it directly
+    if (columns) {
+      const gridColsClass = {
+        1: 'grid-cols-1',
+        2: 'grid-cols-1 md:grid-cols-2',
+        3: 'grid-cols-1 md:grid-cols-3',
+        4: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4',
+        5: 'grid-cols-1 md:grid-cols-2 lg:grid-cols-5',
+        6: 'grid-cols-1 md:grid-cols-3 lg:grid-cols-6'
+      }
+      return gridColsClass[columns as keyof typeof gridColsClass] || 'grid-cols-1 md:grid-cols-2 lg:grid-cols-4'
+    }
+
+    // Otherwise use layout
     switch (layout) {
       case '1':
         return 'grid-cols-1'
@@ -186,16 +204,31 @@ const GridBlock: React.FC<GridBlockProps> = ({
                     </p>
                   )}
 
-                  {/* Link */}
+                  {/* Link/Button */}
                   {item.link && linkTextValue && (
-                    <a
-                      href={item.link}
-                      className="inline-flex items-center gap-2 font-semibold transition-opacity hover:opacity-80"
-                      style={{ color: linkColor }}
-                    >
-                      {item.linkText}
-                      <span>→</span>
-                    </a>
+                    linkDisplayMode === 'button' ? (
+                      <button
+                        className="inline-flex items-center gap-2 px-4 py-2 rounded font-semibold transition-opacity hover:opacity-80"
+                        style={{ 
+                          backgroundColor: linkColor,
+                          color: '#ffffff'
+                        }}
+                        onClick={() => {
+                          window.location.href = item.link || '#'
+                        }}
+                      >
+                        {item.linkText}
+                      </button>
+                    ) : (
+                      <a
+                        href={item.link}
+                        className="inline-flex items-center gap-2 font-semibold transition-opacity hover:opacity-80"
+                        style={{ color: linkColor }}
+                      >
+                        {item.linkText}
+                        <span>→</span>
+                      </a>
+                    )
                   )}
                 </div>
               </div>

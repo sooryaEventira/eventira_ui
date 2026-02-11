@@ -30,6 +30,48 @@ export const config = {
   // Configure viewport sizes for different device previews
   viewports,
   categories: {
+    // Home / Landing Page Category
+    landing: {
+      title: "Home/Landing",
+      icon: "fa-solid fa-home",
+      defaultExpanded: false,
+      components: ["HeroSection", "HeroVideo", "HeroSplitScreen", "ContactFooter"]
+    },
+    // Highlight Category
+    highlight: {
+      title: "Highlight",
+      icon: "fa-solid fa-star",
+      defaultExpanded: false,
+      components: ["Sponsors", "SpeakerHighlight", "SessionHighlight", "CountdownTimer", "ProgressCircleStats", "RegistrationCTA"]
+    },
+    // Venue Page Category
+    venue: {
+      title: "Venue Page",
+      icon: "fa-solid fa-map-marker-alt",
+      defaultExpanded: false,
+      components: ["VenueBlock", "SplitVenueBlock", "HotelPartners", "VenueDirections"]
+    },
+    // Resource Category
+    resource: {
+      title: "Resource",
+      icon: "fa-solid fa-folder-open",
+      defaultExpanded: false,
+      components: ["YouTubeVideo", "Image", "ResourceCards", "LocationFloorPlan"]
+    },
+    // General Page Category
+    general: {
+      title: "General Page",
+      icon: "fa-solid fa-file-alt",
+      defaultExpanded: false,
+      components: ["GridBlock", "Article"]
+    },
+    // Table / List Category
+    tableList: {
+      title: "Table / List",
+      icon: "fa-solid fa-table",
+      defaultExpanded: false,
+      components: ["Table"]
+    },
     // Basic Elements Category
     basic: {
       title: "Basic Elements",
@@ -101,41 +143,6 @@ export const config = {
           components: ["List"]
         }
       }
-    },
-    // Landing / Home Page Category
-    landing: {
-      title: "Landing / Home Page",
-      icon: "fa-solid fa-home",
-      defaultExpanded: false,
-      components: ["HeroSection", "EventNumbers", "SpeakerHighlight", "SessionHighlight", "Sponsors", "ContactFooter", "RegistrationCTA"]
-    },
-    // Venue Page Category
-    venue: {
-      title: "Venue Page",
-      icon: "fa-solid fa-map-marker-alt",
-      defaultExpanded: false,
-      components: ["VenueBlock", "SplitVenueBlock", "HotelPartners", "VenueDirections"]
-    },
-    // Resource Category
-    resource: {
-      title: "Resource",
-      icon: "fa-solid fa-folder-open",
-      defaultExpanded: false,
-      components: ["Image", "ResourceCards", "LocationFloorPlan"]
-    },
-    // General Page Category
-    general: {
-      title: "General Page",
-      icon: "fa-solid fa-file-alt",
-      defaultExpanded: false,
-      components: ["GridBlock", "Article"]
-    },
-    // Table / List Category
-    tableList: {
-      title: "Table / List",
-      icon: "fa-solid fa-table",
-      defaultExpanded: false,
-      components: ["Table"]
     },
     // Advanced Components Category
     advanced: {
@@ -1025,6 +1032,64 @@ textColor: {
     YouTubeVideo: {
       label: "▶️ YouTube Video",
       fields: {
+        heading: {
+          type: 'text' as const,
+          label: 'Heading',
+          placeholder: 'e.g., Featured Video',
+        },
+        headingSize: {
+          type: 'select' as const,
+          label: 'Heading Size',
+          options: [
+            { label: 'Small', value: 'sm' },
+            { label: 'Medium', value: 'md' },
+            { label: 'Large', value: 'lg' },
+            { label: 'Extra Large', value: 'xl' },
+            // { label: '2X Large', value: '2xl' },
+          ],
+        },
+        headingAlignment: {
+          type: 'radio' as const,
+          label: 'Heading Alignment',
+          options: [
+            { label: 'Left', value: 'left' },
+            { label: 'Center', value: 'center' },
+            { label: 'Right', value: 'right' },
+          ],
+        },
+        headingColor: {
+          type: 'text' as const,
+          label: 'Heading Color',
+          placeholder: '#000000',
+        },
+        subheading: {
+          type: 'text' as const,
+          label: 'Subheading',
+          placeholder: 'e.g., Watch our latest update',
+        },
+        subheadingSize: {
+          type: 'select' as const,
+          label: 'Subheading Size',
+          options: [
+            { label: 'Small', value: 'sm' },
+            { label: 'Medium', value: 'md' },
+            { label: 'Large', value: 'lg' },
+          ],
+        },
+        subheadingAlignment: {
+          type: 'radio' as const,
+          label: 'Subheading Alignment',
+          options: [
+            { label: 'Left', value: 'left' },
+            { label: 'Center', value: 'center' },
+            { label: 'Right', value: 'right' },
+          ],
+        },
+        subheadingColor: {
+          type: 'text' as const,
+          label: 'Subheading Color',
+          placeholder: '#666666',
+        },
         videoUrl: {
           type: 'text' as const,
           label: 'YouTube Video URL',
@@ -1058,6 +1123,15 @@ textColor: {
         },
       },
       defaultProps: {
+        heading: '',
+        headingSize: 'xl',
+        headingAlignment: 'center',
+        headingColor: '#000000',
+        subheading: '',
+        subheadingSize: 'md',
+        subheadingAlignment: 'center',
+        subheadingColor: '#666666',
+        containerWidth: '800px',
         videoUrl: '',
         height: '',
         autoplay: false,
@@ -1930,12 +2004,12 @@ textColor: {
       render: RegistrationCTA
     },
     Sponsors: {
-      label: "🏢 Sponsors",
+      label: "🏢 Organisation",
       fields: {
         title: {
           type: 'text' as const,
           label: 'Title',
-          placeholder: 'Our Sponsors',
+          placeholder: 'Our Organisations',
         },
         titleColor: {
           type: 'text' as const,
@@ -2025,28 +2099,37 @@ textColor: {
           label: 'Text Color',
           placeholder: '#1f2937'
         },
-        padding: {
-          type: 'text' as const,
-          label: 'Padding',
-          placeholder: '3rem 2rem'
+
+        columns: {
+          type: 'select' as const,
+          label: 'Number of Columns',
+          options: [
+            { label: '1 Column', value: 1 },
+            { label: '2 Columns', value: 2 },
+            { label: '3 Columns', value: 3 },
+            { label: '4 Columns', value: 4 },
+            { label: '5 Columns', value: 5 },
+            { label: '6 Columns', value: 6 }
+          ]
         }
       },
       defaultProps: {
-        title: "Our Sponsors",
+        title: "Our Organisations",
         titleColor: '',
         titleSize: 2,
         subtitle: "",
         subtitleColor: "",
         subtitleSize: 1,
         sponsors: [
-          { id: '1', title: 'Sponsor 1', titleColor: '', titleSize: 1, name: 'Sponsor 1', logoUrl: '' },
-          { id: '2', title: 'Sponsor 2', titleColor: '', titleSize: 1, name: 'Sponsor 2', logoUrl: '' },
-          { id: '3', title: 'Sponsor 3', titleColor: '', titleSize: 1, name: 'Sponsor 3', logoUrl: '' },
-          { id: '4', title: 'Sponsor 4', titleColor: '', titleSize: 1, name: 'Sponsor 4', logoUrl: '' }
+          { id: '1', title: 'Organisation 1', titleColor: '', titleSize: 1, name: 'Organisation 1', logoUrl: '' },
+          { id: '2', title: 'Organisation 2', titleColor: '', titleSize: 1, name: 'Organisation 2', logoUrl: '' },
+          { id: '3', title: 'Organisation 3', titleColor: '', titleSize: 1, name: 'Organisation 3', logoUrl: '' },
+          { id: '4', title: 'Organisation 4', titleColor: '', titleSize: 1, name: 'Organisation 4', logoUrl: '' }
         ],
         backgroundColor: "#ffffff",
         textColor: "#1f2937",
-        padding: "3rem 2rem"
+        padding: "3rem 2rem",
+        columns: 4
       },
       render: Sponsors
     },
@@ -3667,11 +3750,29 @@ textColor: {
           placeholder: 'Level 1: Conference Hall',
           contentEditable: true
         },
+        titleAlign: {
+          type: 'select' as const,
+          label: 'Title Alignment',
+          options: [
+            { label: 'Left', value: 'left' },
+            { label: 'Center', value: 'center' },
+            { label: 'Right', value: 'right' }
+          ]
+        },
         subtitle: {
           type: 'text' as const,
           label: 'Subtitle',
           placeholder: 'Overview of the venue layout',
           contentEditable: true
+        },
+        subtitleAlign: {
+          type: 'select' as const,
+          label: 'Subtitle Alignment',
+          options: [
+            { label: 'Left', value: 'left' },
+            { label: 'Center', value: 'center' },
+            { label: 'Right', value: 'right' }
+          ]
         },
         pdfUrl: {
           type: 'text' as const,
@@ -3706,7 +3807,9 @@ textColor: {
       },
       defaultProps: {
         title: 'Level 1: Conference Hall',
+        titleAlign: 'left',
         subtitle: 'Overview of the venue layout',
+        subtitleAlign: 'left',
         pdfUrl: '',
         imageUrl: '',
         backgroundColor: '#ffffff',
@@ -3746,6 +3849,26 @@ textColor: {
             { label: '2 Columns (2x1)', value: '2x1' },
             { label: '2 Columns (2x2)', value: '2x2' },
             { label: '3 Columns (2x3)', value: '2x3' }
+          ]
+        },
+        columns: {
+          type: 'select' as const,
+          label: 'Number of Columns',
+          options: [
+            { label: '1 Column', value: '1' },
+            { label: '2 Columns', value: '2' },
+            { label: '3 Columns', value: '3' },
+            { label: '4 Columns', value: '4' },
+            { label: '5 Columns', value: '5' },
+            { label: '6 Columns', value: '6' }
+          ]
+        },
+        linkDisplayMode: {
+          type: 'radio' as const,
+          label: 'Link Display Mode',
+          options: [
+            { label: 'Link', value: 'link' },
+            { label: 'Button', value: 'button' }
           ]
         },
         items: {
@@ -3849,6 +3972,8 @@ textColor: {
         itemTitleAlign: 'left',
         itemTitleColor: '',
         layout: '2x2',
+        columns: '4',
+        linkDisplayMode: 'link',
         items: [
           {
             id: '1',
@@ -4126,48 +4251,12 @@ textColor: {
               { label: 'No', value: false }
             ]
           },
-          backgroundColor: {
-            type: 'select' as const,
-            label: 'Background Color',
-            options: [
-              { label: 'White', value: '#ffffff' },
-              { label: 'Light Gray', value: '#f9fafb' },
-              { label: 'Custom...', value: '' }
-            ]
-          },
-          headerBackgroundColor: {
-            type: 'select' as const,
-            label: 'Header Background Color',
-            options: [
-              { label: 'Light Gray', value: '#f9fafb' },
-              { label: 'Gray', value: '#f3f4f6' },
-              { label: 'Custom...', value: '' }
-            ]
-          },
-          headerTextColor: {
-            type: 'select' as const,
-            label: 'Header Text Color',
-            options: [
-              { label: 'Dark Gray', value: '#1f2937' },
-              { label: 'Black', value: '#000000' },
-              { label: 'Custom...', value: '' }
-            ]
-          },
           textColor: {
             type: 'select' as const,
             label: 'Text Color',
             options: [
               { label: 'Dark Gray', value: '#1f2937' },
               { label: 'Gray', value: '#6b7280' },
-              { label: 'Custom...', value: '' }
-            ]
-          },
-          borderColor: {
-            type: 'select' as const,
-            label: 'Border Color',
-            options: [
-              { label: 'Light Gray', value: '#e5e7eb' },
-              { label: 'Gray', value: '#d1d5db' },
               { label: 'Custom...', value: '' }
             ]
           },
@@ -4181,11 +4270,7 @@ textColor: {
               { label: 'Custom...', value: '' }
             ]
           },
-          padding: {
-            type: 'text' as const,
-            label: 'Padding',
-            placeholder: '3rem 2rem'
-          },
+
           maxWidth: {
             type: 'text' as const,
             label: 'Max Width',
@@ -4240,10 +4325,28 @@ textColor: {
           label: 'Table Title',
           placeholder: 'Related Publishing Materials',
         },
+        titleAlign: {
+          type: 'select' as const,
+          label: 'Title Alignment',
+          options: [
+            { label: 'Left', value: 'left' },
+            { label: 'Center', value: 'center' },
+            { label: 'Right', value: 'right' }
+          ]
+        },
         description: {
           type: 'textarea' as const,
           label: 'Description',
           placeholder: 'A list of technical documents and standards referenced in this guide.',
+        },
+        descriptionAlign: {
+          type: 'select' as const,
+          label: 'Description Alignment',
+          options: [
+            { label: 'Left', value: 'left' },
+            { label: 'Center', value: 'center' },
+            { label: 'Right', value: 'right' }
+          ]
         },
         columns: {
           type: 'array' as const,
@@ -4315,24 +4418,7 @@ textColor: {
             { label: 'No', value: false }
           ]
         },
-        backgroundColor: {
-          type: 'select' as const,
-          label: 'Background Color',
-          options: [
-            { label: 'White', value: '#ffffff' },
-            { label: 'Light Gray', value: '#f9fafb' },
-            { label: 'Custom...', value: '' }
-          ]
-        },
-        headerBackgroundColor: {
-          type: 'select' as const,
-          label: 'Header Background Color',
-          options: [
-            { label: 'Light Gray', value: '#f9fafb' },
-            { label: 'Gray', value: '#f3f4f6' },
-            { label: 'Custom...', value: '' }
-          ]
-        },
+
         headerTextColor: {
           type: 'select' as const,
           label: 'Header Text Color',
@@ -4348,15 +4434,6 @@ textColor: {
           options: [
             { label: 'Dark Gray', value: '#1f2937' },
             { label: 'Gray', value: '#6b7280' },
-            { label: 'Custom...', value: '' }
-          ]
-        },
-        borderColor: {
-          type: 'select' as const,
-          label: 'Border Color',
-          options: [
-            { label: 'Light Gray', value: '#e5e7eb' },
-            { label: 'Gray', value: '#d1d5db' },
             { label: 'Custom...', value: '' }
           ]
         },
@@ -4384,8 +4461,8 @@ textColor: {
       },
       defaultProps: {
         title: 'Related Publishing Materials',
-        description: 'A list of technical documents and standards referenced in this guide.',
         titleAlign: 'left',
+        description: 'A list of technical documents and standards referenced in this guide.',
         descriptionAlign: 'left',
         descriptionSize: 2,
         titleColor: '#1f2937',
@@ -4432,7 +4509,7 @@ textColor: {
         ],
         showSerialNumber: true,
         backgroundColor: '#ffffff',
-        headerBackgroundColor: '#f9fafb',
+        headerBackgroundColor: '#f3f4f6',
         headerTextColor: '#1f2937',
         textColor: '#1f2937',
         borderColor: '#e5e7eb',

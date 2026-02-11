@@ -5,11 +5,16 @@ export interface YouTubeVideoProps {
   autoplay?: boolean
   controls?: boolean
   startTime?: number
-  /**
-   * Optional fixed height for the player container (e.g. "360px").
-   * If empty/undefined/"auto", the component stays responsive with a 16:9 aspect ratio.
-   */
   height?: string
+  heading?: string
+  headingSize?: 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+  headingAlignment?: 'left' | 'center' | 'right'
+  headingColor?: string
+  subheading?: string
+  subheadingSize?: 'sm' | 'md' | 'lg'
+  subheadingAlignment?: 'left' | 'center' | 'right'
+  subheadingColor?: string
+  containerWidth?: string
 }
 
 const isValidYouTubeId = (id: string) => /^[A-Za-z0-9_-]{11}$/.test(id)
@@ -63,10 +68,44 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
   controls = true,
   startTime,
   height = '',
+  heading = '',
+  headingSize = 'xl',
+  headingAlignment = 'center',
+  headingColor = '#000000',
+  subheading = '',
+  subheadingSize = 'md',
+  subheadingAlignment = 'center',
+  subheadingColor = '#666666',
+  containerWidth = '100%',
 }) => {
   const trimmedUrl = (videoUrl || '').trim()
   const normalizedHeight = (height || '').trim()
   const useFixedHeight = !!normalizedHeight && normalizedHeight.toLowerCase() !== 'auto'
+
+  const headingSizeMap = {
+    sm: '1.25rem',
+    md: '1.5rem',
+    lg: '1.875rem',
+    xl: '2.25rem',
+    '2xl': '3rem'
+  }
+
+  const subheadingSizeMap = {
+    sm: '0.875rem',
+    md: '1rem',
+    lg: '1.125rem'
+  }
+
+  const alignmentMap = {
+    left: 'flex-start',
+    center: 'center',
+    right: 'flex-end'
+  }
+
+  const containerStyle = {
+    width: containerWidth,
+    margin: '0 auto',
+  }
 
   const videoId = useMemo(() => {
     if (!trimmedUrl) return null
@@ -90,7 +129,32 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
 
   if (!trimmedUrl) {
     return (
-      <div className="w-full">
+      <div style={containerStyle}>
+        {heading && (
+          <h2
+            style={{
+              fontSize: headingSizeMap[headingSize],
+              textAlign: headingAlignment as any,
+              color: headingColor,
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}
+          >
+            {heading}
+          </h2>
+        )}
+        {subheading && (
+          <p
+            style={{
+              fontSize: subheadingSizeMap[subheadingSize],
+              textAlign: subheadingAlignment as any,
+              color: subheadingColor,
+              marginBottom: '1rem'
+            }}
+          >
+            {subheading}
+          </p>
+        )}
         <div
           className={[
             useFixedHeight ? '' : 'aspect-video',
@@ -106,9 +170,34 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
 
   if (!videoId) {
     return (
-      <div className="w-full space-y-2">
+      <div style={containerStyle}>
+        {heading && (
+          <h2
+            style={{
+              fontSize: headingSizeMap[headingSize],
+              textAlign: headingAlignment as any,
+              color: headingColor,
+              marginBottom: '0.5rem',
+              fontWeight: 'bold'
+            }}
+          >
+            {heading}
+          </h2>
+        )}
+        {subheading && (
+          <p
+            style={{
+              fontSize: subheadingSizeMap[subheadingSize],
+              textAlign: subheadingAlignment as any,
+              color: subheadingColor,
+              marginBottom: '1rem'
+            }}
+          >
+            {subheading}
+          </p>
+        )}
         <div
-          className={[useFixedHeight ? '' : 'aspect-video', 'w-full rounded-xl border border-slate-200 bg-white'].join(' ')}
+          className={[useFixedHeight ? '' : 'aspect-video', 'w-[800px] pb-2 rounded-xl border border-slate-200 bg-white'].join(' ')}
           style={useFixedHeight ? { height: normalizedHeight } : undefined}
         />
         <div className="text-xs text-rose-600">Invalid YouTube URL. Please paste a full YouTube link.</div>
@@ -117,7 +206,32 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
   }
 
   return (
-    <div className="w-full">
+    <div style={containerStyle}>
+      {heading && (
+        <h2
+          style={{
+            fontSize: headingSizeMap[headingSize],
+            textAlign: headingAlignment as any,
+            color: headingColor,
+            marginBottom: '0.5rem',
+            fontWeight: 'bold'
+          }}
+        >
+          {heading}
+        </h2>
+      )}
+      {subheading && (
+        <p
+          style={{
+            fontSize: subheadingSizeMap[subheadingSize],
+            textAlign: subheadingAlignment as any,
+            color: subheadingColor,
+            marginBottom: '1rem'
+          }}
+        >
+          {subheading}
+        </p>
+      )}
       <div
         className={[
           useFixedHeight ? '' : 'aspect-video',

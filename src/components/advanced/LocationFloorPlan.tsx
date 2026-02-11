@@ -2,7 +2,9 @@ import React, { useState, useRef } from 'react'
 
 export interface LocationFloorPlanProps {
   title?: string | React.ReactElement
+  titleAlign?: 'left' | 'center' | 'right'
   subtitle?: string | React.ReactElement
+  subtitleAlign?: 'left' | 'center' | 'right'
   pdfUrl?: string
   imageUrl?: string
   height?: number
@@ -13,7 +15,9 @@ export interface LocationFloorPlanProps {
 
 const LocationFloorPlan: React.FC<LocationFloorPlanProps> = ({
   title = 'Level 1: Conference Hall',
+  titleAlign = 'left',
   subtitle = 'Overview of the venue layout',
+  subtitleAlign = 'left',
   pdfUrl,
   imageUrl,
   height = 600,
@@ -169,7 +173,7 @@ const LocationFloorPlan: React.FC<LocationFloorPlanProps> = ({
         padding
       }}
     >
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8 flex items-start justify-between gap-4">
           <div className="flex-1">
@@ -178,7 +182,7 @@ const LocationFloorPlan: React.FC<LocationFloorPlanProps> = ({
                 {titleValue && (
                   <h2
                     className="text-2xl md:text-3xl font-bold mb-2"
-                    style={{ color: textColor }}
+                    style={{ color: textColor, textAlign: titleAlign }}
                   >
                     {title}
                   </h2>
@@ -186,7 +190,7 @@ const LocationFloorPlan: React.FC<LocationFloorPlanProps> = ({
                 {subtitleValue && (
                   <p
                     className="text-lg opacity-80"
-                    style={{ color: textColor }}
+                    style={{ color: textColor, textAlign: subtitleAlign }}
                   >
                     {subtitle}
                   </p>
