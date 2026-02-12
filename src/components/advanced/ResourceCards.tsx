@@ -25,6 +25,8 @@ export interface ResourceCardsProps {
   headingColor?: string
   cardBackgroundColor?: string
   cardBorderColor?: string
+  displayMode?: 'card' | 'list'
+  assetNameOverrides?: Record<string, string>
 }
 
 const formatBytes = (bytes?: number) => {
@@ -154,7 +156,9 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
   headingAlign = 'left',
   headingColor = '#0f172a',
   cardBackgroundColor = '#ffffff',
-  cardBorderColor = '#e2e8f0'
+  cardBorderColor = '#e2e8f0',
+  displayMode = 'card',
+  assetNameOverrides = {}
 }) => {
   const assets = Array.isArray(source?.assets) ? source!.assets! : []
   // Always prefer folder name as heading (requested behavior)
@@ -187,10 +191,59 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
           <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">
             No assets selected yet. Choose a folder in the sidebar and load assets.
           </div>
+        ) : displayMode === 'list' ? (
+          <div className="space-y-2">
+            {sorted.map((a) => {
+              const title = prettyTitleFromName(a.name)
+              const displayName = assetNameOverrides?.[a.uuid] || title
+              const typeLabel = (a.content_type || extFromName(a.name) || 'FILE').toString()
+              const sizeLabel = formatBytes(a.size)
+              const meta = [typeLabel, sizeLabel].filter(Boolean).join(' • ')
+              const href = a.file || '#'
+
+              return (
+                <a
+                  key={a.uuid || `${a.file}-${a.name}`}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 rounded-lg border p-4 transition hover:shadow-sm hover:bg-slate-50"
+                  style={{ backgroundColor: cardBackgroundColor, borderColor: cardBorderColor }}
+                >
+                  <div className="flex-shrink-0">
+                    {isImage(a.content_type, a.name) ? (
+                      <img src={a.file} alt={displayName} className="h-12 w-12 rounded object-cover" />
+                    ) : isVideo(a.content_type, a.name) ? (
+                      <video
+                        src={a.file}
+                        className="h-12 w-12 rounded object-cover"
+                        muted
+                        playsInline
+                        preload="metadata"
+                        onError={(e) => {
+                          const target = e.currentTarget
+                          target.style.display = 'none'
+                        }}
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 items-center justify-center rounded bg-slate-900/5">
+                        {getAssetIcon(a)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="truncate text-sm font-semibold text-slate-900">{displayName}</div>
+                    {showMeta ? <div className="truncate text-xs text-slate-600">{meta}</div> : null}
+                  </div>
+                </a>
+              )
+            })}
+          </div>
         ) : (
           <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${colClass}`}>
             {sorted.map((a) => {
               const title = prettyTitleFromName(a.name)
+              const displayName = assetNameOverrides?.[a.uuid] || title
               const typeLabel = (a.content_type || extFromName(a.name) || 'FILE').toString()
               const sizeLabel = formatBytes(a.size)
               const meta = [typeLabel, sizeLabel].filter(Boolean).join(' • ')
@@ -207,7 +260,7 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
                 >
                   <div className="aspect-[16/9] w-full bg-slate-50">
                     {isImage(a.content_type, a.name) ? (
-                      <img src={a.file} alt={title} className="h-full w-full object-cover" />
+                      <img src={a.file} alt={displayName} className="h-full w-full object-cover" />
                     ) : isVideo(a.content_type, a.name) ? (
                       <video
                         src={a.file}
@@ -216,7 +269,6 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
                         playsInline
                         preload="metadata"
                         onError={(e) => {
-                          // Fallback to icon if preview fails
                           const target = e.currentTarget
                           target.style.display = 'none'
                         }}
@@ -229,7 +281,7 @@ const ResourceCards: React.FC<ResourceCardsProps> = ({
                   </div>
 
                   <div className="p-4">
-                    <div className="truncate text-sm font-semibold text-slate-900 group-hover:underline">{title}</div>
+                    <div className="truncate text-sm font-semibold text-slate-900 group-hover:underline">{displayName}</div>
                     {showMeta ? <div className="mt-1 truncate text-xs text-slate-600">{meta}</div> : null}
                   </div>
                 </a>

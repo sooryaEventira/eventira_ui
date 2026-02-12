@@ -15,13 +15,16 @@ export interface ArticleSection {
   heading?: string | React.ReactElement
   headingColor?: string
   headingAlign?: 'left' | 'center' | 'right'
-  headingSize?: 1 | 2 | 3
+  headingSize?: string
   // For paragraph section
   paragraph?: string | React.ReactElement
   paragraphColor?: string
   // For image section
   imageUrl?: string
   imageHeight?: string
+  imageText?: string | React.ReactElement
+  imageTextPosition?: 'none' | 'left' | 'right' | 'below'
+  imageTextColor?: string
   // For links section
   links?: ArticleLink[]
   linkDisplayStyle?: 'list' | 'buttons'
@@ -204,21 +207,15 @@ const Article: React.FC<ArticleProps> = ({
         const headingValue = getStringValue(section.heading)
         if (!headingValue) return null
 
-        const size = section.headingSize ?? 3
-        const sizeClass =
-          size === 1
-            ? 'text-2xl md:text-3xl'
-            : size === 2
-              ? 'text-3xl md:text-4xl'
-              : 'text-4xl md:text-5xl'
+        const fontSize = section.headingSize || '1.25rem'
         const align = section.headingAlign ?? sectionAlign ?? 'left'
         const color = section.headingColor || headingColor
         
         return (
           <h1
             key={section.id || `heading-${index}`}
-            className={`${sizeClass} font-bold mb-6 leading-tight`}
-            style={{ color, textAlign: align }}
+            className="font-bold mb-6 leading-tight"
+            style={{ color, textAlign: align, fontSize }}
           >
             {section.heading}
           </h1>
@@ -250,6 +247,11 @@ const Article: React.FC<ArticleProps> = ({
         if (!normalizedSrc) return null
         
         const imageHeight = section.imageHeight || '400px'
+        const textPosition = section.imageTextPosition || 'none'
+        const imageTextValue = getStringValue(section.imageText)
+        const hasText = textPosition !== 'none' && imageTextValue
+        const imageTextColor = section.imageTextColor || textColor
+        
         const justify =
           sectionAlign === 'center'
             ? 'center'
@@ -257,6 +259,80 @@ const Article: React.FC<ArticleProps> = ({
               ? 'flex-end'
               : 'flex-start'
         
+        // Render image with text if text position is set
+        if (hasText && (textPosition === 'left' || textPosition === 'right')) {
+          return (
+            <div
+              key={section.id || `image-${index}`}
+              className="w-full mb-8"
+              style={{ 
+                display: 'flex', 
+                flexDirection: textPosition === 'left' ? 'row-reverse' : 'row',
+                gap: '1.5rem',
+                alignItems: 'flex-start'
+              }}
+            >
+              <div 
+                className="rounded-lg overflow-hidden" 
+                style={{ 
+                  height: imageHeight, 
+                  width: '50%',
+                  flexShrink: 0
+                }}
+              >
+                <img
+                  src={normalizedSrc}
+                  alt="Article image"
+                  className="w-full h-full object-cover"
+                  onLoad={(e) => {
+                    e.currentTarget.style.display = ''
+                  }}
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none'
+                  }}
+                />
+              </div>
+              <div 
+                className="prose prose-lg flex-1" 
+                style={{ color: imageTextColor }}
+                dangerouslySetInnerHTML={{ __html: looksLikeHtml(imageTextValue) ? sanitizeHtml(imageTextValue) : toBasicParagraphHtml(imageTextValue) }}
+              />
+            </div>
+          )
+        }
+        
+        // Render image with text below
+        if (hasText && textPosition === 'below') {
+          return (
+            <div key={section.id || `image-${index}`} className="w-full mb-8">
+              <div
+                className="w-full mb-4"
+                style={{ display: 'flex', justifyContent: justify }}
+              >
+                <div className="w-full rounded-lg overflow-hidden" style={{ height: imageHeight, maxWidth: '100%' }}>
+                  <img
+                    src={normalizedSrc}
+                    alt="Article image"
+                    className="w-full h-full object-cover"
+                    onLoad={(e) => {
+                      e.currentTarget.style.display = ''
+                    }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none'
+                    }}
+                  />
+                </div>
+              </div>
+              <div 
+                className="prose prose-lg max-w-none" 
+                style={{ color: imageTextColor, textAlign: sectionAlign }}
+                dangerouslySetInnerHTML={{ __html: looksLikeHtml(imageTextValue) ? sanitizeHtml(imageTextValue) : toBasicParagraphHtml(imageTextValue) }}
+              />
+            </div>
+          )
+        }
+        
+        // Render image without text (default)
         return (
           <div
             key={section.id || `image-${index}`}
@@ -268,8 +344,6 @@ const Article: React.FC<ArticleProps> = ({
                 src={normalizedSrc}
                 alt="Article image"
                 className="w-full h-full object-cover"
-                // If the previous URL errored, it may have hidden the img element.
-                // Reset visibility on successful load so changing Image URL works.
                 onLoad={(e) => {
                   e.currentTarget.style.display = ''
                 }}

@@ -63,14 +63,7 @@ export const config = {
       title: "General Page",
       icon: "fa-solid fa-file-alt",
       defaultExpanded: false,
-      components: ["GridBlock", "Article"]
-    },
-    // Table / List Category
-    tableList: {
-      title: "Table / List",
-      icon: "fa-solid fa-table",
-      defaultExpanded: false,
-      components: ["Table"]
+      components: ["GridBlock", "Article", "Table"]
     },
     // Basic Elements Category
     basic: {
@@ -178,7 +171,7 @@ export const config = {
   },
   components: {
     GroupDirectory: {
-      label: "👥 Group Directory",
+      label: "Group Directory",
       fields: {
         groupId: { type: 'text' as const, label: 'Group ID (optional)' },
         groupName: { type: 'text' as const, label: 'Group name' },
@@ -198,7 +191,7 @@ export const config = {
       render: GroupDirectory
     },
     Heading: {
-      label: "📝 Heading",
+      label: "Heading",
       fields: {
         text: { type: 'text' as const },
         level: { 
@@ -249,7 +242,7 @@ export const config = {
       render: Heading
     },
     Text: {
-      label: "📄 Text",
+      label: "Text",
       fields: {
         text: { type: 'textarea' as const },
         size: { 
@@ -283,7 +276,7 @@ export const config = {
       render: Text
     },
     Button: {
-      label: "👆 Button",
+      label: "Button",
       fields: {
         text: { type: 'text' as const },
         variant: { 
@@ -317,7 +310,7 @@ export const config = {
       render: Button
     },
     Card: {
-      label: "🆔 Card",
+      label: "Card",
       fields: {
         title: { type: 'text' as const },
         description: { type: 'textarea' as const },
@@ -341,7 +334,7 @@ export const config = {
       render: Card
     },
     List: {
-      label: "📋 List",
+      label: "List",
       fields: {
         items: { type: 'textarea' as const },
         type: { 
@@ -364,7 +357,7 @@ export const config = {
       render: List
     },
     Divider: {
-      label: "➖ Divider",
+      label: "Divider",
       fields: {
         color: { 
           type: 'text' as const,
@@ -386,7 +379,7 @@ export const config = {
       render: Divider
     },
     Spacer: {
-      label: "↕️ Spacer",
+      label: "Spacer",
       fields: {
         height: { 
           type: 'select' as const, 
@@ -404,7 +397,7 @@ export const config = {
       render: Spacer
     },
     Checkbox: {
-      label: "☑️ Checkbox",
+      label: "Checkbox",
       fields: {
         label: { type: "text", label: "Label" },
         checked: { 
@@ -432,7 +425,7 @@ export const config = {
       render: ({ title }: { title: string }) => React.createElement('div', { style: { padding: 64 } }, React.createElement('h1', null, title)),
     },
     InputField: {
-      label: "📝 Input Field",
+      label: "Input Field",
       fields: {
         label: { type: 'text' as const },
         placeholder: { type: 'text' as const },
@@ -496,7 +489,7 @@ export const config = {
       render: InputField
     },
     SelectField: {
-      label: "📋 Select Field",
+      label: "Select Field",
       fields: {
         label: { type: 'text' as const },
         options: { 
@@ -550,7 +543,7 @@ export const config = {
       render: SelectField
     },
     Container: {
-      label: "📦 Container",
+      label: "Container",
       fields: {
         backgroundColor: { type: 'text' as const },
         padding: { 
@@ -594,7 +587,7 @@ export const config = {
       }
     },
     FlexContainer: {
-      label: "↔️ FlexContainer",
+      label: "FlexContainer",
       fields: {
         direction: {
           type: 'select' as const,
@@ -659,7 +652,7 @@ export const config = {
     },
     
     GridContainer: {
-      label: "🔲 GridContainer",
+      label: "GridContainer",
       fields: {
         columns: {
           type: 'select' as const,
@@ -708,7 +701,7 @@ export const config = {
       },
     },
     SimpleContainer: {
-      label: "📦 SimpleContainer",
+      label: "SimpleContainer",
       fields: {
         backgroundColor: { type: 'text' as const },
         padding: { 
@@ -728,7 +721,7 @@ export const config = {
       acceptsChildren: true
     },
     PositionedElement: {
-      label: "🎯 PositionedElement",
+      label: "PositionedElement",
       fields: {
         position: {
           type: 'select' as const,
@@ -758,7 +751,7 @@ export const config = {
       acceptsChildren: true
     },
     GridLayout: {
-      label: "🔲 Grid Layout",
+      label: "Grid Layout",
       description: "A multi-column layout with draggable components",
       fields: {
         numberOfColumns: {
@@ -840,7 +833,7 @@ export const config = {
       },
     },
     HeroSection: {
-      label: "🪟 HeroSection",
+      label: "HeroSection",
       fields: {
         showContent: {
           type: 'radio' as const,
@@ -975,7 +968,7 @@ textColor: {
       render: HeroSection
     },
     Slider: {
-      label: "🖼️ Slider",
+      label: "Slider",
       fields: {
         slides: { 
           type: 'textarea' as const,
@@ -1030,7 +1023,7 @@ textColor: {
       render: Slider
     },
     YouTubeVideo: {
-      label: "▶️ YouTube Video",
+      label: "YouTube Video",
       fields: {
         heading: {
           type: 'text' as const,
@@ -1141,7 +1134,7 @@ textColor: {
       render: YouTubeVideo,
     },
     Image: {
-      label: "🖼️ Image",
+      label: "Image",
       fields: {
         src: { 
           type: 'text' as const,
@@ -1222,7 +1215,7 @@ textColor: {
       render: ImageSimple
     },
     SpeakerCard: {
-      label: "👤 Speaker Card",
+      label: "Speaker Card",
       fields: {
         photo: {
           type: 'text' as const,
@@ -1255,7 +1248,7 @@ textColor: {
       render: SpeakerCard
     },
     SpeakersSection: {
-      label: "👥 Speakers Section",
+      label: "Speakers Section",
       fields: {
         title: {
           type: 'text' as const,
@@ -1350,7 +1343,7 @@ textColor: {
       render: SpeakersSection
     },
     ScheduleSection: {
-      label: "📅 Schedule Section",
+      label: "Schedule Section",
       fields: {
         sessions: {
           type: 'array' as const,
@@ -1457,7 +1450,7 @@ textColor: {
       render: ScheduleSection
     },
          AboutSection: {
-           label: "ℹ️ About Section",
+           label: "About Section",
            fields: {
              leftTitle: {
                type: 'text' as const,
@@ -1496,7 +1489,7 @@ textColor: {
           render: AboutSection
         },
         TwoColumnContent: {
-          label: "📑 Two Column Content",
+          label: "Two Column Content",
           fields: {
             leftTitle: {
               type: 'text' as const,
@@ -1589,7 +1582,7 @@ textColor: {
           render: TwoColumnContent
         },
         PricingPlans: {
-           label: "💰 Pricing Plans",
+           label: "Pricing Plans",
            fields: {
              plans: {
                type: 'array' as const,
@@ -1703,7 +1696,7 @@ textColor: {
            render: PricingPlans
          },
          FAQSection: {
-           label: "❓ FAQ Section",
+           label: "FAQ Section",
            fields: {
              title: {
                type: 'text' as const,
@@ -1812,7 +1805,7 @@ textColor: {
           render: FAQSection
         },
     FAQAccordion: {
-      label: "🔽 FAQ Accordion",
+      label: "FAQ Accordion",
       fields: {
         title: {
           type: 'text' as const,
@@ -1954,7 +1947,7 @@ textColor: {
       render: FAQAccordion
         },
     RegistrationCTA: {
-      label: "📢 Registration CTA",
+      label: "Registration CTA",
       fields: {
         title: {
           type: 'text' as const,
@@ -2004,7 +1997,7 @@ textColor: {
       render: RegistrationCTA
     },
     Sponsors: {
-      label: "🏢 Organisation",
+      label: "Organisation",
       fields: {
         title: {
           type: 'text' as const,
@@ -2018,11 +2011,12 @@ textColor: {
         },
         titleSize: {
           type: 'select' as const,
-          label: 'Title Size (3 options)',
+          label: 'Title Size ',
           options: [
-            { label: 'Size 1 (small)', value: 1 },
-            { label: 'Size 2 (medium)', value: 2 },
-            { label: 'Size 3 (large)', value: 3 }
+            { label: 'Small', value: '1rem' },
+            { label: 'Medium ', value: '1.125rem' },
+            { label: 'Large ', value: '1.25rem' },
+            { label: 'Extra Large', value: '1.5rem' }
           ]
         },
         subtitle: {
@@ -2037,11 +2031,12 @@ textColor: {
         },
         subtitleSize: {
           type: 'select' as const,
-          label: 'Subtitle Size (3 options)',
+          label: 'Subtitle Size ',
           options: [
-            { label: 'Size 1 (small)', value: 1 },
-            { label: 'Size 2 (medium)', value: 2 },
-            { label: 'Size 3 (large)', value: 3 }
+            { label: 'Small', value: '1rem' },
+            { label: 'Medium ', value: '1.125rem' },
+            { label: 'Large ', value: '1.25rem' },
+            { label: 'Extra Large', value: '1.5rem' }
           ]
         },
         sponsors: {
@@ -2065,12 +2060,13 @@ textColor: {
             },
             titleSize: {
               type: 'select' as const,
-              label: 'Sponsor Title Size (3 options)',
-              options: [
-                { label: 'Size 1 (small)', value: 1 },
-                { label: 'Size 2 (medium)', value: 2 },
-                { label: 'Size 3 (large)', value: 3 }
-              ]
+              label: 'Sponsor Title Size',
+          options: [
+            { label: 'Small', value: '1rem' },
+            { label: 'Medium ', value: '1.125rem' },
+            { label: 'Large ', value: '1.25rem' },
+            { label: 'Extra Large', value: '1.5rem' }
+          ]
             },
             name: {
               type: 'text' as const,
@@ -2134,7 +2130,7 @@ textColor: {
       render: Sponsors
     },
     ContactFooter: {
-      label: "📞 Contact Footer",
+      label: "Contact Footer",
       fields: {
         title: {
           type: 'text' as const,
@@ -2297,7 +2293,7 @@ textColor: {
       render: ContactFooter
     },
     EventNumbers: {
-      label: "📊 Event Numbers",
+      label: "Event Numbers",
       fields: {
         items: {
           type: 'array' as const,
@@ -2404,7 +2400,7 @@ textColor: {
       render: EventNumbers
     },
     SpeakerHighlight: {
-      label: "🎤 Speaker Highlight",
+      label: "Speaker Highlight",
       fields: {
         heading: {
           type: 'text' as const,
@@ -2592,7 +2588,7 @@ textColor: {
       render: SpeakerHighlight
     },
     SessionHighlight: {
-      label: "🎯 Session Highlight",
+      label: "Session Highlight",
       fields: {
         sessionId: {
           type: 'custom' as const,
@@ -2780,7 +2776,7 @@ textColor: {
       render: SessionHighlight
     },
     SessionHighlightKeynote: {
-      label: "🎤 Session Highlight (Keynote)",
+      label: "Session Highlight (Keynote)",
       fields: {
         sessionId: {
           type: 'custom' as const,
@@ -2957,7 +2953,7 @@ textColor: {
       render: SessionHighlightKeynote
     },
     SessionHighlightWorkshop: {
-      label: "🔧 Session Highlight (Workshop)",
+      label: "Session Highlight (Workshop)",
       fields: {
         sessionId: {
           type: 'custom' as const,
@@ -3105,7 +3101,7 @@ textColor: {
       render: SessionHighlightWorkshop
     },
     VenueBlock: {
-      label: "📍 Venue Block",
+      label: "Venue Block",
       fields: {
         venueName: {
           type: 'text' as const,
@@ -3185,7 +3181,7 @@ textColor: {
       render: VenueBlock
     },
     SplitVenueBlock: {
-      label: "📍 Split Venue Block",
+      label: "Split Venue Block",
       fields: {
         heading: {
           type: 'text' as const,
@@ -3278,7 +3274,7 @@ textColor: {
       render: SplitVenueBlock
     },
     HotelPartners: {
-      label: "🏨 Hotel Partners",
+      label: "Hotel Partners",
       fields: {
         title: {
           type: 'text' as const,
@@ -3500,7 +3496,7 @@ textColor: {
       render: HotelPartners
     },
     VenueDirections: {
-      label: "🗺️ Venue Directions",
+      label: "Venue Directions",
       resolveData: (item: any, { trigger }: any) => {
         const defaultDirections = [
           {
@@ -3558,11 +3554,12 @@ textColor: {
         },
         titleSize: {
           type: 'select' as const,
-          label: 'Title Size (3 options)',
+          label: 'Title Size',
           options: [
-            { label: 'Size 1 (small)', value: 1 },
-            { label: 'Size 2 (medium)', value: 2 },
-            { label: 'Size 3 (large)', value: 3 }
+            { label: 'Small', value: '1rem' },
+            { label: 'Medium ', value: '1.125rem' },
+            { label: 'Large ', value: '1.25rem' },
+            { label: 'Extra Large', value: '1.5rem' }
           ]
         },
         // mapUrl: {
@@ -3742,7 +3739,7 @@ textColor: {
       render: VenueDirections
     },
     LocationFloorPlan: {
-      label: "📄 PDF/Image Download",
+      label: "PDF/Image Download",
       fields: {
         title: {
           type: 'text' as const,
@@ -3820,7 +3817,7 @@ textColor: {
       render: LocationFloorPlan
     },
     GridBlock: {
-      label: "📊 Grid Block",
+      label: "Grid Block",
       fields: {
         title: {
           type: 'text' as const,
@@ -4020,7 +4017,7 @@ textColor: {
       render: GridBlock
     },
     Article: {
-      label: "📰 Article",
+      label: "Article",
       fields: {
         sections: {
           type: 'custom' as const,
@@ -4113,7 +4110,7 @@ textColor: {
       render: Article
     },
     Table: {
-      label: "📊 Table",
+      label: "Table",
       resolveFields: ({ props }: any) => {
         const slugify = (input: string) =>
           input
@@ -4200,12 +4197,13 @@ textColor: {
           },
           descriptionSize: {
             type: 'select' as const,
-            label: 'Subtitle Size (3 options)',
-            options: [
-              { label: 'Size 1 (small)', value: 1 },
-              { label: 'Size 2 (medium)', value: 2 },
-              { label: 'Size 3 (large)', value: 3 }
-            ]
+            label: 'Subtitle Size ',
+          options: [
+            { label: 'Small', value: '1rem' },
+            { label: 'Medium ', value: '1.125rem' },
+            { label: 'Large ', value: '1.25rem' },
+            { label: 'Extra Large', value: '1.5rem' }
+          ]
           },
           columns: {
             type: 'array' as const,
@@ -4520,7 +4518,7 @@ textColor: {
       render: Table
     },
     FeedbackForm: {
-      label: "📝 Feedback Form",
+      label: "Feedback Form",
       fields: {
         title: {
           type: 'text' as const,
@@ -4565,7 +4563,7 @@ textColor: {
       render: FeedbackForm
     },
     Navigation: {
-      label: "🧭 Navigation",
+      label: "Navigation",
       fields: {
         logo: {
           type: 'text' as const,
@@ -4706,7 +4704,7 @@ textColor: {
       render: Navigation
     },
     CountdownTimer: {
-      label: "⏰ Countdown Timer",
+      label: "Countdown Timer",
       fields: {
         heading: {
           type: 'text' as const,
@@ -4728,7 +4726,7 @@ textColor: {
       render: CountdownTimer
     },
     ProgressCircleStats: {
-      label: "📊 Progress Circle Stats",
+      label: "Progress Circle Stats",
       fields: {
         item1Value: {
           type: 'number' as const,
@@ -4796,7 +4794,7 @@ textColor: {
       render: ProgressCircleStats
     },
     HeroVideo: {
-      label: "🎬 Hero Video",
+      label: "Hero Video",
       fields: {
         videoUrl: {
           type: 'text' as const,
@@ -4906,7 +4904,7 @@ textColor: {
       render: HeroVideo
     },
     HeroSplitScreen: {
-      label: "🎨 Hero Split Screen",
+      label: "Hero Split Screen",
       fields: {
         imageSrc: {
           type: 'text' as const,
@@ -5031,7 +5029,7 @@ textColor: {
       render: HeroSplitScreen
     },
     HTMLContent: {
-      label: "🌐 HTML Content",
+      label: "HTML Content",
       fields: {
         htmlContent: {
           type: 'textarea' as const,
@@ -5046,7 +5044,7 @@ textColor: {
       render: HTMLContent
     },
     RegistrationForm: {
-      label: "📋 Registration Form",
+      label: "Registration Form",
       fields: {
         title: {
           type: 'text' as const,
@@ -5060,7 +5058,7 @@ textColor: {
       render: RegistrationForm
     },
     GoogleForm: {
-      label: "📝 Google Form",
+      label: "Google Form",
       fields: {
         formUrl: {
           type: 'text' as const,
@@ -5080,7 +5078,7 @@ textColor: {
       render: GoogleForm
     },
     SchedulePage: {
-      label: "📅 Schedule Page",
+      label: "Schedule Page",
       fields: {
         title: {
           type: 'text' as const,
@@ -5252,7 +5250,7 @@ textColor: {
       }
     },
     ScheduleContent: {
-      label: "📅 Schedule Content (with WeekDateSelector)",
+      label: "Schedule Content (with WeekDateSelector)",
       fields: {
         scheduleName: {
           type: 'text' as const,
@@ -5336,7 +5334,7 @@ textColor: {
       }
     },
     LiveChat: {
-      label: "💬 Live Chat",
+      label: "Live Chat",
       fields: {
         title: {
           type: 'text' as const,
@@ -5416,7 +5414,7 @@ textColor: {
       render: LiveChat
     },
     ApiTestComponent: {
-      label: "🔗 API Test Component",
+      label: "API Test Component",
       fields: {
         // No configurable fields for this demo component
       },
@@ -5426,7 +5424,7 @@ textColor: {
       render: ApiTestComponent
     },
     SessionForm: {
-      label: "📝 Session Form",
+      label: "Session Form",
       fields: {
         sessionTitle: {
           type: 'text' as const,
@@ -5527,7 +5525,7 @@ textColor: {
       render: SessionForm
     },
     ResourceCards: {
-      label: "🖼️ Gallery",
+      label: "Gallery",
       fields: {
         source: {
           type: 'custom' as const,
@@ -5540,11 +5538,19 @@ textColor: {
             })
           }
         },
-        heading: {
-          type: 'text' as const,
-          label: 'Heading',
-          placeholder: '(auto from folder name)'
+        displayMode: {
+          type: 'radio' as const,
+          label: 'Display Mode',
+          options: [
+            { label: 'Card', value: 'card' },
+            { label: 'List', value: 'list' }
+          ]
         },
+        // heading: {
+        //   type: 'text' as const,
+        //   label: 'Heading',
+        //   placeholder: '(auto from folder name)'
+        // },
         headingAlign: {
           type: 'select' as const,
           label: 'Heading alignment',
@@ -5561,7 +5567,7 @@ textColor: {
         },
         columns: {
           type: 'select' as const,
-          label: 'Columns',
+          label: 'Columns (card mode only)',
           options: [
             { label: '2', value: 2 },
             { label: '3', value: 3 },
@@ -5589,18 +5595,20 @@ textColor: {
       },
       defaultProps: {
         heading: '',
+        displayMode: 'card',
         columns: 3,
         showMeta: true,
         headingAlign: 'left',
         headingColor: '#0f172a',
         cardBackgroundColor: '#ffffff',
         cardBorderColor: '#e2e8f0',
+        assetNameOverrides: {},
         source: { folderUuid: '', folderName: '', assets: [] }
       },
       render: ResourceCards
     },
     PdfViewer: {
-      label: "📄 PDF Viewer",
+      label: "PDF Viewer",
       fields: {
         pdfUrl: {
           type: 'custom' as const,

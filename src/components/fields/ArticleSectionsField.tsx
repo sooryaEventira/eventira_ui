@@ -19,11 +19,14 @@ type ArticleSection = {
   heading?: string
   headingColor?: string
   headingAlign?: 'left' | 'center' | 'right'
-  headingSize?: 1 | 2 | 3
+  headingSize?: string
   paragraph?: string
   paragraphColor?: string
   imageUrl?: string
   imageHeight?: string
+  imageText?: string
+  imageTextPosition?: 'none' | 'left' | 'right' | 'below'
+  imageTextColor?: string
   links?: ArticleLink[]
   linkDisplayStyle?: 'list' | 'buttons'
   linkColor?: string
@@ -78,7 +81,7 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
         next = {
           ...base,
           heading: 'New heading',
-          headingSize: 3,
+          headingSize: '1.25rem',
           headingAlign: 'left',
           headingColor: '#111827',
         }
@@ -95,6 +98,9 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
           ...base,
           imageUrl: '',
           imageHeight: '400px',
+          imageText: '',
+          imageTextPosition: 'none',
+          imageTextColor: '#111827',
         }
         break
       case 'links':
@@ -474,7 +480,7 @@ function renderSectionEditor(args: {
             />
           </Field>
           <div style={{ height: 10 }} />
-          <ColorField label="Paragraph Color (hex)" value={section.paragraphColor || '#111827'} onChange={(v) => patchSection(index, { paragraphColor: v })} />
+          {/* <ColorField label="Paragraph Color (hex)" value={section.paragraphColor || '#111827'} onChange={(v) => patchSection(index, { paragraphColor: v })} /> */}
         </>
       )
 
@@ -515,6 +521,34 @@ function renderSectionEditor(args: {
               style={inputStyle}
             />
           </Field>
+          <div style={{ height: 10 }} />
+          <Field label="Text Position">
+            <select
+              value={section.imageTextPosition || 'none'}
+              onChange={(e) => patchSection(index, { imageTextPosition: e.target.value as 'none' | 'left' | 'right' | 'below' })}
+              style={inputStyle}
+            >
+              <option value="none">No text</option>
+              <option value="left">Text on left</option>
+              <option value="right">Text on right</option>
+              <option value="below">Text below image</option>
+            </select>
+          </Field>
+          {section.imageTextPosition && section.imageTextPosition !== 'none' && (
+            <>
+              <div style={{ height: 10 }} />
+              <Field label="Paragraph Text (around image)">
+                <textarea
+                  value={section.imageText || ''}
+                  onChange={(e) => patchSection(index, { imageText: e.target.value })}
+                  placeholder="Type text to display around the image..."
+                  style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }}
+                />
+              </Field>
+              <div style={{ height: 10 }} />
+              <ColorField label="Text Color (hex)" value={section.imageTextColor || '#111827'} onChange={(v) => patchSection(index, { imageTextColor: v })} />
+            </>
+          )}
         </>
       )
 
@@ -540,15 +574,16 @@ function renderSectionEditor(args: {
           <div style={{ height: 10 }} />
           <ColorField label="Heading Color (hex)" value={section.headingColor || '#111827'} onChange={(v) => patchSection(index, { headingColor: v })} />
           <div style={{ height: 10 }} />
-          <Field label="Heading Size (3 options)">
+          <Field label="Heading Size">
             <select
-              value={String(section.headingSize || 3)}
-              onChange={(e) => patchSection(index, { headingSize: Number(e.target.value) as 1 | 2 | 3 })}
+              value={section.headingSize || '1.25rem'}
+              onChange={(e) => patchSection(index, { headingSize: e.target.value })}
               style={inputStyle}
             >
-              <option value="1">Size 1 (small)</option>
-              <option value="2">Size 2 (medium)</option>
-              <option value="3">Size 3 (large)</option>
+              <option value="1rem">Small</option>
+              <option value="1.125rem">Medium</option>
+              <option value="1.25rem">Large</option>
+              <option value="1.5rem">Extra Large</option>
             </select>
           </Field>
         </>
