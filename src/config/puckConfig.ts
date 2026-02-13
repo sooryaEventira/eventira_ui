@@ -63,7 +63,7 @@ export const config = {
       title: "General Page",
       icon: "fa-solid fa-file-alt",
       defaultExpanded: false,
-      components: ["GridBlock", "Article", "Table"]
+      components: ["GridBlock", "Article", "Table" , "FAQSection", "FAQAccordion",  "HTMLContent"]
     },
     // Basic Elements Category
     basic: {

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { Plus, Trash03, ChevronDown, ChevronUp } from '@untitled-ui/icons-react'
-import { UploadModal } from '../ui'
+import { Trash03, ChevronDown, ChevronUp, Edit03 } from '@untitled-ui/icons-react'
+import { UploadModal, TextEditorModal } from '../ui'
 import { fetchAllFolders, fetchFiles, uploadFile, type FileData } from '../../services/resourceService'
 
 type ArticleSectionType = 'heading' | 'paragraph' | 'image' | 'links'
@@ -69,6 +69,11 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
   const [expandedLinkSectionIds, setExpandedLinkSectionIds] = useState<Set<string>>(() => new Set())
+  
+  // Text editor modal state
+  const [textEditorOpen, setTextEditorOpen] = useState(false)
+  const [textEditorKey, setTextEditorKey] = useState<string | null>(null)
+  const [textEditorValue, setTextEditorValue] = useState('')
 
   const getSectionKey = (section: ArticleSection, index: number) => section.id || `idx-${index}`
 
@@ -278,7 +283,12 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
                     index,
                     patchSection,
                     openImagePicker: () => setImagePickerIndex(index),
-                    openUpload: () => setUploadIndex(index)
+                    openUpload: () => setUploadIndex(index),
+                    openTextEditor: (field: 'paragraph' | 'imageText', value: string) => {
+                      setTextEditorKey(`${field}-${index}`)
+                      setTextEditorValue(value)
+                      setTextEditorOpen(true)
+                    }
                   })}
                 </div>
               )}
@@ -325,6 +335,27 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
         buttonText="Attach image"
         cancelButtonText="Cancel"
         instructions={['PNG, JPG, SVG, or GIF']}
+      />
+
+      <TextEditorModal
+        isOpen={textEditorOpen}
+        onClose={() => {
+          setTextEditorOpen(false)
+          setTextEditorKey(null)
+        }}
+        onSave={(value) => {
+          if (!textEditorKey) return
+          const [field, indexStr] = textEditorKey.split('-')
+          const sectionIndex = parseInt(indexStr, 10)
+          if (field === 'paragraph') {
+            patchSection(sectionIndex, { paragraph: value })
+          } else if (field === 'imageText') {
+            patchSection(sectionIndex, { imageText: value })
+          }
+        }}
+        initialValue={textEditorValue}
+        title={textEditorKey?.startsWith('paragraph') ? 'Edit Paragraph Text' : 'Edit Image Text'}
+        placeholder="Type or paste text here..."
       />
     </div>
   )
@@ -432,8 +463,9 @@ function renderSectionEditor(args: {
   patchSection: (index: number, patch: Partial<ArticleSection>) => void
   openImagePicker: () => void
   openUpload: () => void
+  openTextEditor: (field: 'paragraph' | 'imageText', value: string) => void
 }) {
-  const { section, index, patchSection, openImagePicker, openUpload } = args
+  const { section, index, patchSection, openImagePicker, openUpload, openTextEditor } = args
   const alignValue =
     (section.align as any) || (section.headingAlign as any) || ('left' as const)
   const setAlign = (next: 'left' | 'center' | 'right') => {
@@ -455,29 +487,61 @@ function renderSectionEditor(args: {
           </Field>
           <div style={{ height: 10 }} />
           <Field label="Paragraph Text (supports HTML paste for bold/italic)">
-            <textarea
-              value={section.paragraph || ''}
-              onChange={(e) => patchSection(index, { paragraph: e.target.value })}
-              onPaste={(e) => {
-                const html = e.clipboardData?.getData('text/html')
-                if (!html) return
-                e.preventDefault()
-                try {
-                  const doc = new DOMParser().parseFromString(html, 'text/html')
-                  const bodyHtml = (doc.body?.innerHTML || '').trim()
-                  const target = e.currentTarget
-                  const start = target.selectionStart ?? (section.paragraph || '').length
-                  const end = target.selectionEnd ?? start
-                  const current = section.paragraph || ''
-                  const next = current.slice(0, start) + bodyHtml + current.slice(end)
-                  patchSection(index, { paragraph: next })
-                } catch {
-                  // Fallback to plain paste
-                }
-              }}
-              placeholder="Type text or paste rich text (bold/italic) here..."
-              style={{ ...inputStyle, minHeight: 140, resize: 'vertical' }}
-            />
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <div style={{ flex: 1 }}>
+                <textarea
+                  value={section.paragraph || ''}
+                  onChange={(e) => patchSection(index, { paragraph: e.target.value })}
+                  onPaste={(e) => {
+                    const html = e.clipboardData?.getData('text/html')
+                    if (!html) return
+                    e.preventDefault()
+                    try {
+                      const doc = new DOMParser().parseFromString(html, 'text/html')
+                      const bodyHtml = (doc.body?.innerHTML || '').trim()
+                      const target = e.currentTarget
+                      const start = target.selectionStart ?? (section.paragraph || '').length
+                      const end = target.selectionEnd ?? start
+                      const current = section.paragraph || ''
+                      const next = current.slice(0, start) + bodyHtml + current.slice(end)
+                      patchSection(index, { paragraph: next })
+                    } catch {
+                      // Fallback to plain paste
+                    }
+                  }}
+                  placeholder="Type text or paste rich text (bold/italic) here..."
+                  style={{ ...inputStyle, minHeight: 140, resize: 'vertical' }}
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => openTextEditor('paragraph', section.paragraph || '')}
+                title="Open text editor in modal"
+                style={{
+                  width: 40,
+                  height: 40,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#64748b',
+                  cursor: 'pointer',
+                  borderRadius: 8,
+                  border: '1px solid #e5e7eb',
+                  backgroundColor: '#ffffff',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6'
+                  e.currentTarget.style.borderColor = '#d1d5db'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ffffff'
+                  e.currentTarget.style.borderColor = '#e5e7eb'
+                }}
+              >
+                <Edit03 className="h-4 w-4" strokeWidth={1.8} />
+              </button>
+            </div>
           </Field>
           <div style={{ height: 10 }} />
           {/* <ColorField label="Paragraph Color (hex)" value={section.paragraphColor || '#111827'} onChange={(v) => patchSection(index, { paragraphColor: v })} /> */}
@@ -538,12 +602,61 @@ function renderSectionEditor(args: {
             <>
               <div style={{ height: 10 }} />
               <Field label="Paragraph Text (around image)">
-                <textarea
-                  value={section.imageText || ''}
-                  onChange={(e) => patchSection(index, { imageText: e.target.value })}
-                  placeholder="Type text to display around the image..."
-                  style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }}
-                />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                  <div style={{ flex: 1 }}>
+                    <textarea
+                      value={section.imageText || ''}
+                      onChange={(e) => patchSection(index, { imageText: e.target.value })}
+                      onPaste={(e) => {
+                        const html = e.clipboardData?.getData('text/html')
+                        if (!html) return
+                        e.preventDefault()
+                        try {
+                          const doc = new DOMParser().parseFromString(html, 'text/html')
+                          const bodyHtml = (doc.body?.innerHTML || '').trim()
+                          const target = e.currentTarget
+                          const start = target.selectionStart ?? (section.imageText || '').length
+                          const end = target.selectionEnd ?? start
+                          const current = section.imageText || ''
+                          const next = current.slice(0, start) + bodyHtml + current.slice(end)
+                          patchSection(index, { imageText: next })
+                        } catch {
+                          // Fallback to plain paste
+                        }
+                      }}
+                      placeholder="Type text to display around the image..."
+                      style={{ ...inputStyle, minHeight: 100, resize: 'vertical' }}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openTextEditor('imageText', section.imageText || '')}
+                    title="Open text editor in modal"
+                    style={{
+                      width: 40,
+                      height: 40,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#64748b',
+                      cursor: 'pointer',
+                      borderRadius: 8,
+                      border: '1px solid #e5e7eb',
+                      backgroundColor: '#ffffff',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#f3f4f6'
+                      e.currentTarget.style.borderColor = '#d1d5db'
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = '#ffffff'
+                      e.currentTarget.style.borderColor = '#e5e7eb'
+                    }}
+                  >
+                    <Edit03 className="h-4 w-4" strokeWidth={1.8} />
+                  </button>
+                </div>
               </Field>
               <div style={{ height: 10 }} />
               <ColorField label="Text Color (hex)" value={section.imageTextColor || '#111827'} onChange={(v) => patchSection(index, { imageTextColor: v })} />

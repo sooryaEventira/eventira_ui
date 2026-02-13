@@ -677,7 +677,7 @@ const TeamManagementPage: React.FC = () => {
           <div>
             <div className="text-sm font-semibold text-slate-900 mb-3">Details</div>
             <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-1">
+              {/* <div className="col-span-1">
                 <label className="block text-xs font-medium text-slate-600 mb-1">First name</label>
                 <input
                   value={draftFirstName}
@@ -696,7 +696,7 @@ const TeamManagementPage: React.FC = () => {
                   placeholder="Last name"
                   disabled={drawerLoading}
                 />
-              </div>
+              </div> */}
               <div className="col-span-2">
                 <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
                 <input

@@ -1,6 +1,8 @@
 export { default as Modal } from './Modal'
 export type { ModalProps } from './Modal'
 
+export { default as TextEditorModal } from './TextEditorModal'
+
 export { default as ConfirmDeleteModal } from './ConfirmDeleteModal'
 export type { ConfirmDeleteModalProps } from './ConfirmDeleteModal'
 

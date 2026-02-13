@@ -29,6 +29,7 @@ const PublicEventListPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+
   useEffect(() => {
     let cancelled = false
     setLoading(true)
