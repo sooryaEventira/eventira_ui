@@ -202,6 +202,8 @@ const Article: React.FC<ArticleProps> = ({
   // Render a section based on its type
   const renderSection = (section: ArticleSection, index: number) => {
     const sectionAlign = section.align ?? section.headingAlign ?? 'left'
+    let imageTextValue: string = ''
+
     switch (section.type) {
       case 'heading': {
         const headingValue = getStringValue(section.heading)
@@ -246,9 +248,13 @@ const Article: React.FC<ArticleProps> = ({
         const normalizedSrc = normalizeImageSrc(imageUrlValue)
         if (!normalizedSrc) return null
         
-        const imageHeight = section.imageHeight || '400px'
+        const imageHeight: string = section.imageHeight ?? '400px'
+
         const textPosition = section.imageTextPosition || 'none'
-        const imageTextValue = getStringValue(section.imageText)
+        const imageTextValue = section.imageText
+                 ? getStringValue(section.imageText)
+                 : ''
+
         const hasText = textPosition !== 'none' && imageTextValue
         const imageTextColor = section.imageTextColor || textColor
         
@@ -372,7 +378,7 @@ const Article: React.FC<ArticleProps> = ({
               : 'justify-start'
         
         return (
-          <div key={section.id || `links-${index}`} className="mb-6" style={{ textAlign: sectionAlign }}>
+          <div key={section.id || `links-${index}`} className="mb-1" style={{ textAlign: sectionAlign }}>
             {displayStyle === 'list' ? (
               // Vertical list style
               <ul className="space-y-3">
@@ -420,8 +426,7 @@ const Article: React.FC<ArticleProps> = ({
         )
       }
 
-      default:
-        return null
+      default: return null
     }
   }
 

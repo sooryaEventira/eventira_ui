@@ -40,7 +40,8 @@ import {
   Edit05,
   Trash01,
   Plus,
-  FileSearch02
+  FileSearch02,
+  ChevronDown
 } from '@untitled-ui/icons-react'
 
 interface EventWebsitePageProps {
@@ -96,6 +97,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
   const [navTreeRefresh, setNavTreeRefresh] = useState(0)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
 
   // Website pages list without static demo entries (Poster Presenter Group, etc.)
   const filteredWebpages = useMemo(
@@ -131,6 +133,17 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       window.removeEventListener('mousedown', onMouseDown)
     }
   }, [iconPickerForNavId, closeIconPicker])
+
+  // Close dropdown on Escape key
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenDropdownId(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => {
+      window.removeEventListener('keydown', onKeyDown)
+    }
+  }, [])
 
   const eventUuidForNavigation = useMemo(
     () => createdEvent?.uuid ?? localStorage.getItem('currentEventUuid') ?? '',
@@ -1485,26 +1498,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       }
       void schedulePageData
       
-      // // Save page to server
-      // const apiUrl = API_ENDPOINTS.SAVE_PAGE || '/api/save-page'
-      // const response = await fetch(apiUrl, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     data: schedulePageData,
-      //     filename: `${pageId}.json`
-      //   })
-      // })
-      
-      // if (response.ok) {
-      //   // Navigate to editor with the new schedule page
-      //   window.history.pushState({}, '', `/event/website/editor/${pageId}`)
-      //   window.dispatchEvent(new PopStateEvent('popstate'))
-      // } else {
-      //   // Handle error
-      // }
+  
     } catch (error) {
       // Error handled silently
     }
@@ -1560,7 +1554,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   if (hideNavbarAndSidebar) {
     return (
       <div className="w-full h-full">
-        <div className="flex-1 p-8 bg-white overflow-auto">
+        <div className="flex-1 p-8 bg-white overflow-y-auto overflow-x-hidden">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 w-full">
             <h1 className="text-[26px] font-bold text-primary-dark">Event website</h1>
@@ -1611,9 +1605,9 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
           {/* Content based on active tab */}
           {activeSubItem === 'website-pages' && (
-            <div>
+            <div className="pb-96">
               {/* Pages List */}
-              <div className="space-y-0 border border-slate-200 rounded-lg bg-white">
+              <div className="space-y-0 border border-slate-200 rounded-lg bg-white overflow-visible">
                 {isLoadingWebpages ? (
                   <div className="flex items-center justify-center py-8 text-slate-500">
                     <p>Loading webpages...</p>
@@ -1642,35 +1636,65 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                             aria-label="View"
                             iconLeading={<FileSearch02 className="h-4 w-4" />}
                           />
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'edit')}
-                            className="p-2 text-slate-400 hover:text-slate-600"
-                            aria-label="Edit"
-                            iconLeading={<Edit05 className="h-4 w-4" />}
-                          />
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'duplicate')}
-                            className="p-2 text-slate-400 hover:text-slate-600"
-                            aria-label="Duplicate"
-                            iconLeading={<Copy01 className="h-4 w-4" />}
-                          />
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'delete')}
-                            className={`p-2 hover:text-red-600 ${
-                              isFirstPage 
-                                ? 'text-slate-300 cursor-not-allowed opacity-50' 
-                                : 'text-slate-400'
-                            }`}
-                            aria-label="Delete"
-                            disabled={isFirstPage}
-                            iconLeading={<Trash01 className="h-4 w-4" />}
-                          />
+                          <div className="relative">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setOpenDropdownId(openDropdownId === webpage.uuid ? null : webpage.uuid)}
+                              className="inline-flex items-center gap-2  whitespace-nowrap"
+                            >
+                              <div className='flex'>
+                              Actions
+                             
+                             <ChevronDown className="h-5 w-6 text-slate-500 pt-1" />
+                              </div>
+
+                            </Button>
+
+                            {/* Dropdown Menu */}
+                            {openDropdownId === webpage.uuid && (
+                              <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'edit')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3"
+                                >
+                                  <Edit05 className="h-4 w-4 text-slate-400" />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'duplicate')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                                >
+                                  <Copy01 className="h-4 w-4 text-slate-400" />
+                                  Copy Link
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'delete')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  disabled={isFirstPage}
+                                  className={`w-full text-left px-4 py-2.5 text-sm last:rounded-b-md flex items-center gap-3 ${
+                                    isFirstPage
+                                      ? 'text-slate-300 bg-slate-50 cursor-not-allowed'
+                                      : 'text-red-600 hover:bg-red-50'
+                                  }`}
+                                >
+                                  <Trash01 className="h-4 w-4 text-slate-400" />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
@@ -1834,35 +1858,69 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                             aria-label="View"
                             iconLeading={<FileSearch02 className="h-4 w-4" />}
                           />
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'edit')}
-                            className="p-2 text-slate-400 hover:text-slate-600"
-                            aria-label="Edit"
-                            iconLeading={<Edit05 className="h-4 w-4" />}
-                          />
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'duplicate')}
-                            className="p-2 text-slate-400 hover:text-slate-600"
-                            aria-label="Duplicate"
-                            iconLeading={<Copy01 className="h-4 w-4" />}
-                          />
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'delete')}
-                            className={`p-2 hover:text-red-600 ${
-                              isFirstPage
-                                ? 'text-slate-300 cursor-not-allowed opacity-50'
-                                : 'text-slate-400'
-                            }`}
-                            aria-label="Delete"
-                            disabled={isFirstPage}
-                            iconLeading={<Trash01 className="h-4 w-4" />}
-                          />
+                          <div className="relative">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => setOpenDropdownId(openDropdownId === webpage.uuid ? null : webpage.uuid)}
+                              className="inline-flex items-center gap-2 px-4  whitespace-nowrap"
+                            >
+                              Actions
+                              <svg
+                                className={`h-4 w-4 transition-transform flex-shrink-0 ${openDropdownId === webpage.uuid ? 'rotate-180' : ''}`}
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="m6 9 6 6 6-6" />
+                              </svg>
+                            </Button>
+
+                            {/* Dropdown Menu */}
+                            {openDropdownId === webpage.uuid && (
+                              <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'edit')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3"
+                                >
+                                  <Edit05 className="h-4 w-4 text-slate-400" />
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'duplicate')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                                >
+                                  <Copy01 className="h-4 w-4 text-slate-400" />
+                                  Duplicate
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'delete')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  disabled={isFirstPage}
+                                  className={`w-full text-left px-4 py-2.5 text-sm last:rounded-b-md flex items-center gap-3 ${
+                                    isFirstPage
+                                      ? 'text-slate-300 bg-slate-50 cursor-not-allowed'
+                                      : 'text-red-600 hover:bg-red-50'
+                                  }`}
+                                >
+                                  <Trash01 className="h-4 w-4 text-slate-400" />
+                                  Delete
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )

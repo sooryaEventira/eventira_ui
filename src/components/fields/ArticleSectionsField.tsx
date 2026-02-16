@@ -68,7 +68,8 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
   const [uploadIndex, setUploadIndex] = useState<number | null>(null)
   const [draggingIndex, setDraggingIndex] = useState<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
-  const [expandedLinkSectionIds, setExpandedLinkSectionIds] = useState<Set<string>>(() => new Set())
+  const [expandedSectionIds, setExpandedSectionIds] = useState<Set<string>>(() => new Set())
+
   
   // Text editor modal state
   const [textEditorOpen, setTextEditorOpen] = useState(false)
@@ -164,9 +165,7 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
           {sections.map((section, index) => (
             (() => {
               const sectionKey = getSectionKey(section, index)
-              const isLinks = section.type === 'links'
-              const isExpanded = !isLinks || expandedLinkSectionIds.has(sectionKey)
-              const linksCount = Array.isArray(section.links) ? section.links.length : 0
+              const isExpanded = expandedSectionIds.has(sectionKey)
 
               return (
             <div
@@ -227,39 +226,38 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  {isLinks ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setExpandedLinkSectionIds((prev) => {
-                          const next = new Set(prev)
-                          if (next.has(sectionKey)) next.delete(sectionKey)
-                          else next.add(sectionKey)
-                          return next
-                        })
-                      }}
-                      aria-label={isExpanded ? 'Collapse links section' : 'Expand links section'}
-                      title={isExpanded ? 'Collapse' : 'Expand'}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#64748b',
-                        cursor: 'pointer',
-                        borderRadius: 8,
-                        border: '1px solid #e5e7eb',
-                        backgroundColor: '#ffffff'
-                      }}
-                    >
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4" strokeWidth={1.8} />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" strokeWidth={1.8} />
-                      )}
-                    </button>
-                  ) : null}
+<button
+  type="button"
+  onClick={() => {
+    setExpandedSectionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(sectionKey)) next.delete(sectionKey)
+      else next.add(sectionKey)
+      return next
+    })
+  }}
+  aria-label={isExpanded ? 'Collapse section' : 'Expand section'}
+  title={isExpanded ? 'Collapse' : 'Expand'}
+  style={{
+    width: 32,
+    height: 32,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#64748b',
+    cursor: 'pointer',
+    borderRadius: 8,
+    border: '1px solid #e5e7eb',
+    backgroundColor: '#ffffff'
+  }}
+>
+  {isExpanded ? (
+    <ChevronUp className="h-4 w-4" strokeWidth={1.8} />
+  ) : (
+    <ChevronDown className="h-4 w-4" strokeWidth={1.8} />
+  )}
+</button>
+
                   <button
                     type="button"
                     onClick={() => removeSection(index)}
@@ -272,10 +270,10 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
                 </div>
               </div>
 
-              {!isExpanded && isLinks ? (
+              {!isExpanded  ?(
                 <div style={{ marginTop: 10, fontSize: 12, color: '#64748b' }}>
-                  {linksCount} link{linksCount === 1 ? '' : 's'} (collapsed)
-                </div>
+                  {section.links?.length} {section.links?.length === 1 ? '' : ''}
+               </div>
               ) : (
                 <div style={{ marginTop: 10 }}>
                   {renderSectionEditor({
@@ -693,10 +691,10 @@ function renderSectionEditor(args: {
               onChange={(e) => patchSection(index, { headingSize: e.target.value })}
               style={inputStyle}
             >
-              <option value="1rem">Small</option>
-              <option value="1.125rem">Medium</option>
-              <option value="1.25rem">Large</option>
-              <option value="1.5rem">Extra Large</option>
+              <option value="2rem">Small</option>
+              <option value="2.5rem">Medium</option>
+              <option value="3rem">Large</option>
+              <option value="3.5rem">Extra Large</option>
             </select>
           </Field>
         </>

@@ -1034,12 +1034,12 @@ textColor: {
           type: 'select' as const,
           label: 'Heading Size',
           options: [
-            { label: 'Small', value: 'sm' },
-            { label: 'Medium', value: 'md' },
-            { label: 'Large', value: 'lg' },
-            { label: 'Extra Large', value: 'xl' },
-            // { label: '2X Large', value: '2xl' },
-          ],
+            { label: 'Small ', value: '2rem' },
+            { label: 'Medium ', value: '2.5rem' },
+            { label: 'Large ', value: '3rem' },
+            { label: 'Extra Large ', value: '3.5rem' },
+
+          ]
         },
         headingAlignment: {
           type: 'radio' as const,
@@ -2013,10 +2013,11 @@ textColor: {
           type: 'select' as const,
           label: 'Title Size ',
           options: [
-            { label: 'Small', value: '1rem' },
-            { label: 'Medium ', value: '1.125rem' },
-            { label: 'Large ', value: '1.25rem' },
-            { label: 'Extra Large', value: '1.5rem' }
+            { label: 'Small ', value: '2rem' },
+            { label: 'Medium ', value: '2.5rem' },
+            { label: 'Large ', value: '3rem' },
+            { label: 'Extra Large ', value: '3.5rem' },
+
           ]
         },
         subtitle: {
@@ -2416,12 +2417,13 @@ textColor: {
           type: 'select' as const,
           label: 'Heading Size',
           options: [
-            { label: 'Small', value: '1rem' },
-            { label: 'Medium ', value: '1.25rem' },
-            { label: 'Large ', value: '1.5rem' },
-            { label: 'Extra Large', value: '1.75rem' }
-          ],
-          defaultValue: '1.5rem'
+            { label: 'Small ', value: '2rem' },
+            { label: 'Medium ', value: '2.5rem' },
+            { label: 'Large ', value: '3rem' },
+            { label: 'Extra Large ', value: '3.5rem' },
+
+          ]
+        
         },
         subtitle: {
           type: 'text' as const,
@@ -3556,10 +3558,11 @@ textColor: {
           type: 'select' as const,
           label: 'Title Size',
           options: [
-            { label: 'Small', value: '1rem' },
-            { label: 'Medium ', value: '1.125rem' },
-            { label: 'Large ', value: '1.25rem' },
-            { label: 'Extra Large', value: '1.5rem' }
+            { label: 'Small ', value: '2rem' },
+            { label: 'Medium ', value: '2.5rem' },
+            { label: 'Large ', value: '3rem' },
+            { label: 'Extra Large ', value: '3.5rem' },
+
           ]
         },
         // mapUrl: {
@@ -4821,13 +4824,11 @@ textColor: {
           type: 'select' as const,
           label: 'Title Size',
           options: [
-            { label: 'XXXL', value: 'XXXL' },
-            { label: 'XXL', value: 'XXL' },
-            { label: 'XL', value: 'XL' },
-            { label: 'L', value: 'L' },
-            { label: 'M', value: 'M' },
-            { label: 'S', value: 'S' },
-            { label: 'XS', value: 'XS' }
+            { label: 'Small ', value: '2rem' },
+            { label: 'Medium ', value: '2.5rem' },
+            { label: 'Large ', value: '3rem' },
+            { label: 'Extra Large ', value: '3.5rem' },
+
           ]
         },
         subtitleSize: {
