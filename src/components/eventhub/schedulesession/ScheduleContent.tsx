@@ -110,7 +110,16 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     // 1) Normalize shape (date, ids, parent references)
     const normalized: SavedSession[] = raw
       .map((session: any) => {
-        const id = String(session?.id ?? session?.uuid ?? '')
+        // IMPORTANT:
+        // Always prioritize stable UUIDs over numeric/internal IDs so that
+        // parent/child (parallel) relationships use the same identifier
+        // that the backend exposes via `parent_session_uuid`.
+        const id = String(
+          session?.uuid ??
+          session?.session_uuid ??
+          session?.id ??
+          ''
+        )
         if (!id) return null
 
         const sessionTypeRaw = String(session?.sessionType ?? session?.session_type ?? '').toLowerCase()

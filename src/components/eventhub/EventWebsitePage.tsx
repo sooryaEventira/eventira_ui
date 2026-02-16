@@ -1643,12 +1643,10 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                               onClick={() => setOpenDropdownId(openDropdownId === webpage.uuid ? null : webpage.uuid)}
                               className="inline-flex items-center gap-2  whitespace-nowrap"
                             >
-                              <div className='flex'>
-                              Actions
-                             
+                              <div className='flex'>       
+                              Actions                          
                              <ChevronDown className="h-5 w-6 text-slate-500 pt-1" />
                               </div>
-
                             </Button>
 
                             {/* Dropdown Menu */}
@@ -1863,18 +1861,12 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                               variant="secondary"
                               size="sm"
                               onClick={() => setOpenDropdownId(openDropdownId === webpage.uuid ? null : webpage.uuid)}
-                              className="inline-flex items-center gap-2 px-4  whitespace-nowrap"
+                              className="inline-flex items-center gap-2  whitespace-nowrap"
                             >
-                              Actions
-                              <svg
-                                className={`h-4 w-4 transition-transform flex-shrink-0 ${openDropdownId === webpage.uuid ? 'rotate-180' : ''}`}
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                viewBox="0 0 24 24"
-                              >
-                                <path d="m6 9 6 6 6-6" />
-                              </svg>
+                              <div className='flex'>       
+                              Actions                          
+                             <ChevronDown className="h-5 w-6 text-slate-500 pt-1" />
+                              </div>
                             </Button>
 
                             {/* Dropdown Menu */}
