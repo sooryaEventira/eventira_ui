@@ -542,16 +542,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }
 
   const handleEventRowClick = async (event: Event) => {
+    console.log('[Dashboard] Event row clicked:', event)
     try {
       // Fetch event details by UUID (assuming event.id is the UUID)
       const eventData = await fetchEvent(event.id)
+      console.log('[Dashboard] Fetched event details:', eventData)
       
       // Convert EventData to CreateEventResponseData format for context
       // EventData already contains all required fields, so we can cast it directly
       const createdEventData: CreateEventResponseData = {
         ...eventData
       }
-      
+      console.log('[Dashboard] Setting createdEvent in context:', createdEventData)
+
       // Set event in context - this updates both state and localStorage synchronously
       // IMPORTANT: This must happen BEFORE navigation to ensure context is updated
       setCreatedEvent(createdEventData)

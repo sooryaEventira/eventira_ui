@@ -21,6 +21,10 @@ interface ScheduleContentProps {
   rangeEndDate?: Date | string
   onEditSession?: (session: SavedSession) => void
   onDeleteSession?: (session: SavedSession) => void
+  /** When true, grid closes any open 3-dot menu so it doesn’t show over the session form. */
+  /** When provided, session cards are clickable and open the session summary (e.g. in a slideout). */
+  onSessionClick?: (session: SavedSession) => void
+  sessionFormOpen?: boolean
 }
 
 const ScheduleContent: React.FC<ScheduleContentProps> = ({
@@ -35,7 +39,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   rangeStartDate,
   rangeEndDate,
   onEditSession,
-  onDeleteSession
+  onDeleteSession,
+  onSessionClick,
+  sessionFormOpen = false
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
@@ -277,6 +283,8 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
             onAddParallelSession={(parentId) => onAddSession?.(parentId)}
             onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
+            onSessionClick={onSessionClick}
+            sessionFormOpen={sessionFormOpen}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-center text-base text-slate-500">

@@ -460,10 +460,16 @@ export const usePageManagement = () => {
       // Get event data - prioritize createdEvent, then eventData, then existing props or defaults
       const eventName = createdEvent?.eventName || eventData?.eventName || heroSection.props.title || 'Event Title'
       const location = createdEvent?.location || eventData?.location || ''
-      const eventDate = formatEventDate(
-        createdEvent?.startDate || eventData?.startDate,
-        createdEvent?.endDate || eventData?.endDate
-      )
+      // Use startDate/endDate; fallback to date part of startDateTimeISO/endDateTimeISO so API-only ISO fields work
+      const startForSubtitle =
+        (createdEvent as any)?.startDate ?? (createdEvent as any)?.event_date ?? (createdEvent as any)?.start_date ??
+        (createdEvent as any)?.startDateTimeISO?.slice?.(0, 10) ??
+        (eventData as any)?.startDate ?? (eventData as any)?.startDateTimeISO?.slice?.(0, 10)
+      const endForSubtitle =
+        (createdEvent as any)?.endDate ?? (createdEvent as any)?.end_date ??
+        (createdEvent as any)?.endDateTimeISO?.slice?.(0, 10) ??
+        (eventData as any)?.endDate ?? (eventData as any)?.endDateTimeISO?.slice?.(0, 10)
+      const eventDate = formatEventDate(startForSubtitle, endForSubtitle)
       // Match WebsitePreviewPage format: "Location | Date" or just "Date" if no location
       const subtitle = location ? `${location} | ${eventDate}` : (eventDate || 'Location | Date')
 
@@ -541,7 +547,7 @@ export const usePageManagement = () => {
     const bannerInStorage = localStorage.getItem('event-form-banner')
     console.log('🖼️ useEffect triggered - Banner in storage:', !!bannerInStorage, 'EventData:', !!eventData, 'CreatedEvent:', !!createdEvent, 'CurrentPage:', currentPage)
     updateHeroSectionWithEventData()
-  }, [createdEvent?.eventName, createdEvent?.location, createdEvent?.startDate, eventData?.eventName, eventData?.location, eventData?.startDate, currentData?.content?.length, currentPage, updateHeroSectionWithEventData]) // Trigger when eventData or createdEvent fields change, content changes, or page changes
+  }, [createdEvent?.eventName, createdEvent?.location, createdEvent?.startDate, createdEvent?.endDate, (createdEvent as any)?.startDateTimeISO, (createdEvent as any)?.endDateTimeISO, eventData?.eventName, eventData?.location, eventData?.startDate, eventData?.endDate, currentData?.content?.length, currentPage, updateHeroSectionWithEventData]) // Trigger when eventData or createdEvent fields change, content changes, or page changes
 
   // Also run on initial mount to ensure banner is loaded
   useEffect(() => {

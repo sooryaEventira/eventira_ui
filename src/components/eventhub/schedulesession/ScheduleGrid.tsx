@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { Plus, ChevronUp, ChevronDown, Calendar, Attachment01, User01 } from '@untitled-ui/icons-react'
 import { SavedSession } from './sessionTypes'
 
@@ -10,6 +11,8 @@ interface ScheduleGridProps {
   onDeleteSession?: (session: SavedSession) => void
   /** When provided, session cards are clickable and open this (e.g. public schedule → session detail page). */
   onSessionClick?: (session: SavedSession) => void
+  /** When true, any open 3-dot dropdown is closed (e.g. session details form opened). */
+  sessionFormOpen?: boolean
 }
 
 // SessionContainer component that manages time column and session cards
@@ -33,9 +36,15 @@ interface SessionContainerProps {
   onEditSession?: (session: SavedSession) => void
   onDeleteSession?: (session: SavedSession) => void
   onSessionClick?: (session: SavedSession) => void
+  /** When true, close any open 3-dot menu (e.g. session form opened). */
+  sessionFormOpen?: boolean
 }
 
-// Small dropdown for session card 3-dots: Edit and Delete
+// Dropdown menu width for positioning
+const SESSION_MENU_WIDTH = 120
+
+// Small dropdown for session card 3-dots: Edit and Delete.
+// Renders the menu in a portal so it works inside nested/scrollable cards (e.g. child sessions).
 function SessionMenuDropdown({
   session,
   isOpen,
@@ -55,61 +64,130 @@ function SessionMenuDropdown({
   className?: string
   iconSize?: string
 }) {
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+  const onToggleRef = useRef(onToggle)
+  onToggleRef.current = onToggle
+
+  // Native click (capture) on trigger so 3-dot works inside nested cards where React events can be blocked
+  useEffect(() => {
+    const el = triggerRef.current
+    if (!el) return
+    const handler = (e: Event) => {
+      e.stopPropagation()
+      e.preventDefault()
+      onToggleRef.current(e as unknown as React.MouseEvent)
+    }
+    el.addEventListener('click', handler, true)
+    return () => el.removeEventListener('click', handler, true)
+  }, [])
+
+  // Position menu when opening (portal is in document.body). Defer so ref is set after open.
+  useEffect(() => {
+    if (!isOpen) {
+      setMenuPosition(null)
+      return
+    }
+    const id = requestAnimationFrame(() => {
+      if (!triggerRef.current) return
+      const rect = triggerRef.current.getBoundingClientRect()
+      setMenuPosition({
+        top: rect.bottom + 4,
+        left: Math.max(8, rect.right - SESSION_MENU_WIDTH),
+      })
+    })
+    return () => cancelAnimationFrame(id)
+  }, [isOpen])
+
+  // Outside click: close when click is outside both trigger and menu (menu is in portal).
+  // Use mousedown so we don't need a long delay; add listener after open so the opening gesture doesn't close it.
+  const justOpenedRef = useRef(false)
+  useEffect(() => {
+    if (isOpen) justOpenedRef.current = true
+  }, [isOpen])
   useEffect(() => {
     if (!isOpen) return
-    const handleClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
+    const handleMouseDown = (e: MouseEvent) => {
+      if (justOpenedRef.current) {
+        justOpenedRef.current = false
+        return
+      }
+      const target = e.target as Node
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      onClose()
     }
-    document.addEventListener('click', handleClick)
-    return () => document.removeEventListener('click', handleClick)
+    const id = setTimeout(() => document.addEventListener('mousedown', handleMouseDown), 10)
+    return () => {
+      clearTimeout(id)
+      document.removeEventListener('mousedown', handleMouseDown)
+    }
   }, [isOpen, onClose])
 
-  return (
-    <div className={`relative ${className}`} ref={ref}>
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation()
-          onToggle(e)
-        }}
-        className="p-1 text-slate-400 hover:text-slate-600 rounded"
-        aria-label="More options"
-        aria-expanded={isOpen}
+  const menuContent =
+    isOpen && menuPosition && typeof document !== 'undefined' ? (
+      <div
+        ref={menuRef}
+        className="fixed py-1 bg-white rounded-lg shadow-lg border border-slate-200 z-[9999] min-w-[120px]"
+        style={{ top: menuPosition.top, left: menuPosition.left }}
       >
-        <svg className={iconSize} fill="currentColor" viewBox="0 0 20 20">
-          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-        </svg>
-      </button>
-      {isOpen && (
-        <div className="absolute right-0 top-full mt-1 py-1 bg-white rounded-lg shadow-lg border border-slate-200 z-[100] min-w-[120px]">
-          <button
-            type="button"
-            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-t-lg"
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              onClose()
-              onEdit(session)
-            }}
-          >
-            Edit
-          </button>
-          <button
-            type="button"
-            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 rounded-b-lg"
-            onClick={(e) => {
-              e.stopPropagation()
-              e.preventDefault()
-              onClose()
-              onDelete(session)
-            }}
-          >
-            Delete
-          </button>
-        </div>
-      )}
-    </div>
+        <button
+          type="button"
+          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 rounded-t-lg"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onClose()
+            onEdit(session)
+          }}
+        >
+          Edit
+        </button>
+        <button
+          type="button"
+          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-red-50 hover:text-red-700 rounded-b-lg"
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onClose()
+            onDelete(session)
+          }}
+        >
+          Delete
+        </button>
+      </div>
+    ) : null
+
+  return (
+    <>
+      <div
+        className={`relative ${className}`}
+        ref={triggerRef}
+        data-session-menu-trigger
+        data-session-id={session.id}
+      >
+        <button
+          type="button"
+          onMouseDown={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+          }}
+          onClick={(e) => {
+            e.stopPropagation()
+            e.preventDefault()
+            onToggleRef.current(e)
+          }}
+          className="p-1 text-slate-400 hover:text-slate-600 rounded"
+          aria-label="More options"
+          aria-expanded={isOpen}
+        >
+          <svg className={iconSize} fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+          </svg>
+        </button>
+      </div>
+      {menuContent && createPortal(menuContent, document.body)}
+    </>
   )
 }
 
@@ -131,9 +209,31 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   isTimeValid,
   onEditSession,
   onDeleteSession,
-  onSessionClick
+  onSessionClick,
+  sessionFormOpen = false
 }) => {
   const [menuOpenForId, setMenuOpenForId] = useState<string | null>(null)
+
+  // Close 3-dot menu when session details form opens so it doesn’t show over the form
+  useEffect(() => {
+    if (sessionFormOpen) setMenuOpenForId(null)
+  }, [sessionFormOpen])
+
+  const containerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      const trigger = target.closest?.('[data-session-menu-trigger]') as HTMLElement | null
+      if (!trigger?.dataset?.sessionId || !containerRef.current?.contains(trigger)) return
+      e.stopPropagation()
+      e.preventDefault()
+      const id = trigger.dataset.sessionId
+      setMenuOpenForId((prev) => (prev === id ? null : id))
+    }
+    document.addEventListener('click', handler, true)
+    return () => document.removeEventListener('click', handler, true)
+  }, [])
+
   const timeStart = timeRangeStart ?? formatTime(session.startTime, session.startPeriod || 'AM')
   const timeEnd = timeRangeEnd ?? formatTime(session.endTime, session.endPeriod || 'AM')
   const hasParallelSessions = parallelSessions.length > 0
@@ -180,14 +280,20 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                   style={{ left: `${16 + (depth - 1) * 20}px` }}
                 ></div>
 
-                {/* Child Session Card */}
+                {/* Child Session Card - stop propagation so parent card never captures 3-dot or other controls */}
                 <div
-                  className="border border-slate-200 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow"
+                  className="border border-slate-200 rounded-lg bg-slate-50 shadow-sm hover:shadow-md transition-shadow relative child-session-card"
                   style={{ marginLeft: `${24 + (depth - 1) * 20}px` }}
+                  onClick={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
                 >
                   <div className="p-3">
-                    {/* Header */}
-                    <div className="flex items-start justify-between mb-2">
+                    {/* Header - isolate pointer events so parent card never captures 3-dot */}
+                    <div
+                      className="flex items-start justify-between mb-2 relative z-10"
+                      onMouseDown={(e) => e.stopPropagation()}
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       <div className="flex items-center gap-2 flex-1">
                         <input
                           type="checkbox"
@@ -213,7 +319,11 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-1">
+                      <div
+                        className="flex items-center gap-1 flex-shrink-0"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        onClick={(e) => e.stopPropagation()}
+                      >
                         {hasMore && onToggleSessionExpand && (
                           <button
                             type="button"
@@ -236,6 +346,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                           onEdit={(s) => onEditSession?.(s)}
                           onDelete={(s) => onDeleteSession?.(s)}
                           iconSize="h-3.5 w-3.5"
+                          className="z-20"
                         />
                       </div>
                     </div>
@@ -271,29 +382,16 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                           </span>
                         )}
 
-                        {child.sessionType && (
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                            {child.sessionType === 'keynote' ? (
-                              <svg className="h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2}
-                                  d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"
-                                />
-                              </svg>
-                            ) : (
-                              <User01 className="h-3 w-3" />
-                            )}
-                            {getSessionTypeLabel(child.sessionType)}
-                          </span>
-                        )}
+                       
                       </div>
 
                       {onAddParallelSession && (
                         <button
                           type="button"
-                          onClick={() => onAddParallelSession?.(parent.id)}
+                          onClick={() => {
+                            setMenuOpenForId(null)
+                            onAddParallelSession?.(parent.id)
+                          }}
                           className="p-1 text-slate-400 hover:text-primary rounded border border-slate-300 flex-shrink-0 transition-colors"
                           aria-label="Add parallel session"
                         >
@@ -320,11 +418,11 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
         </div>
       )
     },
-    [getChildren, isSessionExpanded, isTimeValid, onAddParallelSession, onToggleSessionExpand, formatTimeRange, getLocationLabel, getSessionTypeLabel]
+    [getChildren, isSessionExpanded, isTimeValid, onAddParallelSession, onToggleSessionExpand, onSessionClick, formatTimeRange, getLocationLabel, getSessionTypeLabel]
   )
 
   return (
-    <div className="flex items-stretch gap-6">
+    <div className="flex items-stretch gap-6" ref={containerRef}>
       {/* Time Column - spans parent + all children so the block shares one time range column */}
       <div className="flex-shrink-0 w-24 self-stretch">
         <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
@@ -411,27 +509,16 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                     {getLocationLabel(session.location)}
                   </span>
                 )}
-                
-                {/* Session Type Badge */}
-                {session.sessionType && (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                    {session.sessionType === 'keynote' ? (
-                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                    ) : (
-                      <User01 className="h-3.5 w-3.5" />
-                    )}
-                    {getSessionTypeLabel(session.sessionType)}
-                  </span>
-                )}
               </div>
 
               {/* + Button - Only show if no parallel sessions exist */}
               {showAddButton && (
                 <button
                   type="button"
-                  onClick={() => onAddParallelSession?.(session.id)}
+                  onClick={() => {
+                    setMenuOpenForId(null)
+                    onAddParallelSession?.(session.id)
+                  }}
                   className="p-1.5 text-slate-400 hover:text-primary rounded border border-slate-300 flex-shrink-0 transition-colors"
                   aria-label="Add parallel session"
                 >
@@ -447,31 +534,36 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
               </p>
             )}
 
-            {/* Footer - Attachment Badge and Expand/Collapse Arrow */}
+            {/* Footer - Attachment Badge */}
             <div className="flex items-center justify-between">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                 <Attachment01 className="h-3.5 w-3.5" />
                 {session.attachments?.length || 0}
               </span>
-              {showExpandButton && (
-                <button
-                  type="button"
-                  onClick={onToggleExpand}
-                  className="p-1 text-slate-400 hover:text-slate-600 rounded"
-                  aria-label={isExpanded ? "Collapse" : "Expand"}
-                >
-                  {isExpanded ? (
-                    <ChevronUp className="h-4 w-4" />
-                  ) : (
-                    <ChevronDown className="h-4 w-4" />
-                  )}
-                </button>
-              )}
             </div>
+
+            {/* Sub-session count row (e.g. "1 sub-session") */}
+            {hasParallelSessions && (
+              <button
+                type="button"
+                onClick={onToggleExpand}
+                className="mt-2 w-full flex items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-100"
+              >
+                <span>
+                  {getChildren(session.id).length}{' '}
+                  {getChildren(session.id).length === 1 ? 'sub-session' : 'sub-sessions'}
+                </span>
+                {isExpanded ? (
+                  <ChevronUp className="h-3.5 w-3.5" />
+                ) : (
+                  <ChevronDown className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
 
             {/* Child sessions inside parent card */}
             {hasParallelSessions && isExpanded && (
-              <div className="mt-3 pt-3 border-t border-slate-200">
+              <div className="mt-3 pt-3 border-t border-slate-200 overflow-visible relative">
                 {renderNestedSessions(session, 1)}
               </div>
             )}
@@ -488,7 +580,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   onAddParallelSession,
   onEditSession,
   onDeleteSession,
-  onSessionClick
+  onSessionClick,
+  sessionFormOpen = false
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
 
@@ -685,6 +778,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 onEditSession={onEditSession}
                 onDeleteSession={onDeleteSession}
                 onSessionClick={onSessionClick}
+                sessionFormOpen={sessionFormOpen}
               />
             )
           })}

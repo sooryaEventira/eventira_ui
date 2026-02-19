@@ -51,21 +51,29 @@ export interface EventData {
   [key: string]: any // Allow additional fields
 }
 
+/** Take ISO datetime string and return YYYY-MM-DD for date-only use (e.g. weekday selector). */
+function isoToDateOnly(iso: unknown): string | undefined {
+  if (iso == null || typeof iso !== 'string') return undefined
+  const s = String(iso).trim()
+  if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
+  return undefined
+}
+
 /**
  * Normalize single-event API response so startDate/endDate match the dashboard "EVENT DATE" (event_date).
- * Prefer event_date for startDate so weekday selector shows the same date as the events table.
+ * Prefer event_date for startDate; fall back to startDateTimeISO/endDateTimeISO so weekday selector and HeroSection get correct dates.
  */
 function normalizeSingleEventResponse(raw: any): EventData {
   const obj = raw?.event && typeof raw.event === 'object' ? raw.event : raw
   if (!obj || typeof obj !== 'object') return raw as EventData
-  const startDate = obj.event_date ?? obj.start_date ?? obj.startDate
-  const endDate = obj.end_date ?? obj.endDate
+  const startDateRaw = obj.event_date ?? obj.start_date ?? obj.startDate ?? isoToDateOnly(obj.startDateTimeISO)
+  const endDateRaw = obj.end_date ?? obj.endDate ?? isoToDateOnly(obj.endDateTimeISO)
   return {
     ...obj,
     uuid: String(obj.uuid || ''),
     eventName: String(obj.title ?? obj.eventName ?? ''),
-    startDate: startDate != null && String(startDate).trim() !== '' ? String(startDate) : undefined,
-    endDate: endDate != null && String(endDate).trim() !== '' ? String(endDate) : undefined,
+    startDate: startDateRaw != null && String(startDateRaw).trim() !== '' ? String(startDateRaw) : undefined,
+    endDate: endDateRaw != null && String(endDateRaw).trim() !== '' ? String(endDateRaw) : undefined,
     location: obj.location ?? undefined,
     createdAt: obj.created_at ?? obj.createdAt ?? obj.created_date,
   }

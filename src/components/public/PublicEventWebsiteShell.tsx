@@ -374,6 +374,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const webpageUuid = current.webpageUuid ?? fallbackWebpageUuid
 
   const handleNavigate = (path: string) => {
+    // Exit to event list: full navigation so PublicApp re-renders and shows PublicEventListPage
+    if (path === '/event-list' || path === '/events' || path === '/') {
+      window.location.href = path === '/' ? '/event-list' : path
+      return
+    }
     window.history.pushState({}, '', path)
     window.dispatchEvent(new PopStateEvent('popstate'))
   }
@@ -444,9 +449,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         activePath={activePath}
         onNavigate={handleNavigate}
         navbarBackgroundColor={navbarBackgroundColor}
+        exitEventPath="/event-list"
       />
 
-      <main className={`mx-auto w-full max-w-7xl flex-1 px-4 pb-12 pt-20 sm:px-6 ${isAuthSection ? 'flex flex-col' : ''}`}>
+      <main className={`pt-16 md:pl-72 w-full flex-1 px-4 pb-12 sm:px-6 md:max-w-none ${isAuthSection ? 'flex flex-col' : ''}`}>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="text-sm font-medium text-slate-600">Loading website…</div>

@@ -3,7 +3,7 @@ import { useEventForm } from '../../../contexts/EventFormContext'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import { defaultCards, ContentCard } from '../EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01, Folder, Upload01, Plus, DotsVertical, ChevronRight, File01, SearchLg, FilterLines } from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Folder, Upload01, Plus, DotsVertical, ChevronRight, File01, SearchLg, FilterLines, Calendar,SwitchVertical01 } from '@untitled-ui/icons-react'
 import { Button } from '../../ui/untitled'
 import ResourceContextMenu from './ResourceContextMenu'
 import MoveToFolderModal from './MoveToFolderModal'
@@ -23,6 +23,24 @@ export interface MediaFile {
   preview?: string
   url?: string
   folderId?: string | null
+  uploadedAt?: string // ISO date string for date-of-upload filter
+  size?: number // File size in bytes for sort
+}
+
+export type ResourceSortOption =
+  | 'title-asc'
+  | 'title-desc'
+  | 'date-newest'
+  | 'date-oldest'
+  | 'updated-newest'
+  | 'size-largest'
+  | 'size-smallest'
+  | null
+
+export interface ResourceFilterState {
+  types: { image: boolean; pdf: boolean; video: boolean; document: boolean }
+  fromDate: string
+  toDate: string
 }
 
 export interface MediaFolder {
@@ -85,11 +103,23 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
   const [editingFolderName, setEditingFolderName] = useState('')
   const [editingFileId, setEditingFileId] = useState<string | null>(null)
   const [editingFileName, setEditingFileName] = useState('')
+  const [showFilterModal, setShowFilterModal] = useState(false)
+  const [filterForm, setFilterForm] = useState<ResourceFilterState>({
+    types: { image: false, pdf: false, video: false, document: false },
+    fromDate: '',
+    toDate: ''
+  })
+  const [appliedFilter, setAppliedFilter] = useState<ResourceFilterState | null>(null)
+  const [showSortDropdown, setShowSortDropdown] = useState(false)
+  const [appliedSort, setAppliedSort] = useState<ResourceSortOption>(null)
+  const [sortSelection, setSortSelection] = useState<ResourceSortOption>(null) // pending selection in dropdown
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const fileRenameInputRef = useRef<HTMLInputElement>(null)
   const folderCardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
   const fileCardRefs = useRef<{ [key: string]: HTMLDivElement | null }>({})
+  const filterDropdownRef = useRef<HTMLDivElement>(null)
+  const sortDropdownRef = useRef<HTMLDivElement>(null)
 
   const handleSearchClick = () => {
     console.log('Search clicked')
@@ -250,7 +280,9 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
           file: null, // We don't have the original File object from API
           preview: fileType === 'image' || fileType === 'video' || isPdf ? file.file : undefined, // Use API URL for images/videos/pdfs
           url: file.file, // Keep API URL for copy/share actions
-          folderId: file.folder || currentFolderId || null
+          folderId: file.folder || currentFolderId || null,
+          uploadedAt: file.created_date,
+          size: file.size
         }
       })
       
@@ -790,20 +822,20 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
           label: 'Duplicate',
           action: () => handleDuplicateFile(file.id)
         },
-        {
-          label: 'Share/Gallery shortcut',
-          action: () => {
-            setFileForShortcut(file)
-            setShowGalleryShortcutModal(true)
-          }
-        },
-        {
-          label: 'Restrict access',
-          action: () => {
-            setItemForRestriction({ id: file.id, name: file.name, type: 'file' })
-            setShowRestrictAccessModal(true)
-          }
-        },
+        // {
+        //   label: 'Share/Gallery shortcut',
+        //   action: () => {
+        //     setFileForShortcut(file)
+        //     setShowGalleryShortcutModal(true)
+        //   }
+        // },
+        // {
+        //   label: 'Restrict access',
+        //   action: () => {
+        //     setItemForRestriction({ id: file.id, name: file.name, type: 'file' })
+        //     setShowRestrictAccessModal(true)
+        //   }
+        // },
         {
           label: 'Delete',
           action: () => {
@@ -853,13 +885,128 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
         file.name.toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
+    if (appliedFilter) {
+      const { types, fromDate, toDate } = appliedFilter
+      const anyType = types.image || types.pdf || types.video || types.document
+      if (anyType) {
+        filtered = filtered.filter((file) => {
+          if (types.image && file.type === 'image') return true
+          if (types.video && file.type === 'video') return true
+          const isPdf = file.type === 'document' && file.name.toLowerCase().endsWith('.pdf')
+          if (types.pdf && isPdf) return true
+          if (types.document && file.type === 'document' && !isPdf) return true
+          return false
+        })
+      }
+      if (fromDate || toDate) {
+        filtered = filtered.filter((file) => {
+          const uploaded = file.uploadedAt ? new Date(file.uploadedAt).getTime() : null
+          if (uploaded == null) return true
+          if (fromDate && uploaded < new Date(fromDate).setHours(0, 0, 0, 0)) return false
+          if (toDate && uploaded > new Date(toDate).setHours(23, 59, 59, 999)) return false
+          return true
+        })
+      }
+    }
     return filtered
-  }, [files, currentFolderId, activeTab, searchQuery])
+  }, [files, currentFolderId, activeTab, searchQuery, appliedFilter])
 
-  const handleFilterClick = () => {
-    // TODO: Implement filter functionality
-    console.log('Filter clicked')
+  const sortedFolders = useMemo(() => {
+    const list = [...filteredFolders]
+    if (!appliedSort || appliedSort === 'date-newest' || appliedSort === 'date-oldest' || appliedSort === 'updated-newest' || appliedSort === 'size-largest' || appliedSort === 'size-smallest') {
+      return list
+    }
+    if (appliedSort === 'title-asc') return list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    if (appliedSort === 'title-desc') return list.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: 'base' }))
+    return list
+  }, [filteredFolders, appliedSort])
+
+  const sortedFiles = useMemo(() => {
+    const list = [...filteredFiles]
+    if (!appliedSort) return list
+    if (appliedSort === 'title-asc') return list.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))
+    if (appliedSort === 'title-desc') return list.sort((a, b) => b.name.localeCompare(a.name, undefined, { sensitivity: 'base' }))
+    if (appliedSort === 'date-newest') return list.sort((a, b) => (b.uploadedAt || '').localeCompare(a.uploadedAt || ''))
+    if (appliedSort === 'date-oldest') return list.sort((a, b) => (a.uploadedAt || '').localeCompare(b.uploadedAt || ''))
+    if (appliedSort === 'updated-newest') return list.sort((a, b) => (b.uploadedAt || '').localeCompare(a.uploadedAt || ''))
+    if (appliedSort === 'size-largest') return list.sort((a, b) => (b.size ?? 0) - (a.size ?? 0))
+    if (appliedSort === 'size-smallest') return list.sort((a, b) => (a.size ?? 0) - (b.size ?? 0))
+    return list
+  }, [filteredFiles, appliedSort])
+
+  const handleFilterClick = () => setShowFilterModal((v) => !v)
+
+  // Close filter dropdown on click outside
+  useEffect(() => {
+    if (!showFilterModal) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterDropdownRef.current && !filterDropdownRef.current.contains(e.target as Node)) {
+        setShowFilterModal(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showFilterModal])
+
+  // Close sort dropdown on click outside
+  useEffect(() => {
+    if (!showSortDropdown) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setShowSortDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [showSortDropdown])
+
+  const handleFilterApply = () => {
+    setAppliedFilter({ ...filterForm })
+    setShowFilterModal(false)
   }
+
+  const handleFilterClearAll = () => {
+    setFilterForm({
+      types: { image: false, pdf: false, video: false, document: false },
+      fromDate: '',
+      toDate: ''
+    })
+    setAppliedFilter(null)
+    setShowFilterModal(false)
+  }
+
+  const setFilterType = (key: keyof ResourceFilterState['types'], value: boolean) => {
+    setFilterForm((prev) => ({
+      ...prev,
+      types: { ...prev.types, [key]: value }
+    }))
+  }
+
+  const handleSortButtonClick = () => {
+    setSortSelection(appliedSort)
+    setShowSortDropdown((v) => !v)
+  }
+
+  const handleSortApply = () => {
+    setAppliedSort(sortSelection)
+    setShowSortDropdown(false)
+  }
+
+  const handleSortClearAll = () => {
+    setSortSelection(null)
+    setAppliedSort(null)
+    setShowSortDropdown(false)
+  }
+
+  const SORT_OPTIONS: { value: ResourceSortOption; label: string }[] = [
+    { value: 'title-asc', label: 'Title (A-Z)' },
+    { value: 'title-desc', label: 'Title (Z-A)' },
+    { value: 'date-newest', label: 'Date uploaded (Newest first)' },
+    { value: 'date-oldest', label: 'Date uploaded (Oldest first)' },
+    { value: 'updated-newest', label: 'Last updated (Newest first)' },
+    { value: 'size-largest', label: 'File size (Largest first)' },
+    { value: 'size-smallest', label: 'File size (Smallest first)' }
+  ]
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-white">
@@ -956,15 +1103,127 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
                 </button>
               </div>
 
-              {/* Filter Button */}
-              <button
-                type="button"
-                onClick={handleFilterClick}
-                className="inline-flex shrink-0 h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                aria-label="Filter resources"
-              >
-                <FilterLines className="h-4 w-4" strokeWidth={2} />
-              </button>
+              {/* Filter Button + Dropdown */}
+              <div ref={filterDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={handleFilterClick}
+                  className={`inline-flex shrink-0 h-10 w-10 items-center justify-center rounded-lg border bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${showFilterModal ? 'border-primary text-primary' : 'border-slate-200'}`}
+                  aria-label="Filter resources"
+                  aria-expanded={showFilterModal}
+                >
+                  <FilterLines className="h-4 w-4" strokeWidth={2} />
+                </button>
+                {showFilterModal && (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-lg border border-slate-200 bg-white p-4 shadow-lg">
+                    <h3 className="text-sm font-semibold text-slate-900 mb-3">Type</h3>
+                    <div className="space-y-2 mb-4">
+                      {[
+                        { key: 'image' as const, label: 'Image' },
+                        { key: 'pdf' as const, label: 'PDF' },
+                        { key: 'video' as const, label: 'Video' },
+                        { key: 'document' as const, label: 'Document' }
+                      ].map(({ key, label }) => (
+                        <label key={key} className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={filterForm.types[key]}
+                            onChange={(e) => setFilterType(key, e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                          />
+                          <span className="text-sm text-slate-700">{label}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-900 mb-3">Date of upload</h3>
+                    <div className="space-y-2 mb-4">
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                        <input
+                          type="date"
+                          value={filterForm.fromDate}
+                          onChange={(e) => setFilterForm((prev) => ({ ...prev, fromDate: e.target.value }))}
+                          className="w-full pl-10 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                          aria-label="Select from date"
+                        />
+                      </div>
+                      <div className="relative">
+                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                        <input
+                          type="date"
+                          value={filterForm.toDate}
+                          onChange={(e) => setFilterForm((prev) => ({ ...prev, toDate: e.target.value }))}
+                          className="w-full pl-10 pr-3 py-2 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary focus:border-primary"
+                          aria-label="Select to date"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                      <button
+                        type="button"
+                        onClick={handleFilterClearAll}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        Clear all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleFilterApply}
+                        className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Sort by dropdown */}
+              <div ref={sortDropdownRef} className="relative">
+                <button
+                  type="button"
+                  onClick={handleSortButtonClick}
+                  className={`inline-flex shrink-0 h-10 w-10 items-center justify-center rounded-lg border bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${showSortDropdown ? 'border-primary text-primary' : 'border-slate-200'}`}
+                  aria-label="Sort by"
+                  aria-expanded={showSortDropdown}
+                >
+                  <SwitchVertical01 className="h-4 w-4" />
+                </button>
+                {showSortDropdown && (
+                  <div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                      <h3 className="text-sm font-semibold text-slate-900">Sort by</h3>
+                    </div>
+                    <div className="py-1">
+                      {SORT_OPTIONS.map(({ value, label }) => (
+                        <button
+                          key={value ?? 'none'}
+                          type="button"
+                          onClick={() => setSortSelection(value)}
+                          className={`w-full px-4 py-2.5 text-left text-sm transition ${sortSelection === value ? 'bg-primary/10 text-primary font-medium' : 'text-slate-700 hover:bg-slate-50'}`}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-slate-100 bg-white">
+                      <button
+                        type="button"
+                        onClick={handleSortClearAll}
+                        className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        Clear all
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleSortApply}
+                        className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      >
+                        Apply
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -998,9 +1257,9 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
             {/* Content */}
             <div className="p-4 md:p-8">
               {/* Folders */}
-              {filteredFolders.length > 0 && (
+              {sortedFolders.length > 0 && (
                 <div className="flex flex-wrap gap-4 mb-6">
-                  {filteredFolders.map((folder) => (
+                  {sortedFolders.map((folder) => (
                     <div
                       key={folder.id}
                       ref={(el) => (folderCardRefs.current[folder.id] = el)}
@@ -1048,7 +1307,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
               )}
 
               {/* Files */}
-              {filteredFiles.length > 0 && (
+              {sortedFiles.length > 0 && (
                 <div className="grid grid-cols-2  sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8">
                   {filteredFiles.map((file) => (
                     <div
@@ -1137,7 +1396,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
               )}
 
               {/* Empty State */}
-              {filteredFolders.length === 0 && filteredFiles.length === 0 && (
+              {sortedFolders.length === 0 && sortedFiles.length === 0 && (
                 <div className="flex min-h-[400px] items-center justify-center text-center">
                   <div className="space-y-4">
                     <Folder className="h-16 w-16 text-slate-400 mx-auto" />

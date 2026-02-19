@@ -6,6 +6,7 @@ import SectionPickerModal from './SectionPickerModal'
 import SessionSummaryView from './SessionSummaryView'
 import SessionSectionPreview from './SessionSectionPreview'
 import type { SessionSectionPreviewHandlers } from './SessionSectionPreview'
+import ResourceVideoPickerModal from './ResourceVideoPickerModal'
 import { defaultSessionDraft, sectionOptions } from './sessionConfig'
 import { SessionDraft, SessionSection } from './sessionTypes'
 
@@ -50,6 +51,9 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const galleryUploadSectionIdRef = useRef<string | null>(null)
   const resourcesInputRef = useRef<HTMLInputElement | null>(null)
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
+  const videoInputRef = useRef<HTMLInputElement | null>(null)
+  const videoUploadSectionIdRef = useRef<string | null>(null)
+  const [resourceVideoPickerSectionId, setResourceVideoPickerSectionId] = useState<string | null>(null)
   const slideoutRef = useRef<SlideoutHandle>(null)
 
   const handleClose = useCallback(() => {
@@ -96,7 +100,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setIsSectionModalOpen(false)
     setSelectedSectionId(sectionOptions[0]?.id ?? 'slides')
     setIsEditing(startInEditMode || !initialDraft)
-    setActiveTab('edit')
+    setActiveTab(startInEditMode ? 'edit' : 'preview')
   }, [initialDraft, isOpen, startInEditMode])
 
   const handleChange = <K extends keyof SessionDraft>(key: K, value: SessionDraft[K]) => {
@@ -164,6 +168,14 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
       try {
         URL.revokeObjectURL(previewUrl)
+      } catch {
+        // ignore
+      }
+    }
+    const videoPreviewUrl = section?.data?.videoPreviewUrl
+    if (typeof videoPreviewUrl === 'string' && videoPreviewUrl.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(videoPreviewUrl)
       } catch {
         // ignore
       }
@@ -325,6 +337,64 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     }))
   }
 
+  const openVideoUploadPicker = (sectionId: string) => {
+    videoUploadSectionIdRef.current = sectionId
+    videoInputRef.current?.click()
+  }
+
+  const handleVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = videoUploadSectionIdRef.current
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    videoUploadSectionIdRef.current = null
+    if (!file || !sectionId) return
+    const previewUrl = URL.createObjectURL(file)
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              data: {
+                ...(s.data || {}),
+                videoFile: file,
+                videoPreviewUrl: previewUrl,
+                videoUrl: '',
+                video_url: ''
+              }
+            }
+          : s
+      )
+    }))
+  }
+
+  const openVideoResourcePicker = (sectionId: string) => {
+    setResourceVideoPickerSectionId(sectionId)
+  }
+
+  const handleResourceVideoSelect = (url: string, name: string) => {
+    const sectionId = resourceVideoPickerSectionId
+    setResourceVideoPickerSectionId(null)
+    if (!sectionId) return
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId
+          ? {
+              ...s,
+              data: {
+                ...(s.data || {}),
+                videoUrl: url,
+                video_url: url,
+                videoFile: undefined,
+                videoPreviewUrl: undefined
+              }
+            }
+          : s
+      )
+    }))
+  }
+
   const sectionPreviewHandlers: SessionSectionPreviewHandlers = {
     onUpdateSection: updateSection,
     galleryCurrentIndex,
@@ -337,6 +407,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     onRemoveGalleryImage: handleRemoveGalleryImage,
     onOpenResourcesPicker: openResourcesPicker,
     onRemoveResourcesFile: handleRemoveResourcesFile,
+    onOpenVideoUploadPicker: openVideoUploadPicker,
+    onOpenVideoResourcePicker: openVideoResourcePicker,
     eventUuid: eventUuid || undefined,
     onAddSpeakerToSection: (sectionId: string, speaker: { id: string; name: string; role?: string }) => {
       const sec = draft.sections.find((s) => s.id === sectionId)
@@ -390,6 +462,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
 
   const handleBeginEdit = () => {
     setTagsInput(draft.tags.join(', '))
+    setActiveTab('edit')
     setIsEditing(true)
   }
 
@@ -469,6 +542,22 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         onChange={handleResourcesFileChange}
         aria-hidden
       />
+      <input
+        ref={videoInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={handleVideoFileChange}
+        aria-hidden
+      />
+      {resourceVideoPickerSectionId && eventUuid && (
+        <ResourceVideoPickerModal
+          isOpen={Boolean(resourceVideoPickerSectionId)}
+          onClose={() => setResourceVideoPickerSectionId(null)}
+          eventUuid={eventUuid}
+          onSelect={(url, name) => handleResourceVideoSelect(url, name)}
+        />
+      )}
       <Slideout
         ref={slideoutRef}
         isOpen={isOpen}
@@ -478,26 +567,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         footer={footerContent}
       >
         <div className="px-6 py-4">
-          <div className="mb-4 flex gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1">
-            <button
-              type="button"
-              onClick={() => setActiveTab('edit')}
-              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'edit' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Edit
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('preview')}
-              className={`flex-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-                activeTab === 'preview' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Preview (as published)
-            </button>
-          </div>
           {activeTab === 'edit' ? (
             <SessionDetailsForm
               draft={draft}

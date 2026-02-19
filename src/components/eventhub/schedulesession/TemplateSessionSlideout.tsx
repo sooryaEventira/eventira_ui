@@ -6,9 +6,10 @@ import Select from '../../ui/untitled/Select'
 import Button from '../../ui/untitled/Button'
 import SectionPickerModal from './SectionPickerModal'
 import SessionSummaryView from './SessionSummaryView'
-import { XClose, Plus, Upload01, Settings01, Trash01, SearchLg } from '@untitled-ui/icons-react'
+import { XClose, Plus, Upload01, Settings01, Trash01, SearchLg, Folder } from '@untitled-ui/icons-react'
 import { defaultSessionDraft, sectionOptions } from './sessionConfig'
 import type { SessionSection } from './sessionTypes'
+import ResourceVideoPickerModal from './ResourceVideoPickerModal'
 import { fetchSpeakers, type SpeakerData } from '../../../services/speakerService'
 
 // Drag handle icon component (3x3 grid)
@@ -146,6 +147,9 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const resourcesInputRef = useRef<HTMLInputElement | null>(null)
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
   const topLevelResourcesInputRef = useRef<HTMLInputElement | null>(null)
+  const sectionVideoInputRef = useRef<HTMLInputElement | null>(null)
+  const sectionVideoUploadSectionIdRef = useRef<string | null>(null)
+  const [resourceVideoPickerSectionId, setResourceVideoPickerSectionId] = useState<string | null>(null)
 
   // Reset to edit mode when slideout opens
   useEffect(() => {
@@ -397,6 +401,50 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const openResourcesPicker = (sectionId: string) => {
     resourcesUploadSectionIdRef.current = sectionId
     resourcesInputRef.current?.click()
+  }
+
+  const openVideoUploadPicker = (sectionId: string) => {
+    sectionVideoUploadSectionIdRef.current = sectionId
+    sectionVideoInputRef.current?.click()
+  }
+
+  const handleSectionVideoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = sectionVideoUploadSectionIdRef.current
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    sectionVideoUploadSectionIdRef.current = null
+    if (!file || !sectionId) return
+    const previewUrl = URL.createObjectURL(file)
+    const section = formData.sections.find((s) => s.id === sectionId)
+    updateSection(sectionId, {
+      data: {
+        ...(section?.data || {}),
+        videoFile: file,
+        videoPreviewUrl: previewUrl,
+        videoUrl: '',
+        video_url: ''
+      }
+    })
+  }
+
+  const openVideoResourcePicker = (sectionId: string) => {
+    setResourceVideoPickerSectionId(sectionId)
+  }
+
+  const handleResourceVideoSelect = (url: string) => {
+    const sectionId = resourceVideoPickerSectionId
+    setResourceVideoPickerSectionId(null)
+    if (!sectionId) return
+    const section = formData.sections.find((s) => s.id === sectionId)
+    updateSection(sectionId, {
+      data: {
+        ...(section?.data || {}),
+        videoUrl: url,
+        video_url: url,
+        videoFile: undefined,
+        videoPreviewUrl: undefined
+      }
+    })
   }
 
   const handleResourcesFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -657,22 +705,63 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     }
 
     if (section.type === 'video') {
-      const videoUrl = String(section.data?.videoUrl ?? '').trim()
+      const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? '').trim()
+      const videoFile = section.data?.videoFile as File | null | undefined
+      const videoPreviewUrl = (section.data?.videoPreviewUrl as string) ?? ''
       const embedUrl = getYouTubeEmbedUrl(videoUrl)
+      const isDirectUrl = Boolean(videoUrl && !embedUrl)
+      const isUploadedFile = Boolean(videoFile)
       return (
-        <div className="p-4">
-          <div className="mb-3">
-            <label className="mb-1 block text-xs font-semibold text-slate-700">YouTube URL</label>
-            <input
-              type="url"
-              value={videoUrl}
-              onChange={(e) =>
-                updateSection(section.id, { data: { ...(section.data || {}), videoUrl: e.target.value } })
-              }
-              placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
-              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+        <div className="p-4 space-y-3">
+          <div>
+            <label className="mb-1 block text-xs font-semibold text-slate-700">Video source</label>
+            <div className="flex flex-wrap gap-2 mb-2">
+              <input
+                type="url"
+                value={videoUrl}
+                onChange={(e) =>
+                  updateSection(section.id, {
+                    data: { ...(section.data || {}), videoUrl: e.target.value, videoFile: undefined, videoPreviewUrl: undefined }
+                  })
+                }
+                placeholder="YouTube URL or direct video URL"
+                className="flex-1 min-w-[200px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                onClick={() => openVideoUploadPicker(section.id)}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <Upload01 className="h-4 w-4" />
+                Upload video
+              </button>
+              {eventUuid && (
+                <button
+                  type="button"
+                  onClick={() => openVideoResourcePicker(section.id)}
+                  className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <Folder className="h-4 w-4" />
+                  From Resource Management
+                </button>
+              )}
+            </div>
           </div>
+          {isUploadedFile && (
+            <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+              <span className="text-sm text-slate-700 truncate">{videoFile?.name}</span>
+              <button
+                type="button"
+                onClick={() =>
+                  updateSection(section.id, { data: { ...(section.data || {}), videoFile: undefined, videoPreviewUrl: undefined } })
+                }
+                className="shrink-0 p-1 text-slate-400 hover:text-red-600"
+                aria-label="Remove video file"
+              >
+                <XClose className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           {embedUrl ? (
             <div
               className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900"
@@ -686,9 +775,21 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                 allowFullScreen
               />
             </div>
+          ) : isDirectUrl ? (
+            <div className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900" style={{ paddingBottom: '56.25%' }}>
+              <video src={videoUrl} controls className="absolute inset-0 h-full w-full" />
+            </div>
+          ) : isUploadedFile && videoPreviewUrl ? (
+            <div className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900" style={{ paddingBottom: '56.25%' }}>
+              <video src={videoPreviewUrl} controls className="absolute inset-0 h-full w-full" />
+            </div>
+          ) : isUploadedFile ? (
+            <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center">
+              <p className="text-sm text-slate-500">{videoFile?.name ?? 'Video file selected'}</p>
+            </div>
           ) : (
             <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center">
-              <p className="text-sm text-slate-500">Paste a YouTube URL to show the video here.</p>
+              <p className="text-sm text-slate-500">Paste a YouTube URL, upload a video file, or select from Resource Management.</p>
             </div>
           )}
         </div>
@@ -1015,6 +1116,22 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
         onChange={handleTopLevelResourcesChange}
         aria-hidden
       />
+      <input
+        ref={sectionVideoInputRef}
+        type="file"
+        accept="video/*"
+        className="hidden"
+        onChange={handleSectionVideoFileChange}
+        aria-hidden
+      />
+      {resourceVideoPickerSectionId && eventUuid && (
+        <ResourceVideoPickerModal
+          isOpen={Boolean(resourceVideoPickerSectionId)}
+          onClose={() => setResourceVideoPickerSectionId(null)}
+          eventUuid={eventUuid}
+          onSelect={(url) => handleResourceVideoSelect(url)}
+        />
+      )}
       <Slideout
         ref={slideoutRef}
         isOpen={isOpen}

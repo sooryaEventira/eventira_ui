@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Upload01, XClose, Plus, SearchLg } from '@untitled-ui/icons-react'
+import { Upload01, XClose, Plus, SearchLg, Folder } from '@untitled-ui/icons-react'
 import type { SessionSection } from './sessionTypes'
 import { fetchSpeakers, type SpeakerData } from '../../../services/speakerService'
 
@@ -37,6 +37,10 @@ export interface SessionSectionPreviewHandlers {
   onRemoveGalleryImage: (sectionId: string, index: number) => void
   onOpenResourcesPicker: (sectionId: string) => void
   onRemoveResourcesFile: (sectionId: string, index: number) => void
+  /** Open file picker to upload a video file for video section. */
+  onOpenVideoUploadPicker?: (sectionId: string) => void
+  /** Open resource management picker to select a video for video section. */
+  onOpenVideoResourcePicker?: (sectionId: string) => void
   /** When set, Speakers section can open search to add event speakers. */
   eventUuid?: string
   /** Add a speaker to a Speakers section. Required for "Add user" to work. */
@@ -67,6 +71,8 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     onRemoveGalleryImage,
     onOpenResourcesPicker,
     onRemoveResourcesFile,
+    onOpenVideoUploadPicker,
+    onOpenVideoResourcePicker,
     eventUuid,
     onAddSpeakerToSection
   } = handlers
@@ -426,21 +432,68 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
 
   if (section.type === 'video') {
     const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? '').trim()
+    const videoFile = section.data?.videoFile as File | null | undefined
     const embedUrl = getYouTubeEmbedUrl(videoUrl)
+    const isDirectUrl = Boolean(videoUrl && !embedUrl)
+    const isUploadedFile = Boolean(videoFile)
+
+    const videoPreviewUrl = isUploadedFile ? (section.data?.videoPreviewUrl as string) ?? '' : ''
+
     return (
-      <div className="p-4">
-        <div className="mb-3">
-          <label className="mb-1 block text-xs font-semibold text-slate-700">YouTube URL</label>
-          <input
-            type="url"
-            value={videoUrl}
-            onChange={(e) =>
-              onUpdateSection(section.id, { data: { ...(section.data || {}), videoUrl: e.target.value } })
-            }
-            placeholder="https://www.youtube.com/watch?v=... or https://youtu.be/..."
-            className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-          />
+      <div className="p-4 space-y-3">
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-slate-700">Video source</label>
+          <div className="flex flex-wrap gap-2 mb-2">
+            <input
+              type="url"
+              value={videoUrl}
+              onChange={(e) =>
+                onUpdateSection(section.id, {
+                  data: { ...(section.data || {}), videoUrl: e.target.value, videoFile: undefined, videoPreviewUrl: undefined }
+                })
+              }
+              placeholder="YouTube URL or direct video URL"
+              className="flex-1 min-w-[200px] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            {onOpenVideoUploadPicker && (
+              <button
+                type="button"
+                onClick={() => onOpenVideoUploadPicker(section.id)}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <Upload01 className="h-4 w-4" />
+                Upload video
+              </button>
+            )}
+            {onOpenVideoResourcePicker && eventUuid && (
+              <button
+                type="button"
+                onClick={() => onOpenVideoResourcePicker(section.id)}
+                className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <Folder className="h-4 w-4" />
+                From Resource Management
+              </button>
+            )}
+          </div>
         </div>
+        {isUploadedFile && (
+          <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+            <span className="text-sm text-slate-700 truncate">{videoFile?.name}</span>
+            <button
+              type="button"
+              onClick={() =>
+                onUpdateSection(section.id, {
+                  data: { ...(section.data || {}), videoFile: undefined, videoPreviewUrl: undefined }
+                })
+              }
+              className="shrink-0 p-1 text-slate-400 hover:text-red-600"
+              aria-label="Remove video file"
+            >
+              <XClose className="h-4 w-4" />
+            </button>
+          </div>
+        )}
         {embedUrl ? (
           <div
             className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900"
@@ -454,9 +507,37 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
               allowFullScreen
             />
           </div>
+        ) : isDirectUrl ? (
+          <div
+            className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900"
+            style={{ paddingBottom: '56.25%' }}
+          >
+            <video
+              src={videoUrl}
+              controls
+              className="absolute inset-0 h-full w-full"
+            />
+          </div>
+        ) : isUploadedFile && videoPreviewUrl ? (
+          <div
+            className="relative w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900"
+            style={{ paddingBottom: '56.25%' }}
+          >
+            <video
+              src={videoPreviewUrl}
+              controls
+              className="absolute inset-0 h-full w-full"
+            />
+          </div>
+        ) : isUploadedFile ? (
+          <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center">
+            <p className="text-sm text-slate-500">{videoFile?.name ?? 'Video file selected'}</p>
+          </div>
         ) : (
           <div className="flex h-40 w-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-center">
-            <p className="text-sm text-slate-500">Paste a YouTube URL to show the video here.</p>
+            <p className="text-sm text-slate-500">
+              Paste a YouTube URL, upload a video file, or select from Resource Management.
+            </p>
           </div>
         )}
       </div>

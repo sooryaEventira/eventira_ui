@@ -31,6 +31,8 @@ import {
 } from '../../../services/sessionService'
 import * as XLSX from 'xlsx'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
+import { fetchEvent } from '../../../services/eventService'
+import type { EventData } from '../../../services/eventService'
 
 interface SchedulePageProps {
   eventName?: string
@@ -55,6 +57,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const { eventData, createdEvent } = useEventForm()
 
   const [eventTimeZone, setEventTimeZone] = React.useState<string | null>(null)
+  // Fetched event details for date range so weekday selector always shows the correct event's dates when switching
+  const [eventDetailsForRange, setEventDetailsForRange] = React.useState<EventData | null>(null)
 
   const buildSessionSignature = useCallback((input: {
     dateKey: string
@@ -282,8 +286,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     }
   }, [createdEvent, eventData?.timezone])
   
-  // Prioritize createdEvent data from API (set when clicking event from dashboard), 
-  // fallback to eventData from form, then props
+  // Prefer selected event from API (`createdEvent`) over draft form state (`eventData`)
   const eventName = createdEvent?.eventName || eventData?.eventName || propEventName || 'Highly important conference of 2025'
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
   const handleSearchClick = () => {
@@ -375,36 +378,60 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     return d
   }, [])
 
-  // Use same source as dashboard "EVENT DATE" column: event_date first, then startDate/start_date
+  // Fetch event details when event changes so date range is always correct (avoids stale context/localStorage)
+  const currentEventUuid = (createdEvent as any)?.uuid
+  React.useEffect(() => {
+    if (!currentEventUuid) {
+      setEventDetailsForRange(null)
+      return
+    }
+    let cancelled = false
+    fetchEvent(currentEventUuid)
+      .then((data) => {
+        if (!cancelled && data?.uuid === currentEventUuid) setEventDetailsForRange(data)
+      })
+      .catch(() => {
+        if (!cancelled) setEventDetailsForRange(null)
+      })
+    return () => { cancelled = true }
+  }, [currentEventUuid])
+
+  // Use fetched event first so weekday selector shows the correct event's dates when switching.
+  // Support API fields: event_date, startDate, start_date, startDateTimeISO (use date part).
   const parseEventStartDate = React.useCallback((): Date | null => {
+    const source = eventDetailsForRange?.uuid === currentEventUuid ? eventDetailsForRange : createdEvent
     const raw =
-      (createdEvent as any)?.event_date ??
-      (createdEvent as any)?.startDate ??
-      (createdEvent as any)?.start_date ??
+      (source as any)?.event_date ??
+      (source as any)?.startDate ??
+      (source as any)?.start_date ??
+      (source as any)?.startDateTimeISO ??
       (eventData as any)?.event_date ??
       (eventData as any)?.startDate ??
       (eventData as any)?.start_date
     return parseEventDate(raw)
-  }, [createdEvent, eventData, parseEventDate])
+  }, [createdEvent, eventData, eventDetailsForRange, currentEventUuid, parseEventDate])
 
   const parseEventEndDate = React.useCallback((): Date | null => {
+    const source = eventDetailsForRange?.uuid === currentEventUuid ? eventDetailsForRange : createdEvent
     const raw =
-      (createdEvent as any)?.end_date ??
-      (createdEvent as any)?.endDate ??
+      (source as any)?.end_date ??
+      (source as any)?.endDate ??
+      (source as any)?.endDateTimeISO ??
       (eventData as any)?.end_date ??
       (eventData as any)?.endDate
     return parseEventDate(raw)
-  }, [createdEvent, eventData, parseEventDate])
+  }, [createdEvent, eventData, eventDetailsForRange, currentEventUuid, parseEventDate])
 
   // Memoize range dates so we don't create new Date instances every render.
   // If API only returns event_date (no end_date), use event start as end so weekday selector still gets a range.
-  const rangeStartDate = useMemo(() => parseEventStartDate() || undefined, [parseEventStartDate])
+  // Include createdEvent?.uuid in deps so range updates when switching events
+  const rangeStartDate = useMemo(() => parseEventStartDate() || undefined, [parseEventStartDate, (createdEvent as any)?.uuid])
   const rangeEndDate = useMemo(() => {
     const end = parseEventEndDate()
     if (end) return end
     const start = parseEventStartDate()
     return start ?? undefined
-  }, [parseEventStartDate, parseEventEndDate])
+  }, [parseEventStartDate, parseEventEndDate, (createdEvent as any)?.uuid])
 
   const [selectedDate, setSelectedDate] = React.useState<Date>(() => {
     const eventStart = parseEventStartDate()
@@ -420,7 +447,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     const eventStart = parseEventStartDate()
     if (!eventStart) return
     setSelectedDate(eventStart)
-  }, [createdEvent?.uuid, parseEventStartDate])
+  }, [(createdEvent as any)?.uuid, parseEventStartDate])
 
   // After refresh, selectedDate becomes "today". If today's date has no sessions, the grid looks empty.
   // Auto-pick a day that has sessions, but only within the event date range (never use schedule-created or out-of-range dates).
@@ -944,6 +971,39 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           const description = s?.description ?? s?.summary ?? ''
           const tags = normalizeTags(s?.tags)
 
+          let sections: SavedSession['sections'] = Array.isArray(s?.sections)
+            ? s.sections
+            : description
+              ? [
+                  {
+                    id: `section-${id}`,
+                    type: 'text',
+                    title: 'Description',
+                    description
+                  }
+                ]
+              : []
+
+          // Merge session_resources into sections so summary view and grid show uploaded files
+          const apiResources = Array.isArray(s?.session_resources) ? s.session_resources : Array.isArray(s?.resources) ? s.resources : Array.isArray(s?.resource_files) ? s.resource_files : []
+          if (apiResources.length > 0) {
+            const resourceFiles = apiResources.map((r: any) =>
+              typeof r === 'string' ? r : { url: r?.file_url ?? r?.url ?? r?.file, name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File' }
+            )
+            const existingResources = sections.find((sec: any) => sec.type === 'resources')
+            if (existingResources) {
+              const current = (existingResources.data?.files as any[]) ?? []
+              sections = sections.map((sec: any) =>
+                sec.type === 'resources' ? { ...sec, data: { ...(sec.data || {}), files: [...current, ...resourceFiles] } } : sec
+              )
+            } else {
+              sections = [
+                ...sections,
+                { id: `section-${id}-resources`, type: 'resources', title: 'Resources', description: '', data: { files: resourceFiles } }
+              ]
+            }
+          }
+
           const session: SavedSession = {
             id,
             title,
@@ -954,18 +1014,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             location: s?.location ?? s?.venue ?? '',
             sessionType: s?.session_type ?? s?.sessionType ?? s?.type ?? '',
             tags,
-            sections: Array.isArray(s?.sections)
-              ? s.sections
-              : description
-                ? [
-                    {
-                      id: `section-${id}`,
-                      type: 'text',
-                      title: 'Description',
-                      description
-                    }
-                  ]
-                : [],
+            sections,
             attachments: Array.isArray(s?.attachments) ? s.attachments : [],
             date: date && !Number.isNaN(date.getTime()) ? date : undefined,
             parentId: (() => {
@@ -1847,21 +1896,68 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           if (f instanceof File) out.push(f)
         }
       }
+      if (d.videoFile instanceof File) out.push(d.videoFile)
     }
     return out
   }
 
-  /** Map UI section type to API section_type. Backend expects "video"|"text"|"speakers"|"image"|"poster"|"resource". */
+  /** Extract URLs from createSessionResources response. May be array or { results: [...] }. */
+  const extractUrlsFromResourcesResponse = (res: unknown): string[] => {
+    if (!res || typeof res !== 'object') return []
+    const arr = Array.isArray(res) ? res : (res as any).results ?? (res as any).data ?? []
+    if (!Array.isArray(arr)) return []
+    return arr
+      .map((item: any) => item?.file ?? item?.file_url ?? item?.url ?? '')
+      .filter((u): u is string => typeof u === 'string' && u.length > 0)
+  }
+
+  /** Map section indices with videoFile to their index in the flattened files array. */
+  const getVideoFileIndicesInFlattenedFiles = (
+    sections: SessionDraft['sections']
+  ): Array<{ sectionIndex: number; fileIndex: number }> => {
+    const result: Array<{ sectionIndex: number; fileIndex: number }> = []
+    let fileIndex = 0
+    ;(sections ?? []).forEach((s, sectionIndex) => {
+      const d = s.data
+      if (!d) return
+      if (d.file instanceof File) fileIndex++
+      const images = d.images as Array<{ file?: File }> | undefined
+      if (Array.isArray(images)) {
+        images.forEach((img) => {
+          if (img?.file instanceof File) fileIndex++
+        })
+      }
+      const files = d.files as File[] | undefined
+      if (Array.isArray(files)) {
+        files.forEach((f) => {
+          if (f instanceof File) fileIndex++
+        })
+      }
+      if (d.videoFile instanceof File) {
+        result.push({ sectionIndex, fileIndex })
+        fileIndex++
+      }
+    })
+    return result
+  }
+
+  /** Map UI section type to API section_type.
+   * File uploads (images, galleries, generic documents, uploaded videos) are sent via the
+   * session-resources endpoint and represented as `resource` on the backend. Non-file content
+   * (text blocks, speakers, YouTube embeds, etc.) is sent via session-sections.
+   */
   const toApiSectionType = (uiType: string): string => {
     const map: Record<string, string> = {
-      slides: 'poster',
+      // File-based sections → backend "resource"
+      'photo-gallery': 'resource',
+      image: 'resource',
+      slides: 'resource',
+      resources: 'resource',
+      // Non-file content keeps its dedicated section types
       speaker: 'speakers',
-      'photo-gallery': 'image',
-      image: 'image',
       video: 'video',
       text: 'text',
       speakers: 'speakers',
-      resources: 'resource',
       poll: 'text',
       location: 'text',
       qas: 'text',
@@ -1998,14 +2094,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           const updateResponse = await updateSession(eventUuid, sessionUuidForUpdate, String(activeScheduleId), updateBody)
           console.log('[Session save] PATCH session response:', updateResponse)
 
-          // Always call session-sections (create/update) when saving from SessionSlideout
-          const sectionsToSend = normalizedSession.sections ?? []
-          const sectionsBodyUpdate = buildSectionsPayload(sectionsToSend, sessionUuidForUpdate)
-          const sectionsResponseUpdate = await createSessionSections(eventUuid, sectionsBodyUpdate)
-          console.log('[Session save] session-sections response (update):', sectionsResponseUpdate)
-
           const filesFromSections = collectFilesFromSections(normalizedSession.sections)
           const allFiles = [...(normalizedSession.attachments ?? []), ...filesFromSections]
+
+          // Upload files first so we can use returned URLs for video sections
           if (allFiles.length > 0) {
             console.log('[Session save] session-resources request:', {
               fileCount: allFiles.length,
@@ -2014,7 +2106,29 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             })
             const resourcesResponse = await createSessionResources(eventUuid, allFiles, { session_uuid: sessionUuidForUpdate })
             console.log('[Session save] session-resources response:', resourcesResponse)
+            const urls = extractUrlsFromResourcesResponse(resourcesResponse)
+            const videoIndices = getVideoFileIndicesInFlattenedFiles(normalizedSession.sections)
+            const attachmentCount = normalizedSession.attachments?.length ?? 0
+            videoIndices.forEach(({ sectionIndex, fileIndex }) => {
+              const urlIndex = attachmentCount + fileIndex
+              const url = urls[urlIndex]
+              if (url) {
+                const s = normalizedSession.sections?.[sectionIndex]
+                if (s?.type === 'video' && s.data?.videoFile) {
+                  normalizedSession.sections![sectionIndex] = {
+                    ...s,
+                    data: { ...(s.data || {}), videoUrl: url, video_url: url, videoFile: undefined, videoPreviewUrl: undefined }
+                  }
+                }
+              }
+            })
           }
+
+          // Build sections payload (now video sections have videoUrl) and send
+          const sectionsToSend = normalizedSession.sections ?? []
+          const sectionsBodyUpdate = buildSectionsPayload(sectionsToSend, sessionUuidForUpdate)
+          const sectionsResponseUpdate = await createSessionSections(eventUuid, sectionsBodyUpdate)
+          console.log('[Session save] session-sections response (update):', sectionsResponseUpdate)
 
           await loadSessions(activeScheduleId)
           showToast.success('Session updated.')
@@ -2044,19 +2158,37 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           if (!sessionUuid) {
             console.warn('[Session save] No session UUID from create response or list; sections and resources will not be sent.')
           } else {
-            // Always call session-sections (create) when we have sessionUuid after create
-            const sectionsToSend = normalizedSession.sections ?? []
-            const sectionsBody = buildSectionsPayload(sectionsToSend, sessionUuid)
-            const sectionsResponse = await createSessionSections(eventUuid, sectionsBody)
-            console.log('[Session save] session-sections response (create):', sectionsResponse)
-
             const filesFromSections = collectFilesFromSections(normalizedSession.sections)
             const allFiles = [...(normalizedSession.attachments ?? []), ...filesFromSections]
+
+            // Upload files first so we can use returned URLs for video sections
             if (allFiles.length > 0) {
               console.log('[Session save] Calling session-resources with', allFiles.length, 'files')
               const resourcesResponse = await createSessionResources(eventUuid, allFiles, { session_uuid: sessionUuid })
               console.log('[Session save] session-resources response:', resourcesResponse)
+              const urls = extractUrlsFromResourcesResponse(resourcesResponse)
+              const videoIndices = getVideoFileIndicesInFlattenedFiles(normalizedSession.sections)
+              const attachmentCount = normalizedSession.attachments?.length ?? 0
+              videoIndices.forEach(({ sectionIndex, fileIndex }) => {
+                const urlIndex = attachmentCount + fileIndex
+                const url = urls[urlIndex]
+                if (url) {
+                  const s = normalizedSession.sections?.[sectionIndex]
+                  if (s?.type === 'video' && s.data?.videoFile) {
+                    normalizedSession.sections![sectionIndex] = {
+                      ...s,
+                      data: { ...(s.data || {}), videoUrl: url, video_url: url, videoFile: undefined, videoPreviewUrl: undefined }
+                    }
+                  }
+                }
+              })
             }
+
+            // Build sections payload (now video sections have videoUrl) and send
+            const sectionsToSend = normalizedSession.sections ?? []
+            const sectionsBody = buildSectionsPayload(sectionsToSend, sessionUuid)
+            const sectionsResponse = await createSessionSections(eventUuid, sectionsBody)
+            console.log('[Session save] session-sections response (create):', sectionsResponse)
           }
           if (activeScheduleId) {
             await loadSessions(activeScheduleId)
@@ -2377,7 +2509,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           />
         ) : (
           <ScheduleContent
-            key={createdEvent?.uuid ?? 'no-event'}
+            key={`${createdEvent?.uuid ?? 'no-event'}-${rangeStartDate?.getTime() ?? 'no-start'}-${rangeEndDate?.getTime() ?? 'no-end'}`}
             scheduleName={currentScheduleName}
             onUpload={handleUpload}
             onUploadFiles={handleUploadSessions}
@@ -2387,6 +2519,44 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             selectedDate={selectedDate}
             rangeStartDate={rangeStartDate}
             rangeEndDate={rangeEndDate}
+            sessionFormOpen={isSessionSlideoutOpen}
+            onSessionClick={async (session) => {
+              const eventUuid = createdEvent?.uuid
+              const scheduleUuid = activeScheduleId
+              const sessionId = session?.id && typeof session.id === 'string' ? String(session.id).trim() : ''
+              const isUuid = sessionId && UUID_REGEX.test(sessionId)
+              if (isUuid && eventUuid && scheduleUuid) {
+                try {
+                  const result = await getSession(eventUuid, String(scheduleUuid), sessionId)
+                  if (result.ok) {
+                    const payload = result.data as any
+                    const raw = payload?.data ?? payload?.sessions?.[0] ?? payload
+                    if (raw && typeof raw === 'object') {
+                      const draft = mapRetrieveSessionToDraft(raw, eventTimeZone)
+                      setActiveDraft({
+                        ...defaultSessionDraft,
+                        ...draft,
+                        tags: [...(draft.tags ?? [])],
+                        sections: draft.sections?.map((s) => ({ ...s })) ?? []
+                      })
+                      setStartInEditMode(false)
+                      setIsSessionSlideoutOpen(true)
+                      return
+                    }
+                  }
+                } catch {
+                  showToast.error('Failed to load session details.')
+                }
+              }
+              setActiveDraft({
+                ...defaultSessionDraft,
+                ...session,
+                tags: [...(session.tags ?? [])],
+                sections: session.sections?.map((s) => ({ ...s })) ?? []
+              })
+              setStartInEditMode(false)
+              setIsSessionSlideoutOpen(true)
+            }}
             onDateChange={(date) => {
               const normalizedDate = new Date(date)
               normalizedDate.setHours(0, 0, 0, 0)

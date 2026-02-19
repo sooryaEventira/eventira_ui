@@ -2,6 +2,8 @@ import React, { Suspense, lazy } from 'react'
 
 const PublicEventListPage = lazy(() => import('./PublicEventListPage'))
 const PublicEventWebsiteShell = lazy(() => import('./PublicEventWebsiteShell'))
+const PublicLoginPage = lazy(() => import('./PublicLoginPage'))
+const PublicRegisterPage = lazy(() => import('./PublicRegisterPage'))
 
 const LoadingFallback = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -22,6 +24,9 @@ export function isPublicRoute(): boolean {
   if (pathname === '/' && (hash === 'event-list' || hash === 'events')) return true
   // Event website: /events/:eventUuid/...
   if (/^\/events\/[^/]+/.test(pathname)) return true
+  // Standalone login / register (from event list top bar or login page)
+  if (pathname === '/login' || pathname === '/login/') return true
+  if (pathname === '/register' || pathname === '/register/') return true
   return false
 }
 
@@ -44,6 +49,22 @@ const PublicApp: React.FC = () => {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <PublicEventListPage />
+      </Suspense>
+    )
+  }
+
+  if (pathname === '/login' || pathname === '/login/') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <PublicLoginPage />
+      </Suspense>
+    )
+  }
+
+  if (pathname === '/register' || pathname === '/register/') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <PublicRegisterPage />
       </Suspense>
     )
   }
