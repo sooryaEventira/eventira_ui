@@ -1,5 +1,7 @@
 export interface SessionSection {
   id: string
+  /** Backend session_section_id when section was loaded from API (used for PATCH updates). */
+  sectionId?: string
   /**
    * Machine readable section type derived from SectionOption.id
    */

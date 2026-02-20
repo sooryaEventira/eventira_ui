@@ -1,20 +1,21 @@
-import React, { useMemo, useState, useCallback } from 'react'
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import {
   DividerLineTable,
   type DividerLineTableSortDescriptor,
   Button
 } from '../../ui/untitled'
-import { Attendee, AttendeeTab, CustomField } from './attendeeTypes'
+import { Attendee, AttendeeTab, CustomField, Group } from './attendeeTypes'
 import type { AttendeeTableRowData, CustomFieldTableRowData } from './attendeeTypes'
 import { TablePagination, useTableHeader } from '../../ui'
 import { useAttendeeTableColumns } from './AttendeeTableColumns'
 import { useCustomFieldTableColumns } from './CustomFieldTableColumns'
-import { Download01, Grid01, Upload01 } from '@untitled-ui/icons-react'
+import { Download01, Columns03, Upload01, ChevronDown } from '@untitled-ui/icons-react'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface AttendeesTableProps {
   attendees: Attendee[]
   customFields?: CustomField[]
+  groups?: Group[]
   activeTab: AttendeeTab
   onTabChange: (tab: AttendeeTab) => void
   onUpload?: () => void
@@ -22,6 +23,7 @@ interface AttendeesTableProps {
   onCreateField?: () => void
   onEditAttendee?: (attendeeId: string) => void
   onDeleteAttendee?: (attendeeId: string) => void
+  onAddToGroup?: (attendeeIds: string[], groupId: string) => void | Promise<void>
   onEditCustomField?: (customFieldId: string) => void
   onDeleteCustomField?: (customFieldId: string) => void
   onDownload?: () => void
@@ -33,6 +35,7 @@ interface AttendeesTableProps {
 const AttendeesTable: React.FC<AttendeesTableProps> = ({
   attendees,
   customFields = [],
+  groups = [],
   activeTab,
   onTabChange,
   onUpload,
@@ -40,10 +43,11 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   onCreateField,
   onEditAttendee,
   onDeleteAttendee: onDeleteAttendeeProp,
+  onAddToGroup,
   onEditCustomField,
   onDeleteCustomField,
   onDownload,
-  onGridView,
+  onGridView: _onGridView,
   onFilter,
   isLoading = false
 }) => {
@@ -53,11 +57,29 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
+  const [addToGroupOpen, setAddToGroupOpen] = useState(false)
+  const addToGroupRef = useRef<HTMLDivElement>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>({
     column: 'name',
     direction: 'ascending'
   })
+
+  // Column visibility for attendee table (only when activeTab === 'user')
+  const ATTENDEE_COLUMN_OPTIONS: { id: string; label: string }[] = [
+    { id: 'name', label: 'Name' },
+    { id: 'email', label: 'Email' },
+    { id: 'inviteCode', label: 'Invite Code' },
+    { id: 'designation', label: 'Designation' },
+    { id: 'organization', label: 'Organization' },
+    { id: 'groups', label: 'Groups' }
+  ]
+  const [visibleAttendeeColumnIds, setVisibleAttendeeColumnIds] = useState<Set<string>>(
+    () => new Set(ATTENDEE_COLUMN_OPTIONS.map((c) => c.id))
+  )
+  const [columnDropdownOpen, setColumnDropdownOpen] = useState(false)
+  const columnDropdownRef = useRef<HTMLDivElement>(null)
 
   // Filter data based on active tab
   const filteredAttendees = useMemo(() => {
@@ -173,9 +195,75 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     }
   }, [deleteCandidate, isDeleting, onDeleteAttendeeProp])
 
+  const confirmBulkDelete = useCallback(async () => {
+    if (!bulkDeleteIds?.length || !onDeleteAttendeeProp) {
+      setBulkDeleteIds(null)
+      return
+    }
+    if (isDeleting) return
+    setIsDeleting(true)
+    try {
+      for (const id of bulkDeleteIds) {
+        await Promise.resolve(onDeleteAttendeeProp(id) as any)
+      }
+      setSelectedAttendeeIds(new Set())
+      setBulkDeleteIds(null)
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [bulkDeleteIds, isDeleting, onDeleteAttendeeProp])
+
+  useEffect(() => {
+    if (!addToGroupOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addToGroupRef.current && !addToGroupRef.current.contains(e.target as Node)) {
+        setAddToGroupOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [addToGroupOpen])
+
+  useEffect(() => {
+    if (!columnDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (columnDropdownRef.current && !columnDropdownRef.current.contains(e.target as Node)) {
+        setColumnDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [columnDropdownOpen])
+
+  const visibleAttendeeIdsOnPage = useMemo(
+    () => paginatedAttendees.map((a) => a.id),
+    [paginatedAttendees]
+  )
+  const headerSelectAllAttendees = useMemo(() => {
+    if (activeTab !== 'user') return undefined
+    const allSelected =
+      visibleAttendeeIdsOnPage.length > 0 &&
+      visibleAttendeeIdsOnPage.every((id) => selectedAttendeeIds.has(id))
+    const indeterminate =
+      visibleAttendeeIdsOnPage.some((id) => selectedAttendeeIds.has(id)) && !allSelected
+    return {
+      visibleIds: visibleAttendeeIdsOnPage,
+      onToggleAll: (checked: boolean) => {
+        setSelectedAttendeeIds((prev) => {
+          const next = new Set(prev)
+          visibleAttendeeIdsOnPage.forEach((id) => (checked ? next.add(id) : next.delete(id)))
+          return next
+        })
+      },
+      allSelected,
+      indeterminate
+    }
+  }, [activeTab, visibleAttendeeIdsOnPage, selectedAttendeeIds])
+
   const attendeeColumns = useAttendeeTableColumns({
     selectedAttendeeIds,
     onToggleRow: handleToggleAttendee,
+    headerSelectAll: headerSelectAllAttendees,
     onEditAttendee,
     onDeleteAttendee: requestDeleteAttendee
   })
@@ -244,27 +332,104 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     searchPlaceholder,
     onTabChange: (tabId) => onTabChange(tabId as AttendeeTab),
     onSearchChange: setSearchQuery,
-    showFilter: true,
+    showFilter: !(activeTab === 'user' && selectedAttendeeIds.size > 0),
     onFilterClick: onFilter || (() => {}),
     filterLabel: `Filter ${activeTab === 'custom-schedule' ? 'custom fields' : 'attendees'}`,
     customActions: activeTab === 'user' ? (
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onDownload}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label="Download"
-        >
-          <Download01 className="h-4 w-4" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          onClick={onGridView}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label="Grid view"
-        >
-          <Grid01 className="h-4 w-4" strokeWidth={2} />
-        </button>
+        {selectedAttendeeIds.size > 0 ? (
+          <>
+            <div className="relative" ref={addToGroupRef}>
+              <button
+                type="button"
+                onClick={() => setAddToGroupOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                Add to group
+                <ChevronDown className="h-4 w-4 text-slate-500" />
+              </button>
+              {addToGroupOpen && (
+                <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                  {groups.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-500">No groups</div>
+                  ) : (
+                    groups.map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => {
+                          onAddToGroup?.(Array.from(selectedAttendeeIds), g.id)
+                          setAddToGroupOpen(false)
+                          setSelectedAttendeeIds(new Set())
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        {g.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="!bg-red-600 hover:!bg-red-700 focus:visible:ring-red-500/40"
+              onClick={() => setBulkDeleteIds(Array.from(selectedAttendeeIds))}
+            >
+              Delete
+            </Button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onDownload}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Download"
+            >
+              <Download01 className="h-4 w-4" strokeWidth={2} />
+            </button>
+            <div className="relative" ref={columnDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setColumnDropdownOpen((v) => !v)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                aria-label="Choose columns"
+                aria-expanded={columnDropdownOpen}
+              >
+                <Columns03 className="h-4 w-4" strokeWidth={2} />
+              </button>
+              {columnDropdownOpen && (
+                <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                  {ATTENDEE_COLUMN_OPTIONS.map((option) => (
+                    <label
+                      key={option.id}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40"
+                        checked={visibleAttendeeColumnIds.has(option.id)}
+                        onChange={(e) => {
+                          setVisibleAttendeeColumnIds((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(option.id)
+                            else next.delete(option.id)
+                            return next
+                          })
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
     ) : undefined
   })
@@ -281,6 +446,16 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     setCurrentPage(1)
   }, [activeTab, searchQuery])
 
+  // Filter attendee columns by visibility (name and actions always shown)
+  const visibleAttendeeColumns = useMemo(() => {
+    return attendeeColumns.filter(
+      (col) =>
+        col.id === 'name' ||
+        col.id === 'actions' ||
+        visibleAttendeeColumnIds.has(col.id)
+    )
+  }, [attendeeColumns, visibleAttendeeColumnIds])
+
   // Get table data, columns, and empty state based on active tab
   const getTableData = () => {
     switch (activeTab) {
@@ -294,7 +469,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
       default:
         return {
           data: attendeeTableRows,
-          columns: attendeeColumns,
+          columns: visibleAttendeeColumns,
           emptyState: attendeeEmptyState,
           getRowKey: (row: AttendeeTableRowData) => row.attendee?.id || ''
         }
@@ -381,9 +556,20 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
         }}
         onConfirm={confirmDeleteAttendee}
       />
+      <ConfirmDeleteModal
+        isOpen={!!bulkDeleteIds?.length}
+        title="Delete attendees?"
+        itemName={bulkDeleteIds ? `${bulkDeleteIds.length} attendees` : undefined}
+        isLoading={isDeleting}
+        onCancel={() => {
+          if (isDeleting) return
+          setBulkDeleteIds(null)
+        }}
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   )
 }
 
-export default AttendeesTable
+export default React.memo(AttendeesTable)
 

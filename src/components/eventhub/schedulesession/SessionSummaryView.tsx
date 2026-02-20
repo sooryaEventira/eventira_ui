@@ -1,6 +1,14 @@
 import React from 'react'
 import { SessionDraft } from './sessionTypes'
 import SessionChat, { type CometChatUser } from './SessionChat'
+import { env } from '../../../config/env'
+
+function toAbsoluteMediaUrl(url: string): string {
+  const raw = String(url || '').trim()
+  if (!raw || raw.startsWith('http://') || raw.startsWith('https://')) return raw
+  const base = (env.AUTH_API_URL || '').replace(/\/$/, '')
+  return base && raw.startsWith('/') ? `${base}${raw}` : raw
+}
 
 interface SessionSummaryViewProps {
   session: SessionDraft
@@ -141,7 +149,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                   return (
                     <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900">
                       <video
-                        src={videoUrl}
+                        src={toAbsoluteMediaUrl(videoUrl)}
                         controls
                         playsInline
                         className="w-full max-h-80 object-contain"

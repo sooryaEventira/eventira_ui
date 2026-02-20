@@ -1,7 +1,17 @@
-import React, { useState } from 'react'
+import React, { useState, Suspense, lazy } from 'react'
 import { Model } from 'survey-core'
-import { Survey } from 'survey-react-ui'
 import 'survey-core/survey-core.min.css'
+
+const Survey = lazy(() =>
+  import('survey-react-ui').then((module) => ({ default: module.Survey }))
+)
+
+const SurveyLoadingFallback = () => (
+  <div className="flex items-center justify-center p-8 min-h-[200px]">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#8e44ad] border-t-transparent" />
+    <span className="ml-3 text-sm text-slate-600">Loading form...</span>
+  </div>
+)
 
 interface FeedbackFormProps {
   title?: string
@@ -398,7 +408,9 @@ const FeedbackForm: React.FC<FeedbackFormProps> = ({
                 width: '100%',
       fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif'
     }}>
-      <Survey model={survey} />
+      <Suspense fallback={<SurveyLoadingFallback />}>
+        <Survey model={survey} />
+      </Suspense>
     </div>
   )
 }

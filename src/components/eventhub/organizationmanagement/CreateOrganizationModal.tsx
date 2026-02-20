@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Modal from '../../ui/Modal'
+import ReactQuill from 'react-quill'
+import 'react-quill/dist/quill.snow.css'
 
 interface CreateOrganizationModalProps {
   isOpen: boolean
@@ -41,16 +43,25 @@ const CreateOrganizationModal = ({
   const [stallNumber, setStallNumber] = useState('')
 
   const isEdit = useMemo(() => {
-    const hasInitial =
-      !!initialValues?.name ||
-      !!initialValues?.website ||
-      !!initialValues?.linkedin ||
-      !!initialValues?.groups ||
-      !!initialValues?.description ||
-      !!initialValues?.logoLink ||
-      !!initialValues?.stallNumber
-    return hasInitial
+    return !!(
+      initialValues?.name ||
+      initialValues?.website ||
+      initialValues?.linkedin ||
+      initialValues?.groups ||
+      initialValues?.description ||
+      initialValues?.logoLink ||
+      initialValues?.stallNumber
+    )
   }, [initialValues])
+
+  const modules = {
+    toolbar: [
+      [{ header: [1, 2, false] }],
+      ['bold', 'italic', 'underline', 'strike'],
+      [{ list: 'ordered' }, { list: 'bullet' }],
+      ['link', 'clean'],
+    ],
+  }
 
   useEffect(() => {
     if (!isOpen) return
@@ -62,10 +73,6 @@ const CreateOrganizationModal = ({
     setLogoLink(initialValues?.logoLink || '')
     setStallNumber(initialValues?.stallNumber || '')
   }, [isOpen, initialValues])
-
-  const handleClose = () => {
-    onClose()
-  }
 
   const handleSave = () => {
     if (isSaving) return
@@ -80,7 +87,7 @@ const CreateOrganizationModal = ({
       website: website.trim() || undefined,
       linkedin: linkedin.trim() || undefined,
       groups: groups.trim() || undefined,
-      description: description.trim() || undefined,
+      description: description,
       logoLink: logoLink.trim() || undefined,
       stallNumber: stallNumber.trim() || undefined
     })
@@ -89,7 +96,7 @@ const CreateOrganizationModal = ({
   return (
     <Modal
       isVisible={isOpen}
-      onClose={handleClose}
+      onClose={onClose}
       title={isEdit ? 'Edit organization' : 'Create organization'}
       subtitle="Add organization details."
       width={672}
@@ -98,9 +105,9 @@ const CreateOrganizationModal = ({
         <div className="flex w-full items-center justify-end gap-3 pb-4">
           <button
             type="button"
-            onClick={handleClose}
+            onClick={onClose}
             disabled={isSaving}
-            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-60"
           >
             Cancel
           </button>
@@ -108,7 +115,7 @@ const CreateOrganizationModal = ({
             type="button"
             onClick={handleSave}
             disabled={isSaving}
-            className="inline-flex items-center justify-center rounded-md border border-slate-200 bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-primary/90 disabled:opacity-60"
           >
             {isSaving ? 'Saving...' : 'Save'}
           </button>
@@ -125,7 +132,7 @@ const CreateOrganizationModal = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Organization name"
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
           />
         </div>
 
@@ -136,7 +143,7 @@ const CreateOrganizationModal = ({
             value={website}
             onChange={(e) => setWebsite(e.target.value)}
             placeholder="https://example.com"
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
           />
         </div>
 
@@ -147,7 +154,7 @@ const CreateOrganizationModal = ({
             value={linkedin}
             onChange={(e) => setLinkedin(e.target.value)}
             placeholder="https://www.linkedin.com/company/..."
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
           />
         </div>
 
@@ -158,32 +165,36 @@ const CreateOrganizationModal = ({
             value={groups}
             onChange={(e) => setGroups(e.target.value)}
             placeholder="e.g. exhibitors, sponsors, partners"
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
           />
-          
         </div>
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Short description"
-            rows={3}
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary resize-none"
-          />
+          <div className="rich-text-editor">
+            <ReactQuill
+              theme="snow"
+              value={description}
+              onChange={setDescription}
+              modules={modules}
+              className="bg-white rounded-md"
+              placeholder="Enter organization description..."
+            />
+          </div>
+          <style dangerouslySetInnerHTML={{ __html: `
+  .rich-text-editor .ql-container {
+    border-bottom-left-radius: 0.375rem;
+    border-bottom-right-radius: 0.375rem;
+    min-height: 150px;
+    font-size: 0.875rem;
+  }
+  .rich-text-editor .ql-toolbar {
+    border-top-left-radius: 0.375rem;
+    border-top-right-radius: 0.375rem;
+    background-color: #f8fafc;
+  }
+` }} />
         </div>
-
-        {/* <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Stall number</label>
-          <input
-            type="text"
-            value={stallNumber}
-            onChange={(e) => setStallNumber(e.target.value)}
-            placeholder="Stall number"
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
-          />
-        </div> */}
 
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Logo link</label>
@@ -192,7 +203,7 @@ const CreateOrganizationModal = ({
             value={logoLink}
             onChange={(e) => setLogoLink(e.target.value)}
             placeholder="https://.../logo.png"
-            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
           />
         </div>
       </div>
@@ -201,4 +212,3 @@ const CreateOrganizationModal = ({
 }
 
 export default CreateOrganizationModal
-

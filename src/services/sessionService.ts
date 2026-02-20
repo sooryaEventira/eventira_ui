@@ -54,6 +54,13 @@ export interface CreateSessionSectionsBody {
   sections: CreateSessionSectionItem[]
 }
 
+/** Payload for PATCH session-sections/{{session_section_id}}/. Same shape as create item (section_type, order, content). */
+export interface UpdateSessionSectionBody {
+  section_type?: string
+  order?: number
+  content?: Record<string, unknown>
+}
+
 /** List sessions for a schedule. GET {{admin_url}}sessions/?event_id=&schedule_uuid= (admin/schedule page only; published website uses event store). */
 export async function listSessions(
   eventUuid: string,
@@ -382,6 +389,90 @@ function postOneSessionSection(
   })
 }
 
+/** Update a single session section. PATCH {{admin_url}}session-sections/{{session_section_id}}/?event_id={{event_uuid}} */
+export async function updateSessionSection(
+  eventUuid: string,
+  sessionSectionId: string,
+  body: UpdateSessionSectionBody
+): Promise<unknown> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) {
+    const msg = handleApiError('Authentication required.', undefined, 'Authentication required.')
+    throw new Error(msg)
+  }
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) {
+    const msg = handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.')
+    throw new Error(msg)
+  }
+  const url = API_ENDPOINTS.SESSION_SECTIONS.UPDATE(sessionSectionId, eventUuid)
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: unknown = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // ignore
+    }
+    const message = handleApiError(err, response, 'Failed to update session section.')
+    throw new Error(message)
+  }
+  const text = await response.text()
+  if (!text?.trim()) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+/** Delete a session section. DELETE {{admin_url}}session-sections/{{session_section_id}}/?event_id={{event_uuid}} */
+export async function deleteSessionSection(
+  eventUuid: string,
+  sessionSectionId: string
+): Promise<void> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) {
+    const msg = handleApiError('Authentication required.', undefined, 'Authentication required.')
+    throw new Error(msg)
+  }
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) {
+    const msg = handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.')
+    throw new Error(msg)
+  }
+  const url = API_ENDPOINTS.SESSION_SECTIONS.DELETE(sessionSectionId, eventUuid)
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: unknown = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // ignore
+    }
+    const message = handleApiError(err, response, 'Failed to delete session section.')
+    throw new Error(message)
+  }
+}
+
 /** Create session sections (one POST per section). POST {{admin_url}}session-sections/?event_id={{event_uuid}} */
 export async function createSessionSections(
   eventUuid: string,
@@ -401,6 +492,98 @@ export async function createSessionSections(
     results.push(result)
   }
   return results
+}
+
+/** Payload for PATCH session-resources/{{session_resource_id}}/. Backend may accept JSON (e.g. title, order) or FormData to replace file. */
+export interface UpdateSessionResourceBody {
+  session_uuid?: string
+  title?: string
+  order?: number
+  [key: string]: unknown
+}
+
+/** Update a session resource. PATCH {{admin_url}}session-resources/{{session_resource_id}}/?event_id={{event_uuid}} */
+export async function updateSessionResource(
+  eventUuid: string,
+  sessionResourceId: string,
+  body: UpdateSessionResourceBody
+): Promise<unknown> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) {
+    const msg = handleApiError('Authentication required.', undefined, 'Authentication required.')
+    throw new Error(msg)
+  }
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) {
+    const msg = handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.')
+    throw new Error(msg)
+  }
+  const url = API_ENDPOINTS.SESSION_RESOURCES.UPDATE(sessionResourceId, eventUuid)
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: unknown = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // ignore
+    }
+    const message = handleApiError(err, response, 'Failed to update session resource.')
+    throw new Error(message)
+  }
+  const text = await response.text()
+  if (!text?.trim()) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return null
+  }
+}
+
+/** Delete a session resource. DELETE {{admin_url}}session-resources/{{session_resource_id}}/?event_id={{event_uuid}} */
+export async function deleteSessionResource(
+  eventUuid: string,
+  sessionResourceId: string
+): Promise<void> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) {
+    const msg = handleApiError('Authentication required.', undefined, 'Authentication required.')
+    throw new Error(msg)
+  }
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) {
+    const msg = handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.')
+    throw new Error(msg)
+  }
+  const url = API_ENDPOINTS.SESSION_RESOURCES.DELETE(sessionResourceId, eventUuid)
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let err: unknown = text
+    try {
+      if (text) err = JSON.parse(text)
+    } catch {
+      // ignore
+    }
+    const message = handleApiError(err, response, 'Failed to delete session resource.')
+    throw new Error(message)
+  }
 }
 
 /** Create session resources (files). POST {{admin_url}}session-resources/?event_id={{event_uuid}} */

@@ -1,21 +1,22 @@
-import React, { useMemo, useState, useCallback } from 'react'
+import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react'
 import {
   DividerLineTable,
   type DividerLineTableSortDescriptor,
   Button
 } from '../../ui/untitled'
-import { Speaker, SpeakerTab, CustomField } from './speakerTypes'
+import { Speaker, SpeakerTab, CustomField, Group } from './speakerTypes'
 import type { SpeakerTableRowData } from './speakerTypes'
 import type { CustomFieldTableRowData } from '../attendeemanagement/attendeeTypes'
 import { TablePagination, useTableHeader } from '../../ui'
 import { useSpeakerTableColumns } from './SpeakerTableColumns'
 import { useCustomFieldTableColumns } from '../attendeemanagement/CustomFieldTableColumns'
-import { Download01, Grid01, Upload01 } from '@untitled-ui/icons-react'
+import { Download01, Columns03, Upload01, ChevronDown } from '@untitled-ui/icons-react'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface SpeakersTableProps {
   speakers: Speaker[]
   customFields?: CustomField[]
+  groups?: Group[]
   activeTab: SpeakerTab
   onTabChange: (tab: SpeakerTab) => void
   onUpload?: () => void
@@ -23,6 +24,7 @@ interface SpeakersTableProps {
   onCreateField?: () => void
   onEditSpeaker?: (speakerId: string) => void
   onDeleteSpeaker?: (speakerId: string) => void
+  onAddToGroup?: (speakerIds: string[], groupId: string) => void | Promise<void>
   onEditCustomField?: (customFieldId: string) => void
   onDeleteCustomField?: (customFieldId: string) => void
   onDownload?: () => void
@@ -34,6 +36,7 @@ interface SpeakersTableProps {
 const SpeakersTable: React.FC<SpeakersTableProps> = ({
   speakers,
   customFields = [],
+  groups = [],
   activeTab,
   onTabChange,
   onUpload,
@@ -42,6 +45,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   onEditSpeaker,
   isLoading = false,
   onDeleteSpeaker: onDeleteSpeakerProp,
+  onAddToGroup,
   onEditCustomField,
   onDeleteCustomField,
   onDownload,
@@ -54,6 +58,9 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
+  const [addToGroupOpen, setAddToGroupOpen] = useState(false)
+  const addToGroupRef = useRef<HTMLDivElement>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>({
     column: 'name',
@@ -171,9 +178,64 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     }
   }, [deleteCandidate, isDeleting, onDeleteSpeakerProp])
 
+  const confirmBulkDelete = useCallback(async () => {
+    if (!bulkDeleteIds?.length || !onDeleteSpeakerProp) {
+      setBulkDeleteIds(null)
+      return
+    }
+    if (isDeleting) return
+    setIsDeleting(true)
+    try {
+      for (const id of bulkDeleteIds) {
+        await Promise.resolve(onDeleteSpeakerProp(id) as any)
+      }
+      setSelectedSpeakerIds(new Set())
+      setBulkDeleteIds(null)
+    } finally {
+      setIsDeleting(false)
+    }
+  }, [bulkDeleteIds, isDeleting, onDeleteSpeakerProp])
+
+  useEffect(() => {
+    if (!addToGroupOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (addToGroupRef.current && !addToGroupRef.current.contains(e.target as Node)) {
+        setAddToGroupOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [addToGroupOpen])
+
+  const visibleSpeakerIdsOnPage = useMemo(
+    () => paginatedSpeakers.map((s) => s.id),
+    [paginatedSpeakers]
+  )
+  const headerSelectAllSpeakers = useMemo(() => {
+    if (activeTab !== 'user') return undefined
+    const allSelected =
+      visibleSpeakerIdsOnPage.length > 0 &&
+      visibleSpeakerIdsOnPage.every((id) => selectedSpeakerIds.has(id))
+    const indeterminate =
+      visibleSpeakerIdsOnPage.some((id) => selectedSpeakerIds.has(id)) && !allSelected
+    return {
+      visibleIds: visibleSpeakerIdsOnPage,
+      onToggleAll: (checked: boolean) => {
+        setSelectedSpeakerIds((prev) => {
+          const next = new Set(prev)
+          visibleSpeakerIdsOnPage.forEach((id) => (checked ? next.add(id) : next.delete(id)))
+          return next
+        })
+      },
+      allSelected,
+      indeterminate
+    }
+  }, [activeTab, visibleSpeakerIdsOnPage, selectedSpeakerIds])
+
   const speakerColumns = useSpeakerTableColumns({
     selectedSpeakerIds,
     onToggleRow: handleToggleSpeaker,
+    headerSelectAll: headerSelectAllSpeakers,
     onEditSpeaker,
     onDeleteSpeaker: requestDeleteSpeaker
   })
@@ -243,27 +305,75 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     searchPlaceholder,
     onTabChange: (tabId) => onTabChange(tabId as SpeakerTab),
     onSearchChange: setSearchQuery,
-    showFilter: true,
+    showFilter: !(activeTab === 'user' && selectedSpeakerIds.size > 0),
     onFilterClick: onFilter || (() => {}),
     filterLabel: `Filter ${activeTab === 'custom-schedule' ? 'custom fields' : 'speakers'}`,
     customActions: activeTab === 'user' ? (
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onDownload}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label="Download"
-        >
-          <Download01 className="h-4 w-4" strokeWidth={2} />
-        </button>
-        <button
-          type="button"
-          onClick={onGridView}
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          aria-label="Grid view"
-        >
-          <Grid01 className="h-4 w-4" strokeWidth={2} />
-        </button>
+        {selectedSpeakerIds.size > 0 ? (
+          <>
+            <div className="relative" ref={addToGroupRef}>
+              <button
+                type="button"
+                onClick={() => setAddToGroupOpen((v) => !v)}
+                className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              >
+                Add to group
+                <ChevronDown className="h-4 w-4 text-slate-500" />
+              </button>
+              {addToGroupOpen && (
+                <div className="absolute right-0 top-full z-20 mt-1 min-w-[160px] rounded-md border border-slate-200 bg-white py-1 shadow-lg">
+                  {groups.length === 0 ? (
+                    <div className="px-3 py-2 text-sm text-slate-500">No groups</div>
+                  ) : (
+                    groups.map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        onClick={() => {
+                          onAddToGroup?.(Array.from(selectedSpeakerIds), g.id)
+                          setAddToGroupOpen(false)
+                          setSelectedSpeakerIds(new Set())
+                        }}
+                        className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                      >
+                        {g.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="!bg-red-600 hover:!bg-red-700 focus:visible:ring-red-500/40"
+              onClick={() => setBulkDeleteIds(Array.from(selectedSpeakerIds))}
+            >
+              Delete
+            </Button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onDownload}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Download"
+            >
+              <Download01 className="h-4 w-4" strokeWidth={2} />
+            </button>
+            <button
+              type="button"
+              onClick={onGridView}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Grid view"
+            >
+              <Columns03 className="h-4 w-4" strokeWidth={2} />
+            </button>
+          </>
+        )}
       </div>
     ) : undefined
   })
@@ -379,8 +489,19 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
         }}
         onConfirm={confirmDeleteSpeaker}
       />
+      <ConfirmDeleteModal
+        isOpen={!!bulkDeleteIds?.length}
+        title="Delete speakers?"
+        itemName={bulkDeleteIds ? `${bulkDeleteIds.length} speakers` : undefined}
+        isLoading={isDeleting}
+        onCancel={() => {
+          if (isDeleting) return
+          setBulkDeleteIds(null)
+        }}
+        onConfirm={confirmBulkDelete}
+      />
     </div>
   )
 }
 
-export default SpeakersTable
+export default React.memo(SpeakersTable)

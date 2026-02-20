@@ -127,33 +127,24 @@ const Slideout = forwardRef<SlideoutHandle, SlideoutProps>(function Slideout(pro
     bottom: 0
   }
 
-  // Calculate responsive width
-  // Prioritize responsive Tailwind classes, only use inline styles when width is explicitly provided
+  // Calculate responsive width: explicit width > panelWidthRatio > responsive Tailwind classes
   const panelStyle: React.CSSProperties = {
     height: `calc(100vh - ${topOffset}px)`,
     ...(width && {
       width: typeof width === 'number' ? `${width}px` : width
     }),
-    // Only apply maxWidth if explicitly provided (no default maxWidth)
+    // When panelWidthRatio is set and width is not, use ratio (e.g. 0.38 = 38% of viewport)
+    ...(!width && panelWidthRatio != null && {
+      width: `${Math.min(100, Math.max(20, panelWidthRatio * 100))}%`
+    }),
     ...(maxWidth && {
       maxWidth: typeof maxWidth === 'number' ? `${maxWidth}px` : maxWidth
     })
-    // Note: We don't set width in inline styles when using responsive classes
-    // This allows Tailwind responsive classes to take precedence
   }
 
-  // Get responsive width classes - always use these unless width prop is explicitly provided
-  // Use wider responsive widths for better usability
   const getResponsiveWidthClasses = () => {
-    if (width) return '' // Use inline style when width is explicitly provided
-    
-    // Responsive width classes - slightly reduced widths
-    // Mobile (< 640px): full width
-    // Tablet (640px+): 90% width
-    // Desktop (768px+): 85% width
-    // Large (1024px+): 75% width  
-    // XL (1280px+): 65% width
-    // Wide (1440px+): 55% width
+    if (width) return ''
+    if (panelWidthRatio != null) return '' // width set via inline style above
     return 'w-full sm:w-[80%] md:w-[85%] lg:w-[75%] xl:w-[65%] 2xl:w-[55%]'
   }
 

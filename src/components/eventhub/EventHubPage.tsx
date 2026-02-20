@@ -1,19 +1,27 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, Suspense, lazy } from 'react'
 import { useEventForm } from '../../contexts/EventFormContext'
 import EventHubNavbar from './EventHubNavbar'
 import EventHubSidebar from './EventHubSidebar'
 import { defaultCards, ContentCard } from './EventHubContent'
-import CommunicationPage from './communication/CommunicationPage'
-import ResourceManagementPage from './resourcemanagement/ResourceManagementPage'
-import SchedulePage from './schedulesession/SchedulePage'
-import EventWebsitePage from './EventWebsitePage'
-import AttendeeManagementPage from './attendeemanagement/AttendeeManagementPage'
-import SpeakerManagementPage from './speakermanagement/SpeakerManagementPage'
-import OrganizationManagementPage from './organizationmanagement/OrganizationManagementPage'
-import WebsiteSettingsPage from './websitesettings/WebsiteSettingsPage'
-import EventHubOverviewPage from './overview/EventHubOverviewPage'
-import RegistrationFormPage from './registrationform/RegistrationFormPage'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
+
+// Lazy-load section components so only the active section loads
+const CommunicationPage = lazy(() => import('./communication/CommunicationPage').then((m) => ({ default: m.default })))
+const ResourceManagementPage = lazy(() => import('./resourcemanagement/ResourceManagementPage').then((m) => ({ default: m.default })))
+const SchedulePage = lazy(() => import('./schedulesession/SchedulePage').then((m) => ({ default: m.default })))
+const EventWebsitePage = lazy(() => import('./EventWebsitePage').then((m) => ({ default: m.default })))
+const AttendeeManagementPage = lazy(() => import('./attendeemanagement/AttendeeManagementPage').then((m) => ({ default: m.default })))
+const SpeakerManagementPage = lazy(() => import('./speakermanagement/SpeakerManagementPage').then((m) => ({ default: m.default })))
+const OrganizationManagementPage = lazy(() => import('./organizationmanagement/OrganizationManagementPage').then((m) => ({ default: m.default })))
+const WebsiteSettingsPage = lazy(() => import('./websitesettings/WebsiteSettingsPage').then((m) => ({ default: m.default })))
+const EventHubOverviewPage = lazy(() => import('./overview/EventHubOverviewPage').then((m) => ({ default: m.default })))
+const RegistrationFormPage = lazy(() => import('./registrationform/RegistrationFormPage').then((m) => ({ default: m.default })))
+
+const SectionFallback = () => (
+  <div className="flex h-full min-h-[200px] items-center justify-center">
+    <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+  </div>
+)
 
 interface EventHubPageProps {
   eventName?: string
@@ -248,7 +256,9 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
 
       {/* Content Area */}
       <div key={activeSection} className="md:pl-[250px] pt-16 h-[calc(100vh-64px)] overflow-y-auto">
-        {renderContent()}
+        <Suspense fallback={<SectionFallback />}>
+          {renderContent()}
+        </Suspense>
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import React, { useMemo, useRef, useEffect } from 'react'
 import { Pencil01, Trash03 } from '@untitled-ui/icons-react'
 import {
   Badge,
@@ -6,9 +6,17 @@ import {
 } from '../../ui/untitled'
 import type { AttendeeTableRowData } from './attendeeTypes'
 
+interface HeaderSelectAll {
+  visibleIds: string[]
+  onToggleAll: (checked: boolean) => void
+  allSelected: boolean
+  indeterminate: boolean
+}
+
 interface AttendeeTableColumnsProps {
   selectedAttendeeIds: Set<string>
   onToggleRow: (id: string, checked: boolean) => void
+  headerSelectAll?: HeaderSelectAll
   onEditAttendee?: (attendeeId: string) => void
   onDeleteAttendee?: (attendeeId: string) => void
 }
@@ -19,9 +27,40 @@ const getUserGroupVariant = (variant?: string): 'primary' | 'info' | 'muted' => 
   return 'muted'
 }
 
+function HeaderCheckbox({
+  checked,
+  indeterminate,
+  onChange,
+  label
+}: {
+  checked: boolean
+  indeterminate: boolean
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  label: string
+}) {
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (ref.current) ref.current.indeterminate = indeterminate
+  }, [indeterminate])
+  return (
+    <div className="flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+      <input
+        ref={ref}
+        type="checkbox"
+        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40"
+        aria-label={`Select all ${label}`}
+        checked={checked}
+        onChange={onChange}
+      />
+      <span>{label}</span>
+    </div>
+  )
+}
+
 export const useAttendeeTableColumns = ({
   selectedAttendeeIds,
   onToggleRow,
+  headerSelectAll,
   onEditAttendee,
   onDeleteAttendee
 }: AttendeeTableColumnsProps): DividerLineTableColumn<AttendeeTableRowData>[] => {
@@ -29,7 +68,19 @@ export const useAttendeeTableColumns = ({
     () => [
       {
         id: 'name',
-        header: 'Name',
+        header: headerSelectAll ? (
+          <HeaderCheckbox
+            checked={headerSelectAll.allSelected}
+            indeterminate={headerSelectAll.indeterminate}
+            onChange={(e) => {
+              e.stopPropagation()
+              headerSelectAll.onToggleAll((e.target as HTMLInputElement).checked)
+            }}
+            label="Name"
+          />
+        ) : (
+          'Name'
+        ),
         sortable: true,
         sortAccessor: ({ attendee }) => attendee?.name || '',
         render: ({ attendee }) => {
@@ -202,6 +253,7 @@ export const useAttendeeTableColumns = ({
     [
       selectedAttendeeIds,
       onToggleRow,
+      headerSelectAll,
       onEditAttendee,
       onDeleteAttendee
     ]

@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect, useCallback } from 'react'
+import React, { useMemo, useEffect, useCallback, startTransition } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
@@ -21,7 +21,11 @@ import {
   createSession,
   updateSession,
   createSessionSections,
+  updateSessionSection,
+  deleteSessionSection,
   createSessionResources,
+  updateSessionResource,
+  deleteSessionResource,
   getSessionUuidFromResponse,
   findSessionUuidFromList,
   deleteSession as deleteSessionApi,
@@ -29,10 +33,29 @@ import {
   type UpdateSessionBody,
   type CreateSessionSectionsBody
 } from '../../../services/sessionService'
-import * as XLSX from 'xlsx'
+// XLSX is dynamically imported when needed (see storeExcelParentMap)
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
 import { fetchEvent } from '../../../services/eventService'
 import type { EventData } from '../../../services/eventService'
+// Import extracted utilities
+import {
+  buildSessionSignature,
+  toUTCISO,
+  toUTCISOFrom24h
+} from './utils/sessionUtils'
+import { mapRetrieveSessionToDraft } from './utils/sessionMappers'
+import {
+  collectFilesFromSections,
+  extractUrlsFromResourcesResponse,
+  extractResourceIdsFromResponse,
+  getOrderedResourceIdsOrIndices,
+  getVideoFileIndicesInFlattenedFiles,
+  toApiSectionType,
+  buildOneSectionPayload,
+  buildSectionsPayload
+} from './utils/sessionPayloadBuilders'
+import { UUID_REGEX, DEFAULT_EVENT_TIMEZONE } from './utils/sessionConstants'
+import { storeExcelParentMap as storeExcelParentMapUtil } from './utils/excelSessionImport'
 
 interface SchedulePageProps {
   eventName?: string
@@ -60,191 +83,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   // Fetched event details for date range so weekday selector always shows the correct event's dates when switching
   const [eventDetailsForRange, setEventDetailsForRange] = React.useState<EventData | null>(null)
 
-  const buildSessionSignature = useCallback((input: {
-    dateKey: string
-    title: string
-    location: string
-    startTime: string
-    startPeriod: 'AM' | 'PM'
-    endTime: string
-    endPeriod: 'AM' | 'PM'
-  }) => {
-    return [
-      input.dateKey,
-      input.title.trim(),
-      input.location.trim(),
-      `${input.startTime} ${input.startPeriod}`,
-      `${input.endTime} ${input.endPeriod}`
-    ].join('||')
-  }, [])
-
-  const parseExcelDateKey = (value: any): string | null => {
-    if (value === null || value === undefined) return null
-    // Date object
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      return value.toISOString().slice(0, 10)
-    }
-    // Excel date number
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      try {
-        const d = XLSX.SSF.parse_date_code(value)
-        if (!d || !d.y || !d.m || !d.d) return null
-        const mm = String(d.m).padStart(2, '0')
-        const dd = String(d.d).padStart(2, '0')
-        return `${d.y}-${mm}-${dd}`
-      } catch {
-        return null
-      }
-    }
-    const raw = String(value).trim()
-    if (!raw) return null
-    // Try parseable string date
-    const d = new Date(raw)
-    if (!Number.isNaN(d.getTime())) return d.toISOString().slice(0, 10)
-    return null
-  }
-
-  const parseExcelTimeToMinutes = (value: any): number | null => {
-    if (value === null || value === undefined) return null
-    // Excel time number (fraction of day) or full datetime number
-    if (typeof value === 'number' && Number.isFinite(value)) {
-      // If it's a fraction-of-day time, keep fractional part
-      const fractional = value % 1
-      const minutes = Math.round(fractional * 24 * 60)
-      return minutes >= 0 && minutes < 24 * 60 ? minutes : null
-    }
-    if (value instanceof Date && !Number.isNaN(value.getTime())) {
-      return value.getHours() * 60 + value.getMinutes()
-    }
-    const raw = String(value).trim()
-    if (!raw) return null
-    // "09:00" or "9:00" or "09:00 AM"
-    const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
-    if (ampm) {
-      let h = Number(ampm[1])
-      const m = Number(ampm[2])
-      const p = ampm[3].toUpperCase()
-      if (p === 'PM' && h !== 12) h += 12
-      if (p === 'AM' && h === 12) h = 0
-      return h * 60 + m
-    }
-    const h24 = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/)
-    if (h24) {
-      const h = Number(h24[1])
-      const m = Number(h24[2])
-      return h * 60 + m
-    }
-    return null
-  }
-
-  const minutesToTimePeriod = (minutes: number): { time: string; period: 'AM' | 'PM' } => {
-    const m = ((minutes % (24 * 60)) + (24 * 60)) % (24 * 60)
-    const hours24 = Math.floor(m / 60)
-    const mins = String(m % 60).padStart(2, '0')
-    const period: 'AM' | 'PM' = hours24 >= 12 ? 'PM' : 'AM'
-    let hours12 = hours24 % 12
-    if (hours12 === 0) hours12 = 12
-    const hh = String(hours12).padStart(2, '0')
-    return { time: `${hh}:${mins}`, period }
-  }
 
   const storeExcelParentMap = useCallback(
-    async (file: File, eventUuid: string, scheduleUuid: string) => {
-      try {
-        const buffer = await file.arrayBuffer()
-        const wb = XLSX.read(buffer, { type: 'array' })
-        const sheetName = wb.SheetNames?.[0]
-        if (!sheetName) return
-        const ws = wb.Sheets[sheetName]
-        const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as any[][]
-        if (!rows || rows.length < 2) return
-
-        const header = (rows[0] || []).map((h) => String(h ?? '').trim().toLowerCase())
-        const idx = (name: string) => header.findIndex((h) => h === name)
-        const titleIdx = idx('title')
-        const parentIdx = idx('parent session')
-        const dateIdx = idx('date')
-        const startIdx = idx('start time')
-        const endIdx = idx('end time')
-        const locationIdx = idx('location')
-
-        if (titleIdx === -1 || dateIdx === -1 || startIdx === -1 || endIdx === -1) {
-          console.log('⚠️ [Sessions] Excel parse: required columns not found', { header })
-          return
-        }
-
-        type MapEntry = {
-          signature: string
-          title: string
-          dateKey: string
-          location: string
-          startTime: string
-          startPeriod: 'AM' | 'PM'
-          endTime: string
-          endPeriod: 'AM' | 'PM'
-          sessionType: 'parent' | 'child'
-          parentTitle: string | null
-        }
-
-        const entries: MapEntry[] = []
-        for (let i = 1; i < rows.length; i++) {
-          const row = rows[i] || []
-          const title = String(row[titleIdx] ?? '').trim()
-          if (!title) continue
-          const dateKey = parseExcelDateKey(row[dateIdx])
-          if (!dateKey) continue
-          const startMin = parseExcelTimeToMinutes(row[startIdx])
-          const endMinRaw = parseExcelTimeToMinutes(row[endIdx])
-          if (startMin === null || endMinRaw === null) continue
-
-          // handle cross-day (end < start)
-          const endMin = endMinRaw < startMin ? endMinRaw + 24 * 60 : endMinRaw
-
-          const start = minutesToTimePeriod(startMin)
-          const end = minutesToTimePeriod(endMin)
-          const location = locationIdx !== -1 ? String(row[locationIdx] ?? '').trim() : ''
-          const parentTitle =
-            parentIdx !== -1 && String(row[parentIdx] ?? '').trim()
-              ? String(row[parentIdx]).trim()
-              : null
-          const sessionType: 'parent' | 'child' = parentTitle ? 'child' : 'parent'
-
-          const signature = buildSessionSignature({
-            dateKey,
-            title,
-            location,
-            startTime: start.time,
-            startPeriod: start.period,
-            endTime: end.time,
-            endPeriod: end.period,
-          })
-
-          entries.push({
-            signature,
-            title,
-            dateKey,
-            location,
-            startTime: start.time,
-            startPeriod: start.period,
-            endTime: end.time,
-            endPeriod: end.period,
-            sessionType,
-            parentTitle
-          })
-        }
-
-        const key = `session-import-map:${eventUuid}:${scheduleUuid}`
-        localStorage.setItem(key, JSON.stringify({ version: 1, entries, savedAt: Date.now() }))
-        console.log('💾 [Sessions] Stored Excel parent map:', { key, count: entries.length })
-      } catch (e) {
-        console.log('⚠️ [Sessions] Failed to parse/store Excel map:', e)
-      }
-    },
-    [buildSessionSignature]
+    (file: File, eventUuid: string, scheduleUuid: string) =>
+      storeExcelParentMapUtil(file, eventUuid, scheduleUuid),
+    []
   )
-
-  // Default event timezone when not set (e.g. Asia/Kolkata)
-  const DEFAULT_EVENT_TIMEZONE = 'Asia/Kolkata'
 
   // Resolve event timezone (IANA name) from timezone UUID
   useEffect(() => {
@@ -349,6 +193,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const [isSessionSlideoutOpen, setIsSessionSlideoutOpen] = React.useState(false)
   const [isTemplateSessionSlideoutOpen, setIsTemplateSessionSlideoutOpen] = React.useState(false)
   const [isScheduleDetailsSlideoutOpen, setIsScheduleDetailsSlideoutOpen] = React.useState(false)
+  const [editingScheduleId, setEditingScheduleId] = React.useState<string | null>(null)
+  const [scheduleDetailsInitialDetails, setScheduleDetailsInitialDetails] = React.useState<{
+    title: string
+    tags: string[]
+    location: string[]
+    description: string
+  } | null>(null)
   const [activeScheduleId, setActiveScheduleId] = React.useState<string | null>(null)
   const [activeDraft, setActiveDraft] = React.useState<SessionDraft | null>(null)
   const [startInEditMode, setStartInEditMode] = React.useState(true)
@@ -357,9 +208,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const [availableLocations, setAvailableLocations] = React.useState<string[]>([])
   const [sessionToDelete, setSessionToDelete] = React.useState<SavedSession | null>(null)
   const [isDeletingSession, setIsDeletingSession] = React.useState(false)
+  const [sessionDraftLoading, setSessionDraftLoading] = React.useState(false)
 
   // Parse event date as local calendar date (no UTC shift). Handles YYYY-MM-DD and ISO strings like 2026-02-02T00:00:00Z.
-  const parseEventDate = React.useCallback((raw: unknown): Date | null => {
+  // Note: This is a specialized version for event dates, different from the generic parseEventDate utility
+  const parseEventDateLocal = React.useCallback((raw: unknown): Date | null => {
     const r = raw != null ? String(raw).trim() : ''
     if (!r) return null
     const datePart = r.slice(0, 10)
@@ -377,6 +230,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     d.setHours(0, 0, 0, 0)
     return d
   }, [])
+  
+  // Alias for consistency - parseEventDateLocal is the specialized version for event dates
+  const parseEventDate = parseEventDateLocal
 
   // Fetch event details when event changes so date range is always correct (avoids stale context/localStorage)
   const currentEventUuid = (createdEvent as any)?.uuid
@@ -984,23 +840,36 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
                 ]
               : []
 
-          // Merge session_resources into sections so summary view and grid show uploaded files
+          // Merge session_resources: video files → Video section, others → Resources section
           const apiResources = Array.isArray(s?.session_resources) ? s.session_resources : Array.isArray(s?.resources) ? s.resources : Array.isArray(s?.resource_files) ? s.resource_files : []
+          const videoExtRe = /\.(mp4|webm|mov|ogg|m4v|ogv)(\?|$)/i
           if (apiResources.length > 0) {
             const resourceFiles = apiResources.map((r: any) =>
-              typeof r === 'string' ? r : { url: r?.file_url ?? r?.url ?? r?.file, name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File' }
+              typeof r === 'string' ? { url: r, name: r?.split?.('/')?.pop?.() ?? 'File' } : { url: r?.file_url ?? r?.url ?? r?.file, name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File' }
             )
-            const existingResources = sections.find((sec: any) => sec.type === 'resources')
-            if (existingResources) {
-              const current = (existingResources.data?.files as any[]) ?? []
-              sections = sections.map((sec: any) =>
-                sec.type === 'resources' ? { ...sec, data: { ...(sec.data || {}), files: [...current, ...resourceFiles] } } : sec
-              )
-            } else {
-              sections = [
-                ...sections,
-                { id: `section-${id}-resources`, type: 'resources', title: 'Resources', description: '', data: { files: resourceFiles } }
-              ]
+            const videoFiles = resourceFiles.filter((item: { url?: string; name?: string }) => videoExtRe.test(String(item?.url ?? '')) || videoExtRe.test(String(item?.name ?? '')))
+            const nonVideoFiles = resourceFiles.filter((item: { url?: string; name?: string }) => !videoExtRe.test(String(item?.url ?? '')) && !videoExtRe.test(String(item?.name ?? '')))
+            if (videoFiles.length > 0) {
+              const videoUrl = videoFiles[0]?.url ?? ''
+              const videoSection = sections.find((sec: any) => sec.type === 'video')
+              if (videoSection) {
+                sections = sections.map((sec: any) =>
+                  sec.type === 'video' ? { ...sec, data: { ...(sec.data || {}), videoUrl, video_url: videoUrl } } : sec
+                )
+              } else {
+                sections = [...sections, { id: `section-${id}-video`, type: 'video', title: 'Video', description: '', data: { videoUrl, video_url: videoUrl } }]
+              }
+            }
+            if (nonVideoFiles.length > 0) {
+              const existingResources = sections.find((sec: any) => sec.type === 'resources')
+              if (existingResources) {
+                const current = (existingResources.data?.files as any[]) ?? []
+                sections = sections.map((sec: any) =>
+                  sec.type === 'resources' ? { ...sec, data: { ...(sec.data || {}), files: [...current, ...nonVideoFiles] } } : sec
+                )
+              } else {
+                sections = [...sections, { id: `section-${id}-resources`, type: 'resources', title: 'Resources', description: '', data: { files: nonVideoFiles } }]
+              }
             }
           }
 
@@ -1683,6 +1552,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     setActiveDraft(null)
     setStartInEditMode(true)
     setParentSessionId(undefined)
+    setSessionDraftLoading(false)
   }
 
   const handleConfirmDeleteSession = useCallback(async () => {
@@ -1715,308 +1585,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     }
   }, [sessionToDelete, createdEvent?.uuid, activeScheduleId, loadSessions])
 
-  /** Build ISO UTC string for API from selected date + time so "9 AM" local is sent as UTC (e.g. 9 AM India → 03:30Z). */
-  const toUTCISO = (date: Date, time: string, period: 'AM' | 'PM'): string => {
-    const [h = 0, min = 0] = time.split(':').map(Number)
-    let hours = h
-    if (period === 'PM' && hours !== 12) hours += 12
-    if (period === 'AM' && hours === 12) hours = 0
-    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hours, min, 0)
-    return d.toISOString()
-  }
-
-  /** Build ISO UTC from date + 24h time string (e.g. "09:00") for template form. */
-  const toUTCISOFrom24h = (date: Date, time24: string): string => {
-    const [h = 0, min = 0] = time24.split(':').map(Number)
-    const d = new Date(date.getFullYear(), date.getMonth(), date.getDate(), h, min, 0)
-    return d.toISOString()
-  }
-
-  const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
-
-  /** Map GET session response (single session) to SavedSession for the slideout. Sections come from session retrieve. Uses event timezone so edit form shows same time as grid (09:00 not 03:30 UTC). */
-  const mapRetrieveSessionToDraft = useCallback(
-    (raw: any, timeZone: string | null): SavedSession => {
-      const id = String(raw?.uuid ?? raw?.id ?? `session-${Math.random().toString(36).slice(2)}`)
-      const title = raw?.title ?? raw?.name ?? 'Session'
-      const parseIsoToTime = (value: any): { time: string; period: 'AM' | 'PM' } => {
-        const fallback = { time: '00:00', period: 'AM' as const }
-        if (value == null) return fallback
-        const d = value instanceof Date ? value : new Date(value)
-        if (Number.isNaN(d.getTime())) return fallback
-        if (timeZone) {
-          try {
-            const formatted = new Intl.DateTimeFormat('en-US', {
-              timeZone,
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: true
-            }).format(d)
-            const m = formatted.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i)
-            if (m) {
-              const hh = String(m[1]).padStart(2, '0')
-              const mm = m[2]
-              const period = m[3].toUpperCase() as 'AM' | 'PM'
-              return { time: `${hh}:${mm}`, period }
-            }
-          } catch {
-            // fall through to UTC
-          }
-        }
-        const hours24 = d.getUTCHours ? d.getUTCHours() : d.getHours()
-        const minutes = d.getUTCMinutes != null ? d.getUTCMinutes() : d.getMinutes()
-        const period: 'AM' | 'PM' = hours24 >= 12 ? 'PM' : 'AM'
-        let hours12 = hours24 % 12
-        if (hours12 === 0) hours12 = 12
-        const hh = String(hours12).padStart(2, '0')
-        const mm = String(minutes).padStart(2, '0')
-        return { time: `${hh}:${mm}`, period }
-      }
-      const startCandidate = raw?.start_time ?? raw?.startTime ?? raw?.start_at ?? raw?.starts_at ?? null
-      const endCandidate = raw?.end_time ?? raw?.endTime ?? raw?.end_at ?? raw?.ends_at ?? null
-      const start = parseIsoToTime(startCandidate)
-      const end = parseIsoToTime(endCandidate)
-      const normalizeTags = (tags: any): string[] => {
-        if (!tags) return []
-        if (Array.isArray(tags)) {
-          return tags
-            .map((t) => (typeof t === 'string' ? t : t?.name ?? t?.title ?? t?.label ?? null))
-            .filter(Boolean)
-        }
-        return []
-      }
-      const tags = normalizeTags(raw?.tags)
-      const description = raw?.description ?? raw?.summary ?? ''
-      const apiSections = Array.isArray(raw?.sections) ? raw.sections : Array.isArray(raw?.session_sections) ? raw.session_sections : []
-      const sections = apiSections.map((sec: any, i: number) => {
-        const content = sec?.content && typeof sec.content === 'object' ? sec.content : {}
-        const sectionType = (sec?.section_type ?? sec?.type ?? 'text').toString()
-        const uiType =
-          sectionType === 'poster'
-            ? 'slides'
-            : sectionType === 'image'
-              ? 'photo-gallery'
-              : sectionType === 'speakers'
-                ? 'speaker'
-                : sectionType === 'resource'
-                  ? 'resources'
-                  : sectionType
-        let sectionData: Record<string, unknown> = { ...content, speaker_uuids: content?.speaker_uuids ?? [], url: content?.url ?? content?.video_url ?? '' }
-        if (uiType === 'resources' && Array.isArray(content?.files)) {
-          sectionData = { ...sectionData, files: content.files }
-        } else if (uiType === 'resources' && (content?.file_url || content?.url)) {
-          sectionData = { ...sectionData, files: [{ url: content.file_url ?? content.url, name: content.file_name ?? content.name }] }
-        }
-        return {
-          id: `section-${id}-${i}`,
-          type: uiType,
-          title: (content?.title ?? sec?.title ?? 'Section').toString(),
-          description: (content?.body ?? content?.body ?? sec?.description ?? '').toString(),
-          data: sectionData
-        }
-      })
-      const apiResources = Array.isArray(raw?.session_resources) ? raw.session_resources : Array.isArray(raw?.resources) ? raw.resources : Array.isArray(raw?.resource_files) ? raw.resource_files : []
-      if (apiResources.length > 0) {
-        const resourceFiles = apiResources.map((r: any) =>
-          typeof r === 'string' ? r : { url: r?.file_url ?? r?.url ?? r?.file, name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File' }
-        )
-        const existingResources = sections.find((s: any) => s.type === 'resources')
-        if (existingResources) {
-          const current = (existingResources.data?.files as any[]) ?? []
-          existingResources.data = { ...existingResources.data, files: [...current, ...resourceFiles] }
-        } else {
-          sections.push({
-            id: `section-${id}-resources`,
-            type: 'resources',
-            title: 'Resources',
-            description: '',
-            data: { files: resourceFiles }
-          })
-        }
-      }
-      if (!sections.length && description) {
-        sections.push({
-          id: `section-${id}-desc`,
-          type: 'text',
-          title: 'Description',
-          description
-        })
-      }
-      let date: Date | undefined
-      const rawDate = raw?.date ?? raw?.start_at ?? raw?.start_datetime ?? null
-      if (rawDate) {
-        const d = new Date(rawDate)
-        if (!Number.isNaN(d.getTime())) date = d
-      }
-      const parentId = (() => {
-        const p = raw?.parent_session_uuid ?? raw?.parentSessionUuid ?? raw?.parent_id ?? raw?.parentId ?? null
-        if (p == null) return undefined
-        if (typeof p === 'string') return p.trim() || undefined
-        if (typeof p === 'object' && p !== null) {
-          const u = (p as any)?.uuid ?? (p as any)?.id
-          return u != null ? String(u) : undefined
-        }
-        return undefined
-      })()
-      return {
-        id,
-        title,
-        startTime: start.time,
-        startPeriod: start.period,
-        endTime: end.time,
-        endPeriod: end.period,
-        location: raw?.location ?? raw?.venue ?? '',
-        sessionType: raw?.session_type ?? raw?.sessionType ?? raw?.type ?? 'keynote',
-        tags,
-        sections,
-        attachments: Array.isArray(raw?.attachments) ? raw.attachments : [],
-        date,
-        parentId
-      }
+  // Use the imported mapper function with event timezone
+  const mapRetrieveSessionToDraftWithTimezone = useCallback(
+    (raw: any): SavedSession => {
+      return mapRetrieveSessionToDraft(raw, eventTimeZone)
     },
     [eventTimeZone]
   )
-
-  /** Collect all File objects from session sections (image/poster, photo-gallery, resources, video). */
-  const collectFilesFromSections = (sections: SessionDraft['sections']): File[] => {
-    const out: File[] = []
-    for (const s of sections ?? []) {
-      const d = s.data
-      if (!d) continue
-      if (d.file instanceof File) out.push(d.file)
-      const images = d.images as Array<{ file?: File }> | undefined
-      if (Array.isArray(images)) {
-        for (const img of images) {
-          if (img?.file instanceof File) out.push(img.file)
-        }
-      }
-      const files = d.files as File[] | undefined
-      if (Array.isArray(files)) {
-        for (const f of files) {
-          if (f instanceof File) out.push(f)
-        }
-      }
-      if (d.videoFile instanceof File) out.push(d.videoFile)
-    }
-    return out
-  }
-
-  /** Extract URLs from createSessionResources response. May be array or { results: [...] }. */
-  const extractUrlsFromResourcesResponse = (res: unknown): string[] => {
-    if (!res || typeof res !== 'object') return []
-    const arr = Array.isArray(res) ? res : (res as any).results ?? (res as any).data ?? []
-    if (!Array.isArray(arr)) return []
-    return arr
-      .map((item: any) => item?.file ?? item?.file_url ?? item?.url ?? '')
-      .filter((u): u is string => typeof u === 'string' && u.length > 0)
-  }
-
-  /** Map section indices with videoFile to their index in the flattened files array. */
-  const getVideoFileIndicesInFlattenedFiles = (
-    sections: SessionDraft['sections']
-  ): Array<{ sectionIndex: number; fileIndex: number }> => {
-    const result: Array<{ sectionIndex: number; fileIndex: number }> = []
-    let fileIndex = 0
-    ;(sections ?? []).forEach((s, sectionIndex) => {
-      const d = s.data
-      if (!d) return
-      if (d.file instanceof File) fileIndex++
-      const images = d.images as Array<{ file?: File }> | undefined
-      if (Array.isArray(images)) {
-        images.forEach((img) => {
-          if (img?.file instanceof File) fileIndex++
-        })
-      }
-      const files = d.files as File[] | undefined
-      if (Array.isArray(files)) {
-        files.forEach((f) => {
-          if (f instanceof File) fileIndex++
-        })
-      }
-      if (d.videoFile instanceof File) {
-        result.push({ sectionIndex, fileIndex })
-        fileIndex++
-      }
-    })
-    return result
-  }
-
-  /** Map UI section type to API section_type.
-   * File uploads (images, galleries, generic documents, uploaded videos) are sent via the
-   * session-resources endpoint and represented as `resource` on the backend. Non-file content
-   * (text blocks, speakers, YouTube embeds, etc.) is sent via session-sections.
-   */
-  const toApiSectionType = (uiType: string): string => {
-    const map: Record<string, string> = {
-      // File-based sections → backend "resource"
-      'photo-gallery': 'resource',
-      image: 'resource',
-      slides: 'resource',
-      resources: 'resource',
-      // Non-file content keeps its dedicated section types
-      speaker: 'speakers',
-      video: 'video',
-      text: 'text',
-      speakers: 'speakers',
-      poll: 'text',
-      location: 'text',
-      qas: 'text',
-      hyperlink: 'text',
-      button: 'text',
-      'live-chat': 'text'
-    }
-    const normalized = (uiType || 'text').trim().toLowerCase()
-    return map[normalized] ?? (normalized || 'text')
-  }
-
-  /** Build section payload for session-sections API. Only text, video, speakers, image, poster. Resource sections (files) are sent via session-resources, not session-sections. */
-  const buildSectionsPayload = (
-    sections: SessionDraft['sections'],
-    sessionUuid: string
-  ): CreateSessionSectionsBody => {
-    const stripFiles = (obj: Record<string, unknown>): Record<string, unknown> => {
-      const out: Record<string, unknown> = {}
-      for (const [k, v] of Object.entries(obj)) {
-        if (v instanceof File) continue
-        if (Array.isArray(v)) {
-          out[k] = v.map((item) => (item && typeof item === 'object' && !(item instanceof File) ? stripFiles(item as Record<string, unknown>) : item))
-          continue
-        }
-        if (v && typeof v === 'object' && !(v instanceof Date)) out[k] = stripFiles(v as Record<string, unknown>)
-        else out[k] = v
-      }
-      return out
-    }
-    const sectionItems = (sections ?? []).map((s, index) => {
-      const sectionType = toApiSectionType((s.type === 'speaker' ? 'speakers' : s.type) || 'text')
-      let content: Record<string, unknown>
-      if (sectionType === 'text') {
-        content = { title: s.title || 'Section', body: s.description ?? '' }
-      } else if (sectionType === 'speakers') {
-        const speakerUuids = Array.isArray(s.data?.speaker_uuids)
-          ? s.data.speaker_uuids
-          : Array.isArray(s.data?.speakers)
-            ? (s.data.speakers as { id: string }[]).map((sp) => sp.id)
-            : []
-        content = { speaker_uuids: speakerUuids }
-      } else if (sectionType === 'video') {
-        const videoUrl = s.data?.videoUrl ?? s.data?.video_url ?? ''
-        content = { video_url: typeof videoUrl === 'string' ? videoUrl : String(videoUrl || ''), title: s.title || 'Video' }
-      } else if (sectionType === 'image' || sectionType === 'poster') {
-        content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
-        if (s.title) content.title = s.title
-        if (s.description != null) content.body = s.description
-        content = stripFiles(content)
-      } else {
-        content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
-        if (s.title) content.title = s.title
-        if (s.description != null) content.body = s.description
-        content = stripFiles(content)
-      }
-      return { section_type: sectionType, order: index + 1, content }
-    }).filter((item) => item.section_type !== 'resource')
-    return { session_uuid: sessionUuid, sections: sectionItems }
-  }
 
   const handleSaveSession = async (session: SessionDraft) => {
     console.log('[Session save] handleSaveSession called')
@@ -2096,6 +1671,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
           const filesFromSections = collectFilesFromSections(normalizedSession.sections)
           const allFiles = [...(normalizedSession.attachments ?? []), ...filesFromSections]
+          const attachmentCount = normalizedSession.attachments?.length ?? 0
+          let newResourceIdsFromCreate: string[] = []
 
           // Upload files first so we can use returned URLs for video sections
           if (allFiles.length > 0) {
@@ -2106,9 +1683,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             })
             const resourcesResponse = await createSessionResources(eventUuid, allFiles, { session_uuid: sessionUuidForUpdate })
             console.log('[Session save] session-resources response:', resourcesResponse)
+            newResourceIdsFromCreate = extractResourceIdsFromResponse(resourcesResponse)
             const urls = extractUrlsFromResourcesResponse(resourcesResponse)
             const videoIndices = getVideoFileIndicesInFlattenedFiles(normalizedSession.sections)
-            const attachmentCount = normalizedSession.attachments?.length ?? 0
             videoIndices.forEach(({ sectionIndex, fileIndex }) => {
               const urlIndex = attachmentCount + fileIndex
               const url = urls[urlIndex]
@@ -2124,11 +1701,53 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             })
           }
 
-          // Build sections payload (now video sections have videoUrl) and send
+          // 1) Call session resource PATCH for every resource (existing + newly uploaded) so backend order matches UI
+          const orderedResourceIdsOrIndices = getOrderedResourceIdsOrIndices(normalizedSession.sections, attachmentCount)
+          console.log('[Session save] session-resource PATCH count:', orderedResourceIdsOrIndices.length, 'ordered:', orderedResourceIdsOrIndices)
+          for (let i = 0; i < orderedResourceIdsOrIndices.length; i++) {
+            const entry = orderedResourceIdsOrIndices[i]
+            const resourceId = entry.id ?? (entry.allFilesIndex != null ? newResourceIdsFromCreate[entry.allFilesIndex] : undefined)
+            if (!resourceId?.trim()) continue
+            const updateBody = {
+              session_uuid: sessionUuidForUpdate,
+              order: i + 1
+            }
+            console.log('[Session save] updateSessionResource — PATCH on Save:', {
+              event_id: eventUuid,
+              session_resource_id: resourceId,
+              body: updateBody
+            })
+            try {
+              await updateSessionResource(eventUuid, resourceId.trim(), updateBody)
+            } catch (e) {
+              console.warn('[Session save] updateSessionResource failed for', resourceId, e)
+              showToast.error(`Failed to update resource order: ${e instanceof Error ? e.message : 'Unknown error'}`)
+            }
+          }
+
+          // 2) Call session section PATCH for existing sections, POST for new sections
           const sectionsToSend = normalizedSession.sections ?? []
-          const sectionsBodyUpdate = buildSectionsPayload(sectionsToSend, sessionUuidForUpdate)
-          const sectionsResponseUpdate = await createSessionSections(eventUuid, sectionsBodyUpdate)
-          console.log('[Session save] session-sections response (update):', sectionsResponseUpdate)
+          const nonResourceSections = sectionsToSend.filter(
+            (s) => toApiSectionType((s.type === 'speaker' ? 'speakers' : s.type) || 'text') !== 'resource'
+          )
+          const toCreate: CreateSessionSectionsBody['sections'] = []
+          for (let i = 0; i < nonResourceSections.length; i++) {
+            const s = nonResourceSections[i]
+            const payload = buildOneSectionPayload(s, i + 1)
+            console.log('[Session save] session-sections payload to backend:', s.sectionId ? 'PATCH' : 'POST (create)', payload)
+            if (s.sectionId) {
+              await updateSessionSection(eventUuid, s.sectionId, payload)
+            } else {
+              toCreate.push(payload)
+            }
+          }
+          if (toCreate.length) {
+            const sectionsResponseUpdate = await createSessionSections(eventUuid, {
+              session_uuid: sessionUuidForUpdate,
+              sections: toCreate
+            })
+            console.log('[Session save] session-sections response (create new):', sectionsResponseUpdate)
+          }
 
           await loadSessions(activeScheduleId)
           showToast.success('Session updated.')
@@ -2330,25 +1949,87 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   }
 
   const handleCreateScheduleFromList = () => {
+    setEditingScheduleId(null)
+    setScheduleDetailsInitialDetails(null)
     setIsScheduleDetailsSlideoutOpen(true)
   }
 
   const handleCloseScheduleDetailsSlideout = () => {
     setIsScheduleDetailsSlideoutOpen(false)
+    setEditingScheduleId(null)
+    setScheduleDetailsInitialDetails(null)
   }
 
-  const handleSaveScheduleDetails = async (details: { title: string; tags: string[]; location: string[]; description: string }) => {
+  const handleSaveScheduleDetails = async (
+    details: { title: string; tags: string[]; location: string[]; description: string },
+    scheduleId?: string
+  ) => {
     // Filter out "selectall" and store only the selected tags and locations
     const selectedTags = (details.tags || []).filter(tag => tag !== 'selectall')
     const selectedLocations = (details.location || []).filter(loc => loc !== 'selectall')
 
-    const scheduleTitle = details.title?.trim() || `Schedule ${savedSchedules.length + 1}`
+    const scheduleTitle = details.title?.trim() || (scheduleId ? 'Schedule' : `Schedule ${savedSchedules.length + 1}`)
 
-    // POST {{admin_url}}schedules/
     const eventUuid = createdEvent?.uuid
     const accessToken = localStorage.getItem('accessToken')
     const organizationUuid = localStorage.getItem('organizationUuid')
 
+    const isUpdate = Boolean(scheduleId && eventUuid && accessToken && organizationUuid)
+
+    if (isUpdate && scheduleId && eventUuid && organizationUuid) {
+      try {
+        const url = API_ENDPOINTS.SCHEDULES.UPDATE(eventUuid, scheduleId)
+        const response = await fetch(url, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+            'X-Organization': organizationUuid
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            name: scheduleTitle,
+            title: scheduleTitle,
+            description: details.description || '',
+            tags: selectedTags,
+            locations: selectedLocations
+          })
+        })
+
+        const rawText = await response.text()
+        let data: any = null
+        try {
+          data = rawText ? JSON.parse(rawText) : null
+        } catch {
+          data = null
+        }
+
+        if (!response.ok) {
+          const backendMessage =
+            (typeof data?.detail === 'string' && data.detail.trim()) ||
+            (typeof data?.message === 'string' && data.message.trim()) ||
+            (typeof data?.error === 'string' && data.error.trim()) ||
+            (typeof rawText === 'string' && rawText.trim()) ||
+            ''
+          showToast.error(
+            backendMessage
+              ? `Failed to update schedule: ${backendMessage}`
+              : 'Failed to update schedule. Please try again.'
+          )
+        } else {
+          showToast.success('Schedule updated successfully')
+          await loadSchedules()
+        }
+      } catch (e) {
+        showToast.error('Failed to update schedule. Please try again.')
+      }
+      setIsScheduleDetailsSlideoutOpen(false)
+      setEditingScheduleId(null)
+      setScheduleDetailsInitialDetails(null)
+      return
+    }
+
+    // Create flow (same as before)
     let createdScheduleId: string | null = null
 
     if (eventUuid && accessToken && organizationUuid) {
@@ -2363,7 +2044,6 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           },
           credentials: 'include',
           body: JSON.stringify({
-            // Some backends require event in body even if event_id is in query params.
             event_id: eventUuid,
             event_uuid: eventUuid,
             name: scheduleTitle,
@@ -2401,7 +2081,6 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
               : 'Failed to create schedule. Please try again.'
           )
         } else {
-          // Support both ApiResponse and direct-object responses
           const payload = data?.data ?? data
           createdScheduleId = payload?.uuid ?? payload?.id ?? null
           showToast.success('Schedule created successfully')
@@ -2410,15 +2089,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         showToast.error('Failed to create schedule. Please try again.')
       }
     } else {
-      // Keep local behavior if auth/event context missing (avoid breaking UI)
       console.warn('Schedule create skipped (missing auth/event context). Creating locally.')
     }
 
-    // Refresh list from backend so table matches server truth
     if (createdScheduleId) {
       await loadSchedules()
     } else {
-      // Fallback: keep local behavior if we couldn't read an id
       const newSchedule: SavedSchedule = {
         id: `schedule-${Date.now()}`,
         name: scheduleTitle,
@@ -2494,17 +2170,18 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             onManageSession={handleManageSession}
             onEditSchedule={(scheduleId) => {
               const target = savedSchedules.find((item) => item.id === scheduleId)
-              if (!target || !target.session) return
-              setActiveScheduleId(scheduleId)
-              setCurrentScheduleName(target.name)
-              setActiveDraft({
-                ...defaultSessionDraft,
-                ...target.session,
-                tags: [...(target.session.tags ?? [])],
-                sections: target.session.sections?.map((section) => ({ ...section })) ?? []
+              if (!target) return
+              setEditingScheduleId(scheduleId)
+              setScheduleDetailsInitialDetails({
+                title: target.name || '',
+                tags: target.availableTags ?? [],
+                location: target.availableLocations ?? [],
+                description:
+                  target.session?.sections?.[0]?.description ??
+                  (target as any).description ??
+                  ''
               })
-              setStartInEditMode(false)
-              setIsSessionSlideoutOpen(true)
+              setIsScheduleDetailsSlideoutOpen(true)
             }}
           />
         ) : (
@@ -2526,27 +2203,43 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
               const sessionId = session?.id && typeof session.id === 'string' ? String(session.id).trim() : ''
               const isUuid = sessionId && UUID_REGEX.test(sessionId)
               if (isUuid && eventUuid && scheduleUuid) {
+                setActiveDraft(null)
+                setSessionDraftLoading(true)
+                setStartInEditMode(false)
+                setIsSessionSlideoutOpen(true)
                 try {
                   const result = await getSession(eventUuid, String(scheduleUuid), sessionId)
                   if (result.ok) {
                     const payload = result.data as any
                     const raw = payload?.data ?? payload?.sessions?.[0] ?? payload
                     if (raw && typeof raw === 'object') {
-                      const draft = mapRetrieveSessionToDraft(raw, eventTimeZone)
-                      setActiveDraft({
-                        ...defaultSessionDraft,
-                        ...draft,
-                        tags: [...(draft.tags ?? [])],
-                        sections: draft.sections?.map((s) => ({ ...s })) ?? []
+                      queueMicrotask(() => {
+                        const draft = mapRetrieveSessionToDraftWithTimezone(raw)
+                        startTransition(() => {
+                          setActiveDraft({
+                            ...defaultSessionDraft,
+                            ...draft,
+                            tags: [...(draft.tags ?? [])],
+                            sections: draft.sections?.map((s) => ({ ...s })) ?? []
+                          })
+                          setSessionDraftLoading(false)
+                        })
                       })
-                      setStartInEditMode(false)
-                      setIsSessionSlideoutOpen(true)
                       return
                     }
                   }
+                  setSessionDraftLoading(false)
+                  setActiveDraft({
+                    ...defaultSessionDraft,
+                    ...session,
+                    tags: [...(session.tags ?? [])],
+                    sections: session.sections?.map((s) => ({ ...s })) ?? []
+                  })
                 } catch {
+                  setSessionDraftLoading(false)
                   showToast.error('Failed to load session details.')
                 }
+                return
               }
               setActiveDraft({
                 ...defaultSessionDraft,
@@ -2568,27 +2261,44 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
               const sessionId = session?.id && typeof session.id === 'string' ? String(session.id).trim() : ''
               const isUuid = sessionId && UUID_REGEX.test(sessionId)
               if (isUuid && eventUuid && scheduleUuid) {
+                setActiveDraft(null)
+                setSessionDraftLoading(true)
+                setStartInEditMode(true)
+                setIsSessionSlideoutOpen(true)
                 try {
                   const result = await getSession(eventUuid, String(scheduleUuid), sessionId)
                   if (result.ok) {
                     const payload = result.data as any
                     const raw = payload?.data ?? payload?.sessions?.[0] ?? payload
                     if (raw && typeof raw === 'object') {
-                      const draft = mapRetrieveSessionToDraft(raw, eventTimeZone)
-                      setActiveDraft({
-                        ...defaultSessionDraft,
-                        ...draft,
-                        tags: [...(draft.tags ?? [])],
-                        sections: draft.sections?.map((s) => ({ ...s })) ?? []
+                      // Defer heavy mapping so loading spinner stays visible and UI stays responsive
+                      queueMicrotask(() => {
+                        const draft = mapRetrieveSessionToDraftWithTimezone(raw)
+                        startTransition(() => {
+                          setActiveDraft({
+                            ...defaultSessionDraft,
+                            ...draft,
+                            tags: [...(draft.tags ?? [])],
+                            sections: draft.sections?.map((s) => ({ ...s })) ?? []
+                          })
+                          setSessionDraftLoading(false)
+                        })
                       })
-                      setStartInEditMode(true)
-                      setIsSessionSlideoutOpen(true)
                       return
                     }
                   }
+                  setSessionDraftLoading(false)
+                  setActiveDraft({
+                    ...defaultSessionDraft,
+                    ...session,
+                    tags: [...(session.tags ?? [])],
+                    sections: session.sections?.map((s) => ({ ...s })) ?? []
+                  })
                 } catch {
+                  setSessionDraftLoading(false)
                   showToast.error('Failed to load session details.')
                 }
+                return
               }
               setActiveDraft({
                 ...defaultSessionDraft,
@@ -2617,12 +2327,38 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         onClose={handleCloseSlideout}
         onSave={handleSaveSession}
         initialDraft={activeDraft}
+        draftLoading={sessionDraftLoading}
         startInEditMode={startInEditMode}
         topOffset={64}
         panelWidthRatio={0.5}
         availableTags={availableTags}
         availableLocations={availableLocations}
         eventUuid={createdEvent?.uuid ?? ''}
+        onBeforeRemoveSection={
+          createdEvent?.uuid
+            ? async (section) => {
+                if (!section.sectionId) return
+                try {
+                  await deleteSessionSection(createdEvent.uuid, section.sectionId)
+                } catch (e) {
+                  showToast.error(e instanceof Error ? e.message : 'Failed to delete section.')
+                }
+              }
+            : undefined
+        }
+        onBeforeRemoveResourceFile={
+          createdEvent?.uuid
+            ? async (_sectionId, file) => {
+                if (!file.resourceId) return
+                try {
+                  await deleteSessionResource(createdEvent.uuid, file.resourceId)
+                } catch (e) {
+                  showToast.error(e instanceof Error ? e.message : 'Failed to delete resource.')
+                }
+              }
+            : undefined
+        }
+        onDraftChange={(draft: SessionDraft) => setActiveDraft(draft)}
       />
 
       <TemplateSessionSlideout
@@ -2640,8 +2376,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         isOpen={isScheduleDetailsSlideoutOpen}
         onClose={handleCloseScheduleDetailsSlideout}
         onSave={handleSaveScheduleDetails}
+        initialDetails={scheduleDetailsInitialDetails}
+        editingScheduleId={editingScheduleId}
         topOffset={64}
-        panelWidthRatio={0.5}
+        panelWidthRatio={0.38}
         availableTags={useMemo(() => {
           const allTags = new Set<string>()
           savedSchedules.forEach(schedule => {

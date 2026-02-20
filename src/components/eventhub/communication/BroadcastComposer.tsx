@@ -34,6 +34,18 @@ interface BroadcastComposerProps {
   type?: 'email' | 'push-notification'
 }
 
+// Filter value options by field type (image1 = Message status, image2 = Users)
+const MESSAGE_STATUS_OPTIONS = [
+  { value: 'Opened', label: 'Opened' },
+  { value: 'Clicked', label: 'Clicked' },
+  { value: 'Bounced', label: 'Bounced' },
+  { value: 'Not opened', label: 'Not opened' }
+]
+const USER_STATUS_OPTIONS = [
+  { value: 'Logged In', label: 'Logged In' },
+  { value: 'Not logged in', label: 'Not logged in' }
+]
+
 const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   onCancel,
   onSave,
@@ -782,26 +794,28 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       `}</style>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ">
         <h1 className="text-[26px] font-semibold  text-primary-dark mb-4 ">Communication</h1>
-        <div className="flex items-center gap-3">
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setShowPreviewModal(true)}
-            iconTrailing={<Send01 className="h-4 w-4" />}
-          >
-            Send
-          </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            size="md"
-            onClick={() => setShowScheduleModal(true)}
-            iconTrailing={<Calendar className="h-4 w-4" />}
-          >
-            Schedule
-          </Button>
-        </div>
+        {activeTab === 'settings' && (
+          <div className="flex items-center gap-3">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setShowPreviewModal(true)}
+              iconTrailing={<Send01 className="h-4 w-4" />}
+            >
+              Send
+            </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="md"
+              onClick={() => setShowScheduleModal(true)}
+              iconTrailing={<Calendar className="h-4 w-4" />}
+            >
+              Schedule
+            </Button>
+          </div>
+        )}
       </div>
       {/* Tabs and Content Container */}
       <div className="rounded-xl bg-white overflow-hidden flex flex-col composer-container">
@@ -818,7 +832,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                 : 'text-slate-600 hover:text-slate-900 border-b-transparent'
             }`}
           >
-            Late Message
+             Message
           </Button>
           <Button
             type="button"
@@ -1407,10 +1421,15 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                 type="button"
                 variant="secondary"
                 size="sm"
-                disabled={filters.length >= tags.length}
-                title={filters.length >= tags.length ? `Maximum ${tags.length} filter(s) allowed (one per group)` : undefined}
-                onClick={() => setFilters([...filters, { id: Date.now().toString(), field: 'Group', operator: 'is', value: '' }])}
                 iconLeading={<Plus className="h-4 w-4" />}
+                onClick={() => {
+                  // First click → Message status (image1); second click → Users (image2); then alternate
+                  const addMessageStatusFirst = filters.length % 2 === 1
+                  const newFilter = addMessageStatusFirst
+                    ? { id: Date.now().toString(), field: 'Message status', operator: 'is not', value: 'Opened' }
+                    : { id: Date.now().toString(), field: 'Users', operator: 'is not', value: 'Logged In' }
+                  setFilters([...filters, newFilter])
+                }}
               >
                 New filter
               </Button>
@@ -1437,18 +1456,21 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
 
               <div className="space-y-3">
                 {filters.map((filter, index) => (
-                  <div key={filter.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 bg-slate-50 rounded-lg sm:bg-transparent sm:p-0">
+                  <div key={filter.id} className="flex flex-row items-center gap-2 flex-wrap">
                     <select
                       value={filter.field}
                       onChange={(e) => {
                         const newFilters = [...filters]
-                        newFilters[index].field = e.target.value
+                        const nextField = e.target.value as 'Message status' | 'Users' | 'Group'
+                        newFilters[index].field = nextField
+                        newFilters[index].value = nextField === 'Message status' ? 'Opened' : nextField === 'Users' ? 'Logged In' : (tags[0]?.name ?? '')
                         setFilters(newFilters)
                       }}
-                      className="w-full sm:w-auto sm:min-w-[140px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="min-w-[140px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
+                      <option value="Message status">Message status</option>
+                      <option value="Users">Users</option>
                       <option value="Group">Group</option>
-                      {/* <option value="Status">Message Status</option>                 */}
                     </select>
 
                     <select
@@ -1458,10 +1480,10 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                         newFilters[index].operator = e.target.value
                         setFilters(newFilters)
                       }}
-                      className="w-full sm:w-[80px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="w-[80px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
                       <option value="is">is</option>
-                      {/* <option value="is_not">is not</option> */}
+                      <option value="is not">is not</option>
                     </select>
 
                     <select
@@ -1471,31 +1493,42 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                         newFilters[index].value = e.target.value
                         setFilters(newFilters)
                       }}
-                      className="w-full sm:flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      className="w-[500px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
-                      {tags.length === 0 ? (
-                        <option value="">No groups available</option>
-                      ) : (
+                      {filter.field === 'Message status' && (
                         <>
-                          <option value="">Select a group...</option>
-                          {tags
-                            .filter((tag) => {
-                              // Get all selected tag values from other filters (excluding current filter)
-                              const selectedInOtherFilters = filters
-                                .filter((f, i) => i !== index && f.value && f.value.trim() !== '')
-                                .map((f) => f.value)
-                              
-                              // Show tag if:
-                              // 1. It's the currently selected tag in this filter (so user can see their selection)
-                              // 2. OR it's not selected in any other filter
-                              return tag.name === filter.value || !selectedInOtherFilters.includes(tag.name)
-                            })
-                            .map((tag) => (
-                              <option key={tag.uuid} value={tag.name}>
-                                {tag.name}
-                              </option>
-                            ))}
+                          <option value="">Select status...</option>
+                          {MESSAGE_STATUS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
                         </>
+                      )}
+                      {filter.field === 'Users' && (
+                        <>
+                          <option value="">Select status...</option>
+                          {USER_STATUS_OPTIONS.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label}</option>
+                          ))}
+                        </>
+                      )}
+                      {filter.field === 'Group' && (
+                        tags.length === 0 ? (
+                          <option value="">No groups available</option>
+                        ) : (
+                          <>
+                            <option value="">Select a group...</option>
+                            {tags
+                              .filter((tag) => {
+                                const selectedInOtherFilters = filters
+                                  .filter((f, i) => i !== index && f.field === 'Group' && f.value?.trim())
+                                  .map((f) => f.value)
+                                return tag.name === filter.value || !selectedInOtherFilters.includes(tag.name)
+                              })
+                              .map((tag) => (
+                                <option key={tag.uuid} value={tag.name}>{tag.name}</option>
+                              ))}
+                          </>
+                        )
                       )}
                     </select>
 
@@ -1507,7 +1540,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                         const newFilters = filters.filter(f => f.id !== filter.id)
                         setFilters(newFilters)
                       }}
-                      className="self-end sm:self-auto p-1 text-slate-400 hover:text-slate-600"
+                      className="p-1 text-slate-400 hover:text-slate-600 shrink-0"
                       iconLeading={<XClose className="h-4 w-4" />}
                     />
                   </div>

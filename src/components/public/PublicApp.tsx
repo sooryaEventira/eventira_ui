@@ -12,25 +12,6 @@ const LoadingFallback = () => (
 )
 
 /**
- * Returns true if the current URL is a public route (event list or event website).
- * Used in main.tsx to render PublicApp instead of App so dashboard/auth never run.
- */
-export function isPublicRoute(): boolean {
-  if (typeof window === 'undefined') return false
-  const pathname = window.location.pathname
-  const hash = (window.location.hash || '').replace(/^#\/?/, '')
-  // Event list: path or hash
-  if (pathname === '/events' || pathname === '/events/' || pathname === '/event-list' || pathname === '/event-list/') return true
-  if (pathname === '/' && (hash === 'event-list' || hash === 'events')) return true
-  // Event website: /events/:eventUuid/...
-  if (/^\/events\/[^/]+/.test(pathname)) return true
-  // Standalone login / register (from event list top bar or login page)
-  if (pathname === '/login' || pathname === '/login/') return true
-  if (pathname === '/register' || pathname === '/register/') return true
-  return false
-}
-
-/**
  * Public-only layout. Renders event list or event website shell.
  * No auth, no dashboard – so post-registration always lands here when URL is public.
  */

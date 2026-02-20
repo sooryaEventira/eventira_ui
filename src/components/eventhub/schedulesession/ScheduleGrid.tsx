@@ -338,16 +338,17 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                             )}
                           </button>
                         )}
-                        <SessionMenuDropdown
-                          session={child}
-                          isOpen={menuOpenForId === child.id}
-                          onToggle={() => setMenuOpenForId((id) => (id === child.id ? null : child.id))}
-                          onClose={() => setMenuOpenForId(null)}
-                          onEdit={(s) => onEditSession?.(s)}
-                          onDelete={(s) => onDeleteSession?.(s)}
-                          iconSize="h-3.5 w-3.5"
-                          className="z-20"
-                        />
+<SessionMenuDropdown
+  session={child}
+  // 1. Cast to String to safely compare against dataset string
+  isOpen={menuOpenForId === String(child.id)}
+  onToggle={() => setMenuOpenForId((id) => (id === String(child.id) ? null : String(child.id)))}
+  onClose={() => setMenuOpenForId(null)}
+  onEdit={(s) => onEditSession?.(s)}
+  onDelete={(s) => onDeleteSession?.(s)}
+  iconSize="h-3.5 w-3.5"
+  className="z-20"
+/>
                       </div>
                     </div>
 
@@ -418,7 +419,20 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
         </div>
       )
     },
-    [getChildren, isSessionExpanded, isTimeValid, onAddParallelSession, onToggleSessionExpand, onSessionClick, formatTimeRange, getLocationLabel, getSessionTypeLabel]
+    [
+      getChildren, 
+      isSessionExpanded, 
+      isTimeValid, 
+      onAddParallelSession, 
+      onToggleSessionExpand, 
+      onSessionClick, 
+      formatTimeRange, 
+      getLocationLabel, 
+      getSessionTypeLabel,
+      menuOpenForId,       // <-- Add this
+      onEditSession,       // <-- Add this
+      onDeleteSession      // <-- Add this
+    ]
   )
 
   return (
@@ -479,14 +493,14 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                 </div>
               </div>
               <div className="flex items-center">
-                <SessionMenuDropdown
-                  session={session}
-                  isOpen={menuOpenForId === session.id}
-                  onToggle={() => setMenuOpenForId((id) => (id === session.id ? null : session.id))}
-                  onClose={() => setMenuOpenForId(null)}
-                  onEdit={(s) => onEditSession?.(s)}
-                  onDelete={(s) => onDeleteSession?.(s)}
-                />
+              <SessionMenuDropdown
+  session={session}
+  isOpen={menuOpenForId === String(session.id)}
+  onToggle={() => setMenuOpenForId((id) => (id === String(session.id) ? null : String(session.id)))}
+  onClose={() => setMenuOpenForId(null)}
+  onEdit={(s) => onEditSession?.(s)}
+  onDelete={(s) => onDeleteSession?.(s)}
+/>
               </div>
             </div>
 
@@ -664,12 +678,13 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   }, [parentSessions])
 
   const toggleExpand = (sessionId: string) => {
+    const id = String(sessionId)
     setExpandedSessions(prev => {
       const newSet = new Set(prev)
-      if (newSet.has(sessionId)) {
-        newSet.delete(sessionId)
+      if (newSet.has(id)) {
+        newSet.delete(id)
       } else {
-        newSet.add(sessionId)
+        newSet.add(id)
       }
       return newSet
     })
@@ -738,7 +753,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         <div key={groupIndex} className="space-y-4">
           {group.sessions.map((session) => {
             const parallelSessions = parallelSessionsMap[String(session.id)] || []
-            const isExpanded = expandedSessions.has(session.id)
+            const isExpanded = expandedSessions.has(String(session.id))
             const timeRange = (() => {
               let minM = timeToMinutes(session.startTime, session.startPeriod || 'AM')
               let maxM = timeToMinutes(session.endTime, session.endPeriod || 'PM')
@@ -754,7 +769,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 session={session}
                 parallelSessions={parallelSessions}
                 isExpanded={isExpanded}
-                onToggleExpand={() => toggleExpand(session.id)}
+                onToggleExpand={() => toggleExpand(String(session.id))}
                 timeRangeStart={timeRange.start}
                 timeRangeEnd={timeRange.end}
                 getNestedParallelSessions={(parentId) => {
@@ -767,7 +782,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     return String(a.title).localeCompare(String(b.title))
                   })
                 }}
-                isSessionExpanded={(id) => expandedSessions.has(id)}
+                isSessionExpanded={(id) => expandedSessions.has(String(id))}
                 onToggleSessionExpand={toggleExpand}
                 onAddParallelSession={onAddParallelSession}
                 formatTime={formatTime}

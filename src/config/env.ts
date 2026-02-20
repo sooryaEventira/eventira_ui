@@ -205,6 +205,8 @@ export const API_ENDPOINTS = {
   SCHEDULES: {
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
+    UPDATE: (eventUuid: string, scheduleUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/?event_id=${eventUuid}`,
   },
   // Sessions endpoints (schedule grid, create, delete, retrieve, bulk import)
   SESSIONS: {
@@ -227,17 +229,29 @@ export const API_ENDPOINTS = {
     BULK_IMPORT: (scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/schedules/${scheduleUuid}/bulk-import/`,
   },
-  // Session sections (create + list by session)
+  // Session sections (create + update + delete)
   SESSION_SECTIONS: {
     /** Create session section: POST .../session-sections/?event_id= — body: { session_uuid, section_type ("video"|"text"|"speakers"), order, content? } */
     CREATE: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}session-sections/?event_id=${eventUuid}`,
+    /** Update session section: PATCH .../session-sections/{{session_section_id}}/?event_id={{event_uuid}} */
+    UPDATE: (sessionSectionId: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}session-sections/${sessionSectionId}/?event_id=${eventUuid}`,
+    /** Delete session section: DELETE .../session-sections/{{session_section_id}}/?event_id={{event_uuid}} */
+    DELETE: (sessionSectionId: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}session-sections/${sessionSectionId}/?event_id=${eventUuid}`,
   },
-  // Session resources (create resource)
+  // Session resources (create + update + delete)
   SESSION_RESOURCES: {
     /** Create session resource: POST .../session-resources/?event_id= — FormData: file(s), session_uuid, event_uuid */
     CREATE: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}session-resources/?event_id=${eventUuid}`,
+    /** Update session resource: PATCH .../session-resources/{{session_resource_id}}/?event_id={{event_uuid}} */
+    UPDATE: (sessionResourceId: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}session-resources/${sessionResourceId}/?event_id=${eventUuid}`,
+    /** Delete session resource: DELETE .../session-resources/{{session_resource_id}}/?event_id={{event_uuid}} */
+    DELETE: (sessionResourceId: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}session-resources/${sessionResourceId}/?event_id=${eventUuid}`,
   },
   // Communication endpoints
   COMMUNICATION: {

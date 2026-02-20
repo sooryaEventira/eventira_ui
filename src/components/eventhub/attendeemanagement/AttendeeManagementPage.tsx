@@ -375,6 +375,11 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     setIsAttendeeSlideoutOpen((prev) => (selectedAttendee?.id === attendeeId ? false : prev))
   }
 
+  const handleAddAttendeesToGroup = async (_attendeeIds: string[], _groupId: string) => {
+    // TODO: Call API to add selected attendees to the chosen group when available
+    await loadAttendees()
+  }
+
   const handleCreateGroup = () => {
     setIsCreateGroupModalOpen(true)
   }
@@ -520,6 +525,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
           <AttendeesTable
             attendees={attendees}
             customFields={customFields}
+            groups={groups}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onUpload={handleUpload}
@@ -528,6 +534,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onCreateField={handleCreateField}
             onEditAttendee={handleEditAttendee}
             onDeleteAttendee={handleDeleteAttendee}
+            onAddToGroup={handleAddAttendeesToGroup}
             onEditCustomField={handleEditCustomField}
             onDeleteCustomField={handleDeleteCustomField}
             onDownload={handleDownload}

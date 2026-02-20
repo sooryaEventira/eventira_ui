@@ -17,8 +17,11 @@ interface ScheduleDetails {
 interface ScheduleDetailsSlideoutProps {
   isOpen: boolean
   onClose: () => void
-  onSave?: (details: ScheduleDetails) => void
+  /** When provided with scheduleId, save performs update; otherwise create. */
+  onSave?: (details: ScheduleDetails, scheduleId?: string) => void
   initialDetails?: ScheduleDetails | null
+  /** When set, slideout is in edit mode (same form as create, different title/button). */
+  editingScheduleId?: string | null
   topOffset?: number
   panelWidthRatio?: number
   availableTags?: string[]
@@ -30,11 +33,13 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   onClose,
   onSave,
   initialDetails,
+  editingScheduleId = null,
   topOffset = 64,
-  panelWidthRatio = 0.4,
+  panelWidthRatio = 0.39,
   availableTags = [],
   availableLocations = []
 }) => {
+  const isEditMode = Boolean(editingScheduleId)
   const slideoutRef = useRef<SlideoutHandle>(null)
   const handleClose = useCallback(() => {
     slideoutRef.current?.returnFocus()
@@ -286,7 +291,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
 
   const handleSave = () => {
     if (onSave) {
-      onSave(details)
+      onSave(details, editingScheduleId ?? undefined)
     }
     handleClose()
   }
@@ -308,7 +313,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
         onClick={handleSave}
         disabled={!details.title.trim()}
       >
-        Create schedule
+        {isEditMode ? 'Update schedule' : 'Create schedule'}
       </Button>
     </>
   )
@@ -318,10 +323,11 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
       ref={slideoutRef}
       isOpen={isOpen}
       onClose={handleClose}
-      title="Schedule details"
+      title={isEditMode ? 'Edit schedule' : 'Schedule details'}
       topOffset={topOffset}
       panelWidthRatio={panelWidthRatio}
       footer={footerContent}
+      
     >
       <div className="px-6 py-6">
         <div className="space-y-6">

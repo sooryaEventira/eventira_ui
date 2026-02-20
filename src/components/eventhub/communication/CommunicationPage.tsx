@@ -196,6 +196,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   const [isCreateMacroModalOpen, setIsCreateMacroModalOpen] = React.useState(false)
   const [showComposer, setShowComposer] = React.useState(false)
   const [selectedBroadcastType, setSelectedBroadcastType] = React.useState<BroadcastType | null>(null)
+  const [initialBroadcastTitle, setInitialBroadcastTitle] = React.useState<string>('')
   const [currentDraftId, setCurrentDraftId] = React.useState<string | null>(null)
 
   const [macros, setMacros] = React.useState<Macro[]>([
@@ -241,14 +242,24 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
 
   const handleBroadcastTypeSelect = (type: BroadcastType) => {
     setSelectedBroadcastType(type)
+    setInitialBroadcastTitle('')
     setIsBroadcastModalOpen(false)
     setShowComposer(true)
-    setCurrentDraftId(null) // Reset draft ID when creating new
+    setCurrentDraftId(null)
+  }
+
+  const handleBroadcastSubmit = (data: { title: string; type: BroadcastType }) => {
+    setSelectedBroadcastType(data.type)
+    setInitialBroadcastTitle(data.title)
+    setIsBroadcastModalOpen(false)
+    setShowComposer(true)
+    setCurrentDraftId(null)
   }
 
   const handleComposerCancel = () => {
     setShowComposer(false)
     setSelectedBroadcastType(null)
+    setInitialBroadcastTitle('')
     setCurrentDraftId(null)
   }
 
@@ -353,6 +364,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         isOpen={isBroadcastModalOpen}
         onClose={() => setIsBroadcastModalOpen(false)}
         onSelect={handleBroadcastTypeSelect}
+        onSubmit={handleBroadcastSubmit}
       />
 
       <CreateMacroModal

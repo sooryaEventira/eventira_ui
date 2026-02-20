@@ -596,6 +596,11 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     setIsSpeakerSlideoutOpen((prev) => (selectedSpeaker?.id === speakerId ? false : prev))
   }
 
+  const handleAddSpeakersToGroup = async (_speakerIds: string[], _groupId: string) => {
+    // TODO: Call API to add selected speakers to the chosen group when available
+    await loadSpeakers()
+  }
+
   const handleCreateGroup = () => {
     setIsCreateGroupModalOpen(true)
   }
@@ -737,15 +742,17 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
         ) : (
           <SpeakersTable
             speakers={speakers}
-            isLoading={isLoadingSpeakers}
             customFields={customFields}
+            groups={groups}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             onUpload={handleUpload}
+            isLoading={isLoadingSpeakers}
             onCreateProfile={handleCreateProfile}
             onCreateField={handleCreateField}
             onEditSpeaker={handleEditSpeaker}
             onDeleteSpeaker={handleDeleteSpeaker}
+            onAddToGroup={handleAddSpeakersToGroup}
             onEditCustomField={handleEditCustomField}
             onDeleteCustomField={handleDeleteCustomField}
             onDownload={handleDownload}

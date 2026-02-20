@@ -10,9 +10,23 @@ interface OrganizationTableColumnsProps {
   onEditOrganization?: (organizationId: string) => void
   onDeleteOrganization?: (organizationId: string) => void
 }
+const tooltipStyle = {
+  ul: { listStyleType: 'disc', paddingLeft: '1.5rem', marginBottom: '0.5rem' },
+  ol: { listStyleType: 'decimal', paddingLeft: '1.5rem', marginBottom: '0.5rem' },
+  p: { marginBottom: '0.5rem' },
+  strong: { fontWeight: '600' }
+};
 
 const DescriptionTooltipCell: React.FC<{ description: string }> = ({ description }) => {
-  const text = (description || '').trim()
+  const plainText = useMemo(() => {
+    if (!description) return '';
+    
+    return description
+      .replace(/<[^>]*>?/gm, '') // Strip actual HTML tags
+      .replace(/&nbsp;/g, ' ')   // Replace non-breaking spaces
+      .replace(/&[a-z0-9]+;/gi, '') // Strip other HTML entities like &amp;
+      .trim();
+  }, [description]);
   const anchorRef = useRef<HTMLSpanElement | null>(null)
   const closeTimerRef = useRef<number | null>(null)
   const [open, setOpen] = useState(false)
@@ -44,14 +58,14 @@ const DescriptionTooltipCell: React.FC<{ description: string }> = ({ description
   }, [])
 
   const handleEnter = useCallback(() => {
-    if (!text) return
+    if (!plainText) return
     if (closeTimerRef.current) {
       window.clearTimeout(closeTimerRef.current)
       closeTimerRef.current = null
     }
     computePos()
     setOpen(true)
-  }, [computePos, text])
+  }, [computePos, plainText])
 
   const handleLeave = useCallback(() => {
     if (closeTimerRef.current) {
@@ -89,12 +103,12 @@ const DescriptionTooltipCell: React.FC<{ description: string }> = ({ description
         onMouseLeave={handleLeave}
         onFocus={handleEnter}
         onBlur={handleLeave}
-        tabIndex={text ? 0 : -1}
+        tabIndex={plainText ? 0 : -1}
       >
-        {text || '-'}
+        {plainText || '-'}
       </span>
 
-      {open && text && pos
+      {open && description && pos
         ? createPortal(
             <div
               className="fixed z-[9999] rounded-md border border-slate-200 bg-white px-3 py-2 text-sm leading-5 text-slate-700 shadow-lg"
@@ -111,7 +125,7 @@ const DescriptionTooltipCell: React.FC<{ description: string }> = ({ description
               onMouseEnter={handleEnter}
               onMouseLeave={handleLeave}
             >
-              <div className="whitespace-pre-wrap break-words">{text}</div>
+              <div className="rich-text-content prose prose-sm max-w-none" dangerouslySetInnerHTML={{ __html: description }}/>
             </div>,
             document.body
           )

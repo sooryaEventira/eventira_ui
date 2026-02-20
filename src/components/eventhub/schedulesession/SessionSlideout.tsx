@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Slideout, { type SlideoutHandle } from '../../ui/untitled/Slideout'
 import Button from '../../ui/untitled/Button'
 import SessionDetailsForm from './SessionDetailsForm'
@@ -7,6 +8,7 @@ import SessionSummaryView from './SessionSummaryView'
 import SessionSectionPreview from './SessionSectionPreview'
 import type { SessionSectionPreviewHandlers } from './SessionSectionPreview'
 import ResourceVideoPickerModal from './ResourceVideoPickerModal'
+import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { defaultSessionDraft, sectionOptions } from './sessionConfig'
 import { SessionDraft, SessionSection } from './sessionTypes'
 
@@ -22,6 +24,14 @@ interface SessionSlideoutProps {
   availableLocations?: string[]
   /** When set, Speakers sections can search and add event speakers. */
   eventUuid?: string
+  /** When a section with a backend id (sectionId) is removed, call this before updating local state (e.g. DELETE session section on API). */
+  onBeforeRemoveSection?: (section: SessionSection) => void | Promise<void>
+  /** When a resource file with a backend id (resourceId) is removed, call this before updating local state (e.g. DELETE session resource on API). */
+  onBeforeRemoveResourceFile?: (sectionId: string, file: { url?: string; name: string; resourceId?: string }, index: number) => void | Promise<void>
+  /** When true, show loading state instead of form/summary (parent is fetching session data). */
+  draftLoading?: boolean
+  /** Called when draft is updated due to section/resource removal so parent can keep activeDraft in sync. */
+  onDraftChange?: (draft: SessionDraft) => void
 }
 
 const SessionSlideout: React.FC<SessionSlideoutProps> = ({
@@ -34,7 +44,11 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   panelWidthRatio = 0.5,
   availableTags = [],
   availableLocations = [],
-  eventUuid = ''
+  eventUuid = '',
+  onBeforeRemoveSection,
+  onBeforeRemoveResourceFile,
+  draftLoading = false,
+  onDraftChange
 }) => {
   const [draft, setDraft] = useState<SessionDraft>(defaultSessionDraft)
   const [tagsInput, setTagsInput] = useState('')
@@ -44,12 +58,15 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit')
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState<Record<string, number>>({})
   const [isSaving, setIsSaving] = useState(false)
+  const [pendingRemoveSection, setPendingRemoveSection] = useState<{ sectionId: string; title: string } | null>(null)
+  const [isRemovingSection, setIsRemovingSection] = useState(false)
 
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const imageUploadSectionIdRef = useRef<string | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const galleryUploadSectionIdRef = useRef<string | null>(null)
   const resourcesInputRef = useRef<HTMLInputElement | null>(null)
+  const resourcesImageInputRef = useRef<HTMLInputElement | null>(null)
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const videoUploadSectionIdRef = useRef<string | null>(null)
@@ -69,22 +86,21 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
       setSelectedSectionId(sectionOptions[0]?.id ?? 'slides')
       setIsEditing(true)
       setActiveTab('edit')
+      setIsSaving(false)
+      setPendingRemoveSection(null)
     }
   }, [isOpen])
 
   const prevIsOpenRef = useRef(false)
+  const hasSyncedDraftForThisOpenRef = useRef(false)
   useEffect(() => {
     if (!isOpen) {
       prevIsOpenRef.current = false
+      hasSyncedDraftForThisOpenRef.current = false
       return
     }
-    // Only sync draft and isEditing when the slideout first opens (isOpen false → true).
     const justOpened = !prevIsOpenRef.current
     prevIsOpenRef.current = true
-
-    if (!justOpened) {
-      return
-    }
 
     const sourceDraft = initialDraft
       ? {
@@ -95,12 +111,24 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         }
       : defaultSessionDraft
 
-    setDraft(sourceDraft)
-    setTagsInput(sourceDraft.tags.join(', '))
-    setIsSectionModalOpen(false)
-    setSelectedSectionId(sectionOptions[0]?.id ?? 'slides')
-    setIsEditing(startInEditMode || !initialDraft)
-    setActiveTab(startInEditMode ? 'edit' : 'preview')
+    // Only sync draft when first opening or when initialDraft has just loaded (so we don't overwrite user edits like deleted sections).
+    const shouldSync =
+      justOpened ||
+      (!hasSyncedDraftForThisOpenRef.current && initialDraft != null)
+    if (shouldSync) {
+      // Mark as synced only when we have real data (so we sync again when initialDraft loads after opening with loading)
+      if (initialDraft != null) hasSyncedDraftForThisOpenRef.current = true
+      setDraft(sourceDraft)
+      setTagsInput(sourceDraft.tags.join(', '))
+    }
+    setIsSaving(false)
+
+    if (justOpened) {
+      setIsSectionModalOpen(false)
+      setSelectedSectionId(sectionOptions[0]?.id ?? 'slides')
+      setIsEditing(startInEditMode || !initialDraft)
+      setActiveTab(startInEditMode ? 'edit' : 'preview')
+    }
   }, [initialDraft, isOpen, startInEditMode])
 
   const handleChange = <K extends keyof SessionDraft>(key: K, value: SessionDraft[K]) => {
@@ -162,39 +190,87 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setIsSectionModalOpen(false)
   }
 
-  const handleRemoveSection = (sectionId: string) => {
-    const section = draft.sections.find((s) => s.id === sectionId)
-    const previewUrl = section?.data?.previewUrl
-    if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
-      try {
-        URL.revokeObjectURL(previewUrl)
-      } catch {
-        // ignore
+  const executeRemoveSection = useCallback(
+    async (sectionId: string) => {
+      const section = draft.sections.find((s) => s.id === sectionId)
+      if (!section) return
+
+      const previewUrl = section?.data?.previewUrl
+      if (typeof previewUrl === 'string' && previewUrl.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(previewUrl)
+        } catch {
+          // ignore
+        }
       }
-    }
-    const videoPreviewUrl = section?.data?.videoPreviewUrl
-    if (typeof videoPreviewUrl === 'string' && videoPreviewUrl.startsWith('blob:')) {
-      try {
-        URL.revokeObjectURL(videoPreviewUrl)
-      } catch {
-        // ignore
+      const videoPreviewUrl = section?.data?.videoPreviewUrl
+      if (typeof videoPreviewUrl === 'string' && videoPreviewUrl.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(videoPreviewUrl)
+        } catch {
+          // ignore
+        }
       }
-    }
-    const galleryImages = section?.data?.images as Array<{ previewUrl?: string }> | undefined
-    if (Array.isArray(galleryImages)) {
-      galleryImages.forEach((item) => {
-        const url = item?.previewUrl
-        if (typeof url === 'string' && url.startsWith('blob:')) {
-          try {
-            URL.revokeObjectURL(url)
-          } catch {
-            // ignore
+      const galleryImages = section?.data?.images as Array<{ previewUrl?: string }> | undefined
+      if (Array.isArray(galleryImages)) {
+        galleryImages.forEach((item) => {
+          const url = item?.previewUrl
+          if (typeof url === 'string' && url.startsWith('blob:')) {
+            try {
+              URL.revokeObjectURL(url)
+            } catch {
+              // ignore
+            }
+          }
+        })
+      }
+      // Resources section: delete each session resource on the backend before removing the section
+      if (section.type === 'resources' && onBeforeRemoveResourceFile) {
+        const files = (section.data?.files as Array<{ url?: string; name: string; resourceId?: string } | File>) ?? []
+        for (let i = 0; i < files.length; i++) {
+          const item = files[i]
+          if (item && typeof item === 'object' && !(item instanceof File) && item.resourceId) {
+            try {
+              await Promise.resolve(onBeforeRemoveResourceFile(sectionId, item, i))
+            } catch {
+              // Caller may toast; continue removing others
+            }
           }
         }
+      }
+      // Section with backend id: delete session section on the backend
+      if (section.sectionId && onBeforeRemoveSection) {
+        try {
+          await Promise.resolve(onBeforeRemoveSection(section))
+        } catch {
+          // Caller may toast; still remove from local state
+        }
+      }
+      setDraft((prev) => {
+        const next = { ...prev, sections: prev.sections.filter((s) => s.id !== sectionId) }
+        onDraftChange?.(next)
+        return next
       })
-    }
-    setDraft((prev) => ({ ...prev, sections: prev.sections.filter((s) => s.id !== sectionId) }))
+    },
+    [draft.sections, onBeforeRemoveSection, onBeforeRemoveResourceFile, onDraftChange]
+  )
+
+  const handleRemoveSection = (sectionId: string) => {
+    const section = draft.sections.find((s) => s.id === sectionId)
+    if (!section) return
+    setPendingRemoveSection({ sectionId, title: section.title || 'Section' })
   }
+
+  const handleConfirmRemoveSection = useCallback(async () => {
+    if (!pendingRemoveSection) return
+    setIsRemovingSection(true)
+    try {
+      await executeRemoveSection(pendingRemoveSection.sectionId)
+      setPendingRemoveSection(null)
+    } finally {
+      setIsRemovingSection(false)
+    }
+  }, [pendingRemoveSection, executeRemoveSection])
 
   const updateSection = (sectionId: string, patch: Partial<SessionSection>) => {
     setDraft((prev) => ({
@@ -307,11 +383,12 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     resourcesInputRef.current?.click()
   }
 
-  const handleResourcesFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const sectionId = resourcesUploadSectionIdRef.current
-    const files = e.target.files ? Array.from(e.target.files) : []
-    e.target.value = ''
-    resourcesUploadSectionIdRef.current = null
+  const openResourcesImagePicker = (sectionId: string) => {
+    resourcesUploadSectionIdRef.current = sectionId
+    resourcesImageInputRef.current?.click()
+  }
+
+  const addResourcesFilesToSection = (sectionId: string, files: File[]) => {
     if (!files.length || !sectionId) return
     const section = draft.sections.find((s) => s.id === sectionId)
     const existingFiles = (section?.data?.files as File[]) ?? []
@@ -325,9 +402,35 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     }))
   }
 
-  const handleRemoveResourcesFile = (sectionId: string, index: number) => {
+  const handleResourcesFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = resourcesUploadSectionIdRef.current
+    const files = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    resourcesUploadSectionIdRef.current = null
+    addResourcesFilesToSection(sectionId ?? '', files)
+  }
+
+  const handleResourcesImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = resourcesUploadSectionIdRef.current
+    const files = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    resourcesUploadSectionIdRef.current = null
+    addResourcesFilesToSection(sectionId ?? '', files)
+  }
+
+  const handleRemoveResourcesFile = async (sectionId: string, index: number) => {
     const section = draft.sections.find((s) => s.id === sectionId)
-    const files = (section?.data?.files as File[]) ?? []
+    const files = (section?.data?.files as Array<File | { url?: string; name: string; resourceId?: string }>) ?? []
+    const fileAt = files[index]
+    const hasResourceId = fileAt && typeof fileAt === 'object' && !(fileAt instanceof File) && (fileAt as { resourceId?: string }).resourceId
+    if (hasResourceId && onBeforeRemoveResourceFile) {
+      const item = fileAt as { url?: string; name: string; resourceId?: string }
+      try {
+        await Promise.resolve(onBeforeRemoveResourceFile(sectionId, item, index))
+      } catch {
+        // Caller may toast; still remove from local state
+      }
+    }
     const nextFiles = files.filter((_, i) => i !== index)
     setDraft((prev) => ({
       ...prev,
@@ -406,6 +509,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     onOpenGalleryPicker: openGalleryPicker,
     onRemoveGalleryImage: handleRemoveGalleryImage,
     onOpenResourcesPicker: openResourcesPicker,
+    onOpenResourcesImagePicker: openResourcesImagePicker,
     onRemoveResourcesFile: handleRemoveResourcesFile,
     onOpenVideoUploadPicker: openVideoUploadPicker,
     onOpenVideoResourcePicker: openVideoResourcePicker,
@@ -543,6 +647,15 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         aria-hidden
       />
       <input
+        ref={resourcesImageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleResourcesImageChange}
+        aria-hidden
+      />
+      <input
         ref={videoInputRef}
         type="file"
         accept="video/*"
@@ -567,7 +680,15 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         footer={footerContent}
       >
         <div className="px-6 py-4">
-          {activeTab === 'edit' ? (
+          {draftLoading ? (
+            <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 py-12 text-slate-500" aria-busy="true">
+              <svg className="h-10 w-10 animate-spin text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden>
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              <p className="text-sm font-medium">Loading session…</p>
+            </div>
+          ) : activeTab === 'edit' ? (
             <SessionDetailsForm
               draft={draft}
               tagsInput={tagsInput}
@@ -597,6 +718,22 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
           options={sectionOptions}
         />
       )}
+      {typeof document !== 'undefined' &&
+        pendingRemoveSection != null &&
+        createPortal(
+          <ConfirmDeleteModal
+            isOpen={true}
+            title="Remove section"
+            itemName={pendingRemoveSection.title}
+            description={`Are you sure you want to remove "${pendingRemoveSection.title}"? This cannot be undone.`}
+            confirmText="Remove"
+            cancelText="Cancel"
+            isLoading={isRemovingSection}
+            onCancel={() => setPendingRemoveSection(null)}
+            onConfirm={handleConfirmRemoveSection}
+          />,
+          document.body
+        )}
     </>
   )
 }

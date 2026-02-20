@@ -1,7 +1,17 @@
-import React from 'react';
-import { Survey } from 'survey-react-ui';
+import React, { Suspense, lazy } from 'react';
 import { Model } from 'survey-core';
 import { RegistrationFormProps } from '../../types';
+
+const Survey = lazy(() =>
+  import('survey-react-ui').then((module) => ({ default: module.Survey }))
+);
+
+const SurveyLoadingFallback = () => (
+  <div className="flex items-center justify-center p-8 min-h-[200px]">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+    <span className="ml-3 text-sm text-slate-600">Loading form...</span>
+  </div>
+);
 
 const RegistrationForm: React.FC<RegistrationFormProps> = ({ 
   title = "Registration ",
@@ -111,7 +121,9 @@ const RegistrationForm: React.FC<RegistrationFormProps> = ({
         ref={puck?.dragRef}
         className="max-w-[600px] mx-auto p-5 font-sans bg-white rounded-lg shadow-sm"
       >
-        <Survey model={survey} />
+        <Suspense fallback={<SurveyLoadingFallback />}>
+          <Survey model={survey} />
+        </Suspense>
       </div>
     </>
   );

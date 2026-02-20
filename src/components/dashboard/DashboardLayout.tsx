@@ -1,18 +1,32 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react'
+import React, { useState, useMemo, useEffect, useRef, Suspense, lazy } from 'react'
 import DashboardSidebar from './DashboardSidebar'
 import DashboardNavbar from './DashboardNavbar'
 import DashboardContent from './DashboardContent'
-import NewEventForm, { type EventFormData } from './NewEventForm'
-import TemplateSelectionPage from './TemplateSelectionPage'
-import EventWebsitePage from '../eventhub/EventWebsitePage'
-import WebsitePreviewPage from '../eventhub/WebsitePreviewPage'
-import TeamManagementPage from './team/TeamManagementPage'
 import { type Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
 import type { FilterState } from './SearchAndFilterBar'
 import { deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { showToast } from '../../utils/toast'
+
+// Lazy load components that are only shown conditionally
+const NewEventForm = lazy(() => import('./NewEventForm').then(m => ({ default: m.default })))
+const TemplateSelectionPage = lazy(() => import('./TemplateSelectionPage').then(m => ({ default: m.default })))
+const EventWebsitePage = lazy(() => import('../eventhub/EventWebsitePage').then(m => ({ default: m.default })))
+const WebsitePreviewPage = lazy(() => import('../eventhub/WebsitePreviewPage').then(m => ({ default: m.default })))
+const TeamManagementPage = lazy(() => import('./team/TeamManagementPage').then(m => ({ default: m.default })))
+
+// Type import for NewEventForm
+import type { EventFormData } from './NewEventForm'
+
+const ComponentLoadingFallback = () => (
+  <div className="flex items-center justify-center min-h-[400px]">
+    <div className="text-center">
+      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#6938EF] mb-4"></div>
+      <p className="text-slate-600">Loading...</p>
+    </div>
+  </div>
+)
 
 interface DashboardLayoutProps {
   organizationName?: string
@@ -593,39 +607,43 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // Show preview page
   if (showPreviewPage && shouldRenderPreview) {
     return (
-      <WebsitePreviewPage
-        pageId={previewPageId}
-        onBackClick={() => {
-          // Clear preview state first
-          setShowPreviewPage(false)
-          setPreviewPageId('')
-          // Navigate back to event website page - preserve event context
-          window.history.pushState({}, '', '/event/website')
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        }}
-        userAvatarUrl={userAvatarUrl}
-      />
+      <Suspense fallback={<ComponentLoadingFallback />}>
+        <WebsitePreviewPage
+          pageId={previewPageId}
+          onBackClick={() => {
+            // Clear preview state first
+            setShowPreviewPage(false)
+            setPreviewPageId('')
+            // Navigate back to event website page - preserve event context
+            window.history.pushState({}, '', '/event/website')
+            window.dispatchEvent(new PopStateEvent('popstate'))
+          }}
+          userAvatarUrl={userAvatarUrl}
+        />
+      </Suspense>
     )
   }
 
   // Show event website page
   if (showEventWebsitePage && shouldRenderWebsite) {
     return (
-      <EventWebsitePage
-        onBackClick={() => {
-          // Close the website view immediately (don't rely on route listeners)
-          setShowEventWebsitePage(false)
-          setShowPreviewPage(false)
-          setShowTemplatePage(false)
-          setShowNewEventForm(false)
-          setPreviewPageId('')
-          setActiveItemId('events')
+      <Suspense fallback={<ComponentLoadingFallback />}>
+        <EventWebsitePage
+          onBackClick={() => {
+            // Close the website view immediately (don't rely on route listeners)
+            setShowEventWebsitePage(false)
+            setShowPreviewPage(false)
+            setShowTemplatePage(false)
+            setShowNewEventForm(false)
+            setPreviewPageId('')
+            setActiveItemId('events')
 
-          window.history.pushState({}, '', '/dashboard')
-          window.dispatchEvent(new PopStateEvent('popstate'))
-        }}
-        userAvatarUrl={userAvatarUrl}
-      />
+            window.history.pushState({}, '', '/dashboard')
+            window.dispatchEvent(new PopStateEvent('popstate'))
+          }}
+          userAvatarUrl={userAvatarUrl}
+        />
+      </Suspense>
     )
   }
 
@@ -637,10 +655,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   // Show form overlay if form is open
   if (showNewEventForm) {
     return (
-      <NewEventForm
-        onClose={handleFormClose}
-        onSubmit={handleFormSubmit}
-      />
+      <Suspense fallback={<ComponentLoadingFallback />}>
+        <NewEventForm
+          onClose={handleFormClose}
+          onSubmit={handleFormSubmit}
+        />
+      </Suspense>
     )
   }
 
@@ -674,7 +694,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       {/* Main Content */}
       <main className="lg:ml-[250px] mt-16 p-4 sm:p-6">
         {activeItemId === 'team' ? (
-          <TeamManagementPage />
+          <Suspense fallback={<ComponentLoadingFallback />}>
+            <TeamManagementPage />
+          </Suspense>
         ) : activeItemId !== 'events' ? (
           <div className="min-h-[400px] flex items-center justify-center">
             <div className="text-center">

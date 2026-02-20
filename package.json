@@ -21,6 +21,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "^2.6.0",
+    "react-quill": "^2.0.0",
     "react-select": "^5.8.0",
     "react-time-picker": "^8.0.2",
     "survey-core": "^2.3.7",

@@ -3,6 +3,17 @@ import { createPortal } from 'react-dom'
 import { Upload01, XClose, Plus, SearchLg, Folder } from '@untitled-ui/icons-react'
 import type { SessionSection } from './sessionTypes'
 import { fetchSpeakers, type SpeakerData } from '../../../services/speakerService'
+import { env } from '../../../config/env'
+
+/** Resolve relative/media paths to absolute URL so the video element can load them (avoids "No video with supported format" when backend returns e.g. /media/...). */
+function toAbsoluteMediaUrl(url: string): string {
+  const raw = String(url || '').trim()
+  if (!raw) return ''
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
+  const base = (env.AUTH_API_URL || '').replace(/\/$/, '')
+  if (!base) return raw
+  return raw.startsWith('/') ? `${base}${raw}` : `${base}/${raw}`
+}
 
 const PLACEHOLDER_IMG =
   'https://images.unsplash.com/photo-1549880338-65ddcdfd017b?w=1200&auto=format&fit=crop&q=60'
@@ -36,6 +47,8 @@ export interface SessionSectionPreviewHandlers {
   onOpenGalleryPicker: (sectionId: string) => void
   onRemoveGalleryImage: (sectionId: string, index: number) => void
   onOpenResourcesPicker: (sectionId: string) => void
+  /** Open file picker to upload image(s) into the Resources section. */
+  onOpenResourcesImagePicker?: (sectionId: string) => void
   onRemoveResourcesFile: (sectionId: string, index: number) => void
   /** Open file picker to upload a video file for video section. */
   onOpenVideoUploadPicker?: (sectionId: string) => void
@@ -70,6 +83,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     onOpenGalleryPicker,
     onRemoveGalleryImage,
     onOpenResourcesPicker,
+    onOpenResourcesImagePicker,
     onRemoveResourcesFile,
     onOpenVideoUploadPicker,
     onOpenVideoResourcePicker,
@@ -379,6 +393,16 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
             <Upload01 className="h-4 w-4" />
             Upload docs
           </button>
+          {onOpenResourcesImagePicker && (
+            <button
+              type="button"
+              onClick={() => onOpenResourcesImagePicker(section.id)}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <Upload01 className="h-4 w-4" />
+              Upload image
+            </button>
+          )}
         </div>
         {fileItems.length > 0 ? (
           <ul className="space-y-2 rounded-lg border border-slate-200 bg-white p-3">
@@ -409,8 +433,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
           </ul>
         ) : (
           <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 p-4 text-center text-sm text-slate-500">
-            No documents uploaded. Click &quot;Upload docs&quot; to add PDF, Word, Excel, or other
-            files.
+            No files uploaded. Use &quot;Upload docs&quot; for PDF, Word, Excel, etc., or &quot;Upload image&quot; for images.
           </div>
         )}
       </div>
@@ -513,7 +536,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
             style={{ paddingBottom: '56.25%' }}
           >
             <video
-              src={videoUrl}
+              src={toAbsoluteMediaUrl(videoUrl)}
               controls
               className="absolute inset-0 h-full w-full"
             />

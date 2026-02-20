@@ -41,17 +41,94 @@ export default defineConfig(({ mode }) => {
     },
   build: {
     outDir: 'build', // Match Azure Static Web Apps expected output location
-    // Increase chunk size warning limit to 1000kb (from default 500kb)
-    chunkSizeWarningLimit: 1000,
+    // Increase chunk size warning limit to 1500kb
+    // Note: survey-vendor is ~1.37MB but gzipped is only ~327KB which is acceptable
+    // icons-vendor is ~732KB but gzipped is only ~116KB which is acceptable
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
         // Manual chunk splitting for better code splitting
-        manualChunks: {
-          // Vendor chunks
-          'react-vendor': ['react', 'react-dom'],
-          'puck-vendor': ['@measured/puck'],
-          'icons-vendor': ['@untitled-ui/icons-react'],
-          'survey-vendor': ['survey-core', 'survey-react-ui'],
+        manualChunks: (id) => {
+          // Node modules vendor chunks
+          if (id.includes('node_modules')) {
+            // React core (most critical, should be separate)
+            // Match react package but not react-dom or other react-* packages
+            if (id.includes('node_modules/react/') || id.includes('node_modules\\react\\')) {
+              return 'react-core'
+            }
+            if (id.includes('react-dom')) {
+              return 'react-dom'
+            }
+            
+            // Puck editor (large library)
+            if (id.includes('@measured/puck')) {
+              return 'puck-vendor'
+            }
+            
+            // Survey libraries (split into separate chunks as they're large)
+            if (id.includes('survey-core')) {
+              return 'survey-core-vendor'
+            }
+            if (id.includes('survey-react-ui')) {
+              return 'survey-react-vendor'
+            }
+            
+            // Icons library (can be large with many icons, but gzipped size is acceptable)
+            if (id.includes('@untitled-ui/icons-react')) {
+              return 'icons-vendor'
+            }
+            
+            // React UI libraries
+            if (id.includes('react-select') || id.includes('react-hot-toast') || id.includes('react-time-picker')) {
+              return 'react-ui-vendor'
+            }
+            
+            // Excel/File processing
+            if (id.includes('xlsx')) {
+              return 'xlsx-vendor'
+            }
+            
+            // Utility libraries
+            if (id.includes('clsx') || id.includes('class-variance-authority') || id.includes('tailwind-merge')) {
+              return 'utils-vendor'
+            }
+            
+            // Other node_modules (catch-all for remaining dependencies)
+            return 'vendor'
+          }
+          
+          // Split large component directories
+          if (id.includes('/components/eventhub/') || id.includes('\\components\\eventhub\\')) {
+            // Split eventhub components by feature area
+            if (id.includes('communication')) {
+              return 'eventhub-communication'
+            }
+            if (id.includes('schedulesession')) {
+              return 'eventhub-schedule'
+            }
+            if (id.includes('attendeemanagement') || id.includes('speakermanagement')) {
+              return 'eventhub-attendees'
+            }
+            if (id.includes('resourcemanagement')) {
+              return 'eventhub-resources'
+            }
+            return 'eventhub-other'
+          }
+          
+          // Split dashboard components
+          if (id.includes('/components/dashboard/') || id.includes('\\components\\dashboard\\')) {
+            return 'dashboard'
+          }
+          
+          // Split public components
+          if (id.includes('/components/public/') || id.includes('\\components\\public\\')) {
+            return 'public-components'
+          }
+          
+          // Split advanced components (Puck blocks)
+          if (id.includes('/components/advanced/') || id.includes('\\components\\advanced\\')) {
+            return 'advanced-components'
+          }
         },
         // Optimize chunk file names
         chunkFileNames: 'assets/js/[name]-[hash].js',
