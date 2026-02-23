@@ -5,6 +5,7 @@ import { isPublicRoute } from './utils/routeUtils'
 import ErrorBoundary from './components/shared/ErrorBoundary'
 import { EventFormProvider } from './contexts/EventFormContext'
 import { WebsitePagesProvider } from './contexts/WebsitePagesContext'
+import '@fortawesome/fontawesome-free/css/all.min.css'
 import './index.css'
 
 // Lazy-load only the app for the current route (public vs dashboard) to avoid loading both

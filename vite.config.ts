@@ -51,13 +51,15 @@ export default defineConfig(({ mode }) => {
         manualChunks: (id) => {
           // Node modules vendor chunks
           if (id.includes('node_modules')) {
-            // React core (most critical, should be separate)
-            // Match react package but not react-dom or other react-* packages
-            if (id.includes('node_modules/react/') || id.includes('node_modules\\react\\')) {
-              return 'react-core'
-            }
-            if (id.includes('react-dom')) {
-              return 'react-dom'
+            // React + react-dom + scheduler must stay together to avoid
+            // "unstable_scheduleCallback" undefined TypeError (scheduler init order)
+            if (
+              id.includes('node_modules/react/') ||
+              id.includes('node_modules\\react\\') ||
+              id.includes('react-dom') ||
+              id.includes('scheduler')
+            ) {
+              return 'react-vendor'
             }
             
             // Puck editor (large library)

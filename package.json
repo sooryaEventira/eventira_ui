@@ -12,6 +12,7 @@
     "dev:full": "concurrently \"npm run dev\" \"npm run server\""
   },
   "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.2.0",
     "@measured/puck": "^0.20.1",
     "@untitled-ui/icons-react": "^0.1.4",
     "class-variance-authority": "^0.7.1",
