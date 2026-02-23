@@ -34,13 +34,13 @@ const CreateOrganizationModal = ({
   initialValues,
   onSave
 }: CreateOrganizationModalProps) => {
-  const [name, setName] = useState('')
-  const [website, setWebsite] = useState('')
-  const [linkedin, setLinkedin] = useState('')
-  const [groups, setGroups] = useState('')
-  const [description, setDescription] = useState('')
-  const [logoLink, setLogoLink] = useState('')
-  const [stallNumber, setStallNumber] = useState('')
+  const [name, setName] = useState(() => initialValues?.name ?? '')
+  const [website, setWebsite] = useState(() => initialValues?.website ?? '')
+  const [linkedin, setLinkedin] = useState(() => initialValues?.linkedin ?? '')
+  const [groups, setGroups] = useState(() => initialValues?.groups ?? '')
+  const [description, setDescription] = useState(() => initialValues?.description ?? '')
+  const [logoLink, setLogoLink] = useState(() => initialValues?.logoLink ?? '')
+  const [stallNumber, setStallNumber] = useState(() => initialValues?.stallNumber ?? '')
 
   const isEdit = useMemo(() => {
     return !!(
@@ -65,13 +65,13 @@ const CreateOrganizationModal = ({
 
   useEffect(() => {
     if (!isOpen) return
-    setName(initialValues?.name || '')
-    setWebsite(initialValues?.website || '')
-    setLinkedin(initialValues?.linkedin || '')
-    setGroups(initialValues?.groups || '')
-    setDescription(initialValues?.description || '')
-    setLogoLink(initialValues?.logoLink || '')
-    setStallNumber(initialValues?.stallNumber || '')
+    setName(initialValues?.name ?? '')
+    setWebsite(initialValues?.website ?? '')
+    setLinkedin(initialValues?.linkedin ?? '')
+    setGroups(initialValues?.groups ?? '')
+    setDescription(initialValues?.description ?? '')
+    setLogoLink(initialValues?.logoLink ?? '')
+    setStallNumber(initialValues?.stallNumber ?? '')
   }, [isOpen, initialValues])
 
   const handleSave = () => {
@@ -173,6 +173,7 @@ const CreateOrganizationModal = ({
           <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
           <div className="rich-text-editor">
             <ReactQuill
+              key={isEdit ? 'edit' : 'new'}
               theme="snow"
               value={description}
               onChange={setDescription}

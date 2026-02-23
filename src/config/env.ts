@@ -270,11 +270,12 @@ export const API_ENDPOINTS = {
   },
   // Organization/Exhibitors endpoints
   EXHIBITORS: {
- 
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_uuid=${eventUuid}`,
- 
+    /** List exhibitors: {{url}}{{admin_url}}exhibitors/?event_id={{event_uuid}} */
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_id=${eventUuid}`,
+    /** PATCH exhibitor: {{url}}{{admin_url}}exhibitors/{{exhibitor_uuid}}/?event_id={{event_uuid}} */
+    UPDATE: (exhibitorUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/${exhibitorUuid}/?event_id=${eventUuid}`,
     DELETE: (exhibitorUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/${exhibitorUuid}/`,
-
     IMPORT: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/import/?event_uuid=${eventUuid}`,
   },

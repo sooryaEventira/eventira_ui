@@ -13,13 +13,14 @@ import OrganizationGroupsTable, {
   type OrganizationManagementTab
 } from './OrganizationGroupsTable'
 import CreateOrganizationModal from './CreateOrganizationModal'
-import { createExhibitor, deleteExhibitor, fetchExhibitors, importExhibitors } from '../../../services/exhibitorService'
+import { createExhibitor, deleteExhibitor, fetchExhibitors, importExhibitors, updateExhibitor } from '../../../services/exhibitorService'
 import { ConfirmDeleteModal } from '../../ui'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
 import CreateGroupModal from '../attendeemanagement/CreateGroupModal'
 import { fetchTags, type TagData } from '../../../services/attendeeService'
 import { setTagPublished, setTagUnpublished } from '../../../services/eventTagService'
 import { fetchPublishedAttendeeTagIds } from '../../../services/webpageService'
+import { getDescriptionHtml } from '../../../utils/organizationDescriptionHtml'
 
 interface OrganizationManagementPageProps {
   eventName?: string
@@ -277,15 +278,30 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
     logoLink?: string
     stallNumber?: string
   }) => {
-    if (editingOrgId) {
-      setOrganizations((prev) =>
-        prev.map((o) =>
-          o.id === editingOrgId
-            ? { ...o, ...data }
-            : o
-        )
-      )
-      showToast.success('Organization updated')
+    if (editingOrgId && eventUuid) {
+      setIsSavingOrganization(true)
+      try {
+        await updateExhibitor(eventUuid, editingOrgId, {
+          name: data.name,
+          website: data.website,
+          linkedin: data.linkedin,
+          groups: data.groups,
+          description: data.description,
+          logo_link: data.logoLink,
+          stall_number: data.stallNumber
+        })
+        showToast.success('Organization updated')
+        setIsCreateModalOpen(false)
+        setEditingOrgId(null)
+        await loadOrganizations()
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : 'Failed to update organization.'
+        showToast.error(msg)
+      } finally {
+        setIsSavingOrganization(false)
+      }
+    } else if (editingOrgId && !eventUuid) {
+      showToast.error('Event UUID is missing. Please select an event first.')
     } else {
       if (!eventUuid) {
         showToast.error('Event UUID is missing. Please select an event first.')
@@ -434,6 +450,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
       />
 
       <CreateOrganizationModal
+        key={editingOrgId ?? 'new'}
         isOpen={isCreateModalOpen}
         onClose={() => {
           if (isSavingOrganization) return
@@ -448,7 +465,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
                 website: editingOrg.website,
                 linkedin: editingOrg.linkedin,
                 groups: editingOrg.groups,
-                description: editingOrg.description,
+                description: getDescriptionHtml(editingOrg.description || '') || editingOrg.description,
                 logoLink: editingOrg.logoLink,
                 stallNumber: editingOrg.stallNumber
               }

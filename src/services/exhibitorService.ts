@@ -202,6 +202,88 @@ export const createExhibitor = async (
   }
 }
 
+/** Update exhibitor. PATCH {{admin_url}}exhibitors/{{exhibitor_uuid}}/?event_id={{event_uuid}} */
+export const updateExhibitor = async (
+  eventUuid: string,
+  exhibitorUuid: string,
+  payload: CreateExhibitorPayload
+): Promise<ExhibitorData> => {
+  try {
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!exhibitorUuid) {
+      const errorMessage = handleApiError('Exhibitor UUID is required.', undefined, 'Exhibitor UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!payload?.name || !String(payload.name).trim()) {
+      const errorMessage = handleApiError('Name is required.', undefined, 'Name is required.')
+      throw new Error(errorMessage)
+    }
+
+    const { accessToken, organizationUuid } = getAuthHeaders()
+    const url = API_ENDPOINTS.EXHIBITORS.UPDATE(exhibitorUuid, eventUuid)
+
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload)
+    })
+
+    if (!response || !response.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        // keep as text
+      }
+      const errorMessage = handleApiError(
+        errorData ?? responseText ?? null,
+        response,
+        'Failed to update organization. Please try again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const responseText = await response.text()
+    if (!responseText || !responseText.trim()) {
+      return { ...payload, uuid: exhibitorUuid } as ExhibitorData
+    }
+    let data: any
+    try {
+      data = JSON.parse(responseText)
+    } catch {
+      return { ...payload, uuid: exhibitorUuid, message: responseText } as ExhibitorData
+    }
+
+    if (data?.status === 'error') {
+      const errorMessage = handleApiError(data, undefined, 'Failed to update organization. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    return (data?.data ?? data ?? { ...payload, uuid: exhibitorUuid }) as ExhibitorData
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+    throw error instanceof Error ? error : new Error('Failed to update organization. Please try again.')
+  }
+}
+
 export const deleteExhibitor = async (exhibitorUuid: string): Promise<void> => {
   try {
     if (!exhibitorUuid) {

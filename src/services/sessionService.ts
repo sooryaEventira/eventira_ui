@@ -54,8 +54,9 @@ export interface CreateSessionSectionsBody {
   sections: CreateSessionSectionItem[]
 }
 
-/** Payload for PATCH session-sections/{{session_section_id}}/. Same shape as create item (section_type, order, content). */
+/** Payload for PATCH session-sections/{{session_section_id}}/. Same shape as create item (session_uuid, section_type, order, content). */
 export interface UpdateSessionSectionBody {
+  session_uuid?: string
   section_type?: string
   order?: number
   content?: Record<string, unknown>

@@ -1736,7 +1736,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             const payload = buildOneSectionPayload(s, i + 1)
             console.log('[Session save] session-sections payload to backend:', s.sectionId ? 'PATCH' : 'POST (create)', payload)
             if (s.sectionId) {
-              await updateSessionSection(eventUuid, s.sectionId, payload)
+              await updateSessionSection(eventUuid, s.sectionId, { ...payload, session_uuid: sessionUuidForUpdate })
             } else {
               toCreate.push(payload)
             }
@@ -1988,6 +1988,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           },
           credentials: 'include',
           body: JSON.stringify({
+            event_uuid: eventUuid,
             name: scheduleTitle,
             title: scheduleTitle,
             description: details.description || '',
