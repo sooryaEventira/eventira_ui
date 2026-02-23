@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
+    "clean": "node -e \"const fs=require('fs');const p='.'; const dirs=['node_modules/.vite','build','dist']; dirs.forEach(d=>{ try { fs.rmSync(d,{recursive:true}); console.log('Removed '+d); } catch(e) {} });\"",
     "build": "vite build && node -e \"require('fs').copyFileSync('staticwebapp.config.json', 'build/staticwebapp.config.json')\"",
     "build:analyze": "vite build --mode analyze",
     "preview": "vite preview",

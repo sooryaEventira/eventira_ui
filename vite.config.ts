@@ -167,7 +167,9 @@ export default defineConfig(({ mode }) => {
   },
   // Optimize dependencies
   optimizeDeps: {
-    include: ['react', 'react-dom', '@measured/puck']
-  }
+    include: ['react', 'react-dom', 'scheduler', '@measured/puck'],
+    // Force re-bundle so dedupe takes effect and scheduler is shared (fixes unstable_scheduleCallback)
+    force: true,
+  },
   }
 })
