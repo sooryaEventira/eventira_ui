@@ -11,6 +11,10 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
+    resolve: {
+      // Force single React instance to fix "unstable_scheduleCallback" undefined
+      dedupe: ['react', 'react-dom', 'scheduler'],
+    },
     server: {
       port: 3000,
       open: true,
