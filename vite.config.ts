@@ -103,22 +103,9 @@ export default defineConfig(({ mode }) => {
             return 'vendor'
           }
           
-          // Split large component directories
+          // Split large component directories (single eventhub chunk to avoid circular deps / TDZ)
           if (id.includes('/components/eventhub/') || id.includes('\\components\\eventhub\\')) {
-            // Split eventhub components by feature area
-            if (id.includes('communication')) {
-              return 'eventhub-communication'
-            }
-            if (id.includes('schedulesession')) {
-              return 'eventhub-schedule'
-            }
-            if (id.includes('attendeemanagement') || id.includes('speakermanagement')) {
-              return 'eventhub-attendees'
-            }
-            if (id.includes('resourcemanagement')) {
-              return 'eventhub-resources'
-            }
-            return 'eventhub-other'
+            return 'eventhub'
           }
           
           // Split dashboard components

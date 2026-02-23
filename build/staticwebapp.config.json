@@ -1,0 +1,17 @@
+{
+    "navigationFallback": {
+      "rewrite": "/index.html"
+    },
+    "mimeTypes": {
+      ".js": "text/javascript",
+      ".mjs": "text/javascript",
+      ".ts": "text/javascript",
+      ".tsx": "text/javascript",
+      ".css": "text/css",
+      ".json": "application/json",
+      ".wasm": "application/wasm"
+    },
+    "globalHeaders": {
+      "Content-Security-Policy": "default-src 'self' data: blob:; img-src 'self' data: blob: http: https:; media-src 'self' data: blob: http: https:; font-src 'self' data: https:; style-src 'self' 'unsafe-inline' https:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; connect-src 'self' http: https: ws: wss:; frame-src 'self' data: blob: https://www.youtube.com https://www.youtube-nocookie.com https://www.google.com https://maps.google.com https://docs.google.com https://eventiracommon-event-api-dev-ci01-aaeddsh3hbdkcjfa.centralindia-01.azurewebsites.net;"
+    }
+  }
