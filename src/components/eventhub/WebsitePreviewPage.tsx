@@ -52,6 +52,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
     const name = createdEvent?.eventName || eventData?.eventName
     return name
   }, [createdEvent?.eventName, createdEvent?.uuid, eventData?.eventName])
+  const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
   const displayStartDate = createdEvent?.startDate || eventData?.startDate
   const displayLocation = createdEvent?.location || eventData?.location
   
@@ -757,6 +758,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
         key={createdEvent?.uuid || 'no-event'} // Force re-render when event changes
         eventName={displayEventName || 'Highly important conference of 2025'}
         isDraft={true}
+        eventStatus={eventStatus}
         onBackClick={handleBack}
         onSearchClick={handleSearchClick}
         onNotificationClick={handleNotificationClick}

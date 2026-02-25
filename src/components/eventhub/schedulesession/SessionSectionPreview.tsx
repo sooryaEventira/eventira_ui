@@ -94,9 +94,10 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   const [showSpeakerSearch, setShowSpeakerSearch] = useState(false)
   const [speakerSearchSectionId, setSpeakerSearchSectionId] = useState<string | null>(null)
   const [speakerSearchQuery, setSpeakerSearchQuery] = useState('')
+  const [speakerSearchRole, setSpeakerSearchRole] = useState<'Chairman' | 'Panelist' | 'Speaker'>('Chairman')
   const [speakersList, setSpeakersList] = useState<SpeakerData[]>([])
   const [isLoadingSpeakers, setIsLoadingSpeakers] = useState(false)
-  const [speakerSearchPosition, setSpeakerSearchPosition] = useState<{ top: number; left: number } | null>(null)
+  const [speakerSearchPosition, setSpeakerSearchPosition] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null)
   const speakerSearchAnchorRef = useRef<HTMLButtonElement | null>(null)
   const speakerSearchInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -140,7 +141,15 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     if (!showSpeakerSearch || !speakerSearchAnchorRef.current) return
     const el = speakerSearchAnchorRef.current
     const rect = el.getBoundingClientRect()
-    setSpeakerSearchPosition({ top: rect.bottom + 4, left: rect.left })
+    const listMaxHeight = Math.min(400, window.innerHeight * 0.6)
+    const dropdownHeight = 56 + listMaxHeight + 16
+    const spaceBelow = window.innerHeight - (rect.bottom + 4)
+    const openUpward = spaceBelow < Math.min(dropdownHeight, 280)
+    setSpeakerSearchPosition({
+      top: openUpward ? rect.top - 4 : rect.bottom + 4,
+      left: rect.left,
+      openUpward
+    })
   }, [showSpeakerSearch])
 
   const closeSpeakerSearch = () => {
@@ -155,7 +164,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     if (!sectionId || !onAddSpeakerToSection) return
     const id = String(speaker.uuid ?? speaker.id ?? `speaker-${Date.now()}`)
     const name = getSpeakerDisplayName(speaker)
-    onAddSpeakerToSection(sectionId, { id, name, role: 'Chairman' })
+    onAddSpeakerToSection(sectionId, { id, name, role: speakerSearchRole })
     closeSpeakerSearch()
   }
 
@@ -632,20 +641,16 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
 
     return (
       <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-          <span className="text-sm font-semibold text-slate-900">Speakers</span>
-        </div>
+
         <div className="space-y-3 bg-white p-4">
-          <label className="block">
-            <span className="text-sm font-semibold text-slate-900">Speakers</span>
-          </label>
+
 
           {speakers.length > 0 ? (
           <div className="flex flex-wrap items-start gap-3">
             {speakers.map((s) => (
               <div
                 key={s.id}
-                className="flex min-w-[160px] flex-col rounded-lg border border-slate-200 bg-white p-3"
+                className="flex min-w-[160px] flex-col rounded-lg border border-slate-200 bg-white p-2"
               >
                 <div className="mb-2 flex items-center gap-2">
                   <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-amber-100">
@@ -674,6 +679,11 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
                     </button>
                   )}
                 </div>
+                {s.role && (
+                  <span className="inline-flex items-center justify-center rounded-full border border-primary/30 bg-primary/10 px-4 text-sm font-medium text-primary">
+                    {s.role}
+                  </span>
+                )}
               </div>
             ))}
 
@@ -701,28 +711,45 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
                         onClick={closeSpeakerSearch}
                       />
                       <div
-                        className="fixed z-[9999] w-[min(320px,calc(100vw-24px))] rounded-xl border-2 border-slate-200 bg-white shadow-xl"
+                        className="fixed z-[9999] w-[min(320px,calc(100vw-24px))] rounded-xl border-2 border-slate-200 bg-white shadow-xl flex flex-col max-h-[min(400px,70vh)]"
                         style={{
-                          top: speakerSearchPosition.top,
-                          left: speakerSearchPosition.left
+                          ...(speakerSearchPosition.openUpward
+                            ? { bottom: window.innerHeight - speakerSearchPosition.top, left: speakerSearchPosition.left }
+                            : { top: speakerSearchPosition.top, left: speakerSearchPosition.left }
+                          )
                         }}
                       >
-                        <div className="border-b border-slate-100 p-3">
-                          <label className="sr-only">Search speakers by name</label>
-                          <div className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-white px-3 py-2.5 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-                            <SearchLg className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
-                            <input
-                              ref={speakerSearchInputRef}
-                              type="text"
-                              value={speakerSearchQuery}
-                              onChange={(e) => setSpeakerSearchQuery(e.target.value)}
-                              placeholder="Search by name..."
-                              className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none"
-                              autoComplete="off"
-                            />
+                        <div className="border-b border-slate-100 p-3 shrink-0 space-y-3">
+                          <div>
+                            <label className="sr-only">Search speakers by name</label>
+                            <div className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-white px-3 py-2.5 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                              <SearchLg className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                              <input
+                                ref={speakerSearchInputRef}
+                                type="text"
+                                value={speakerSearchQuery}
+                                onChange={(e) => setSpeakerSearchQuery(e.target.value)}
+                                placeholder="Search by name..."
+                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none"
+                                autoComplete="off"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label htmlFor="speaker-role-select-preview-1" className="block text-xs font-medium text-slate-600 mb-1">Role</label>
+                            <select
+                              id="speaker-role-select-preview-1"
+                              value={speakerSearchRole}
+                              onChange={(e) => setSpeakerSearchRole(e.target.value as 'Chairman' | 'Panelist' | 'Speaker')}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            >
+                              <option value="Chairman">Chairman</option>
+                              <option value="Panelist">Panelist</option>
+                              <option value="Speaker">Speaker</option>
+                            </select>
                           </div>
                         </div>
-                        <div className="max-h-[240px] overflow-y-auto p-2">
+                        <div className="max-h-[min(320px,50vh)] overflow-y-auto p-2 min-h-0">
                           {isLoadingSpeakers ? (
                             <div className="py-6 text-center text-sm text-slate-500">
                               Loading speakers...
@@ -784,28 +811,45 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
                           onClick={closeSpeakerSearch}
                         />
                         <div
-                          className="fixed z-[9999] w-[min(320px,calc(100vw-24px))] rounded-xl border-2 border-slate-200 bg-white shadow-xl"
+                          className="fixed z-[9999] w-[min(320px,calc(100vw-24px))] rounded-xl border-2 border-slate-200 bg-white shadow-xl flex flex-col max-h-[min(400px,70vh)]"
                           style={{
-                            top: speakerSearchPosition.top,
-                            left: speakerSearchPosition.left
+                            ...(speakerSearchPosition.openUpward
+                              ? { bottom: window.innerHeight - speakerSearchPosition.top, left: speakerSearchPosition.left }
+                              : { top: speakerSearchPosition.top, left: speakerSearchPosition.left }
+                            )
                           }}
                         >
-                          <div className="border-b border-slate-100 p-3">
-                            <label className="sr-only">Search speakers by name</label>
-                            <div className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-white px-3 py-2.5 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
-                              <SearchLg className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
-                              <input
-                                ref={speakerSearchInputRef}
-                                type="text"
-                                value={speakerSearchQuery}
-                                onChange={(e) => setSpeakerSearchQuery(e.target.value)}
-                                placeholder="Search by name..."
-                                className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none"
-                                autoComplete="off"
-                              />
+                          <div className="border-b border-slate-100 p-3 shrink-0 space-y-3">
+                            <div>
+                              <label className="sr-only">Search speakers by name</label>
+                              <div className="flex items-center gap-2 rounded-lg border-2 border-slate-200 bg-white px-3 py-2.5 shadow-sm focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20">
+                                <SearchLg className="h-5 w-5 shrink-0 text-slate-500" aria-hidden />
+                                <input
+                                  ref={speakerSearchInputRef}
+                                  type="text"
+                                  value={speakerSearchQuery}
+                                  onChange={(e) => setSpeakerSearchQuery(e.target.value)}
+                                  placeholder="Search by name..."
+                                  className="min-w-0 flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none"
+                                  autoComplete="off"
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label htmlFor="speaker-role-select-preview-2" className="block text-xs font-medium text-slate-600 mb-1">Role</label>
+                              <select
+                                id="speaker-role-select-preview-2"
+                                value={speakerSearchRole}
+                                onChange={(e) => setSpeakerSearchRole(e.target.value as 'Chairman' | 'Panelist' | 'Speaker')}
+                                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                              >
+                                <option value="Chairman">Chairman</option>
+                                <option value="Panelist">Panelist</option>
+                                <option value="Speaker">Speaker</option>
+                              </select>
                             </div>
                           </div>
-                          <div className="max-h-[240px] overflow-y-auto p-2">
+                          <div className="max-h-[min(320px,50vh)] overflow-y-auto p-2 min-h-0">
                             {isLoadingSpeakers ? (
                               <div className="py-6 text-center text-sm text-slate-500">
                                 Loading speakers...

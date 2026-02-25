@@ -36,9 +36,11 @@ export interface SessionSectionContentText {
   body: string
 }
 
-/** Content shape for speakers section. API expects content: { speaker_uuids }. */
+/** Content shape for speakers section. API expects JSON: speaker_uuids and optional speakers (id, name, role). */
 export interface SessionSectionContentSpeakers {
   speaker_uuids: string[]
+  /** Optional list with role per speaker so backend can store/display role (e.g. Chairman, Panelist, Speaker). */
+  speakers?: Array<{ id: string; name?: string; role?: string }>
 }
 
 /** Payload for POST session-sections. Backend requires session_uuid, section_type, order, and content (type-specific). */

@@ -81,7 +81,18 @@ export const mapRetrieveSessionToDraft = (
             : sectionType === 'resource'
               ? 'resources'
               : sectionType
-    let sectionData: Record<string, unknown> = { ...content, speaker_uuids: content?.speaker_uuids ?? [], url: content?.url ?? content?.video_url ?? '' }
+    const speakerUuids = content?.speaker_uuids ?? []
+    const contentSpeakers = Array.isArray(content?.speakers) ? content.speakers : []
+    const speakersWithRole =
+      contentSpeakers.length > 0
+        ? contentSpeakers.map((sp: any) => ({ id: sp?.id ?? sp?.speaker_uuid ?? '', name: sp?.name ?? '', role: sp?.role ?? '' }))
+        : (Array.isArray(speakerUuids) ? speakerUuids : []).map((id: string) => ({ id, name: '', role: '' }))
+    let sectionData: Record<string, unknown> = {
+      ...content,
+      speaker_uuids: Array.isArray(speakerUuids) ? speakerUuids : [],
+      speakers: speakersWithRole,
+      url: content?.url ?? content?.video_url ?? ''
+    }
     if (uiType === 'resources' && Array.isArray(content?.files)) {
       sectionData = { ...sectionData, files: content.files }
     } else if (uiType === 'resources' && (content?.file_url || content?.url)) {
@@ -94,11 +105,13 @@ export const mapRetrieveSessionToDraft = (
         : typeof rawSectionId === 'number' && !Number.isNaN(rawSectionId)
           ? String(rawSectionId)
           : undefined
+    const defaultTitle =
+      uiType === 'speaker' || sectionType === 'speakers' ? 'Speakers' : 'Section'
     return {
       id: `section-${id}-${i}`,
       ...(apiSectionId ? { sectionId: apiSectionId } : {}),
       type: uiType,
-      title: (content?.title ?? sec?.title ?? 'Section').toString(),
+      title: (content?.title ?? sec?.title ?? defaultTitle).toString(),
       description: (content?.body ?? content?.body ?? sec?.description ?? '').toString(),
       data: sectionData
     }

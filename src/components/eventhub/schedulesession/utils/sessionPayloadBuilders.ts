@@ -169,7 +169,18 @@ export const buildOneSectionPayload = (
       : Array.isArray(s.data?.speakers)
         ? (s.data.speakers as { id: string }[]).map((sp) => sp.id)
         : []
-    content = { speaker_uuids: speakerUuids }
+    const speakersList = Array.isArray(s.data?.speakers)
+      ? (s.data.speakers as { id: string; name: string; role?: string }[]).map((sp) => ({
+          id: sp.id,
+          name: sp.name || '',
+          role: sp.role || ''
+        }))
+      : []
+    content = {
+      title: s.title || 'Speakers',
+      speaker_uuids: speakerUuids,
+      speakers: speakersList.length > 0 ? speakersList : speakerUuids.map((id) => ({ id, name: '', role: '' }))
+    }
   } else if (sectionType === 'video') {
     const videoUrl = s.data?.videoUrl ?? s.data?.video_url ?? ''
     content = { video_url: typeof videoUrl === 'string' ? videoUrl : String(videoUrl || ''), title: s.title || 'Video' }

@@ -44,6 +44,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
   }, [createdEvent?.eventName, createdEvent?.uuid, eventData?.eventName, propEventName])
 
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
+  const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
 
   // Sidebar config (only used when not embedded inside EventHubPage)
   const sidebarItems = useMemo(() => {
@@ -356,6 +357,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
           <EventHubNavbar
             eventName={eventName}
             isDraft={isDraft}
+            eventStatus={eventStatus}
             onBackClick={onBackClick}
             onSearchClick={() => {}}
             onNotificationClick={() => {}}

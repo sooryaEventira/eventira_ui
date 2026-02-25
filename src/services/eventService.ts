@@ -51,12 +51,21 @@ export interface EventData {
   [key: string]: any // Allow additional fields
 }
 
-/** Take ISO datetime string and return YYYY-MM-DD for date-only use (e.g. weekday selector). */
+/**
+ * Take ISO datetime or date-only string and return YYYY-MM-DD in the user's local timezone.
+ * So when the user is in another timezone, the weekday selector shows the correct local day.
+ */
 function isoToDateOnly(iso: unknown): string | undefined {
   if (iso == null || typeof iso !== 'string') return undefined
   const s = String(iso).trim()
-  if (s.length >= 10 && /^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10)
-  return undefined
+  if (s.length < 10 || !/^\d{4}-\d{2}-\d{2}/.test(s)) return undefined
+  if (s.length === 10) return s
+  const d = new Date(s)
+  if (Number.isNaN(d.getTime())) return undefined
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
 /**

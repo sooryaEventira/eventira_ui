@@ -156,7 +156,7 @@ const EventHubSidebar: React.FC<EventHubSidebarProps> = ({
                     </svg>
                   )}
                 </button>
-                {hasSubs && isItemExpanded && (
+                {hasSubs  && (
                   <div className="bg-slate-50/50">
                     {item.subItems!.map((subItem) => {
                       const isSubActive = subItem.id === normalizedActiveItemId

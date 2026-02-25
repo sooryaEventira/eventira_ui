@@ -41,6 +41,7 @@ export const EditorViewWithNavbar: React.FC<EditorViewWithNavbarProps> = (props)
   const userAvatarUrl = localStorage.getItem('userAvatarUrl') || ''
   const displayEventName =
     createdEvent?.eventName || eventData?.eventName || 'Highly important conference of 2025'
+  const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -48,6 +49,7 @@ export const EditorViewWithNavbar: React.FC<EditorViewWithNavbarProps> = (props)
         key={createdEvent?.uuid || 'no-event'}
         eventName={displayEventName}
         isDraft={true}
+        eventStatus={eventStatus}
         onBackClick={props.handleBackToDashboard}
         onSearchClick={() => {}}
         onNotificationClick={() => {}}

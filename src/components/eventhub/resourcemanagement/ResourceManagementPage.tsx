@@ -74,6 +74,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
   // fallback to eventData from form, then props
   const eventName = createdEvent?.eventName || eventData?.eventName || propEventName || 'Highly important conference of 2025'
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
+  const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
   const [allFolders, setAllFolders] = useState<MediaFolder[]>([]) // Store all folders for navigation
   const [folders, setFolders] = useState<MediaFolder[]>([]) // Current level folders for display
   const [files, setFiles] = useState<MediaFile[]>([])
@@ -1016,6 +1017,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
           <EventHubNavbar
             eventName={eventName}
             isDraft={isDraft}
+            eventStatus={eventStatus}
             onBackClick={onBackClick}
             onSearchClick={handleSearchClick}
             onNotificationClick={handleNotificationClick}

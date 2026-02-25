@@ -48,6 +48,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
     return name
   }, [createdEvent?.eventName, createdEvent?.uuid, eventData?.eventName, propEventName])
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
+  const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
   const [activeSection, setActiveSection] = useState('event-website')
 
   // Read section from URL only on initial mount
@@ -240,6 +241,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
         key={createdEvent?.uuid || 'no-event'} // Force re-render when event changes
         eventName={eventName}
         isDraft={isDraft}
+        eventStatus={eventStatus}
         onBackClick={handleBackClick}
         onSearchClick={handleSearchClick}
         onNotificationClick={handleNotificationClick}

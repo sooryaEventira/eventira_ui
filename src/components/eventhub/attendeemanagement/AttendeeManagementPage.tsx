@@ -42,6 +42,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   // fallback to eventData from form, then props
   const eventName = createdEvent?.eventName || eventData?.eventName || propEventName || 'Highly important conference of 2025'
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
+  const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
   
   const handleSearchClick = () => {
     console.log('Search clicked')
@@ -490,6 +491,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
           <EventHubNavbar
             eventName={eventName}
             isDraft={isDraft}
+            eventStatus={eventStatus}
             onBackClick={onBackClick}
             onSearchClick={handleSearchClick}
             onNotificationClick={handleNotificationClick}

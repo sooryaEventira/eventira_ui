@@ -133,6 +133,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   // Prefer selected event from API (`createdEvent`) over draft form state (`eventData`)
   const eventName = createdEvent?.eventName || eventData?.eventName || propEventName || 'Highly important conference of 2025'
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
+  const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
   const handleSearchClick = () => {
     console.log('Search clicked')
   }
@@ -731,8 +732,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             s?.endDatetime ??
             null
 
-          const start = parseTime(startCandidate, { timeZone: eventTimeZone ?? undefined })
-          let end = parseTime(endCandidate, { timeZone: eventTimeZone ?? undefined })
+          // Use user's local time for time column (no event timezone)
+          const start = parseTime(startCandidate)
+          let end = parseTime(endCandidate)
 
           // If backend provides duration but not end_time, compute end_time.
           const durationMinutes =
@@ -1870,7 +1872,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     setParentSessionId(undefined)
   }
 
-  const handleSaveTemplateSession = async (data: TemplateSessionData) => {
+  const handleSaveTemplateSession = async (data: TemplateSessionData, sessionId?: string) => {
     const eventUuid = createdEvent?.uuid
     if (!eventUuid || !activeScheduleId) {
       showToast.error('Select a schedule first (Manage a schedule) to save the session.')
@@ -1879,20 +1881,33 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     const startAt = toUTCISOFrom24h(selectedDate, data.startTime || '00:00')
     const endAt = toUTCISOFrom24h(selectedDate, data.endTime || '00:00')
     const tagUuids = (data.tags ?? []).filter((t: string) => typeof t === 'string' && UUID_REGEX.test(String(t).trim()))
+    const firstTextSection = (data.sections ?? []).find((s: { type?: string }) => s.type === 'text') as { description?: string; data?: { body?: string } } | undefined
+    const derivedDescription =
+      (data.description?.trim()) ??
+      (firstTextSection?.description?.trim()) ??
+      (firstTextSection?.data?.body != null ? String(firstTextSection.data.body).trim() : '') ??
+      ''
+    const sessionBody: CreateSessionBody = {
+      event_uuid: eventUuid,
+      schedule_uuid: String(activeScheduleId),
+      title: (data.title || '').trim() || currentScheduleName,
+      description: derivedDescription,
+      start_at: startAt,
+      end_at: endAt,
+      location: data.location ?? '',
+      session_type: (data.sessionType?.trim() || 'keynote'),
+      tag_uuids: tagUuids
+    }
     try {
-      const sessionBody: CreateSessionBody = {
-        event_uuid: eventUuid,
-        schedule_uuid: String(activeScheduleId),
-        title: (data.title || '').trim() || currentScheduleName,
-        description: data.description?.trim() ?? '',
-        start_at: startAt,
-        end_at: endAt,
-        location: data.location ?? '',
-        session_type: (data.sessionType?.trim() || 'keynote'),
-        tag_uuids: tagUuids
+      let sessionUuid: string | undefined
+      if (sessionId) {
+        const updateBody: UpdateSessionBody = { ...sessionBody }
+        await updateSession(eventUuid, sessionId, String(activeScheduleId), updateBody)
+        sessionUuid = sessionId
+      } else {
+        const created = await createSession(eventUuid, sessionBody)
+        sessionUuid = getSessionUuidFromResponse(created)
       }
-      const created = await createSession(eventUuid, sessionBody)
-      const sessionUuid = getSessionUuidFromResponse(created)
 
       const sectionsToSend: CreateSessionSectionsBody['sections'] = []
       let order = 1
@@ -1903,9 +1918,17 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         if (sectionType === 'resource') continue
         let content: Record<string, unknown>
         if (sectionType === 'text') {
-          content = { title: s.title || 'Section', body: s.description ?? '' }
+          const body = (s as { description?: string; data?: { body?: string } }).description ?? (s as { data?: { body?: string } }).data?.body ?? ''
+          content = { title: s.title || 'Section', body: typeof body === 'string' ? body : '' }
         } else if (sectionType === 'speakers') {
-          content = { speaker_uuids: Array.isArray(s.data?.speakers) ? (s.data.speakers as { id: string }[]).map((sp) => sp.id) : (Array.isArray(s.data?.speaker_uuids) ? s.data.speaker_uuids : []) }
+          const speakerList = Array.isArray(s.data?.speakers)
+            ? (s.data.speakers as { id: string; name?: string; role?: string }[])
+            : []
+          const uuids = speakerList.length > 0 ? speakerList.map((sp) => sp.id) : (Array.isArray(s.data?.speaker_uuids) ? s.data.speaker_uuids : [])
+          content = {
+            speaker_uuids: uuids,
+            speakers: speakerList.length > 0 ? speakerList.map((sp) => ({ id: sp.id, name: sp.name ?? '', role: sp.role ?? '' })) : uuids.map((id) => ({ id, name: '', role: '' }))
+          }
         } else {
           content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
           if (s.title) content.title = s.title
@@ -1913,21 +1936,18 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         }
         sectionsToSend.push({ section_type: sectionType, order: order++, content })
       }
-      if (data.description?.trim()) {
-        sectionsToSend.push({
-          section_type: 'text',
-          order: order++,
-          content: { title: 'Description', body: data.description.trim() }
-        })
-      }
       if ((data.speakers ?? []).length > 0) {
+        const speakerList = data.speakers as Array<{ id: string; name: string; role?: string }>
         sectionsToSend.push({
           section_type: 'speakers',
           order: order++,
-          content: { speaker_uuids: data.speakers!.map((sp: { id: string }) => sp.id) }
+          content: {
+            speaker_uuids: speakerList.map((sp) => sp.id),
+            speakers: speakerList.map((sp) => ({ id: sp.id, name: sp.name ?? '', role: sp.role ?? '' }))
+          }
         })
       }
-      if (sectionsToSend.length > 0 && sessionUuid) {
+      if (sectionsToSend.length > 0 && sessionUuid && !sessionId) {
         await createSessionSections(eventUuid, {
           session_uuid: sessionUuid,
           sections: sectionsToSend
@@ -1940,7 +1960,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       }
 
       await loadSessions(activeScheduleId)
-      showToast.success('Session saved')
+      showToast.success(sessionId ? 'Session updated' : 'Session saved')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to save session.'
       showToast.error(msg)
@@ -2145,6 +2165,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           <EventHubNavbar
             eventName={eventName}
             isDraft={isDraft}
+            eventStatus={eventStatus}
             onBackClick={onBackClick}
             onSearchClick={handleSearchClick}
             onNotificationClick={handleNotificationClick}
@@ -2194,6 +2215,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             onAddSession={handleAddSessionClick}
             onBack={handleBackToTable}
             sessions={activeScheduleId ? (savedSchedules.find(s => String(s.id) === String(activeScheduleId))?.sessions ?? []) : []}
+            availableLocations={activeScheduleId ? (savedSchedules.find(s => String(s.id) === String(activeScheduleId))?.availableLocations ?? undefined) : undefined}
             selectedDate={selectedDate}
             rangeStartDate={rangeStartDate}
             rangeEndDate={rangeEndDate}
@@ -2370,7 +2392,31 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         availableLocations={availableLocations}
         eventUuid={createdEvent?.uuid ?? ''}
         topOffset={64}
-        panelWidthRatio={0.8}
+        panelWidthRatio={0.5}
+        onBeforeRemoveSection={
+          createdEvent?.uuid
+            ? async (section) => {
+                if (!section.sectionId) return
+                try {
+                  await deleteSessionSection(createdEvent.uuid, section.sectionId)
+                } catch (e) {
+                  showToast.error(e instanceof Error ? e.message : 'Failed to delete section.')
+                }
+              }
+            : undefined
+        }
+        onBeforeRemoveResourceFile={
+          createdEvent?.uuid
+            ? async (_sectionId, file) => {
+                if (!file.resourceId) return
+                try {
+                  await deleteSessionResource(createdEvent.uuid, file.resourceId)
+                } catch (e) {
+                  showToast.error(e instanceof Error ? e.message : 'Failed to delete resource.')
+                }
+              }
+            : undefined
+        }
       />
 
       <ScheduleDetailsSlideout

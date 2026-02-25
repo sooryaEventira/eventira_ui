@@ -1,9 +1,14 @@
 import React from 'react'
 import { Home01, SearchLg, Bell01, User01 } from '@untitled-ui/icons-react'
 
+export type EventStatusDisplay = 'Live' | 'Draft' | 'Published'
+
 interface EventHubNavbarProps {
   eventName?: string
+  /** @deprecated Prefer eventStatus for actual API status */
   isDraft?: boolean
+  /** Actual event status from API (e.g. 'Live' | 'Draft' | 'Published' or lowercase). When set, overrides isDraft for the badge. */
+  eventStatus?: string
   onBackClick?: () => void
   onSearchClick?: () => void
   onNotificationClick?: () => void
@@ -11,15 +16,26 @@ interface EventHubNavbarProps {
   userAvatarUrl?: string
 }
 
+function normalizeStatus(raw: string | undefined): EventStatusDisplay {
+  if (!raw || !raw.trim()) return 'Draft'
+  const s = raw.trim().toLowerCase()
+  if (s === 'live' || s === 'published') return s === 'live' ? 'Live' : 'Published'
+  return 'Draft'
+}
+
 const EventHubNavbar: React.FC<EventHubNavbarProps> = ({
   eventName = 'Highly important conference of 2025',
   isDraft = true,
+  eventStatus,
   onBackClick,
   onSearchClick,
   onNotificationClick,
   onProfileClick,
   userAvatarUrl
 }) => {
+  const status = eventStatus !== undefined && eventStatus !== ''
+    ? normalizeStatus(eventStatus)
+    : (isDraft ? 'Draft' : 'Live')
   return (
     <nav
       data-preserve-color="true"
@@ -41,11 +57,18 @@ const EventHubNavbar: React.FC<EventHubNavbarProps> = ({
           {eventName}
         </span>
 
-        {isDraft && (
-          <span className="hidden shrink-0 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide text-slate-800 sm:inline-flex sm:text-xs">
-            Draft
-          </span>
-        )}
+        <span
+          className={[
+            'hidden shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide sm:inline-flex sm:text-xs',
+            status === 'Live'
+              ? 'bg-emerald-100 text-emerald-800'
+              : status === 'Published'
+                ? 'bg-sky-100 text-sky-800'
+                : 'bg-white text-slate-800'
+          ].join(' ')}
+        >
+          {status}
+        </span>
       </div>
 
       <div className="flex items-center gap-3 sm:gap-4">
