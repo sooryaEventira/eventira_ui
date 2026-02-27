@@ -29,6 +29,9 @@ import {
   getSessionUuidFromResponse,
   findSessionUuidFromList,
   deleteSession as deleteSessionApi,
+  fetchSessionTags,
+  fetchSessionLocations,
+  type SessionTagOption,
   type CreateSessionBody,
   type UpdateSessionBody,
   type CreateSessionSectionsBody
@@ -206,6 +209,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const [startInEditMode, setStartInEditMode] = React.useState(true)
   const [currentView, setCurrentView] = React.useState<'table' | 'content'>('table')
   const [availableTags, setAvailableTags] = React.useState<string[]>([])
+  const [availableSessionTags, setAvailableSessionTags] = React.useState<SessionTagOption[]>([])
   const [availableLocations, setAvailableLocations] = React.useState<string[]>([])
   const [sessionToDelete, setSessionToDelete] = React.useState<SavedSession | null>(null)
   const [isDeletingSession, setIsDeletingSession] = React.useState(false)
@@ -252,6 +256,67 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       })
     return () => { cancelled = true }
   }, [currentEventUuid])
+
+  // Load session tags and locations from API when a schedule is selected (for add/edit session slideout).
+  React.useEffect(() => {
+    const eventUuid = createdEvent?.uuid
+    const scheduleUuid = activeScheduleId
+    if (!eventUuid || !scheduleUuid) return
+
+    let cancelled = false
+    Promise.all([
+      fetchSessionTags(eventUuid),
+      fetchSessionLocations(eventUuid, scheduleUuid)
+    ]).then(([apiTagOptions, apiLocations]) => {
+      if (cancelled) return
+      const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
+      const fromSchedule = {
+        locations: Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
+      }
+      const mergeLoc = (a: string[], b: string[]) => {
+        const set = new Set<string>()
+        ;[...a, ...b].forEach((s) => s && set.add(String(s).trim()))
+        return Array.from(set).filter(Boolean)
+      }
+      setAvailableSessionTags(Array.isArray(apiTagOptions) ? apiTagOptions : [])
+      setAvailableLocations(mergeLoc(apiLocations, fromSchedule.locations))
+    }).catch(() => {
+      if (!cancelled) {
+        const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
+        setAvailableSessionTags([])
+        setAvailableLocations(schedule?.availableLocations ?? [])
+      }
+    })
+    return () => { cancelled = true }
+  }, [createdEvent?.uuid, activeScheduleId, savedSchedules])
+
+  // When session or template slideout opens, refresh tags/locations so add-child, create-from-scratch, and template always have the list.
+  React.useEffect(() => {
+    const eventUuid = createdEvent?.uuid
+    const scheduleUuid = activeScheduleId
+    if (!eventUuid || !scheduleUuid) return
+    if (!isSessionSlideoutOpen && !isTemplateSessionSlideoutOpen) return
+
+    let cancelled = false
+    Promise.all([
+      fetchSessionTags(eventUuid),
+      fetchSessionLocations(eventUuid, scheduleUuid)
+    ]).then(([apiTagOptions, apiLocations]) => {
+      if (cancelled) return
+      const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
+      const fromSchedule = {
+        locations: Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
+      }
+      const mergeLoc = (a: string[], b: string[]) => {
+        const set = new Set<string>()
+        ;[...a, ...b].forEach((s) => s && set.add(String(s).trim()))
+        return Array.from(set).filter(Boolean)
+      }
+      setAvailableSessionTags(Array.isArray(apiTagOptions) ? apiTagOptions : [])
+      setAvailableLocations(mergeLoc(apiLocations, fromSchedule.locations))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [isSessionSlideoutOpen, isTemplateSessionSlideoutOpen, createdEvent?.uuid, activeScheduleId, savedSchedules])
 
   // Use fetched event first so weekday selector shows the correct event's dates when switching.
   // Support API fields: event_date, startDate, start_date, startDateTimeISO (use date part).
@@ -886,6 +951,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             sessionType: s?.session_type ?? s?.sessionType ?? s?.type ?? '',
             tags,
             sections,
+            attachment_count:
+              typeof s?.attachment_count === 'number'
+                ? s.attachment_count
+                : Array.isArray(s?.attachments)
+                  ? s.attachments.length
+                  : 0,
             attachments: Array.isArray(s?.attachments) ? s.attachments : [],
             date: date && !Number.isNaN(date.getTime()) ? date : undefined,
             parentId: (() => {
@@ -1616,7 +1687,17 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       normalizedSession.endTime || '00:00',
       normalizedSession.endPeriod || 'PM'
     )
-    const tagUuids = (normalizedSession.tags ?? []).filter((t) => typeof t === 'string' && UUID_REGEX.test(t.trim()))
+    const tagUuids = (normalizedSession.tags ?? []).filter(
+      (t) => typeof t === 'string' && UUID_REGEX.test(t.trim())
+    )
+    const tagNames = (normalizedSession.tags ?? [])
+      .map((t) => {
+        if (typeof t !== 'string') return null
+        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t)
+        const name = (fromOptions?.name ?? t)?.toString().trim()
+        return name || null
+      })
+      .filter((name): name is string => !!name)
     const draftId = (normalizedSession as SavedSession).id
     const isEdit = Boolean(
       draftId &&
@@ -1666,12 +1747,48 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             location: normalizedSession.location ?? '',
             session_type: parentSessionId ? 'child' : (normalizedSession.sessionType?.trim() || 'keynote'),
             tag_uuids: tagUuids,
-            ...(parentSessionId ? { parent_session_uuid: parentSessionId } : { parent_session_uuid: null })
+            tags: tagNames,
+            ...(parentSessionId ? { parent: parentSessionId } : { parent: null })
           }
           const updateResponse = await updateSession(eventUuid, sessionUuidForUpdate, String(activeScheduleId), updateBody)
           console.log('[Session save] PATCH session response:', updateResponse)
 
-          const filesFromSections = collectFilesFromSections(normalizedSession.sections)
+          // Determine video sections that already have a backend resource and a newly uploaded file.
+          const videoSectionsNeedingFilePatch = (normalizedSession.sections ?? []).filter(
+            (s) =>
+              s.type === 'video' &&
+              s.data?.videoFile instanceof File &&
+              s.data?.videoResourceId &&
+              String(s.data.videoResourceId).trim()
+          )
+
+          // For these sections, PATCH the existing session-resource with the new file instead of creating a new resource.
+          for (const s of videoSectionsNeedingFilePatch) {
+            const resourceId = String(s.data!.videoResourceId).trim()
+            const file = s.data!.videoFile as File
+            try {
+              await updateSessionResource(eventUuid, resourceId, {
+                session_uuid: sessionUuidForUpdate,
+                order: undefined,
+                file
+              } as any)
+            } catch (e) {
+              console.warn('[Session save] updateSessionResource (file PATCH) failed for', resourceId, e)
+            }
+          }
+
+          // For createSessionResources, exclude videoFiles that we already PATCHed above.
+          const sectionsForUpload = (normalizedSession.sections ?? []).map((s) => {
+            if (videoSectionsNeedingFilePatch.includes(s) && s.data?.videoFile instanceof File) {
+              return {
+                ...s,
+                data: { ...(s.data || {}), videoFile: undefined }
+              }
+            }
+            return s
+          })
+
+          const filesFromSections = collectFilesFromSections(sectionsForUpload)
           const allFiles = [...(normalizedSession.attachments ?? []), ...filesFromSections]
           const attachmentCount = normalizedSession.attachments?.length ?? 0
           let newResourceIdsFromCreate: string[] = []
@@ -1687,7 +1804,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             console.log('[Session save] session-resources response:', resourcesResponse)
             newResourceIdsFromCreate = extractResourceIdsFromResponse(resourcesResponse)
             const urls = extractUrlsFromResourcesResponse(resourcesResponse)
-            const videoIndices = getVideoFileIndicesInFlattenedFiles(normalizedSession.sections)
+            const videoIndices = getVideoFileIndicesInFlattenedFiles(sectionsForUpload)
             videoIndices.forEach(({ sectionIndex, fileIndex }) => {
               const urlIndex = attachmentCount + fileIndex
               const url = urls[urlIndex]
@@ -1724,6 +1841,28 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             } catch (e) {
               console.warn('[Session save] updateSessionResource failed for', resourceId, e)
               showToast.error(`Failed to update resource order: ${e instanceof Error ? e.message : 'Unknown error'}`)
+            }
+          }
+          // Fallback: when only new files exist (e.g. editing video/resources, no previous resources),
+          // still PATCH the created resources so backend has session_uuid + order.
+          if (orderedResourceIdsOrIndices.length === 0 && newResourceIdsFromCreate.length > 0) {
+            for (let i = 0; i < newResourceIdsFromCreate.length; i++) {
+              const rid = newResourceIdsFromCreate[i]
+              if (!rid?.trim()) continue
+              const updateBody = {
+                session_uuid: sessionUuidForUpdate,
+                order: i + 1
+              }
+              console.log('[Session save] updateSessionResource — fallback PATCH on Save:', {
+                event_id: eventUuid,
+                session_resource_id: rid,
+                body: updateBody
+              })
+              try {
+                await updateSessionResource(eventUuid, rid.trim(), updateBody)
+              } catch (e) {
+                console.warn('[Session save] fallback updateSessionResource failed for', rid, e)
+              }
             }
           }
 
@@ -1764,7 +1903,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             location: normalizedSession.location ?? '',
             session_type: parentSessionId ? 'child' : (normalizedSession.sessionType?.trim() || 'keynote'),
             tag_uuids: tagUuids,
-            ...(parentSessionId ? { parent_session_uuid: parentSessionId } : {})
+            tags: tagNames,
+            ...(parentSessionId ? { parent: parentSessionId } : {})
           }
           const created = await createSession(eventUuid, sessionBody)
           console.log('[Session save] POST session response:', created, 'keys:', created && typeof created === 'object' ? Object.keys(created) : [])
@@ -1880,7 +2020,17 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     }
     const startAt = toUTCISOFrom24h(selectedDate, data.startTime || '00:00')
     const endAt = toUTCISOFrom24h(selectedDate, data.endTime || '00:00')
-    const tagUuids = (data.tags ?? []).filter((t: string) => typeof t === 'string' && UUID_REGEX.test(String(t).trim()))
+    const tagUuids = (data.tags ?? []).filter(
+      (t: string) => typeof t === 'string' && UUID_REGEX.test(String(t).trim())
+    )
+    const tagNames = (data.tags ?? [])
+      .map((t: string) => {
+        if (typeof t !== 'string') return null
+        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t)
+        const name = (fromOptions?.name ?? t)?.toString().trim()
+        return name || null
+      })
+      .filter((name): name is string => !!name)
     const firstTextSection = (data.sections ?? []).find((s: { type?: string }) => s.type === 'text') as { description?: string; data?: { body?: string } } | undefined
     const derivedDescription =
       (data.description?.trim()) ??
@@ -1896,10 +2046,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       end_at: endAt,
       location: data.location ?? '',
       session_type: (data.sessionType?.trim() || 'keynote'),
-      tag_uuids: tagUuids
+      tag_uuids: tagUuids,
+      tags: tagNames
     }
     try {
       let sessionUuid: string | undefined
+      const isEditTemplate = Boolean(sessionId)
       if (sessionId) {
         const updateBody: UpdateSessionBody = { ...sessionBody }
         await updateSession(eventUuid, sessionId, String(activeScheduleId), updateBody)
@@ -1909,54 +2061,202 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         sessionUuid = getSessionUuidFromResponse(created)
       }
 
-      const sectionsToSend: CreateSessionSectionsBody['sections'] = []
-      let order = 1
-      for (const s of data.sections ?? []) {
-        const rawType = (s.type === 'speaker' ? 'speakers' : s.type) || 'text'
-        if (rawType === 'resources' || rawType === 'resource') continue
-        const sectionType = toApiSectionType(rawType)
-        if (sectionType === 'resource') continue
-        let content: Record<string, unknown>
-        if (sectionType === 'text') {
-          const body = (s as { description?: string; data?: { body?: string } }).description ?? (s as { data?: { body?: string } }).data?.body ?? ''
-          content = { title: s.title || 'Section', body: typeof body === 'string' ? body : '' }
-        } else if (sectionType === 'speakers') {
-          const speakerList = Array.isArray(s.data?.speakers)
-            ? (s.data.speakers as { id: string; name?: string; role?: string }[])
-            : []
-          const uuids = speakerList.length > 0 ? speakerList.map((sp) => sp.id) : (Array.isArray(s.data?.speaker_uuids) ? s.data.speaker_uuids : [])
-          content = {
-            speaker_uuids: uuids,
-            speakers: speakerList.length > 0 ? speakerList.map((sp) => ({ id: sp.id, name: sp.name ?? '', role: sp.role ?? '' })) : uuids.map((id) => ({ id, name: '', role: '' }))
-          }
-        } else {
-          content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
-          if (s.title) content.title = s.title
-          if (s.description) content.body = s.description
-        }
-        sectionsToSend.push({ section_type: sectionType, order: order++, content })
+      const baseSections = data.sections ?? []
+      if (!sessionUuid) {
+        throw new Error('Failed to resolve session UUID for template save.')
       }
-      if ((data.speakers ?? []).length > 0) {
-        const speakerList = data.speakers as Array<{ id: string; name: string; role?: string }>
-        sectionsToSend.push({
-          section_type: 'speakers',
-          order: order++,
-          content: {
-            speaker_uuids: speakerList.map((sp) => sp.id),
-            speakers: speakerList.map((sp) => ({ id: sp.id, name: sp.name ?? '', role: sp.role ?? '' }))
+
+      // Build full section list so template video + resources are included for upload and PATCH order
+      const syntheticVideo =
+        data.videoFile || (data.videoUrl ?? data.videoPreviewUrl ?? '').trim()
+          ? {
+              id: 'template-video',
+              type: 'video' as const,
+              title: 'Video',
+              description: '',
+              data: {
+                videoFile: data.videoFile ?? undefined,
+                videoUrl: (data.videoUrl ?? data.videoPreviewUrl ?? '').trim()
+              }
+            }
+          : null
+      const syntheticResources =
+        (data.resources?.length ?? 0) > 0
+          ? {
+              id: 'template-resources',
+              type: 'resources' as const,
+              title: 'Resources',
+              description: '',
+              data: { files: (data.resources ?? []) as File[] }
+            }
+          : null
+      const templateSections: SessionDraft['sections'] = [
+        ...(syntheticVideo ? [syntheticVideo] : []),
+        ...(syntheticResources ? [syntheticResources] : []),
+        ...baseSections
+      ]
+
+      // --- Session resources: mirror SessionSlideout behaviour ---
+      const filesFromSections = collectFilesFromSections(templateSections)
+      const allFiles = filesFromSections
+      const attachmentCount = 0
+      let newResourceIdsFromCreate: string[] = []
+
+      if (allFiles.length > 0) {
+        const resourcesResponse = await createSessionResources(eventUuid, allFiles, { session_uuid: sessionUuid })
+        newResourceIdsFromCreate = extractResourceIdsFromResponse(resourcesResponse)
+        const urls = extractUrlsFromResourcesResponse(resourcesResponse)
+        const videoIndices = getVideoFileIndicesInFlattenedFiles(templateSections)
+        videoIndices.forEach(({ sectionIndex, fileIndex }) => {
+          const urlIndex = attachmentCount + fileIndex
+          const url = urls[urlIndex]
+          if (url) {
+            const s = templateSections[sectionIndex]
+            if (s?.type === 'video' && s.data?.videoFile) {
+              templateSections[sectionIndex] = {
+                ...s,
+                data: {
+                  ...(s.data || {}),
+                  videoUrl: url,
+                  video_url: url,
+                  videoFile: undefined,
+                  videoPreviewUrl: undefined
+                }
+              }
+            }
           }
-        })
-      }
-      if (sectionsToSend.length > 0 && sessionUuid && !sessionId) {
-        await createSessionSections(eventUuid, {
-          session_uuid: sessionUuid,
-          sections: sectionsToSend
         })
       }
 
-      const files = data.resources ?? []
-      if (files.length > 0) {
-        await createSessionResources(eventUuid, files, sessionUuid ? { session_uuid: sessionUuid } : undefined)
+      // Re-order and update resources for this session (same POST+PATCH pattern as SessionSlideout)
+      const orderedResourceIdsOrIndices = getOrderedResourceIdsOrIndices(templateSections, attachmentCount)
+      for (let i = 0; i < orderedResourceIdsOrIndices.length; i++) {
+        const entry = orderedResourceIdsOrIndices[i]
+        const resourceId = entry.id ?? (entry.allFilesIndex != null ? newResourceIdsFromCreate[entry.allFilesIndex] : undefined)
+        if (!resourceId?.trim()) continue
+        const updateBody = {
+          session_uuid: sessionUuid,
+          order: i + 1
+        }
+        try {
+          await updateSessionResource(eventUuid, resourceId.trim(), updateBody)
+        } catch (e) {
+          console.warn('[Template session save] updateSessionResource failed for', resourceId, e)
+          showToast.error(`Failed to update resource order: ${e instanceof Error ? e.message : 'Unknown error'}`)
+        }
+      }
+      // Fallback: when there were only newly-uploaded files (e.g. video in template)
+      // and no existing resources to order, still issue PATCH calls for the created resources
+      if (orderedResourceIdsOrIndices.length === 0 && newResourceIdsFromCreate.length > 0) {
+        for (let i = 0; i < newResourceIdsFromCreate.length; i++) {
+          const rid = newResourceIdsFromCreate[i]
+          if (!rid?.trim()) continue
+          const updateBody = {
+            session_uuid: sessionUuid,
+            order: i + 1
+          }
+          try {
+            await updateSessionResource(eventUuid, rid.trim(), updateBody)
+          } catch (e) {
+            console.warn('[Template session save] fallback updateSessionResource failed for', rid, e)
+          }
+        }
+      }
+
+      // --- Session sections: create vs patch, mirroring SessionSlideout ---
+      if (isEditTemplate) {
+        const nonResourceSections = baseSections.filter(
+          (s) => toApiSectionType((s.type === 'speaker' ? 'speakers' : s.type) || 'text') !== 'resource'
+        )
+        const toCreate: CreateSessionSectionsBody['sections'] = []
+        for (let i = 0; i < nonResourceSections.length; i++) {
+          const s = nonResourceSections[i]
+          const payload = buildOneSectionPayload(s, i + 1)
+          if (s.sectionId) {
+            await updateSessionSection(eventUuid, s.sectionId, { ...payload, session_uuid: sessionUuid })
+          } else {
+            toCreate.push(payload)
+          }
+        }
+        if (toCreate.length) {
+          await createSessionSections(eventUuid, {
+            session_uuid: sessionUuid,
+            sections: toCreate
+          })
+        }
+      } else {
+        const sectionsToSend: CreateSessionSectionsBody['sections'] = []
+        let order = 1
+        for (const s of baseSections) {
+          const rawType = (s.type === 'speaker' ? 'speakers' : s.type) || 'text'
+          if (rawType === 'resources' || rawType === 'resource') continue
+          const sectionType = toApiSectionType(rawType)
+          if (sectionType === 'resource') continue
+          let content: Record<string, unknown>
+          if (sectionType === 'text') {
+            const body = (s as { description?: string; data?: { body?: string } }).description ?? (s as { data?: { body?: string } }).data?.body ?? ''
+            content = { title: s.title || 'Section', body: typeof body === 'string' ? body : '' }
+          } else if (sectionType === 'speakers') {
+            const speakerList = Array.isArray(s.data?.speakers)
+              ? (s.data.speakers as { id: string; name?: string; role?: string }[])
+              : []
+            const uuids = speakerList.length > 0 ? speakerList.map((sp) => sp.id) : (Array.isArray(s.data?.speaker_uuids) ? s.data.speaker_uuids : [])
+            content = {
+              speaker_uuids: uuids,
+              speakers: speakerList.length > 0
+                ? speakerList.map((sp) => ({ id: sp.id, name: sp.name ?? '', role: sp.role ?? '' }))
+                : uuids.map((id) => ({ id, name: '', role: '' }))
+            }
+          } else {
+            content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>
+            if (s.title) content.title = s.title
+            if (s.description) content.body = s.description
+          }
+          sectionsToSend.push({ section_type: sectionType, order: order++, content })
+        }
+        // Template-only description → send as text section when no explicit text section exists
+        const hasTextSection = baseSections.some((s) => s.type === 'text')
+        if (!hasTextSection && data.description?.trim()) {
+          sectionsToSend.push({
+            section_type: 'text',
+            order: order++,
+            content: {
+              title: 'Text',
+              body: data.description.trim()
+            }
+          })
+        }
+        // Template-only video URL → send as video section when no explicit video section exists
+        const effectiveVideoUrl = (data.videoUrl || data.videoPreviewUrl || '').trim()
+        const hasVideoSection = baseSections.some((s) => s.type === 'video')
+        if (!hasVideoSection && effectiveVideoUrl) {
+          sectionsToSend.push({
+            section_type: 'video',
+            order: order++,
+            content: {
+              title: 'Video',
+              url: effectiveVideoUrl,
+              video_url: effectiveVideoUrl
+            }
+          })
+        }
+        if ((data.speakers ?? []).length > 0) {
+          const speakerList = data.speakers as Array<{ id: string; name: string; role?: string }>
+          sectionsToSend.push({
+            section_type: 'speakers',
+            order: order++,
+            content: {
+              speaker_uuids: speakerList.map((sp) => sp.id),
+              speakers: speakerList.map((sp) => ({ id: sp.id, name: sp.name ?? '', role: sp.role ?? '' }))
+            }
+          })
+        }
+        if (sectionsToSend.length > 0) {
+          await createSessionSections(eventUuid, {
+            session_uuid: sessionUuid,
+            sections: sectionsToSend
+          })
+        }
       }
 
       await loadSessions(activeScheduleId)
@@ -2354,7 +2654,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         startInEditMode={startInEditMode}
         topOffset={64}
         panelWidthRatio={0.5}
-        availableTags={availableTags}
+        availableTags={availableSessionTags.map((t) => t.name)}
+        sessionTagOptions={availableSessionTags}
         availableLocations={availableLocations}
         eventUuid={createdEvent?.uuid ?? ''}
         onBeforeRemoveSection={
@@ -2388,7 +2689,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         isOpen={isTemplateSessionSlideoutOpen}
         onClose={() => setIsTemplateSessionSlideoutOpen(false)}
         onSave={handleSaveTemplateSession}
-        availableTags={availableTags}
+        availableTags={availableSessionTags.map((t) => t.name)}
+        sessionTagOptions={availableSessionTags}
         availableLocations={availableLocations}
         eventUuid={createdEvent?.uuid ?? ''}
         topOffset={64}

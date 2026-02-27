@@ -47,16 +47,17 @@ export const mapRetrieveSessionToDraft = (
   const endCandidate = raw?.end_time ?? raw?.endTime ?? raw?.end_at ?? raw?.ends_at ?? null
   const start = parseIsoToTime(startCandidate)
   const end = parseIsoToTime(endCandidate)
-  const normalizeTags = (tags: any): string[] => {
-    if (!tags) return []
-    if (Array.isArray(tags)) {
-      return tags
-        .map((t) => (typeof t === 'string' ? t : t?.name ?? t?.title ?? t?.label ?? null))
+  const normalizeTags = (rawTags: any): string[] => {
+    if (!rawTags) return []
+    if (Array.isArray(rawTags)) {
+      return rawTags
+        .map((t) => (typeof t === 'string' ? t : (t?.uuid ?? t?.id ?? t?.name ?? t?.title ?? t?.label ?? null)))
         .filter(Boolean)
     }
     return []
   }
-  const tags = normalizeTags(raw?.tags)
+  // Prefer tag_uuids from API so we send them back on save; fallback to tags (names or objects)
+  const tags = normalizeTags(raw?.tag_uuids ?? raw?.tags)
   const description = raw?.description ?? raw?.summary ?? ''
   const apiSections =
     Array.isArray(raw?.sections)
@@ -152,14 +153,16 @@ export const mapRetrieveSessionToDraft = (
       }
     })
     if (videoResources.length > 0) {
-      const firstVideo = videoResources[0]
+      const firstVideo = videoResources[0] as { url?: string; name?: string; resourceId?: string }
       const videoUrl = typeof firstVideo === 'object' && firstVideo?.url ? String(firstVideo.url) : ''
+      const videoResourceId = firstVideo?.resourceId != null && firstVideo.resourceId !== '' ? String(firstVideo.resourceId).trim() : undefined
       let videoSection = sections.find((s: any) => s.type === 'video')
       if (videoSection) {
         videoSection.data = {
           ...(videoSection.data || {}),
           videoUrl,
-          video_url: videoUrl
+          video_url: videoUrl,
+          ...(videoResourceId ? { videoResourceId } : {})
         }
       } else {
         sections.push({
@@ -167,7 +170,7 @@ export const mapRetrieveSessionToDraft = (
           type: 'video',
           title: 'Video',
           description: '',
-          data: { videoUrl, video_url: videoUrl }
+          data: { videoUrl, video_url: videoUrl, ...(videoResourceId ? { videoResourceId } : {}) }
         })
       }
     }
@@ -239,6 +242,12 @@ export const mapRetrieveSessionToDraft = (
     sessionType: raw?.session_type ?? raw?.sessionType ?? raw?.type ?? 'keynote',
     tags,
     sections: sectionsOut,
+    attachment_count:
+      typeof raw?.attachment_count === 'number'
+        ? raw.attachment_count
+        : Array.isArray(raw?.attachments)
+          ? raw.attachments.length
+          : 0,
     attachments: Array.isArray(raw?.attachments) ? raw.attachments : [],
     date,
     parentId

@@ -12,8 +12,10 @@ export interface CreateSessionBody {
   location: string
   session_type: string
   tag_uuids: string[]
-  /** Optional: parent session UUID when creating a child/parallel session */
-  parent_session_uuid?: string
+  /** Optional: human-readable tag labels so backend can echo tags array in response. */
+  tags?: string[]
+  /** Optional: parent session UUID when creating a child/parallel session. Backend expects the field name `parent`. */
+  parent?: string
 }
 
 /** Payload for PUT/PATCH sessions (update session). Backend requires event_uuid and schedule_uuid in body. */
@@ -27,7 +29,10 @@ export interface UpdateSessionBody {
   location: string
   session_type: string
   tag_uuids: string[]
-  parent_session_uuid?: string | null
+  /** Optional: human-readable tag labels so backend can echo tags array in response. */
+  tags?: string[]
+  /** Optional: parent session UUID when updating a child/parallel session. Backend expects the field name `parent`. */
+  parent?: string | null
 }
 
 /** Content shape for text section. API expects content: { title, body }. */
@@ -95,6 +100,115 @@ export async function listSessions(
     data = null
   }
   return { ok: true, data }
+}
+
+/** Extract string list from API response (array of strings or array of objects with name/title). */
+function extractStringList(payload: unknown): string[] {
+  if (!payload || typeof payload !== 'object') return []
+  const raw = payload as Record<string, unknown>
+  let arr: unknown[] = []
+  if (Array.isArray(raw)) arr = raw
+  else if (Array.isArray(raw.data)) arr = raw.data
+  else if (Array.isArray(raw.results)) arr = raw.results
+  else if (raw.data && typeof raw.data === 'object' && Array.isArray((raw.data as Record<string, unknown>).results)) {
+    arr = (raw.data as Record<string, unknown>).results as unknown[]
+  }
+  return arr
+    .map((item) => {
+      if (typeof item === 'string' && item.trim()) return item.trim()
+      if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>
+        const name = o.name ?? o.title ?? o.label
+        if (typeof name === 'string' && name.trim()) return name.trim()
+      }
+      return null
+    })
+    .filter((s): s is string => Boolean(s))
+}
+
+/** Session tag with uuid for sending tag_uuids to backend. */
+export interface SessionTagOption {
+  uuid: string
+  name: string
+}
+
+/** Extract session tag options (uuid + name) from API response. */
+function extractSessionTagOptions(payload: unknown): SessionTagOption[] {
+  if (!payload || typeof payload !== 'object') return []
+  const raw = payload as Record<string, unknown>
+  let arr: unknown[] = []
+  if (Array.isArray(raw)) arr = raw
+  else if (Array.isArray(raw.data)) arr = raw.data
+  else if (Array.isArray(raw.results)) arr = raw.results
+  else if (raw.data && typeof raw.data === 'object' && Array.isArray((raw.data as Record<string, unknown>).results)) {
+    arr = (raw.data as Record<string, unknown>).results as unknown[]
+  }
+  return arr
+    .map((item): SessionTagOption | null => {
+      if (typeof item === 'string' && item.trim()) return { uuid: item.trim(), name: item.trim() }
+      if (item && typeof item === 'object') {
+        const o = item as Record<string, unknown>
+        const uuid = o.uuid ?? o.id ?? o.pk
+        const name = o.name ?? o.title ?? o.label
+        if (uuid != null && String(uuid).trim()) {
+          return { uuid: String(uuid).trim(), name: typeof name === 'string' && name.trim() ? name.trim() : String(uuid).trim() }
+        }
+      }
+      return null
+    })
+    .filter((s): s is SessionTagOption => Boolean(s))
+}
+
+/** List session tags for event (add/edit session slideout). Returns uuid + name so UI can send tag_uuids to backend. GET {{admin_url}}session-tags/?event_id= */
+export async function fetchSessionTags(eventUuid: string): Promise<SessionTagOption[]> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) return []
+  const url = API_ENDPOINTS.SESSION_TAGS.LIST(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+  if (!response.ok) return []
+  const text = await response.text().catch(() => '')
+  let data: unknown = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    return []
+  }
+  return extractSessionTagOptions(data)
+}
+
+/** List session locations for event + schedule (add/edit session slideout). GET {{admin_url}}sessions/locations?event_id=&schedule_uuid= */
+export async function fetchSessionLocations(eventUuid: string, scheduleUuid: string): Promise<string[]> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) return []
+  const url = API_ENDPOINTS.SESSIONS.LOCATIONS(eventUuid, scheduleUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+  if (!response.ok) return []
+  const text = await response.text().catch(() => '')
+  let data: unknown = null
+  try {
+    data = text ? JSON.parse(text) : null
+  } catch {
+    return []
+  }
+  return extractStringList(data)
 }
 
 /** Fallback: find session UUID from list when create response doesn't return it. Matches by title + start_at. */
@@ -522,16 +636,47 @@ export async function updateSessionResource(
     throw new Error(msg)
   }
   const url = API_ENDPOINTS.SESSION_RESOURCES.UPDATE(sessionResourceId, eventUuid)
-  const response = await fetch(url, {
-    method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-      'X-Organization': organizationUuid,
-    },
-    credentials: 'include',
-    body: JSON.stringify(body),
-  })
+
+  const maybeFile = (body as any)?.file
+  const hasFile = typeof File !== 'undefined' && maybeFile instanceof File
+
+  let response: Response
+  if (hasFile) {
+    // When a File is present, send multipart/form-data so backend can replace the file
+    const formData = new FormData()
+    formData.append('file', maybeFile as File)
+    if (body.session_uuid) {
+      formData.append('session_uuid', String(body.session_uuid))
+    }
+    if (typeof body.title === 'string') {
+      formData.append('title', body.title)
+    }
+    if (typeof body.order === 'number') {
+      formData.append('order', String(body.order))
+    }
+    formData.append('event_uuid', eventUuid)
+
+    response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: formData,
+    })
+  } else {
+    response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify(body),
+    })
+  }
   if (!response.ok) {
     const text = await response.text().catch(() => '')
     let err: unknown = text

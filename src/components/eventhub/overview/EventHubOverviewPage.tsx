@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
+import { fetchEvent } from '../../../services/eventService'
 import { fetchEventOverview, type EventOverviewPayload } from '../../../services/eventOverviewService'
 import { fetchAttendees } from '../../../services/attendeeService'
 import { showToast } from '../../../utils/toast'
@@ -103,6 +104,8 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<EventOverviewPayload | null>(null)
+  /** Status from GET event API (source of truth); normalized to 'live' | 'draft' */
+  const [eventStatusFromApi, setEventStatusFromApi] = useState<'live' | 'draft' | null>(null)
 
   const websiteUrl = useMemo(() => {
     if (!eventUuid) return ''
@@ -115,16 +118,32 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
       if (!eventUuid) {
         setLoading(false)
         setData(null)
+        setEventStatusFromApi(null)
         setError('Event not selected.')
         return
       }
 
       setLoading(true)
       setError(null)
+      setEventStatusFromApi(null)
       try {
-        const payload = await fetchEventOverview(eventUuid)
+        const [payload, eventDetails] = await Promise.all([
+          fetchEventOverview(eventUuid),
+          fetchEvent(eventUuid).catch(() => null)
+        ])
         if (cancelled) return
         setData(payload)
+        if (eventDetails) {
+          const ev = eventDetails as Record<string, unknown>
+          const rawStatus =
+            ev.status ?? ev.event_status ?? ev.publish_status ?? ev.is_published
+          if (rawStatus != null && rawStatus !== '') {
+            const s = String(rawStatus).toLowerCase().trim()
+            if (s === 'true' || s === '1') setEventStatusFromApi('live')
+            else if (s === 'false' || s === '0') setEventStatusFromApi('draft')
+            else setEventStatusFromApi(s === 'live' || s === 'published' || s === 'publish' ? 'live' : 'draft')
+          }
+        }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load overview.'
         if (cancelled) return
@@ -173,8 +192,14 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
   }
 
   const eventTitle = data?.event.title ?? (createdEvent?.eventName || eventData?.eventName || 'Event Overview')
-  const status = data?.event.status ?? 'draft'
-  console.log('Overview data:', data)
+  // Use GET event API status as source of truth, then overview, then context
+  const statusFromOverview = data?.event?.status
+  const statusFromContext = (createdEvent as any)?.status ?? (eventData as any)?.status
+  const normalizedContextStatus: 'live' | 'draft' =
+    statusFromContext != null && String(statusFromContext).toLowerCase().match(/^(live|published|publish)$/)
+      ? 'live'
+      : 'draft'
+  const status = eventStatusFromApi ?? statusFromOverview ?? normalizedContextStatus ?? 'draft'
 
   return (
     <div className="flex-1 p-8 bg-white overflow-x-auto overflow-y-auto min-w-0">

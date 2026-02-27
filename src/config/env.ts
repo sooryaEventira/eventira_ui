@@ -134,7 +134,7 @@ export const API_ENDPOINTS = {
       // Public event endpoint (backend expects singular `event/`)
       GET: (eventUuid: string) => `${PUBLIC_API_ROOT}event/${eventUuid}`,
       /** List all events */
-      LIST: () => `${PUBLIC_API_ROOT}events/`,
+      LIST: () => `${PUBLIC_API_ROOT}event/`,
       /** List events by tag: .../events/?tag_id={{tag_uuid}} */
       LIST_BY_TAG: (tagId: string) =>
         `${PUBLIC_API_ROOT}events/?tag_id=${encodeURIComponent(tagId)}`,
@@ -228,6 +228,14 @@ export const API_ENDPOINTS = {
     /** Bulk import: POST {{url}}{{admin_url}}sessions/schedules/{{schedule_uuid}}/bulk-import/ — pass event_id in body (form-data). */
     BULK_IMPORT: (scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/schedules/${scheduleUuid}/bulk-import/`,
+    /** List locations for sessions (add/edit session slideout). GET .../sessions/locations?event_id=&schedule_uuid= */
+    LOCATIONS: (eventUuid: string, scheduleUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/locations?event_id=${eventUuid}&schedule_uuid=${scheduleUuid}`,
+  },
+  // Session tags (for session slideout tag select). GET .../session-tags/?event_id=
+  SESSION_TAGS: {
+    LIST: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}session-tags/?event_id=${eventUuid}`,
   },
   // Session sections (create + update + delete)
   SESSION_SECTIONS: {

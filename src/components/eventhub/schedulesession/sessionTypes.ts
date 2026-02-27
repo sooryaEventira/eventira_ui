@@ -35,7 +35,9 @@ export interface SessionDraft {
   sessionType: string
   tags: string[]
   sections: SessionSection[]
+  /** Client-side only: files attached while editing a session (not from API). */
   attachments?: File[]
+  attachment_count?: number
 }
 
 export interface SavedSession extends SessionDraft {

@@ -135,7 +135,7 @@ const AccessControlTab: React.FC = () => {
       </div>
 
       {/* Pages Section */}
-      <div className="space-y-4">
+      {/* <div className="space-y-4">
         <label className="text-sm font-semibold text-slate-900">Pages</label>
         <div className="flex flex-col ">
           <label className="flex items-center cursor-pointer">
@@ -202,10 +202,10 @@ const AccessControlTab: React.FC = () => {
             </span>
           </label>
         </div>
-      </div>
+      </div> */}
 
       {/* Require Registration Section */}
-      <div className="space-y-4">
+      {/* <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <label className="text-sm font-semibold text-slate-900 block mb-1">Require registration</label>
@@ -229,7 +229,7 @@ const AccessControlTab: React.FC = () => {
             />
           </button>
         </div>
-      </div>
+      </div> */}
     </div>
   )
 }

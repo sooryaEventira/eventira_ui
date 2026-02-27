@@ -38,6 +38,8 @@ interface SessionContainerProps {
   onSessionClick?: (session: SavedSession) => void
   /** When true, close any open 3-dot menu (e.g. session form opened). */
   sessionFormOpen?: boolean
+  /** When false, only render the session card (no time column). Used for parallel-session row. */
+  showTimeColumn?: boolean
 }
 
 // Dropdown menu width for positioning
@@ -210,7 +212,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   onEditSession,
   onDeleteSession,
   onSessionClick,
-  sessionFormOpen = false
+  sessionFormOpen = false,
+  showTimeColumn = true
 }) => {
   const [menuOpenForId, setMenuOpenForId] = useState<string | null>(null)
 
@@ -405,7 +408,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                     <div className="flex items-center justify-between">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                         <Attachment01 className="h-3 w-3" />
-                        {child.attachments?.length || 0}
+                        {child.attachment_count || 0}
                       </span>
                     </div>
                   </div>
@@ -435,30 +438,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
     ]
   )
 
-  return (
-    <div className="flex items-stretch gap-6" ref={containerRef}>
-      {/* Time Column - spans parent + all children so the block shares one time range column */}
-      <div className="flex-shrink-0 w-24 self-stretch">
-        <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
-          <div className="text-center pt-3 flex-shrink-0">
-            <div className="text-sm font-semibold text-slate-900">
-              {timeStart}
-            </div>
-          </div>
-          <div className="flex-1 flex items-center justify-center min-h-0">
-            {/* Vertical line indicator */}
-            <div className="w-px h-full bg-slate-200"></div>
-          </div>
-          <div className="text-center pb-3 flex-shrink-0">
-            <div className="text-sm font-semibold text-slate-900">
-              {timeEnd}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Session Cards Column */}
-        <div className="flex-1">
+  const cardColumn = (
+    <div className={showTimeColumn ? 'flex-1' : 'flex-1 min-w-0'} key="card">
         {/* Parent Session Card — when onSessionClick is set (e.g. public schedule), card and title are clickable */}
         <div
           className={`border border-slate-200 rounded-lg bg-white shadow-sm transition-shadow ${onSessionClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : 'hover:shadow-md'}`}
@@ -552,7 +533,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
             <div className="flex items-center justify-between">
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                 <Attachment01 className="h-3.5 w-3.5" />
-                {session.attachments?.length || 0}
+                {session.attachment_count || 0}
               </span>
             </div>
 
@@ -584,6 +565,34 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
           </div>
         </div>
       </div>
+  )
+
+  if (!showTimeColumn) {
+    return <div className="flex-1 min-w-0" ref={containerRef}>{cardColumn}</div>
+  }
+
+  return (
+    <div className="flex items-stretch gap-6" ref={containerRef}>
+      {/* Time Column - spans parent + all children so the block shares one time range column */}
+      <div className="flex-shrink-0 w-24 self-stretch">
+        <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
+          <div className="text-center pt-3 flex-shrink-0">
+            <div className="text-sm font-semibold text-slate-900">
+              {timeStart}
+            </div>
+          </div>
+          <div className="flex-1 flex items-center justify-center min-h-0">
+            {/* Vertical line indicator */}
+            <div className="w-px h-full bg-slate-200"></div>
+          </div>
+          <div className="text-center pb-3 flex-shrink-0">
+            <div className="text-sm font-semibold text-slate-900">
+              {timeEnd}
+            </div>
+          </div>
+        </div>
+      </div>
+      {cardColumn}
     </div>
   )
 }
@@ -644,37 +653,39 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     }
   }, [parallelSessionsMap])
 
-  // Group parent sessions by start time
+  // Helper to convert time to minutes for grouping/sort (used in useMemo below)
+  const timeToMinutesForGroup = (time: string, period: 'AM' | 'PM'): number => {
+    const [hours, mins] = time.split(':').map(Number)
+    let total = hours * 60 + mins
+    if (period === 'PM' && hours !== 12) total += 12 * 60
+    if (period === 'AM' && hours === 12) total = mins
+    return total
+  }
+
+  // Group parent sessions by full time range (start + end). Same time range = parallel slot (side-by-side).
   const groupedSessions = useMemo(() => {
     const groups: { [key: string]: SavedSession[] } = {}
-    
+
     parentSessions.forEach(session => {
-      const timeKey = `${session.startTime} ${session.startPeriod || 'AM'}`
+      const startP = session.startPeriod || 'AM'
+      const endP = session.endPeriod || 'PM'
+      const timeKey = `${session.startTime}|${startP}|${session.endTime}|${endP}`
       if (!groups[timeKey]) {
         groups[timeKey] = []
       }
       groups[timeKey].push(session)
     })
 
-    // Sort by time
+    // Sort by start time of each slot
     return Object.keys(groups)
       .sort((a, b) => {
-        const [timeA, periodA] = a.split(' ')
-        const [timeB, periodB] = b.split(' ')
-        const [hoursA, minsA] = timeA.split(':').map(Number)
-        const [hoursB, minsB] = timeB.split(':').map(Number)
-        
-        let totalA = hoursA * 60 + minsA
-        let totalB = hoursB * 60 + minsB
-        
-        if (periodA === 'PM' && hoursA !== 12) totalA += 12 * 60
-        if (periodB === 'PM' && hoursB !== 12) totalB += 12 * 60
-        if (periodA === 'AM' && hoursA === 12) totalA = minsA
-        if (periodB === 'AM' && hoursB === 12) totalB = minsB
-        
-        return totalA - totalB
+        const [startA, periodA] = a.split('|')
+        const [startB, periodB] = b.split('|')
+        const minA = timeToMinutesForGroup(startA, (periodA as 'AM' | 'PM') || 'AM')
+        const minB = timeToMinutesForGroup(startB, (periodB as 'AM' | 'PM') || 'AM')
+        return minA - minB
       })
-      .map(key => ({ time: key, sessions: groups[key] }))
+      .map(key => ({ timeKey: key, sessions: groups[key] }))
   }, [parentSessions])
 
   const toggleExpand = (sessionId: string) => {
@@ -747,58 +758,97 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     return <div className="text-sm text-slate-500 text-center py-4">No sessions for this date</div>
   }
 
+  const getNestedParallelSessionsFn = (parentId: string) => {
+    const kids = parallelSessionsMap[String(parentId)] || []
+    return [...kids].sort((a, b) => {
+      const am = timeToMinutes(a.startTime, (a.startPeriod || 'AM') as 'AM' | 'PM')
+      const bm = timeToMinutes(b.startTime, (b.startPeriod || 'AM') as 'AM' | 'PM')
+      if (am !== bm) return am - bm
+      return String(a.title).localeCompare(String(b.title))
+    })
+  }
+
   return (
     <div className="mt-4 space-y-4">
-      {groupedSessions.map((group, groupIndex) => (
-        <div key={groupIndex} className="space-y-4">
-          {group.sessions.map((session) => {
-            const parallelSessions = parallelSessionsMap[String(session.id)] || []
-            const isExpanded = expandedSessions.has(String(session.id))
-            const timeRange = (() => {
-              let minM = timeToMinutes(session.startTime, session.startPeriod || 'AM')
-              let maxM = timeToMinutes(session.endTime, session.endPeriod || 'PM')
-              parallelSessions.forEach((s) => {
-                minM = Math.min(minM, timeToMinutes(s.startTime, s.startPeriod || 'AM'))
-                maxM = Math.max(maxM, timeToMinutes(s.endTime, s.endPeriod || 'PM'))
-              })
-              return { start: minutesToTime24(minM), end: minutesToTime24(maxM) }
-            })()
-            return (
-              <SessionContainer
-                key={session.id}
-                session={session}
-                parallelSessions={parallelSessions}
-                isExpanded={isExpanded}
-                onToggleExpand={() => toggleExpand(String(session.id))}
-                timeRangeStart={timeRange.start}
-                timeRangeEnd={timeRange.end}
-                getNestedParallelSessions={(parentId) => {
-                  const kids = parallelSessionsMap[String(parentId)] || []
-                  // Ensure stable chronological ordering within the parent
-                  return [...kids].sort((a, b) => {
-                    const am = timeToMinutes(a.startTime, a.startPeriod || 'AM')
-                    const bm = timeToMinutes(b.startTime, b.startPeriod || 'AM')
-                    if (am !== bm) return am - bm
-                    return String(a.title).localeCompare(String(b.title))
+      {groupedSessions.map((group, groupIndex) => {
+        // All sessions in this group share the same time range (we grouped by full range)
+        const first = group.sessions[0]
+        const timeStart = formatTime(first.startTime, first.startPeriod || 'AM')
+        const timeEnd = formatTime(first.endTime, first.endPeriod || 'PM')
+
+        return (
+          <div key={groupIndex} className="flex items-stretch gap-6">
+            {/* Shared time column for the whole slot */}
+            <div className="flex-shrink-0 w-24 self-stretch">
+              <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
+                <div className="text-center pt-3 flex-shrink-0">
+                  <div className="text-sm font-semibold text-slate-900">
+                    {timeStart}
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1 px-1">
+                  <div className="w-px flex-1 bg-slate-200" />
+                  {group.sessions.length > 1 && (
+                    <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
+                      parallel
+                    </span>
+                  )}
+                  <div className="w-px flex-1 bg-slate-200" />
+                </div>
+                <div className="text-center pb-3 flex-shrink-0">
+                  <div className="text-sm font-semibold text-slate-900">
+                    {timeEnd}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* All sessions for this time range, stacked one by one */}
+            <div className="flex-1 space-y-4">
+              {group.sessions.map((session) => {
+                const parallelSessions = parallelSessionsMap[String(session.id)] || []
+                const isExpanded = expandedSessions.has(String(session.id))
+                const timeRange = (() => {
+                  let minM = timeToMinutes(session.startTime, (session.startPeriod || 'AM') as 'AM' | 'PM')
+                  let maxM = timeToMinutes(session.endTime, (session.endPeriod || 'PM') as 'AM' | 'PM')
+                  parallelSessions.forEach((s) => {
+                    minM = Math.min(minM, timeToMinutes(s.startTime, (s.startPeriod || 'AM') as 'AM' | 'PM'))
+                    maxM = Math.max(maxM, timeToMinutes(s.endTime, (s.endPeriod || 'PM') as 'AM' | 'PM'))
                   })
-                }}
-                isSessionExpanded={(id) => expandedSessions.has(String(id))}
-                onToggleSessionExpand={toggleExpand}
-                onAddParallelSession={onAddParallelSession}
-                formatTime={formatTime}
-                formatTimeRange={formatTimeRange}
-                getLocationLabel={getLocationLabel}
-                getSessionTypeLabel={getSessionTypeLabel}
-                isTimeValid={isTimeValid}
-                onEditSession={onEditSession}
-                onDeleteSession={onDeleteSession}
-                onSessionClick={onSessionClick}
-                sessionFormOpen={sessionFormOpen}
-              />
-            )
-          })}
-        </div>
-      ))}
+                  return { start: minutesToTime24(minM), end: minutesToTime24(maxM) }
+                })()
+
+                return (
+                  <SessionContainer
+                    key={session.id}
+                    session={session}
+                    parallelSessions={parallelSessions}
+                    isExpanded={isExpanded}
+                    onToggleExpand={() => toggleExpand(String(session.id))}
+                    timeRangeStart={timeRange.start}
+                    timeRangeEnd={timeRange.end}
+                    getNestedParallelSessions={getNestedParallelSessionsFn}
+                    isSessionExpanded={(id) => expandedSessions.has(String(id))}
+                    onToggleSessionExpand={toggleExpand}
+                    onAddParallelSession={onAddParallelSession}
+                    formatTime={formatTime}
+                    formatTimeRange={formatTimeRange}
+                    getLocationLabel={getLocationLabel}
+                    getSessionTypeLabel={getSessionTypeLabel}
+                    isTimeValid={isTimeValid}
+                    onEditSession={onEditSession}
+                    onDeleteSession={onDeleteSession}
+                    onSessionClick={onSessionClick}
+                    sessionFormOpen={sessionFormOpen}
+                    // We already show shared time column on the left
+                    showTimeColumn={false}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

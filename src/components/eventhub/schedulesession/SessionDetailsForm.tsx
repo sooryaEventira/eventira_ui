@@ -3,12 +3,20 @@ import { Eye, Pencil01, Trash01 } from '@untitled-ui/icons-react'
 import { Input, Select, Button } from '../../ui/untitled'
 import { SessionDraft, SessionSection } from './sessionTypes'
 
+/** Tag option with uuid for sending tag_uuids to backend. */
+export interface SessionTagOption {
+  uuid: string
+  name: string
+}
+
 interface SessionDetailsFormProps {
   draft: SessionDraft
   tagsInput: string
   onFieldChange: <K extends keyof SessionDraft>(key: K, value: SessionDraft[K]) => void
   onTagsInputChange: (value: string) => void
   onAddSectionClick: () => void
+  /** When set, tag select uses uuid as value so draft.tags are UUIDs for tag_uuids payload. */
+  sessionTagOptions?: SessionTagOption[]
   availableTags?: string[]
   availableLocations?: string[]
   renderSectionPreview?: (section: SessionSection) => React.ReactNode
@@ -21,6 +29,7 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   onFieldChange,
   onTagsInputChange,
   onAddSectionClick,
+  sessionTagOptions,
   availableTags = [],
   availableLocations = [],
   renderSectionPreview,
@@ -40,11 +49,11 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
     'room2': 'Room 2',
   }
 
-  // Create options from available tags and locations
-  const tagOptions = availableTags.map(value => ({
-    value,
-    label: tagOptionsMap[value] || value
-  }))
+  // Use sessionTagOptions (uuid as value) when present so we send tag_uuids to backend; else use availableTags (name as value)
+  const tagOptions = (sessionTagOptions && sessionTagOptions.length > 0)
+    ? sessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
+    : availableTags.map((value) => ({ value, label: tagOptionsMap[value] || value }))
+  const hasTagOptions = (sessionTagOptions && sessionTagOptions.length > 0) || availableTags.length > 0
 
   const locationOptions = availableLocations.map(value => ({
     value,
@@ -123,8 +132,8 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
           />
         </div>
 
-        {/* Tags Dropdown */}
-        {availableTags.length > 0 ? (
+        {/* Tags Dropdown - when sessionTagOptions used, value is uuid so tag_uuids sent to backend */}
+        {hasTagOptions ? (
           <div className="flex-1 min-w-0">
             <Select
               label="Tags"

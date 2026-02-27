@@ -21,6 +21,8 @@ interface SessionSlideoutProps {
   topOffset?: number
   panelWidthRatio?: number
   availableTags?: string[]
+  /** Tag options with uuid so draft.tags store UUIDs for tag_uuids payload. */
+  sessionTagOptions?: Array<{ uuid: string; name: string }>
   availableLocations?: string[]
   /** When set, Speakers sections can search and add event speakers. */
   eventUuid?: string
@@ -43,6 +45,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   topOffset = 64,
   panelWidthRatio = 0.5,
   availableTags = [],
+  sessionTagOptions,
   availableLocations = [],
   eventUuid = '',
   onBeforeRemoveSection,
@@ -391,7 +394,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const addResourcesFilesToSection = (sectionId: string, files: File[]) => {
     if (!files.length || !sectionId) return
     const section = draft.sections.find((s) => s.id === sectionId)
-    const existingFiles = (section?.data?.files as File[]) ?? []
+    // Resources section can have existing API items ({ url, name, resourceId }) and new uploads (File)
+    const existingFiles = (section?.data?.files as Array<File | { url?: string; name: string; resourceId?: string }>) ?? []
     setDraft((prev) => ({
       ...prev,
       sections: prev.sections.map((s) =>
@@ -535,21 +539,23 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     [tagsInput]
   )
 
+  const usingTagDropdown = (sessionTagOptions?.length ?? 0) > 0 || availableTags.length > 0
+
   useEffect(() => {
-    // Only sync tags from tagsInput if we're using the Input field (no availableTags)
-    if (availableTags.length === 0) {
+    // Only sync tags from tagsInput if we're using the Input field (no tag dropdown)
+    if (!usingTagDropdown) {
       handleChange('tags', tagTokens)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tagTokens.join(','), availableTags.length])
+  }, [tagTokens.join(','), usingTagDropdown])
 
-  // Sync tagsInput with draft.tags when using dropdowns
+  // Sync tagsInput with draft.tags when using name-based dropdown (not when using sessionTagOptions, where draft.tags are UUIDs)
   useEffect(() => {
-    if (availableTags.length > 0 && draft.tags) {
+    if (availableTags.length > 0 && !(sessionTagOptions?.length) && draft.tags) {
       setTagsInput(draft.tags.join(', '))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft.tags.join(','), availableTags.length])
+  }, [draft.tags.join(','), availableTags.length, sessionTagOptions?.length])
 
   const handleSave = async () => {
     if (!onSave) return
@@ -695,6 +701,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
               onFieldChange={handleChange}
               onTagsInputChange={setTagsInput}
               onAddSectionClick={handleAddSection}
+              sessionTagOptions={sessionTagOptions}
               availableTags={availableTags}
               availableLocations={availableLocations}
               renderSectionPreview={(section) => (

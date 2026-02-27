@@ -34,6 +34,8 @@ export interface EventOverviewPayload {
 interface OverviewApiData {
   name?: string
   status?: string
+  event_status?: string
+  publish_status?: string
   start_date?: string
   end_date?: string
   timezone?: string
@@ -110,11 +112,18 @@ export async function fetchEventOverview(eventUuid: string): Promise<EventOvervi
   // Location: prefer location, then venue, then address (API may use any of these)
   const location = String(d.location ?? d.venue ?? d.address ?? '').trim()
   const timezone = String(d.timezone ?? '').trim()
+  // Status: backend may use status, event_status, or publish_status (or nest under event)
+  const rawStatus =
+    d.status ??
+    d.event_status ??
+    d.publish_status ??
+    (typeof (rawData as any)?.event === 'object' ? (rawData as any).event?.status : undefined) ??
+    (rawData as any)?.status
 
   return {
     event: {
       title,
-      status: statusFromApi(d.status),
+      status: statusFromApi(rawStatus),
       startDate,
       endDate,
       location,

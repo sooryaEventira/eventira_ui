@@ -38,8 +38,12 @@ export const extractUrlsFromResourcesResponse = (res: unknown): string[] => {
 /** Extract resource IDs from createSessionResources response (id, uuid, session_resource_id, pk; may be number or string). */
 export const extractResourceIdsFromResponse = (res: unknown): string[] => {
   if (!res || typeof res !== 'object') return []
-  const arr = Array.isArray(res) ? res : (res as any).results ?? (res as any).data ?? []
-  if (!Array.isArray(arr)) return []
+  const container: any = Array.isArray(res)
+    ? res
+    : (res as any).results ?? (res as any).data ?? res
+
+  const arr = Array.isArray(container) ? container : [container]
+
   return arr
     .map((item: any) => item?.id ?? item?.uuid ?? item?.session_resource_id ?? item?.pk)
     .filter((v) => v != null && v !== '')
@@ -55,7 +59,15 @@ export const getOrderedResourceIdsOrIndices = (
   const ordered: Array<{ id?: string; allFilesIndex?: number }> = []
   let idx = attachmentCount
   for (const s of sections ?? []) {
-    if (s.type !== 'resources') {
+    if (s.type === 'video') {
+      const videoResourceId = s.data?.videoResourceId
+      if (videoResourceId && typeof videoResourceId === 'string' && videoResourceId.trim()) {
+        ordered.push({ id: String(videoResourceId).trim() })
+      }
+      if (s.data?.videoFile instanceof File) {
+        ordered.push({ allFilesIndex: idx++ })
+      }
+    } else if (s.type !== 'resources') {
       if (s.data?.file instanceof File) idx++
       for (const img of s.data?.images ?? []) {
         if (img?.file instanceof File) idx++
@@ -63,7 +75,6 @@ export const getOrderedResourceIdsOrIndices = (
       for (const f of s.data?.files ?? []) {
         if (f instanceof File) idx++
       }
-      if (s.data?.videoFile instanceof File) idx++
     } else {
       const files = (s.data?.files as Array<{ resourceId?: string | number } | File>) ?? []
       for (const item of files) {

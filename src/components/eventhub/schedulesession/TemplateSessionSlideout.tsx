@@ -75,6 +75,8 @@ interface TemplateSessionSlideoutProps {
   /** When set, we are editing this session; Save will call onSave(data, sessionId). */
   sessionId?: string | null
   availableTags?: string[]
+  /** Tag options with uuid so we send tag_uuids to backend. */
+  sessionTagOptions?: Array<{ uuid: string; name: string }>
   availableLocations?: string[]
   eventUuid?: string
   topOffset?: number
@@ -93,6 +95,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   initialData = null,
   sessionId = null,
   availableTags = [],
+  sessionTagOptions,
   availableLocations = [],
   eventUuid = '',
   topOffset = 64,
@@ -179,6 +182,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const galleryUploadSectionIdRef = useRef<string | null>(null)
   const [galleryCurrentIndex, setGalleryCurrentIndex] = useState<Record<string, number>>({})
   const resourcesInputRef = useRef<HTMLInputElement | null>(null)
+  const resourcesImageInputRef = useRef<HTMLInputElement | null>(null)
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
   const sectionVideoInputRef = useRef<HTMLInputElement | null>(null)
   const sectionVideoUploadSectionIdRef = useRef<string | null>(null)
@@ -513,6 +517,11 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     resourcesInputRef.current?.click()
   }
 
+  const openResourcesImagePicker = (sectionId: string) => {
+    resourcesUploadSectionIdRef.current = sectionId
+    resourcesImageInputRef.current?.click()
+  }
+
   const openVideoUploadPicker = (sectionId: string) => {
     sectionVideoUploadSectionIdRef.current = sectionId
     sectionVideoInputRef.current?.click()
@@ -590,6 +599,30 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     const section = formData.sections.find((s) => s.id === sectionId)
     const existingFiles = (section?.data?.files as File[]) ?? []
 
+    setFormData((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) =>
+        s.id === sectionId
+          ? { ...s, data: { ...(s.data || {}), files: [...existingFiles, ...files] } }
+          : s
+      )
+    }))
+  }
+
+  const handleResourcesImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = resourcesUploadSectionIdRef.current
+    const files = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    resourcesUploadSectionIdRef.current = null
+    if (!files.length || !sectionId) return
+
+    if (sectionId === 'template-resources') {
+      setFormData((prev) => ({ ...prev, resources: [...(prev.resources || []), ...files] }))
+      return
+    }
+
+    const section = formData.sections.find((s) => s.id === sectionId)
+    const existingFiles = (section?.data?.files as File[]) ?? []
     setFormData((prev) => ({
       ...prev,
       sections: prev.sections.map((s) =>
@@ -729,7 +762,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
       onOpenGalleryPicker: openGalleryPicker,
       onRemoveGalleryImage: handleRemoveGalleryImage,
       onOpenResourcesPicker: openResourcesPicker,
-      onOpenResourcesImagePicker: openResourcesPicker,
+      onOpenResourcesImagePicker: openResourcesImagePicker,
       onRemoveResourcesFile: handleRemoveResourcesFile,
       onOpenVideoUploadPicker: openVideoUploadPicker,
       onOpenVideoResourcePicker: openVideoResourcePicker,
@@ -765,10 +798,36 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
 
 
   const handleSave = async () => {
-    if (onSave) {
+    if (!onSave) return
+    try {
+      setIsSaving(true)
       await Promise.resolve(onSave(formData, sessionId ?? undefined))
+      // After successful save, reset local form state and close so user sees session list
+      setFormData({
+        title: '',
+        startTime: '',
+        endTime: '',
+        location: '',
+        sessionType: '',
+        tags: [],
+        childSession: false,
+        videoUrl: '',
+        videoFile: null,
+        videoPreviewUrl: '',
+        speakers: [],
+        description: '',
+        hyperlinks: [],
+        resources: [],
+        liveChatEnabled: false,
+        comment: '',
+        submitAnonymous: false,
+        sections: []
+      })
+      setIsEditing(true)
+      handleClose()
+    } finally {
+      setIsSaving(false)
     }
-    setIsEditing(false)
   }
 
   const handleBeginEdit = () => {
@@ -955,6 +1014,15 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
         aria-hidden
       />
       <input
+        ref={resourcesImageInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={handleResourcesImageChange}
+        aria-hidden
+      />
+      <input
         ref={sectionVideoInputRef}
         type="file"
         accept="video/*"
@@ -1020,13 +1088,25 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                 value={formData.endTime}
                 onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
               />
-              <Input
-                label="Location"
-                type="text"
-                value={formData.location}
-                onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                placeholder="Enter location"
-              />
+              {availableLocations.length > 0 ? (
+                <Select
+                  label="Location"
+                  value={formData.location}
+                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                  options={[
+                    { value: '', label: 'Select location' },
+                    ...availableLocations.map(loc => ({ value: loc, label: loc }))
+                  ]}
+                />
+              ) : (
+                <Input
+                  label="Location"
+                  type="text"
+                  value={formData.location}
+                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
+                  placeholder="Enter location"
+                />
+              )}
               <Select
                 label="Session type"
                 value={formData.sessionType}
@@ -1037,21 +1117,39 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                   { value: 'in-person', label: 'In person' }
                 ]}
               />
-              <Select
-                label="Tags"
-                value={formData.tags[0] || ''}
-                onChange={(e) => {
-                  const value = e.target.value
-                  setFormData(prev => ({
-                    ...prev,
-                    tags: value ? [value] : []
-                  }))
-                }}
-                options={[
-                  { value: '', label: 'Select tags' },
-                  ...availableTags.map(tag => ({ value: tag, label: tag }))
-                ]}
-              />
+              {(sessionTagOptions?.length ?? 0) > 0 || availableTags.length > 0 ? (
+                <Select
+                  label="Tags"
+                  value={formData.tags[0] || ''}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setFormData(prev => ({
+                      ...prev,
+                      tags: value ? [value] : []
+                    }))
+                  }}
+                  options={[
+                    { value: '', label: 'Select tags' },
+                    ...(sessionTagOptions && sessionTagOptions.length > 0
+                      ? sessionTagOptions.map(t => ({ value: t.uuid, label: t.name }))
+                      : availableTags.map(tag => ({ value: tag, label: tag })))
+                  ]}
+                />
+              ) : (
+                <Input
+                  label="Tags"
+                  type="text"
+                  value={formData.tags.join(', ')}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setFormData(prev => ({
+                      ...prev,
+                      tags: value ? value.split(',').map(t => t.trim()).filter(Boolean) : []
+                    }))
+                  }}
+                  placeholder="Enter tags (comma separated)"
+                />
+              )}
             </div>
 
             {/* Child Session Checkbox and Add Section Button */}
