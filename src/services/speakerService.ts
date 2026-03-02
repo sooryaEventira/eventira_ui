@@ -775,6 +775,173 @@ export const deleteSpeaker = async (speakerUuid: string): Promise<void> => {
   }
 }
 
+/**
+ * Bulk add speakers to a tag/group.
+ * Endpoint: POST speakers/bulk-add-tag/?event_id={{event_uuid}}
+ * Body: { uuids: [speaker_uuid1, speaker_uuid2], tag_uuid: tag_uuid }
+ */
+export const bulkAddSpeakerTag = async (
+  eventUuid: string,
+  speakerUuids: string[],
+  tagUuid: string
+): Promise<void> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!speakerUuids?.length) {
+      return
+    }
+
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.BULK_ADD_TAG(eventUuid)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        uuids: speakerUuids,
+        tag_uuid: tagUuid,
+      }),
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to update speakers. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    showToast.success('Speakers updated successfully')
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      handleApiError(error.message, undefined, 'Failed to update speakers. Please try again.')
+      throw error
+    }
+
+    const errorMessage = 'Failed to update speakers. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Bulk delete speakers.
+ * Endpoint: POST speakers/bulk-delete/?event_id={{event_uuid}}
+ * Body: { uuids: [speaker_uuid1, speaker_uuid2] }
+ */
+export const bulkDeleteSpeakers = async (eventUuid: string, speakerUuids: string[]): Promise<void> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!speakerUuids?.length) {
+      return
+    }
+
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.BULK_DELETE(eventUuid)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        uuids: speakerUuids,
+      }),
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to delete speakers. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    showToast.success('Speakers deleted successfully')
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      handleApiError(error.message, undefined, 'Failed to delete speakers. Please try again.')
+      throw error
+    }
+
+    const errorMessage = 'Failed to delete speakers. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
+    throw new Error(errorMessage)
+  }
+}
+
 type CreateSpeakerInput = {
   first_name: string
   last_name: string

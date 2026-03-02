@@ -22,6 +22,7 @@ interface SavedSchedulesTableProps {
   onCreateSchedule: () => void
   onUploadSessions?: (files: File[], scheduleId: string) => Promise<void> | void
   onEditSchedule?: (scheduleId: string) => void
+  onDeleteSchedule?: (scheduleId: string) => void
   onManageSession?: (scheduleId: string) => void
 }
 
@@ -30,6 +31,7 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
   onCreateSchedule,
   onUploadSessions,
   onEditSchedule,
+  onDeleteSchedule,
   onManageSession
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
@@ -163,6 +165,7 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => onDeleteSchedule?.(schedule.id)}
               className="flex h-8 w-8 items-center justify-center text-slate-500 transition hover:border-rose-400 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60"
               aria-label={`Delete ${schedule.name}`}
             >
@@ -176,6 +179,7 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
     formatScheduleName,
     handleToggleRow,
     onEditSchedule,
+    onDeleteSchedule,
     onManageSession,
     selectedScheduleIds
   ])

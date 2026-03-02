@@ -210,7 +210,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     
     try {
       const eventDataList = await fetchEvents()
-      
+
       // Sort events by createdAt in descending order (newest first)
       const sortedEventDataList = [...eventDataList].sort((a, b) => {
         // Get creation date from various possible fields
@@ -252,13 +252,13 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           // If no date found, put at the end (oldest)
           return 0
         }
-        
+
         const dateA = getCreationDate(a)
         const dateB = getCreationDate(b)
         // Descending order: newest first (larger date value comes first)
         return dateB - dateA
       })
-      
+
       // Map API response to Event interface format (already sorted)
       const mappedEvents: Event[] = sortedEventDataList.map((eventData: EventData) => {
         // Map eventExperience to attendanceType
@@ -277,21 +277,68 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           'Draft': 'Draft',
           'draft': 'Draft',
         }
-        
-        // Format date
-        const formatDate = (dateString?: string): string => {
-          if (!dateString) return 'TBD'
-          try {
-            const date = new Date(dateString)
-            if (isNaN(date.getTime())) return 'TBD'
-            return date.toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric', 
-              year: 'numeric' 
-            })
-          } catch {
-            return 'TBD'
+
+        // Format event date range for dashboard listing:
+        // - Same month/year:  Jan 7 – 13, 2025
+        // - Same year, diff month: Jan 30 – Feb 2, 2025
+        // - Different years: Dec 30, 2025–Jan 2, 2026
+        const formatEventDateRange = (startDateString?: string, endDateString?: string): string => {
+          const parse = (value?: string): Date | null => {
+            if (!value) return null
+            const d = new Date(value)
+            return isNaN(d.getTime()) ? null : d
           }
+
+          const start = parse(startDateString)
+          const end = parse(endDateString)
+
+          if (!start && !end) return 'TBD'
+          if (start && !end) {
+            return start.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })
+          }
+          if (!start && end) {
+            return end.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })
+          }
+
+          // At this point we have both start and end
+          const sameDay = start!.getTime() === end!.getTime()
+          if (sameDay) {
+            return start!.toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+              year: 'numeric'
+            })
+          }
+          const sameYear = start!.getFullYear() === end!.getFullYear()
+          const sameMonth = sameYear && start!.getMonth() === end!.getMonth()
+          const monthFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' })
+
+          const startMonth = monthFormatter.format(start!)
+          const endMonth = monthFormatter.format(end!)
+
+          if (sameYear && sameMonth) {
+            const year = start!.getFullYear()
+            return `${startMonth} ${start!.getDate()} – ${end!.getDate()}, ${year}`
+          }
+
+          if (sameYear && !sameMonth) {
+            const year = start!.getFullYear()
+            return `${startMonth} ${start!.getDate()} – ${endMonth} ${end!.getDate()}, ${year}`
+          }
+
+          // Different years
+          const startYear = start!.getFullYear()
+          const endYear = end!.getFullYear()
+          // Intentionally no spaces around dash to match design
+          return `${startMonth} ${start!.getDate()}, ${startYear}–${endMonth} ${end!.getDate()}, ${endYear}`
         }
         
         // Get createdBy from user info or default
@@ -301,13 +348,31 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
                          'Unknown'
         
         const rawId = eventData.uuid ?? (eventData as any).id ?? (eventData as any).pk
+        // Take Event ID directly from API response (event_id)
+        const rawEventCode = (eventData as any).event_id ?? (eventData as any).eventCode ?? ''
+        // Visibility is taken directly from API visibility field
+        const visibilityRaw = (eventData as any).visibility
+
+        const eventCode = rawEventCode ? String(rawEventCode).trim() : ''
+        const visibilityLabel =
+          visibilityRaw != null && String(visibilityRaw).trim() !== ''
+            ? (String(visibilityRaw).trim().charAt(0).toUpperCase() +
+               String(visibilityRaw).trim().slice(1).toLowerCase()) as 'Public' | 'Private' | 'Mixed'
+            : undefined
+        // When list API omits end date, treat as one-day event so event object has both and UI shows single date
+        const startDate = eventData.startDate
+        const endDate = eventData.endDate ?? startDate
         return {
           id: rawId != null && rawId !== '' ? String(rawId) : '',
           name: eventData.eventName,
           status: statusMap[eventData.status || ''] || 'Draft',
           attendanceType: attendanceTypeMap[eventData.eventExperience || ''] || 'Online',
           registrations: eventData.registrations || 0,
-          eventDate: formatDate(eventData.startDate),
+          eventCode,
+          visibility: visibilityLabel,
+          eventDate: formatEventDateRange(startDate, endDate),
+          startDate,
+          endDate,
           createdBy: createdBy,
           createdAt: eventData.createdAt || (eventData as any).created_at || (eventData as any).created_date,
         }
@@ -401,8 +466,9 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showTemplatePage, showEventWebsitePage, showPreviewPage, showNewEventForm])
 
-  // Helper function to parse event date from format "Jan 13, 2025" to Date object
-  const parseEventDate = (dateString: string): Date | null => {
+  // Helper function to parse a raw event start date into Date
+  const parseEventDate = (dateString?: string): Date | null => {
+    if (!dateString) return null
     try {
       const parsed = new Date(dateString)
       if (isNaN(parsed.getTime())) {
@@ -471,19 +537,19 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       )
     }
 
-    // Apply date range filter
+    // Apply date range filter (use raw startDate so formatting does not affect filtering)
     if (dateRange.start && dateRange.end) {
       filtered = filtered.filter((event) => {
-        const eventDate = parseEventDate(event.eventDate)
+        const eventDate = parseEventDate((event as any).startDate)
         if (!eventDate) return false
-        
+
         // Set time to start of day for accurate comparison
         const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
         const startDate = dateRange.start!
         const endDate = dateRange.end!
         const startDateOnly = new Date(startDate.getFullYear(), startDate.getMonth(), startDate.getDate())
         const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate())
-        
+
         return eventDateOnly >= startDateOnly && eventDateOnly <= endDateOnly
       })
     }

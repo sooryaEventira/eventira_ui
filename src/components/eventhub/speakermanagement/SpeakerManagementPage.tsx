@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { uploadSpeakerFile, fetchSpeakers, fetchSpeakerTags, updateSpeaker, deleteSpeaker, type SpeakerData } from '../../../services/speakerService'
+import { uploadSpeakerFile, fetchSpeakers, fetchSpeakerTags, updateSpeaker, deleteSpeaker, bulkAddSpeakerTag, bulkDeleteSpeakers, type SpeakerData } from '../../../services/speakerService'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import SpeakersTable from './SpeakersTable'
@@ -597,8 +597,21 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     setIsSpeakerSlideoutOpen((prev) => (selectedSpeaker?.id === speakerId ? false : prev))
   }
 
-  const handleAddSpeakersToGroup = async (_speakerIds: string[], _groupId: string) => {
-    // TODO: Call API to add selected speakers to the chosen group when available
+  // Bulk delete for selected speakers
+  const handleBulkDeleteSpeakers = async (speakerIds: string[]) => {
+    const eventUuidForBulk = createdEvent?.uuid
+    if (!eventUuidForBulk || !speakerIds.length) return
+    await bulkDeleteSpeakers(eventUuidForBulk, speakerIds)
+    setSpeakers((prev) => prev.filter((s) => !speakerIds.includes(s.id)))
+    setSelectedSpeaker((prev) => (prev && speakerIds.includes(prev.id) ? null : prev))
+    setIsSpeakerSlideoutOpen(false)
+  }
+
+  // Bulk add selected speakers to a group/tag
+  const handleAddSpeakersToGroup = async (speakerIds: string[], groupId: string) => {
+    const eventUuidForBulk = createdEvent?.uuid
+    if (!eventUuidForBulk || !speakerIds.length || !groupId) return
+    await bulkAddSpeakerTag(eventUuidForBulk, speakerIds, groupId)
     await loadSpeakers()
   }
 
@@ -754,6 +767,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
             onCreateField={handleCreateField}
             onEditSpeaker={handleEditSpeaker}
             onDeleteSpeaker={handleDeleteSpeaker}
+            onBulkDeleteSpeakers={handleBulkDeleteSpeakers}
             onAddToGroup={handleAddSpeakersToGroup}
             onEditCustomField={handleEditCustomField}
             onDeleteCustomField={handleDeleteCustomField}

@@ -31,6 +31,8 @@ interface SpeakersTableProps {
   onGridView?: () => void
   onFilter?: () => void
   isLoading?: boolean
+  // Bulk delete handler (multi-select delete)
+  onBulkDeleteSpeakers?: (speakerIds: string[]) => void | Promise<void>
 }
 
 const SpeakersTable: React.FC<SpeakersTableProps> = ({
@@ -50,7 +52,8 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   onDeleteCustomField,
   onDownload,
   onGridView,
-  onFilter
+  onFilter,
+  onBulkDeleteSpeakers
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSpeakerIds, setSelectedSpeakerIds] = useState<Set<string>>(new Set())
@@ -179,15 +182,19 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   }, [deleteCandidate, isDeleting, onDeleteSpeakerProp])
 
   const confirmBulkDelete = useCallback(async () => {
-    if (!bulkDeleteIds?.length || !onDeleteSpeakerProp) {
+    if (!bulkDeleteIds?.length) {
       setBulkDeleteIds(null)
       return
     }
     if (isDeleting) return
     setIsDeleting(true)
     try {
-      for (const id of bulkDeleteIds) {
-        await Promise.resolve(onDeleteSpeakerProp(id) as any)
+      if (onBulkDeleteSpeakers) {
+        await Promise.resolve(onBulkDeleteSpeakers(bulkDeleteIds) as any)
+      } else if (onDeleteSpeakerProp) {
+        for (const id of bulkDeleteIds) {
+          await Promise.resolve(onDeleteSpeakerProp(id) as any)
+        }
       }
       setSelectedSpeakerIds(new Set())
       setBulkDeleteIds(null)

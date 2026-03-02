@@ -82,13 +82,20 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
   const normalizedHeight = (height || '').trim()
   const useFixedHeight = !!normalizedHeight && normalizedHeight.toLowerCase() !== 'auto'
 
-  const headingSizeMap = {
+  const headingSizeMap: Record<string, string> = {
     sm: '1.25rem',
     md: '1.5rem',
     lg: '1.875rem',
     xl: '2.25rem',
     '2xl': '3rem'
   }
+  // Use mapped size, or treat as raw CSS (e.g. 2rem, 24px) for backwards compatibility
+  const headingFontSize =
+    headingSize && headingSizeMap[headingSize]
+      ? headingSizeMap[headingSize]
+      : headingSize && /^\d+(\.\d+)?(rem|px|em)$/.test(String(headingSize).trim())
+        ? String(headingSize).trim()
+        : headingSizeMap['xl']
 
   const subheadingSizeMap = {
     sm: '0.875rem',
@@ -133,7 +140,7 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
         {heading && (
           <h2
             style={{
-              fontSize: headingSizeMap[headingSize],
+              fontSize: headingFontSize,
               textAlign: headingAlignment as any,
               color: headingColor,
               marginBottom: '0.5rem',
@@ -174,7 +181,7 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
         {heading && (
           <h2
             style={{
-              fontSize: headingSizeMap[headingSize],
+              fontSize: headingFontSize,
               textAlign: headingAlignment as any,
               color: headingColor,
               marginBottom: '0.5rem',
@@ -210,7 +217,7 @@ const YouTubeVideo: React.FC<YouTubeVideoProps> = ({
       {heading && (
         <h2
           style={{
-            fontSize: headingSizeMap[headingSize],
+            fontSize: headingFontSize,
             textAlign: headingAlignment as any,
             color: headingColor,
             marginBottom: '0.5rem',

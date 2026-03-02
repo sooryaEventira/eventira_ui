@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { uploadUserFile, fetchAttendees, fetchTags, deleteAttendee, updateAttendee, type AttendeeData } from '../../../services/attendeeService'
+import { uploadUserFile, fetchAttendees, fetchTags, deleteAttendee, updateAttendee, bulkAddAttendeeTag, bulkDeleteAttendees, type AttendeeData } from '../../../services/attendeeService'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import AttendeesTable from './AttendeesTable'
@@ -376,8 +376,21 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     setIsAttendeeSlideoutOpen((prev) => (selectedAttendee?.id === attendeeId ? false : prev))
   }
 
-  const handleAddAttendeesToGroup = async (_attendeeIds: string[], _groupId: string) => {
-    // TODO: Call API to add selected attendees to the chosen group when available
+  // Bulk delete for selected attendees (uses bulk-delete-attendee endpoint)
+  const handleBulkDeleteAttendees = async (attendeeIds: string[]) => {
+    const eventUuidForBulk = createdEvent?.uuid
+    if (!eventUuidForBulk || !attendeeIds.length) return
+    await bulkDeleteAttendees(eventUuidForBulk, attendeeIds)
+    setAttendees((prev) => prev.filter((a) => !attendeeIds.includes(a.id)))
+    setSelectedAttendee((prev) => (prev && attendeeIds.includes(prev.id) ? null : prev))
+    setIsAttendeeSlideoutOpen(false)
+  }
+
+  // Bulk add selected attendees to a group/tag (uses bulk-add-tag endpoint)
+  const handleAddAttendeesToGroup = async (attendeeIds: string[], groupId: string) => {
+    const eventUuidForBulk = createdEvent?.uuid
+    if (!eventUuidForBulk || !attendeeIds.length || !groupId) return
+    await bulkAddAttendeeTag(eventUuidForBulk, attendeeIds, groupId)
     await loadAttendees()
   }
 
@@ -535,8 +548,9 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onCreateProfile={handleCreateProfile}
             onCreateField={handleCreateField}
             onEditAttendee={handleEditAttendee}
-            onDeleteAttendee={handleDeleteAttendee}
-            onAddToGroup={handleAddAttendeesToGroup}
+        onDeleteAttendee={handleDeleteAttendee}
+        onBulkDeleteAttendees={handleBulkDeleteAttendees}
+        onAddToGroup={handleAddAttendeesToGroup}
             onEditCustomField={handleEditCustomField}
             onDeleteCustomField={handleDeleteCustomField}
             onDownload={handleDownload}

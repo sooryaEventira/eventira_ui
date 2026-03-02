@@ -30,6 +30,8 @@ interface AttendeesTableProps {
   onGridView?: () => void
   onFilter?: () => void
   isLoading?: boolean
+  // Bulk delete handler (used for multi-select delete button)
+  onBulkDeleteAttendees?: (attendeeIds: string[]) => void | Promise<void>
 }
 
 const AttendeesTable: React.FC<AttendeesTableProps> = ({
@@ -49,7 +51,8 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   onDownload,
   onGridView: _onGridView,
   onFilter,
-  isLoading = false
+  isLoading = false,
+  onBulkDeleteAttendees
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<Set<string>>(new Set())
@@ -196,15 +199,19 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   }, [deleteCandidate, isDeleting, onDeleteAttendeeProp])
 
   const confirmBulkDelete = useCallback(async () => {
-    if (!bulkDeleteIds?.length || !onDeleteAttendeeProp) {
+    if (!bulkDeleteIds?.length) {
       setBulkDeleteIds(null)
       return
     }
     if (isDeleting) return
     setIsDeleting(true)
     try {
-      for (const id of bulkDeleteIds) {
-        await Promise.resolve(onDeleteAttendeeProp(id) as any)
+      if (onBulkDeleteAttendees) {
+        await Promise.resolve(onBulkDeleteAttendees(bulkDeleteIds) as any)
+      } else if (onDeleteAttendeeProp) {
+        for (const id of bulkDeleteIds) {
+          await Promise.resolve(onDeleteAttendeeProp(id) as any)
+        }
       }
       setSelectedAttendeeIds(new Set())
       setBulkDeleteIds(null)

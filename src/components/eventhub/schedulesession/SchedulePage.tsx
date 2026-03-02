@@ -212,7 +212,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const [availableSessionTags, setAvailableSessionTags] = React.useState<SessionTagOption[]>([])
   const [availableLocations, setAvailableLocations] = React.useState<string[]>([])
   const [sessionToDelete, setSessionToDelete] = React.useState<SavedSession | null>(null)
+  const [scheduleToDelete, setScheduleToDelete] = React.useState<SavedSchedule | null>(null)
   const [isDeletingSession, setIsDeletingSession] = React.useState(false)
+  const [isDeletingSchedule, setIsDeletingSchedule] = React.useState(false)
   const [sessionDraftLoading, setSessionDraftLoading] = React.useState(false)
 
   // Parse event date as local calendar date (no UTC shift). Handles YYYY-MM-DD and ISO strings like 2026-02-02T00:00:00Z.
@@ -532,6 +534,48 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       loadSchedules()
     }
   }, [createdEvent?.uuid, loadSchedules])
+
+  // Delete schedule (DELETE schedules/{{schedule_uuid}}/?event_id={{event_uuid}})
+  const handleConfirmDeleteSchedule = useCallback(async () => {
+    const schedule = scheduleToDelete
+    const eventUuid = createdEvent?.uuid
+    if (!schedule || !eventUuid || isDeletingSchedule) return
+    const accessToken = localStorage.getItem('accessToken')
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!accessToken || !organizationUuid) {
+      showToast.error('Authentication required.')
+      setScheduleToDelete(null)
+      return
+    }
+    setIsDeletingSchedule(true)
+    try {
+      const url = API_ENDPOINTS.SCHEDULES.DELETE(schedule.id, eventUuid)
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid
+        },
+        credentials: 'include'
+      })
+      if (!response.ok) {
+        const text = await response.text().catch(() => '')
+        showToast.error(text || 'Failed to delete schedule.')
+        return
+      }
+      setSavedSchedules((prev) => prev.filter((s) => s.id !== schedule.id))
+      if (activeScheduleId === schedule.id) {
+        setActiveScheduleId(null)
+      }
+      setScheduleToDelete(null)
+      showToast.success('Schedule deleted successfully')
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to delete schedule.')
+    } finally {
+      setIsDeletingSchedule(false)
+    }
+  }, [scheduleToDelete, createdEvent?.uuid, activeScheduleId, isDeletingSchedule])
 
   // Persist schedules + sessions for published website (no admin UI there)
   useEffect(() => {
@@ -2490,6 +2534,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             onCreateSchedule={handleCreateScheduleFromList}
             onUploadSessions={handleUploadSessionsForSchedule}
             onManageSession={handleManageSession}
+            onDeleteSchedule={(scheduleId) => {
+              const target = savedSchedules.find((s) => s.id === scheduleId)
+              if (target) setScheduleToDelete(target)
+            }}
             onEditSchedule={(scheduleId) => {
               const target = savedSchedules.find((item) => item.id === scheduleId)
               if (!target) return
@@ -2758,6 +2806,19 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         isLoading={isDeletingSession}
         onCancel={() => setSessionToDelete(null)}
         onConfirm={handleConfirmDeleteSession}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={scheduleToDelete != null}
+        title="Delete schedule?"
+        itemName={scheduleToDelete?.name}
+        confirmText="Delete"
+        cancelText="Cancel"
+        isLoading={isDeletingSchedule}
+        onCancel={() => {
+          if (!isDeletingSchedule) setScheduleToDelete(null)
+        }}
+        onConfirm={handleConfirmDeleteSchedule}
       />
     </div>
   )

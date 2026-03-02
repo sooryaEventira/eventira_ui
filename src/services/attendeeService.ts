@@ -908,6 +908,173 @@ export const deleteAttendee = async (attendeeUuid: string): Promise<void> => {
   }
 }
 
+/**
+ * Bulk add attendees to a tag/group.
+ * Endpoint: POST attendees/bulk-add-tag/?event_id={{event_uuid}}
+ * Body: { uuids: [attendee_uuid1, attendee_uuid2], tag_uuid: tag_uuid }
+ */
+export const bulkAddAttendeeTag = async (
+  eventUuid: string,
+  attendeeUuids: string[],
+  tagUuid: string
+): Promise<void> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!attendeeUuids?.length) {
+      return
+    }
+
+    const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.BULK_ADD_TAG(eventUuid)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        uuids: attendeeUuids,
+        tag_uuid: tagUuid
+      })
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to update attendees. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    showToast.success('Attendees updated successfully')
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      handleApiError(error.message, undefined, 'Failed to update attendees. Please try again.')
+      throw error
+    }
+
+    const errorMessage = 'Failed to update attendees. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
+    throw new Error(errorMessage)
+  }
+}
+
+/**
+ * Bulk delete attendees.
+ * Endpoint: POST attendees/bulk-delete-attendee/?event_id={{event_uuid}}
+ * Body: { uuids: [attendee_uuid1, attendee_uuid2] }
+ */
+export const bulkDeleteAttendees = async (eventUuid: string, attendeeUuids: string[]): Promise<void> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!attendeeUuids?.length) {
+      return
+    }
+
+    const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.BULK_DELETE(eventUuid)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        uuids: attendeeUuids
+      })
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        errorData = responseText?.trim() ? responseText.trim() : null
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to delete attendees. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    showToast.success('Attendees deleted successfully')
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+
+    if (error instanceof Error) {
+      handleApiError(error.message, undefined, 'Failed to delete attendees. Please try again.')
+      throw error
+    }
+
+    const errorMessage = 'Failed to delete attendees. Please try again.'
+    handleApiError(errorMessage, undefined, errorMessage)
+    throw new Error(errorMessage)
+  }
+}
+
 type UpdateAttendeeInput = {
   first_name?: string
   last_name?: string

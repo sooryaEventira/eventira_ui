@@ -13,6 +13,13 @@ export interface Event {
   eventDate: string
   createdBy: string
   createdAt?: string
+  // Display-only event code (e.g. "#73527")
+  eventCode?: string
+  // Visibility label (Public, Private, Mixed)
+  visibility?: 'Public' | 'Private' | 'Mixed'
+  // Raw start/end dates from API (ISO or YYYY-MM-DD) used for sorting/filtering
+  startDate?: string
+  endDate?: string
 }
 
 interface EventsTableProps {
@@ -93,8 +100,10 @@ const EventsTable: React.FC<EventsTableProps> = ({
       result = result.filter((event) => {
         const haystack = [
           event.name,
+          event.eventCode,
           event.status,
           event.attendanceType,
+          event.visibility,
           event.createdBy,
           event.eventDate
         ]
@@ -106,25 +115,16 @@ const EventsTable: React.FC<EventsTableProps> = ({
       })
     }
 
-    // Apply date range filter
+    // Apply date range filter (use raw startDate so formatted range does not affect filtering)
     if (dateRange?.start || dateRange?.end) {
       result = result.filter((event) => {
         try {
-          // Parse event date (handle various formats: ISO, MM/DD/YYYY, YYYY-MM-DD, etc.)
-          let eventDate: Date | null = null
-          
-          if (event.eventDate) {
-            // Try parsing as ISO date first
-            const isoDate = new Date(event.eventDate)
-            if (!isNaN(isoDate.getTime())) {
-              eventDate = isoDate
-            }
-          }
-
-          if (!eventDate) return true // If cannot parse, include the event
+          const raw = event.startDate || event.eventDate
+          const parsed = raw ? new Date(raw) : null
+          if (!parsed || isNaN(parsed.getTime())) return true // If cannot parse, include the event
 
           // Normalize dates to compare only the date part (ignore time)
-          const eventTime = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate()).getTime()
+          const eventTime = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate()).getTime()
 
           // If only start date is set
           if (dateRange.start && !dateRange.end) {
@@ -189,6 +189,16 @@ const EventsTable: React.FC<EventsTableProps> = ({
 
   const columns: Array<DividerLineTableColumn<Event>> = useMemo(
     () => [
+
+      {
+        id: 'eventCode',
+        header: 'Event ID',
+        sortable: true,
+        sortAccessor: (item) => item.eventCode || '',
+        render: (item) => (
+          <div className="text-slate-700">{item.eventCode ?? '-'}</div>
+        )
+      },
       {
         id: 'name',
         header: 'Event name',
@@ -198,6 +208,7 @@ const EventsTable: React.FC<EventsTableProps> = ({
           <div className="font-medium text-slate-900">{item.name}</div>
         )
       },
+
       {
         id: 'status',
         header: 'Status',
@@ -213,17 +224,41 @@ const EventsTable: React.FC<EventsTableProps> = ({
         render: (item) => <AttendanceTypeBadge type={item.attendanceType} />
       },
       {
-        id: 'registrations',
-        header: 'Registrations',
+        id: 'visibility',
+        header: 'Visibility (Event type)',
         sortable: true,
-        sortAccessor: (item) => item.registrations,
-        render: (item) => <div>{item.registrations}</div>
+        sortAccessor: (item) => item.visibility || '',
+        render: (item) => (
+          <div>
+            {item.visibility && (
+              <span
+                className={[
+                  'inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium',
+                  item.visibility === 'Public'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : item.visibility === 'Private'
+                      ? 'bg-rose-50 text-rose-700'
+                      : 'bg-indigo-50 text-indigo-700'
+                ].join(' ')}
+              >
+                {item.visibility}
+              </span>
+            )}
+          </div>
+        )
       },
+      // {
+      //   id: 'registrations',
+      //   header: 'Registrations',
+      //   sortable: true,
+      //   sortAccessor: (item) => item.registrations,
+      //   render: (item) => <div>{item.registrations}</div>
+      // },
       {
         id: 'eventDate',
         header: 'Event date',
         sortable: true,
-        sortAccessor: (item) => item.eventDate,
+        sortAccessor: (item) => item.startDate || item.eventDate,
         render: (item) => <div>{item.eventDate}</div>
       },
       {

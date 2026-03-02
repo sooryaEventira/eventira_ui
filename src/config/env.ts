@@ -181,7 +181,11 @@ export const API_ENDPOINTS = {
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
     UPDATE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`,
-    DELETE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`
+    DELETE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`,
+    BULK_ADD_TAG: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/bulk-add-tag/?event_id=${eventUuid}`,
+    BULK_DELETE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/bulk-delete/?event_id=${eventUuid}`
   },
   // Tags/Groups endpoints
   TAGS: {
@@ -206,6 +210,9 @@ export const API_ENDPOINTS = {
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,
     UPDATE: (eventUuid: string, scheduleUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/?event_id=${eventUuid}`,
+    /** Delete schedule: DELETE .../schedules/{{schedule_uuid}}/?event_id={{event_uuid}} */
+    DELETE: (scheduleUuid: string, eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/?event_id=${eventUuid}`,
   },
   // Sessions endpoints (schedule grid, create, delete, retrieve, bulk import)
@@ -270,11 +277,15 @@ export const API_ENDPOINTS = {
   SPEAKER_MANAGEMENT: {
     UPLOAD_SPEAKER: `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/import/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
-    /** Speaker tag/group listing: GET .../speakers/tags/?event_id={eventUuid} */
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
     UPDATE: (speakerUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/${speakerUuid}/`,
     DELETE: (speakerUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/${speakerUuid}/`,
+    // Bulk operations for speakers table (multi-select)
+    BULK_ADD_TAG: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/bulk-add-tag/?event_id=${eventUuid}`,
+    BULK_DELETE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/bulk-delete/?event_id=${eventUuid}`,
   },
   // Organization/Exhibitors endpoints
   EXHIBITORS: {

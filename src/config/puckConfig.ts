@@ -1034,11 +1034,11 @@ textColor: {
           type: 'select' as const,
           label: 'Heading Size',
           options: [
-            { label: 'Small ', value: '2rem' },
-            { label: 'Medium ', value: '2.5rem' },
-            { label: 'Large ', value: '3rem' },
-            { label: 'Extra Large ', value: '3.5rem' },
-
+            { label: 'Small', value: 'sm' },
+            { label: 'Medium', value: 'md' },
+            { label: 'Large', value: 'lg' },
+            { label: 'Extra Large', value: 'xl' },
+            { label: '2XL', value: '2xl' },
           ]
         },
         headingAlignment: {
@@ -1092,6 +1092,11 @@ textColor: {
           type: 'text' as const,
           label: 'Height (optional)',
           placeholder: 'auto (16:9) or e.g. 360px',
+        },
+        containerWidth: {
+          type: 'text' as const,
+          label: 'Container width',
+          placeholder: 'e.g. 100%, 800px, 50vw',
         },
         autoplay: {
           type: 'radio' as const,

@@ -390,6 +390,8 @@ export const fetchEvents = async (): Promise<EventData[]> => {
     }
     
     let responseData: any = apiResponse.data
+    console.log('[Event List API] response:', apiResponse)
+    console.log('[Event List API] events data:', responseData)
     if (!responseData) {
       return []
     }
@@ -411,16 +413,39 @@ export const fetchEvents = async (): Promise<EventData[]> => {
         ? (attendanceTypeMap[attendanceType] || attendanceType.toLowerCase())
         : undefined
       
+      // Use same date fallbacks as single-event; prioritize new *_date fields from list API
+      // Example list payload:
+      // - event_date: "2026-02-16"
+      // - start_date: "2026-02-15T18:30:08Z"
+      // - end_date:   "2026-02-17T18:29:59Z"
+      const startDateRaw =
+        isoToDateOnly(event.start_date) ??
+        event.event_date ??
+        event.startDate ??
+        isoToDateOnly(event.start_datetime) ??
+        isoToDateOnly(event.startDateTimeISO) ??
+        isoToDateOnly(event.start_datetime_iso)
+      const endDateRaw =
+        isoToDateOnly(event.end_date) ??
+        event.endDate ??
+        isoToDateOnly(event.end_datetime) ??
+        isoToDateOnly(event.endDateTimeISO) ??
+        isoToDateOnly(event.end_datetime_iso) ??
+        isoToDateOnly(event.end_date_time_iso)
+      // Map is_published to status when API returns it (e.g. list response)
+      const status =
+        event.status ??
+        (typeof event.is_published === 'boolean' ? (event.is_published ? 'Published' : 'draft') : undefined)
       return {
         ...event, // Preserve all original fields from API
         uuid: String(event.uuid || ''),
         eventName: String(event.title || event.eventName || ''),
-        startDate: event.event_date || event.startDate || undefined,
-        endDate: event.end_date || event.endDate || undefined,
+        startDate: startDateRaw != null && String(startDateRaw).trim() !== '' ? String(startDateRaw) : undefined,
+        endDate: endDateRaw != null && String(endDateRaw).trim() !== '' ? String(endDateRaw) : undefined,
         location: event.location || undefined,
         attendees: event.attendees || undefined,
         eventExperience: mappedEventExperience || event.eventExperience || undefined,
-        status: event.status || undefined,
+        status: status,
         registrations: event.registrations || 0,
         createdBy: createdBy,
         createdAt: event.created_at || event.createdAt || event.created_date || undefined,
