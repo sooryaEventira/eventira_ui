@@ -18,6 +18,7 @@ interface SessionDetailsFormProps {
   /** When set, tag select uses uuid as value so draft.tags are UUIDs for tag_uuids payload. */
   sessionTagOptions?: SessionTagOption[]
   availableTags?: string[]
+  onAddNewTag?: () => void
   availableLocations?: string[]
   renderSectionPreview?: (section: SessionSection) => React.ReactNode
   onRemoveSection?: (sectionId: string) => void
@@ -31,6 +32,7 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   onAddSectionClick,
   sessionTagOptions,
   availableTags = [],
+  onAddNewTag,
   availableLocations = [],
   renderSectionPreview,
   onRemoveSection
@@ -53,7 +55,12 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   const tagOptions = (sessionTagOptions && sessionTagOptions.length > 0)
     ? sessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
     : availableTags.map((value) => ({ value, label: tagOptionsMap[value] || value }))
-  const hasTagOptions = (sessionTagOptions && sessionTagOptions.length > 0) || availableTags.length > 0
+
+  // Show the select dropdown either when we already have options OR when we support "Add new" creation.
+  const hasTagOptions =
+    (sessionTagOptions && sessionTagOptions.length > 0) ||
+    availableTags.length > 0 ||
+    Boolean(onAddNewTag)
 
   const locationOptions = availableLocations.map(value => ({
     value,
@@ -144,10 +151,18 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
             <Select
               label="Tags"
               value={draft.tags.length > 0 ? draft.tags[0] : ''}
-              onChange={(event) => onFieldChange('tags', event.target.value ? [event.target.value] : [])}
+              onChange={(event) => {
+                const value = event.target.value
+                if (value === '__add_new__') {
+                  onAddNewTag?.()
+                  return
+                }
+                onFieldChange('tags', value ? [value] : [])
+              }}
               options={[
                 { value: '', label: 'Select tags' },
-                ...tagOptions
+                ...tagOptions,
+                ...(onAddNewTag ? [{ value: '__add_new__', label: '＋ Add new tag' }] : []),
               ]}
               className="h-10"
             />

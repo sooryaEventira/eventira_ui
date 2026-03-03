@@ -28,6 +28,7 @@ export interface Speaker {
     twitter?: string
     website?: string
   }
+  customFields?: Array<{ label: string; value: string }>
 }
 
 export interface Group {

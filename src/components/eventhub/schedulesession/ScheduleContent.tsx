@@ -319,6 +319,21 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     return list
   }, [gridSessions, appliedKeyword, appliedLocations, appliedAttendance])
 
+  const hasAnySessions = gridSessions.length > 0
+
+  const hasSessionsForSelectedDate = useMemo(() => {
+    if (!selectedDate) return false
+    const selected = new Date(selectedDate)
+    selected.setHours(0, 0, 0, 0)
+    return gridSessions.some((s: any) => {
+      if (!s?.date) return false
+      const d = new Date(s.date as any)
+      if (Number.isNaN(d.getTime())) return false
+      d.setHours(0, 0, 0, 0)
+      return d.getTime() === selected.getTime()
+    })
+  }, [gridSessions, selectedDate])
+
   const handleFilterApply = () => {
     setFilterKeywordApplied(filterKeyword.trim())
     setFilterOpen(false)
@@ -555,9 +570,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-center text-base text-slate-500">
-            {gridSessions.length > 0
-              ? 'No sessions match the current filters.'
-              : 'Upload your schedule or create custom sessions!'}
+            {!hasAnySessions
+              ? 'No sessions for this schedule yet. Upload your schedule or create custom sessions!'
+              : !hasSessionsForSelectedDate
+                ? 'No sessions are scheduled for this day. Click "Add session" to create one.'
+                : 'No sessions match the current filters.'}
           </div>
         )}
       </div>

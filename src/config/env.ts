@@ -320,6 +320,9 @@ export const API_ENDPOINTS = {
       }
       return url
     },
+    /** Create a new resource tag: POST {{url}}{{admin_url}}resource-tags/create/ */
+    TAGS_CREATE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}resource-tags/create/`,
   },
 
   TEAM: {

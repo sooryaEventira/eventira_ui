@@ -365,6 +365,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     return date
   })
   const [parentSessionId, setParentSessionId] = React.useState<string | undefined>(undefined)
+  const hasAutoSyncedSelectedDateRef = React.useRef(false)
 
   // When the user switches event, sync selected date to that event's start so the weekday selector shows the correct event dates.
   React.useEffect(() => {
@@ -405,15 +406,23 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     const normalizedSelected = new Date(selectedDate)
     normalizedSelected.setHours(0, 0, 0, 0)
     const hasSelected = dates.some((d) => d.getTime() === normalizedSelected.getTime())
-    if (!hasSelected) {
+
+    // Only auto-sync once after data loads; after that, let the user freely pick empty days.
+    if (!hasSelected && !hasAutoSyncedSelectedDateRef.current) {
       // Prefer first session day within event range; if we have event range and selected is outside, use event start
       if (eventStart && (normalizedSelected.getTime() < eventStart.getTime() || (eventEnd && normalizedSelected.getTime() > eventEnd.getTime()))) {
         setSelectedDate(eventStart)
       } else {
         setSelectedDate(dates[0])
       }
+      hasAutoSyncedSelectedDateRef.current = true
     }
   }, [activeScheduleId, savedSchedules, selectedDate, parseEventStartDate, parseEventEndDate])
+
+  // Reset the "auto-sync once" flag when event or schedule changes so a new schedule can pick a sensible initial day.
+  React.useEffect(() => {
+    hasAutoSyncedSelectedDateRef.current = false
+  }, [activeScheduleId, (createdEvent as any)?.uuid])
 
   const loadSchedules = useCallback(async () => {
     const eventUuid = createdEvent?.uuid
@@ -950,6 +959,74 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
                   }
                 ]
               : []
+
+          // Ensure Speakers sections from list API are available on sessions (for grid display)
+          const apiSectionsFromListRaw: any =
+            Array.isArray((s as any)?.sections)
+              ? (s as any).sections
+              : Array.isArray((s as any)?.session_sections)
+                ? (s as any).session_sections
+                : Array.isArray((s as any)?.session_sections?.results)
+                  ? (s as any).session_sections.results
+                  : Array.isArray((s as any)?.sections?.results)
+                    ? (s as any).sections.results
+                    : []
+
+          const apiSectionsFromList: any[] = Array.isArray(apiSectionsFromListRaw)
+            ? apiSectionsFromListRaw
+            : []
+
+          if (Array.isArray(apiSectionsFromList) && apiSectionsFromList.length > 0) {
+            apiSectionsFromList.forEach((sec: any, idx: number) => {
+              const content = sec?.content && typeof sec.content === 'object' ? sec.content : {}
+              const sectionType = (sec?.section_type ?? sec?.type ?? 'text').toString()
+              const uiType =
+                sectionType === 'poster'
+                  ? 'slides'
+                  : sectionType === 'image'
+                    ? 'photo-gallery'
+                    : sectionType === 'speakers'
+                      ? 'speaker'
+                      : sectionType === 'resource'
+                        ? 'resources'
+                        : sectionType
+
+              // For now we only care about Speakers sections for the grid
+              if (uiType !== 'speaker' && sectionType !== 'speakers') return
+
+              const speakerUuids = content?.speaker_uuids ?? []
+              const contentSpeakers = Array.isArray(content?.speakers) ? content.speakers : []
+              const speakersWithRole =
+                contentSpeakers.length > 0
+                  ? contentSpeakers.map((sp: any) => ({
+                      id: sp?.id ?? sp?.speaker_uuid ?? '',
+                      name: sp?.name ?? '',
+                      role: sp?.role ?? ''
+                    }))
+                  : (Array.isArray(speakerUuids) ? speakerUuids : []).map((sid: string) => ({
+                      id: sid,
+                      name: '',
+                      role: ''
+                    }))
+
+              const sectionData: Record<string, unknown> = {
+                ...content,
+                speaker_uuids: Array.isArray(speakerUuids) ? speakerUuids : [],
+                speakers: speakersWithRole
+              }
+
+              sections = [
+                ...sections,
+                {
+                  id: `section-${id}-speakers-${idx}`,
+                  type: uiType,
+                  title: (content?.title ?? sec?.title ?? 'Speakers').toString(),
+                  description: (content?.body ?? sec?.description ?? '').toString(),
+                  data: sectionData
+                }
+              ]
+            })
+          }
 
           // Merge session_resources: video files → Video section, others → Resources section
           const apiResources = Array.isArray(s?.session_resources) ? s.session_resources : Array.isArray(s?.resources) ? s.resources : Array.isArray(s?.resource_files) ? s.resource_files : []
@@ -2586,13 +2663,19 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
                     if (raw && typeof raw === 'object') {
                       queueMicrotask(() => {
                         const draft = mapRetrieveSessionToDraftWithTimezone(raw)
+                        const normalizedDraft = {
+                          ...defaultSessionDraft,
+                          ...draft,
+                          // Preserve the time the user sees in the grid (session is already normalized for timezone there)
+                          startTime: session.startTime ?? draft.startTime,
+                          endTime: session.endTime ?? draft.endTime,
+                          startPeriod: session.startPeriod ?? draft.startPeriod,
+                          endPeriod: session.endPeriod ?? draft.endPeriod,
+                          tags: [...(draft.tags ?? [])],
+                          sections: draft.sections?.map((s) => ({ ...s })) ?? []
+                        }
                         startTransition(() => {
-                          setActiveDraft({
-                            ...defaultSessionDraft,
-                            ...draft,
-                            tags: [...(draft.tags ?? [])],
-                            sections: draft.sections?.map((s) => ({ ...s })) ?? []
-                          })
+                          setActiveDraft(normalizedDraft)
                           setSessionDraftLoading(false)
                         })
                       })
@@ -2645,13 +2728,19 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
                       // Defer heavy mapping so loading spinner stays visible and UI stays responsive
                       queueMicrotask(() => {
                         const draft = mapRetrieveSessionToDraftWithTimezone(raw)
+                        const normalizedDraft = {
+                          ...defaultSessionDraft,
+                          ...draft,
+                          // Preserve the time the user sees in the grid (session is already normalized for timezone there)
+                          startTime: session.startTime ?? draft.startTime,
+                          endTime: session.endTime ?? draft.endTime,
+                          startPeriod: session.startPeriod ?? draft.startPeriod,
+                          endPeriod: session.endPeriod ?? draft.endPeriod,
+                          tags: [...(draft.tags ?? [])],
+                          sections: draft.sections?.map((s) => ({ ...s })) ?? []
+                        }
                         startTransition(() => {
-                          setActiveDraft({
-                            ...defaultSessionDraft,
-                            ...draft,
-                            tags: [...(draft.tags ?? [])],
-                            sections: draft.sections?.map((s) => ({ ...s })) ?? []
-                          })
+                          setActiveDraft(normalizedDraft)
                           setSessionDraftLoading(false)
                         })
                       })

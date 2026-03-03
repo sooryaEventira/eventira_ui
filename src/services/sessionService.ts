@@ -185,6 +185,53 @@ export async function fetchSessionTags(eventUuid: string): Promise<SessionTagOpt
   return extractSessionTagOptions(data)
 }
 
+/** Create a new resource tag for sessions. POST {{url}}{{admin_url}}resource-tags/create/ */
+export async function createSessionTag(eventUuid: string, name: string, description?: string): Promise<SessionTagOption | null> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) return null
+  const url = API_ENDPOINTS.RESOURCE.TAGS_CREATE(eventUuid)
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      body: JSON.stringify({
+        event_uuid: eventUuid,
+        name,
+        description: description ?? '',
+      }),
+      credentials: 'include',
+    })
+    const text = await response.text().catch(() => '')
+    if (!response.ok) {
+      // Surface backend error via shared handler (toast, etc.)
+      handleApiError(response.status, text)
+      return null
+    }
+    let data: any = null
+    try {
+      data = text ? JSON.parse(text) : null
+    } catch {
+      data = null
+    }
+    if (!data || typeof data !== 'object') return null
+    const uuid = data.uuid ?? data.id ?? data.pk
+    const tagName = data.name ?? name
+    if (!uuid) return null
+    return {
+      uuid: String(uuid).trim(),
+      name: String(tagName || name).trim(),
+    }
+  } catch (e) {
+    console.error('[SessionTags] createSessionTag failed', e)
+    return null
+  }
+}
+
 /** List session locations for event + schedule (add/edit session slideout). GET {{admin_url}}sessions/locations?event_id=&schedule_uuid= */
 export async function fetchSessionLocations(eventUuid: string, scheduleUuid: string): Promise<string[]> {
   const accessToken = localStorage.getItem('accessToken')

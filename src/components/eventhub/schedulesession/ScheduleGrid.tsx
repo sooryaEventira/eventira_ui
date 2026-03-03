@@ -42,6 +42,43 @@ interface SessionContainerProps {
   showTimeColumn?: boolean
 }
 
+type SessionSpeaker = { id: string; name: string; role?: string }
+
+function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
+  const seen = new Set<string>()
+  const result: SessionSpeaker[] = []
+
+  const sections = Array.isArray(session.sections) ? session.sections : []
+  sections.forEach((sec: any) => {
+    const type = String(sec?.type || '').toLowerCase()
+    if (type !== 'speaker' && type !== 'speakers') return
+    const list = Array.isArray(sec?.data?.speakers) ? (sec.data.speakers as any[]) : []
+    list.forEach((sp) => {
+      const id = String(sp?.id ?? sp?.speaker_uuid ?? '').trim()
+      const name = String(sp?.name ?? '').trim()
+      const role = sp?.role ? String(sp.role) : undefined
+      if (!id && !name) return
+      const key = id || name
+      if (seen.has(key)) return
+      seen.add(key)
+      result.push({ id: id || key, name: name || 'Speaker', role })
+    })
+  })
+
+  return result
+}
+
+function formatSessionSpeakersLabel(speakers: SessionSpeaker[]): string {
+  if (!speakers.length) return ''
+  return speakers
+    .map((s) => {
+      const role = (s.role && String(s.role).trim()) || 'Speaker'
+      const name = s.name || 'Unnamed'
+      return `${role}: ${name}`
+    })
+    .join(', ')
+}
+
 // Dropdown menu width for positioning
 const SESSION_MENU_WIDTH = 120
 
@@ -241,7 +278,6 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   const timeEnd = timeRangeEnd ?? formatTime(session.endTime, session.endPeriod || 'AM')
   const hasParallelSessions = parallelSessions.length > 0
   const showAddButton = Boolean(onAddParallelSession)
-  const showExpandButton = hasParallelSessions
 
   const getChildren = React.useCallback(
     (parentId: string) => {
@@ -386,7 +422,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                           </span>
                         )}
 
-                       
+                      
                       </div>
 
                       {onAddParallelSession && (
@@ -403,6 +439,19 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                         </button>
                       )}
                     </div>
+
+                    {/* Speakers */}
+                    {(() => {
+                      const speakers = getSessionSpeakers(child)
+                      const label = formatSessionSpeakersLabel(speakers)
+                      if (!label) return null
+                      return (
+                        <div className="mb-2 flex items-center gap-1.5 text-xs text-slate-600">
+                          <User01 className="h-3 w-3 text-slate-400" />
+                          <span>{label}</span>
+                        </div>
+                      )
+                    })()}
 
                     {/* Footer */}
                     <div className="flex items-center justify-between">
@@ -528,6 +577,19 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                 {session.sections[0].description}
               </p>
             )}
+
+            {/* Speakers */}
+            {(() => {
+              const speakers = getSessionSpeakers(session)
+              const label = formatSessionSpeakersLabel(speakers)
+              if (!label) return null
+              return (
+                <div className="mb-3 flex items-center gap-1.5 text-xs text-slate-600">
+                  <User01 className="h-3.5 w-3.5 text-slate-400" />
+                  <span>{label}</span>
+                </div>
+              )
+            })()}
 
             {/* Footer - Attachment Badge */}
             <div className="flex items-center justify-between">

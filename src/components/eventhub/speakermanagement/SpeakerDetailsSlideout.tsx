@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { XClose, Camera01, Eye } from '@untitled-ui/icons-react'
+import { XClose, Camera01, Eye, Plus, Trash03 } from '@untitled-ui/icons-react'
 import { Speaker, SpeakerGroup } from './speakerTypes'
 import { Badge, Slideout } from '../../ui/untitled'
 import profileBackground from '../../../assets/images/profile_background.jpg'
@@ -36,6 +36,9 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
   const [profilePreviewUrl, setProfilePreviewUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [customFields, setCustomFields] = useState<
+    Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
+  >([])
 
   useEffect(() => {
     if (speaker && isOpen) {
@@ -55,6 +58,14 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
         if (prev) URL.revokeObjectURL(prev)
         return null
       })
+      const nextCustomFields =
+        (speaker.customFields || []).map((field, idx) => ({
+          id: `${Date.now()}-${idx}`,
+          label: field.label,
+          value: field.value,
+          hideFromProfile: false
+        })) || []
+      setCustomFields(nextCustomFields)
     }
   }, [speaker, isOpen])
 
@@ -96,6 +107,15 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
     setIsSaving(true)
     const nextGroups = commitGroups(groupsText)
 
+    const cleanedCustomFields = customFields
+      .map((f) => ({
+        id: f.id,
+        label: (f.label || '').trim(),
+        value: (f.value || '').trim(),
+        hideFromProfile: !!f.hideFromProfile
+      }))
+      .filter((f) => f.label || f.value)
+
     const updatedSpeaker: Speaker = {
       ...editedSpeaker,
       firstName,
@@ -107,7 +127,10 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
       role: title,
       title,
       bio,
-      groups: nextGroups
+      groups: nextGroups,
+      customFields: cleanedCustomFields.length
+        ? cleanedCustomFields.map((f) => ({ label: f.label, value: f.value }))
+        : undefined
     }
 
     try {
@@ -345,6 +368,93 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
             rows={4}
             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-y"
           />
+        </div>
+
+        {/* Custom fields (match Create speaker modal) */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => {
+                if (customFields.length >= 10) return
+                setCustomFields((prev) => [
+                  ...prev,
+                  {
+                    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+                    label: '',
+                    value: '',
+                    hideFromProfile: false
+                  }
+                ])
+              }}
+              disabled={customFields.length >= 10}
+              className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Plus className="h-4 w-4" />
+              Add field
+            </button>
+          </div>
+
+          {customFields.length === 0 ? (
+            <div className="text-xs text-slate-500"></div>
+          ) : (
+            <div className="space-y-2">
+              {customFields.map((field) => (
+                <div key={field.id} className="space-y-2">
+                  <div className="grid grid-cols-12 gap-2">
+                    <input
+                      type="text"
+                      value={field.label}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setCustomFields((prev) =>
+                          prev.map((f) => (f.id === field.id ? { ...f, label: next } : f))
+                        )
+                      }}
+                      placeholder="Label"
+                      className="col-span-5 w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                    />
+                    <input
+                      type="text"
+                      value={field.value}
+                      onChange={(e) => {
+                        const next = e.target.value
+                        setCustomFields((prev) =>
+                          prev.map((f) => (f.id === field.id ? { ...f, value: next } : f))
+                        )
+                      }}
+                      placeholder="Value"
+                      className="col-span-6 w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCustomFields((prev) => prev.filter((f) => f.id !== field.id))}
+                      className="col-span-1 flex h-9 w-9 items-center justify-center rounded-md text-slate-500 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60"
+                      aria-label="Remove custom field"
+                      title="Remove"
+                    >
+                      <Trash03 className="h-4 w-4" strokeWidth={1.8} />
+                    </button>
+                  </div>
+
+                  <label className="inline-flex items-center gap-2 text-xs text-slate-600 whitespace-nowrap">
+                    <input
+                      type="checkbox"
+                      checked={!!field.hideFromProfile}
+                      onChange={(e) => {
+                        const next = e.target.checked
+                        setCustomFields((prev) =>
+                          prev.map((f) => (f.id === field.id ? { ...f, hideFromProfile: next } : f))
+                        )
+                      }}
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40"
+                    />
+                    Hide from Profile
+                  </label>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
       </div>
