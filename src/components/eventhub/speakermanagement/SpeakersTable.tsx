@@ -64,6 +64,20 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
   const [addToGroupOpen, setAddToGroupOpen] = useState(false)
   const addToGroupRef = useRef<HTMLDivElement>(null)
+  // Column visibility for speaker table (only when activeTab === 'user')
+  const SPEAKER_COLUMN_OPTIONS: { id: string; label: string }[] = [
+    // Name column is always visible and cannot be toggled
+    { id: 'inviteCode', label: 'Invite Code' },
+    { id: 'email', label: 'Email' },
+    { id: 'designation', label: 'Designation' },
+    { id: 'organization', label: 'Organization' },
+    { id: 'groups', label: 'Groups' }
+  ]
+  const [visibleSpeakerColumnIds, setVisibleSpeakerColumnIds] = useState<Set<string>>(
+    () => new Set(SPEAKER_COLUMN_OPTIONS.map((c) => c.id))
+  )
+  const [columnDropdownOpen, setColumnDropdownOpen] = useState(false)
+  const columnDropdownRef = useRef<HTMLDivElement>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>({
     column: 'name',
@@ -213,6 +227,17 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [addToGroupOpen])
+
+  useEffect(() => {
+    if (!columnDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (columnDropdownRef.current && !columnDropdownRef.current.contains(e.target as Node)) {
+        setColumnDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [columnDropdownOpen])
 
   const visibleSpeakerIdsOnPage = useMemo(
     () => paginatedSpeakers.map((s) => s.id),
@@ -371,14 +396,43 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
             >
               <Download01 className="h-4 w-4" strokeWidth={2} />
             </button>
-            <button
-              type="button"
-              onClick={onGridView}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              aria-label="Grid view"
-            >
-              <Columns03 className="h-4 w-4" strokeWidth={2} />
-            </button>
+            <div className="relative" ref={columnDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setColumnDropdownOpen((v) => !v)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                aria-label="Choose columns"
+                aria-expanded={columnDropdownOpen}
+              >
+                <Columns03 className="h-4 w-4" strokeWidth={2} />
+              </button>
+              {columnDropdownOpen && (
+                <div className="absolute right-0 top-full z-20 mt-1 min-w-[200px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                  {SPEAKER_COLUMN_OPTIONS.map((option) => (
+                    <label
+                      key={option.id}
+                      className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40"
+                        checked={visibleSpeakerColumnIds.has(option.id)}
+                        onChange={(e) => {
+                          setVisibleSpeakerColumnIds((prev) => {
+                            const next = new Set(prev)
+                            if (e.target.checked) next.add(option.id)
+                            else next.delete(option.id)
+                            return next
+                          })
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
           </>
         )}
       </div>
@@ -417,7 +471,26 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     }
   }
 
-  const tableData = getTableData()
+  // Filter speaker columns by visibility (name and actions always shown)
+  const visibleSpeakerColumns = useMemo(() => {
+    return speakerColumns.filter(
+      (col) =>
+        col.id === 'name' ||
+        col.id === 'actions' ||
+        visibleSpeakerColumnIds.has(col.id)
+    )
+  }, [speakerColumns, visibleSpeakerColumnIds])
+
+  const tableData = (() => {
+    const base = getTableData()
+    if (activeTab === 'user') {
+      return {
+        ...base,
+        columns: visibleSpeakerColumns
+      }
+    }
+    return base
+  })()
 
   // Loading state - check after all hooks
   if (isLoading) {

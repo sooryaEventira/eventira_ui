@@ -140,8 +140,8 @@ export const createExhibitor = async (
     }
 
     const { accessToken, organizationUuid } = getAuthHeaders()
-    // Backend expects POST to: exhibitors/?event_uuid=...
-    const url = API_ENDPOINTS.EXHIBITORS.LIST(eventUuid)
+    // Backend expects POST to: exhibitors/?event_uuid={{event_uuid}}
+    const url = API_ENDPOINTS.EXHIBITORS.CREATE(eventUuid)
 
     const response = await fetch(url, {
       method: 'POST',

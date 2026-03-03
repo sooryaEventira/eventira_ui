@@ -218,14 +218,14 @@ const EventsTable: React.FC<EventsTableProps> = ({
       },
       {
         id: 'attendanceType',
-        header: 'Event type',
+        header: 'Attendance',
         sortable: true,
         sortAccessor: (item) => item.attendanceType,
         render: (item) => <AttendanceTypeBadge type={item.attendanceType} />
       },
       {
         id: 'visibility',
-        header: 'Visibility (Event type)',
+        header: 'Accessibility',
         sortable: true,
         sortAccessor: (item) => item.visibility || '',
         render: (item) => (

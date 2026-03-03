@@ -70,9 +70,15 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
     <div className="flex flex-col gap-1">
       <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
       <input
-        type="time"
+        type="text"
+        inputMode="numeric"
+        placeholder="00:00"
         value={draft[timeKey] || ''}
-        onChange={(event) => onFieldChange(timeKey, event.target.value)}
+        onChange={(event) => {
+          const value = event.target.value
+          // Allow empty or basic HH:MM-like input; validation happens on save
+          onFieldChange(timeKey, value)
+        }}
         className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       />
     </div>

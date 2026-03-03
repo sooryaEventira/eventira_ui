@@ -71,7 +71,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
 
   // Column visibility for attendee table (only when activeTab === 'user')
   const ATTENDEE_COLUMN_OPTIONS: { id: string; label: string }[] = [
-    { id: 'name', label: 'Name' },
+    // Name column is always visible and cannot be toggled
     { id: 'email', label: 'Email' },
     { id: 'inviteCode', label: 'Invite Code' },
     { id: 'designation', label: 'Designation' },

@@ -639,20 +639,6 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
     return { parentSessions: parents, parallelSessionsMap: parallelMap }
   }, [filteredSessions])
 
-  // Auto-expand parent sessions that have parallel sessions
-  useEffect(() => {
-    const parentsWithParallel = Object.keys(parallelSessionsMap)
-    if (parentsWithParallel.length > 0) {
-      setExpandedSessions(prev => {
-        const newSet = new Set(prev)
-        parentsWithParallel.forEach(parentId => {
-          newSet.add(parentId)
-        })
-        return newSet
-      })
-    }
-  }, [parallelSessionsMap])
-
   // Helper to convert time to minutes for grouping/sort (used in useMemo below)
   const timeToMinutesForGroup = (time: string, period: 'AM' | 'PM'): number => {
     const [hours, mins] = time.split(':').map(Number)
@@ -789,8 +775,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 <div className="flex-1 flex flex-col items-center justify-center min-h-0 gap-1 px-1">
                   <div className="w-px flex-1 bg-slate-200" />
                   {group.sessions.length > 1 && (
-                    <span className="text-xs font-medium text-slate-600 whitespace-nowrap">
-                      parallel
+                    <span className="text-xs  text-blue-700 border border-slate-200 rounded-full  px-2 bg-blue-50  whitespace-nowrap">
+                      parallel sessions
                     </span>
                   )}
                   <div className="w-px flex-1 bg-slate-200" />

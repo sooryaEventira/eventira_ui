@@ -291,6 +291,8 @@ export const API_ENDPOINTS = {
   EXHIBITORS: {
     /** List exhibitors: {{url}}{{admin_url}}exhibitors/?event_id={{event_uuid}} */
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_id=${eventUuid}`,
+    /** Create exhibitor: POST {{url}}{{admin_url}}exhibitors/?event_uuid={{event_uuid}} */
+    CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/?event_uuid=${eventUuid}`,
     /** PATCH exhibitor: {{url}}{{admin_url}}exhibitors/{{exhibitor_uuid}}/?event_id={{event_uuid}} */
     UPDATE: (exhibitorUuid: string, eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}exhibitors/${exhibitorUuid}/?event_id=${eventUuid}`,
