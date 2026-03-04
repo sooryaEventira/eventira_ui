@@ -12,8 +12,8 @@ export interface CreateSessionBody {
   location: string
   session_type: string
   tag_uuids: string[]
-  /** Optional: human-readable tag labels so backend can echo tags array in response. */
-  tags?: string[]
+  /** Human-readable tag names corresponding to tag_uuids (backend field: tag_names). */
+  tag_names?: string[]
   /** Optional: parent session UUID when creating a child/parallel session. Backend expects the field name `parent`. */
   parent?: string
 }
@@ -29,8 +29,8 @@ export interface UpdateSessionBody {
   location: string
   session_type: string
   tag_uuids: string[]
-  /** Optional: human-readable tag labels so backend can echo tags array in response. */
-  tags?: string[]
+  /** Human-readable tag names corresponding to tag_uuids (backend field: tag_names). */
+  tag_names?: string[]
   /** Optional: parent session UUID when updating a child/parallel session. Backend expects the field name `parent`. */
   parent?: string | null
 }

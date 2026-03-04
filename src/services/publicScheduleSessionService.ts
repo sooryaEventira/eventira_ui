@@ -41,22 +41,68 @@ export function mapApiSectionsToSavedSections(
       data: sectionData
     }
   })
-  const resourceFiles = (apiResources ?? []).map((r: any) =>
-    typeof r === 'string' ? r : { url: r?.file_url ?? r?.url ?? r?.file, name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File' }
+  const rawResources = apiResources ?? []
+  const resourceFiles = rawResources.map((r: any) =>
+    typeof r === 'string'
+      ? { url: r, name: r?.split?.('/')?.pop?.() ?? 'File' }
+      : {
+          url: r?.file_url ?? r?.url ?? r?.file,
+          name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File'
+        }
   )
+
   if (resourceFiles.length > 0) {
-    const existing = sections.find((s: any) => s.type === 'resources')
-    if (existing) {
-      const current = (existing.data?.files as any[]) ?? []
-      existing.data = { ...existing.data, files: [...current, ...resourceFiles] }
-    } else {
-      sections.push({
-        id: `section-${sessionId}-resources`,
-        type: 'resources',
-        title: 'Resources',
-        description: '',
-        data: { files: resourceFiles }
-      })
+    const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|ogg|m4v|ogv)(\?|$)/i
+    const videoResources: typeof resourceFiles = []
+    const nonVideoResources: typeof resourceFiles = []
+
+    resourceFiles.forEach((item) => {
+      const url = item?.url ?? ''
+      const name = item?.name ?? ''
+      if (VIDEO_EXTENSIONS.test(String(url)) || VIDEO_EXTENSIONS.test(String(name))) {
+        videoResources.push(item)
+      } else {
+        nonVideoResources.push(item)
+      }
+    })
+
+    // Create/augment Video section from first video resource
+    if (videoResources.length > 0) {
+      const firstVideo = videoResources[0]
+      const videoUrl = firstVideo?.url ? String(firstVideo.url) : ''
+      let videoSection = sections.find((s: any) => s.type === 'video')
+      if (videoSection) {
+        videoSection.data = {
+          ...(videoSection.data || {}),
+          videoUrl,
+          video_url: videoUrl
+        }
+      } else {
+        sections.push({
+          id: `section-${sessionId}-video`,
+          type: 'video',
+          title: 'Video',
+          description: '',
+          data: { videoUrl, video_url: videoUrl }
+        })
+      }
+    }
+
+    // Non-video resources → Resources section
+    if (nonVideoResources.length > 0) {
+      const existing = sections.find((s: any) => s.type === 'resources')
+      if (existing) {
+        const current = (existing.data?.files as any[]) ?? []
+        existing.data = { ...existing.data, files: [...current, ...nonVideoResources] }
+      } else {
+        sections.push({
+          id: `section-${sessionId}-resources`,
+          type: 'resources',
+          title: 'Resources',
+          description: '',
+          data: { files: nonVideoResources }
+        })
+      }
     }
   }
   if (!sections.length && fallbackDescription) {

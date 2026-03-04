@@ -11,7 +11,6 @@ import ResourceVideoPickerModal from './ResourceVideoPickerModal'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { defaultSessionDraft, sectionOptions } from './sessionConfig'
 import { SessionDraft, SessionSection } from './sessionTypes'
-import { createSessionTag } from '../../../services/sessionService'
 
 interface SessionSlideoutProps {
   isOpen: boolean
@@ -64,9 +63,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const [isSaving, setIsSaving] = useState(false)
   const [pendingRemoveSection, setPendingRemoveSection] = useState<{ sectionId: string; title: string } | null>(null)
   const [isRemovingSection, setIsRemovingSection] = useState(false)
-  const [isCreatingTag, setIsCreatingTag] = useState(false)
-  const [newTagName, setNewTagName] = useState('')
-  const [localTagOptions, setLocalTagOptions] = useState(sessionTagOptions ?? [])
 
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const imageUploadSectionIdRef = useRef<string | null>(null)
@@ -139,10 +135,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     }
   }, [initialDraft, isOpen, startInEditMode])
 
-  // Keep local tag options in sync with props when they change (e.g. after list endpoint reload).
-  useEffect(() => {
-    setLocalTagOptions(sessionTagOptions ?? [])
-  }, [sessionTagOptions])
 
   const handleChange = <K extends keyof SessionDraft>(key: K, value: SessionDraft[K]) => {
     setDraft((prev) => ({
@@ -586,37 +578,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setIsEditing(true)
   }
 
-  const handleOpenCreateTag = () => {
-    setNewTagName('')
-    setIsCreatingTag(true)
-  }
-
-  const handleCreateTag = async () => {
-    if (!eventUuid || !newTagName.trim()) {
-      setIsCreatingTag(false)
-      return
-    }
-    const name = newTagName.trim()
-    setIsCreatingTag(false)
-    try {
-      const created = await createSessionTag(eventUuid, name)
-      if (created) {
-        // Add new tag to local dropdown list immediately
-        setLocalTagOptions((prev) => {
-          if (prev.some((t) => t.uuid === created.uuid)) return prev
-          return [...prev, created]
-        })
-        // Select newly created tag for this draft
-        setDraft((prev) => ({
-          ...prev,
-          tags: [created.uuid],
-        }))
-      }
-    } catch {
-      // errors are already handled in service
-    }
-  }
-
   const footerContent = (
     <>
       {isEditing ? (
@@ -742,9 +703,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
               onFieldChange={handleChange}
               onTagsInputChange={setTagsInput}
               onAddSectionClick={handleAddSection}
-              sessionTagOptions={localTagOptions}
+              sessionTagOptions={sessionTagOptions}
               availableTags={availableTags}
-              onAddNewTag={handleOpenCreateTag}
               availableLocations={availableLocations}
               renderSectionPreview={(section) => (
                 <SessionSectionPreview section={section} handlers={sectionPreviewHandlers} />
@@ -752,7 +712,12 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
               onRemoveSection={handleRemoveSection}
             />
           ) : (
-            <SessionSummaryView session={draft} sessionId={(draft as { id?: string }).id} eventId={eventUuid || undefined} />
+            <SessionSummaryView
+              session={draft}
+              sessionId={(draft as { id?: string }).id}
+              eventId={eventUuid || undefined}
+              tagOptions={sessionTagOptions}
+            />
           )}
         </div>
       </Slideout>
@@ -779,34 +744,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
             isLoading={isRemovingSection}
             onCancel={() => setPendingRemoveSection(null)}
             onConfirm={handleConfirmRemoveSection}
-          />,
-          document.body
-        )}
-
-      {typeof document !== 'undefined' && isCreatingTag &&
-        createPortal(
-          <ConfirmDeleteModal
-            isOpen={true}
-            title="Add new tag"
-            description={
-              <span className="block">
-                <span className="mb-1 block text-sm font-medium text-slate-700">
-                  Tag name
-                </span>
-                <input
-                  type="text"
-                  value={newTagName}
-                  onChange={(e) => setNewTagName(e.target.value)}
-                  className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  placeholder="Enter tag name"
-                />
-              </span> as any
-            }
-            confirmText="Create"
-            cancelText="Cancel"
-            isLoading={false}
-            onCancel={() => setIsCreatingTag(false)}
-            onConfirm={handleCreateTag}
           />,
           document.body
         )}

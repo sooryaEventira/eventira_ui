@@ -18,6 +18,8 @@ interface SessionSummaryViewProps {
   eventId?: string
   /** Current user (attendee/speaker) for CometChat – when provided, chat is interactive. */
   cometChatUser?: CometChatUser | null
+  /** Optional tag options (uuid + name) so we can display friendly tag names instead of UUIDs. */
+  tagOptions?: Array<{ uuid: string; name: string }>
 }
 
 /** Get YouTube embed URL from watch URL, youtu.be, Shorts, or existing embed URL. */
@@ -32,27 +34,36 @@ function getYouTubeEmbedUrl(input: string): string {
   return ''
 }
 
+// Display time in 24-hour format (to match grid and edit form),
+// while underlying data is stored as 12-hour time + period.
 const formatTime = (time: string, period: 'AM' | 'PM') => {
-  if (!time) return ''
+  const rawTime = (time || '').trim()
+  if (!rawTime) return ''
 
-  const [hourPart, minutePart = '00'] = time.split(':')
+  const [hourPart, minutePart = '00'] = rawTime.split(':')
   const hourValue = Number.parseInt(hourPart, 10)
+  const minuteValue = Number.parseInt(minutePart, 10)
 
-  if (Number.isNaN(hourValue)) {
-    return `${time} ${period}`
+  if (Number.isNaN(hourValue) || Number.isNaN(minuteValue)) {
+    return rawTime
   }
 
-  const normalizedHour = ((hourValue % 12) + 12) % 12 || 12
-  const formattedMinutes = minutePart.padStart(2, '0')
+  const p = (period || 'AM').toUpperCase() as 'AM' | 'PM'
+  let hours24 = hourValue % 12
+  if (p === 'PM') hours24 += 12
+  if (p === 'AM' && hourValue === 12) hours24 = 0
 
-  return `${normalizedHour}:${formattedMinutes} ${period}`
+  const hh = String(hours24).padStart(2, '0')
+  const mm = String(minuteValue).padStart(2, '0')
+  return `${hh}:${mm}`
 }
 
 const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
   session,
   sessionId: sessionIdProp,
   eventId,
-  cometChatUser
+  cometChatUser,
+  tagOptions
 }) => {
   if (!session) {
     return (
@@ -69,6 +80,11 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
     startLabel && endLabel ? `${startLabel} - ${endLabel}` : startLabel || endLabel
 
   const tags = Array.isArray(session.tags) ? session.tags : []
+  const displayTags = tags.map((tag) => {
+    if (typeof tag !== 'string') return String(tag)
+    const fromOptions = tagOptions?.find((opt) => opt.uuid === tag || opt.name === tag)
+    return fromOptions?.name ?? tag
+  })
   const metadataChips = [
     timeRange && {
       id: 'time-range',
@@ -82,7 +98,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
       id: 'type',
       label: session.sessionType
     },
-    ...tags.map((tag) => ({
+    ...displayTags.map((tag) => ({
       id: `tag-${tag}`,
       label: tag,
       intent: 'tag'
@@ -135,7 +151,10 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                   const ytEmbed = getYouTubeEmbedUrl(videoUrl)
                   if (ytEmbed) {
                     return (
-                      <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900" style={{ paddingBottom: '56.25%', position: 'relative' }}>
+                      <div
+                        className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900 max-w-3xl mx-auto"
+                        style={{ paddingBottom: '56.25%', position: 'relative' }}
+                      >
                         <iframe
                           title="YouTube video"
                           className="absolute inset-0 h-full w-full"
@@ -147,12 +166,12 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                     )
                   }
                   return (
-                    <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900">
+                    <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-900 max-w-3xl mx-auto">
                       <video
                         src={toAbsoluteMediaUrl(videoUrl)}
                         controls
                         playsInline
-                        className="w-full max-h-80 object-contain"
+                        className="w-full h-auto max-h-80 object-contain"
                       >
                         Your browser does not support the video tag.
                       </video>

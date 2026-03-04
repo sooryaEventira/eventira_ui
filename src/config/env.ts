@@ -164,8 +164,8 @@ export const API_ENDPOINTS = {
       LIST: (eventUuid: string, scheduleUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/${scheduleUuid}/sessions/`,
       /** Retrieve single session with full details (sections, video, resources, speakers, text). */
-      RETRIEVE: (eventUuid: string, scheduleUuid: string, sessionUuid: string) =>
-        `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/${scheduleUuid}/sessions/${sessionUuid}/`,
+      RETRIEVE: (eventUuid: string, _scheduleUuid: string, sessionUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/`,
     },
     /** Website settings for published site (no auth). GET brand_primary_color etc. */
     WEBSITE_SETTINGS: (eventUuid: string) =>

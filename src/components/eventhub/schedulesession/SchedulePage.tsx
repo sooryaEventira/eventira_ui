@@ -961,20 +961,31 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
               : []
 
           // Ensure Speakers sections from list API are available on sessions (for grid display)
-          const apiSectionsFromListRaw: any =
-            Array.isArray((s as any)?.sections)
-              ? (s as any).sections
-              : Array.isArray((s as any)?.session_sections)
-                ? (s as any).session_sections
-                : Array.isArray((s as any)?.session_sections?.results)
-                  ? (s as any).session_sections.results
-                  : Array.isArray((s as any)?.sections?.results)
-                    ? (s as any).sections.results
-                    : []
+          const apiSectionsFromList: any[] = []
 
-          const apiSectionsFromList: any[] = Array.isArray(apiSectionsFromListRaw)
-            ? apiSectionsFromListRaw
-            : []
+          const rawSections = (s as any)
+
+          if (Array.isArray(rawSections?.sections)) {
+            apiSectionsFromList.push(...rawSections.sections)
+          }
+          if (Array.isArray(rawSections?.session_sections)) {
+            apiSectionsFromList.push(...rawSections.session_sections)
+          }
+          if (Array.isArray(rawSections?.session_sections?.results)) {
+            apiSectionsFromList.push(...rawSections.session_sections.results)
+          }
+          if (Array.isArray(rawSections?.sections?.results)) {
+            apiSectionsFromList.push(...rawSections.sections.results)
+          }
+          // Some list responses (e.g. templates) put speaker sections under a top-level `speakers` array
+          if (Array.isArray(rawSections?.speakers)) {
+            apiSectionsFromList.push(
+              ...rawSections.speakers.map((sec: any) => ({
+                section_type: sec?.section_type ?? 'speakers',
+                ...sec
+              }))
+            )
+          }
 
           if (Array.isArray(apiSectionsFromList) && apiSectionsFromList.length > 0) {
             apiSectionsFromList.forEach((sec: any, idx: number) => {
@@ -1868,7 +1879,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             location: normalizedSession.location ?? '',
             session_type: parentSessionId ? 'child' : (normalizedSession.sessionType?.trim() || 'keynote'),
             tag_uuids: tagUuids,
-            tags: tagNames,
+            tag_names: tagNames,
             ...(parentSessionId ? { parent: parentSessionId } : { parent: null })
           }
           const updateResponse = await updateSession(eventUuid, sessionUuidForUpdate, String(activeScheduleId), updateBody)
@@ -2024,7 +2035,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             location: normalizedSession.location ?? '',
             session_type: parentSessionId ? 'child' : (normalizedSession.sessionType?.trim() || 'keynote'),
             tag_uuids: tagUuids,
-            tags: tagNames,
+            tag_names: tagNames,
             ...(parentSessionId ? { parent: parentSessionId } : {})
           }
           const created = await createSession(eventUuid, sessionBody)
@@ -2168,7 +2179,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       location: data.location ?? '',
       session_type: (data.sessionType?.trim() || 'keynote'),
       tag_uuids: tagUuids,
-      tags: tagNames
+      tag_names: tagNames
     }
     try {
       let sessionUuid: string | undefined

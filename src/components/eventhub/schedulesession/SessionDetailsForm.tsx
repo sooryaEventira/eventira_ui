@@ -1,6 +1,8 @@
-import React from 'react'
+import React, { useMemo } from 'react'
 import { Eye, Pencil01, Trash01 } from '@untitled-ui/icons-react'
 import { Input, Select, Button } from '../../ui/untitled'
+import CreatableMultiSelect, { type CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
+import type { MultiValue, ActionMeta } from 'react-select'
 import { SessionDraft, SessionSection } from './sessionTypes'
 
 /** Tag option with uuid for sending tag_uuids to backend. */
@@ -18,7 +20,6 @@ interface SessionDetailsFormProps {
   /** When set, tag select uses uuid as value so draft.tags are UUIDs for tag_uuids payload. */
   sessionTagOptions?: SessionTagOption[]
   availableTags?: string[]
-  onAddNewTag?: () => void
   availableLocations?: string[]
   renderSectionPreview?: (section: SessionSection) => React.ReactNode
   onRemoveSection?: (sectionId: string) => void
@@ -32,7 +33,6 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   onAddSectionClick,
   sessionTagOptions,
   availableTags = [],
-  onAddNewTag,
   availableLocations = [],
   renderSectionPreview,
   onRemoveSection
@@ -52,44 +52,119 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   }
 
   // Use sessionTagOptions (uuid as value) when present so we send tag_uuids to backend; else use availableTags (name as value)
-  const tagOptions = (sessionTagOptions && sessionTagOptions.length > 0)
+  const tagOptions: CreatableMultiSelectOption[] = (sessionTagOptions && sessionTagOptions.length > 0)
     ? sessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
     : availableTags.map((value) => ({ value, label: tagOptionsMap[value] || value }))
-
-  // Show the select dropdown either when we already have options OR when we support "Add new" creation.
-  const hasTagOptions =
-    (sessionTagOptions && sessionTagOptions.length > 0) ||
-    availableTags.length > 0 ||
-    Boolean(onAddNewTag)
 
   const locationOptions = availableLocations.map(value => ({
     value,
     label: locationOptionsMap[value] || value
   }))
 
+  // Map draft.tags (uuid or name) to CreatableMultiSelect selected options
+  const selectedTagOptions: CreatableMultiSelectOption[] = useMemo(() => {
+    return (draft.tags ?? []).map((tag) => {
+      if (typeof tag !== 'string') {
+        return {
+          value: String(tag),
+          label: String(tag)
+        }
+      }
+      // If this looks like a UUID and exists in options, use that option
+      const fromOptions = tagOptions.find((opt) => opt.value === tag || opt.label === tag)
+      if (fromOptions) return fromOptions
+      // Otherwise treat as freeform tag name
+      return {
+        value: tag.toLowerCase().replace(/\s+/g, '-'),
+        label: tag
+      }
+    })
+  }, [draft.tags, tagOptions])
 
+  const handleTagsMultiChange = (
+    newValue: MultiValue<CreatableMultiSelectOption>,
+    _actionMeta: ActionMeta<CreatableMultiSelectOption>
+  ) => {
+    const tagValues = Array.from(newValue).map((option) => {
+      // If this option matches a known sessionTagOption, store its uuid
+      const fromSessionTag = sessionTagOptions?.find(
+        (opt) => opt.uuid === option.value || opt.name === option.label
+      )
+      if (fromSessionTag) return fromSessionTag.uuid
+      // Otherwise store the label as a new tag name (backend will see it in tag_names only)
+      return option.label
+    })
+    onFieldChange('tags', tagValues as unknown as SessionDraft['tags'])
+  }
 
+  // Convert stored 12-hour time + period to 24-hour display string
+  const to24h = (time: string | undefined, period: 'AM' | 'PM' | undefined): string => {
+    const rawTime = (time || '').trim()
+    if (!rawTime) return ''
+    const [hRaw, mRaw = '00'] = rawTime.split(':')
+    const h = Number(hRaw)
+    const m = Number(mRaw)
+    if (Number.isNaN(h) || Number.isNaN(m)) return rawTime
+    const p = (period || 'AM').toUpperCase() as 'AM' | 'PM'
+    let hours24 = h % 12
+    if (p === 'PM') hours24 += 12
+    if (p === 'AM' && h === 12) hours24 = 0
+    const hh = String(hours24).padStart(2, '0')
+    const mm = String(m).padStart(2, '0')
+    return `${hh}:${mm}`
+  }
+
+  // Parse 24-hour string into 12-hour time + period
+  const from24h = (
+    input: string,
+    fallback: { time: string; period: 'AM' | 'PM' }
+  ): { time: string; period: 'AM' | 'PM' } => {
+    const raw = input.trim()
+    const match = raw.match(/^(\d{1,2}):(\d{2})$/)
+    if (!match) return fallback
+    let h24 = Number(match[1])
+    const m = Number(match[2])
+    if (Number.isNaN(h24) || Number.isNaN(m)) return fallback
+    h24 = Math.max(0, Math.min(23, h24))
+    const period: 'AM' | 'PM' = h24 >= 12 ? 'PM' : 'AM'
+    let h12 = h24 % 12
+    if (h12 === 0) h12 = 12
+    const hh = String(h12).padStart(2, '0')
+    const mm = String(m).padStart(2, '0')
+    return { time: `${hh}:${mm}`, period }
+  }
 
   const renderTimeField = (
     label: string,
     timeKey: 'startTime' | 'endTime'
-  ) => (
-    <div className="flex flex-col gap-1">
-      <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
-      <input
-        type="text"
-        inputMode="numeric"
-        placeholder="00:00"
-        value={draft[timeKey] || ''}
-        onChange={(event) => {
-          const value = event.target.value
-          // Allow empty or basic HH:MM-like input; validation happens on save
-          onFieldChange(timeKey, value)
-        }}
-        className="h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-      />
-    </div>
-  )
+  ) => {
+    const periodKey = timeKey === 'startTime' ? 'startPeriod' : 'endPeriod'
+    const period = (draft as any)[periodKey] as 'AM' | 'PM' | undefined
+    const displayValue = to24h(draft[timeKey] as string | undefined, period)
+
+    return (
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
+        <input
+          type="text"
+          inputMode="numeric"
+          placeholder="00:00"
+          value={displayValue}
+          onChange={(event) => {
+            const value = event.target.value
+            const fallback = {
+              time: (draft[timeKey] as string) || '',
+              period: ((draft as any)[periodKey] as 'AM' | 'PM') || 'AM'
+            }
+            const next = from24h(value, fallback)
+            onFieldChange(timeKey, next.time as any)
+            onFieldChange(periodKey as any, next.period as any)
+          }}
+          className="h-10 w-[100px] rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -117,7 +192,7 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
                 { value: '', label: 'Select location' },
                 ...locationOptions
               ]}
-              className="h-10"
+              className="h-10 "
             />
           </div>
         ) : (
@@ -145,38 +220,17 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
           />
         </div>
 
-        {/* Tags Dropdown - when sessionTagOptions used, value is uuid so tag_uuids sent to backend */}
-        {hasTagOptions ? (
-          <div className="flex-1 min-w-0">
-            <Select
-              label="Tags"
-              value={draft.tags.length > 0 ? draft.tags[0] : ''}
-              onChange={(event) => {
-                const value = event.target.value
-                if (value === '__add_new__') {
-                  onAddNewTag?.()
-                  return
-                }
-                onFieldChange('tags', value ? [value] : [])
-              }}
-              options={[
-                { value: '', label: 'Select tags' },
-                ...tagOptions,
-                ...(onAddNewTag ? [{ value: '__add_new__', label: '＋ Add new tag' }] : []),
-              ]}
-              className="h-10"
-            />
-          </div>
-        ) : (
-          <div className="flex-1 min-w-0">
-            <Input
-              label="Tags"
-              placeholder="Select tags"
-              value={tagsInput}
-              onChange={(event) => onTagsInputChange(event.target.value)}
-            />
-          </div>
-        )}
+        {/* Tags: always use creatable multiselect so user can select existing tags or create new ones */}
+        <div className="flex-1 min-w-0">
+          <CreatableMultiSelect
+            label="Tags"
+            options={tagOptions}
+            value={selectedTagOptions}
+            onChange={handleTagsMultiChange}
+            placeholder="Select or create"
+            className='rounded-lg'
+          />
+        </div>
       </div>
 
       <div className="text-center">

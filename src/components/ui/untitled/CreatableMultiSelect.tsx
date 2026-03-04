@@ -64,6 +64,7 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
     control: (base, state) => ({
       ...base,
       minHeight: '40px',
+      height: '40px',
       borderColor: error ? '#fb7185' : state.isFocused ? '#6838EE' : '#cbd5e1',
       boxShadow: state.isFocused
         ? error
@@ -90,7 +91,7 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
     }),
     valueContainer: (base) => ({
       ...base,
-      padding: '6px 8px'
+      padding: '2px 8px'
     }),
     multiValue: (base) => ({
       ...base,
@@ -101,7 +102,7 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
       ...base,
       color: '#334155',
       fontSize: '14px',
-      padding: '4px 8px'
+      padding: '2px 6px'
     }),
     multiValueRemove: (base) => ({
       ...base,

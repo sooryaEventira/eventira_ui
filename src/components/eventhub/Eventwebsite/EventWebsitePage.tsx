@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { useEventForm } from '../../contexts/EventFormContext'
-import { useWebsitePages } from '../../contexts/WebsitePagesContext'
-import EventHubNavbar from './EventHubNavbar'
-import EventHubSidebar from './EventHubSidebar'
-import { defaultCards, ContentCard } from './EventHubContent'
-import PageCreationModal, { type PageType } from '../page/PageCreationModal'
+import { useEventForm } from '../../../contexts/EventFormContext'
+import { useWebsitePages } from '../../../contexts/WebsitePagesContext'
+import EventHubNavbar from '../EventHubNavbar'
+import EventHubSidebar from '../EventHubSidebar'
+import { defaultCards, ContentCard } from '../EventHubContent'
+import PageCreationModal, { type PageType } from '../../page/PageCreationModal'
 import CreateNavFolderModal from './CreateNavFolderModal'
 import {
   createWebpage,
@@ -13,34 +13,34 @@ import {
   type CreateWebpageRequest,
   type WebpageData,
   type WebsiteIndexTag
-} from '../../services/webpageService'
-import { publishEvent } from '../../services/eventService'
-import { fetchPublicEvent } from '../../services/publicEventService'
-import { fetchPublicWebpages } from '../../services/publicWebpageService'
-import Button from '../ui/untitled/Button'
-import { readEventStoreJSON } from '../../utils/eventLocalStore'
-import { showToast } from '../../utils/toast'
-import { getDefaultTemplateData } from '../../hooks/usePageManagement'
-import type { NavigationFolderItem, NavigationItem, NavigationPageItem } from '../../types/navigation'
+} from '../../../services/webpageService'
+import { publishEvent } from '../../../services/eventService'
+import { fetchPublicEvent } from '../../../services/publicEventService'
+import { fetchPublicWebpages } from '../../../services/publicWebpageService'
+import Button from '../../ui/untitled/Button'
+import { readEventStoreJSON } from '../../../utils/eventLocalStore'
+import { showToast } from '../../../utils/toast'
+import { getDefaultTemplateData } from '../../../hooks/usePageManagement'
+import type { NavigationFolderItem, NavigationItem, NavigationPageItem } from '../../../types/navigation'
 import {
   isFolder,
   isPage,
   loadNavigationConfigFromStorage,
   saveNavigationConfigToStorage,
   upsertMissingPagesToRoot
-} from '../../utils/navigationTree'
-import { NAV_ICON_KEYS, renderNavIcon } from '../../utils/navIcons'
+} from '../../../utils/navigationTree'
+import { NAV_ICON_KEYS, renderNavIcon } from '../../../utils/navIcons'
+import WebsitePagesList from './WebsitePagesList'
+import AddMenuItemModal from './AddMenuItemModal'
 import { 
   InfoCircle, 
   CodeBrowser, 
   Globe01,
-  Copy01,
   Eye,
   EyeOff,
-  Edit05,
-  Trash01,
   Plus,
-  FileSearch02,
+  Trash01,
+  Play,
   ChevronDown
 } from '@untitled-ui/icons-react'
 
@@ -80,6 +80,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [activeSubItem, setActiveSubItem] = useState('website-pages')
   const [showPageCreationModal, setShowPageCreationModal] = useState(false)
   const [showCreateNavFolderModal, setShowCreateNavFolderModal] = useState(false)
+  const [showAddMenuItemModal, setShowAddMenuItemModal] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   const [webpages, setWebpages] = useState<WebpageData[]>([])
   const [isLoadingWebpages, setIsLoadingWebpages] = useState(false)
@@ -1527,6 +1528,21 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         // TODO: Implement backend API call to duplicate webpage
         // duplicatePage(pageId) // This is for local pages, not backend webpages
         break
+      case 'copy-link': {
+        const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
+        if (!eventUuid) return
+        const publicUrl = `${window.location.origin}/events/${eventUuid}/webpages/${pageId}`
+        try {
+          void navigator.clipboard.writeText(publicUrl)
+          showToast.success('Page link copied')
+        } catch {
+          showToast.error('Failed to copy link')
+        }
+        break
+      }
+      case 'hide':
+        toggleHiddenNavId(pageId)
+        break
       case 'delete':
         if (isFirstPage) {
           // Show error or prevent deletion
@@ -1590,115 +1606,49 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                 Navigation
               </Button>
             </div>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={
-                activeSubItem === 'website-header'
-                  ? () => setShowCreateNavFolderModal(true)
-                  : handleNewPage
-              }
-              iconLeading={<Plus className="h-4 w-4" />}
-            >
-              {activeSubItem === 'website-header' ? 'New folder' : 'New page'}
-            </Button>
+            {activeSubItem === 'website-header' ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => setShowAddMenuItemModal(true)}
+                  iconLeading={<Plus className="h-4 w-4" />}
+                >
+                  Add menu item
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => setShowCreateNavFolderModal(true)}
+                  iconLeading={<Plus className="h-4 w-4" />}
+                >
+                  Add group menu
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleNewPage}
+                iconLeading={<Plus className="h-4 w-4" />}
+              >
+                New page
+              </Button>
+            )}
           </div>
 
           {/* Content based on active tab */}
           {activeSubItem === 'website-pages' && (
             <div className="pb-96">
-              {/* Pages List */}
               <div className="space-y-0 border border-slate-200 rounded-lg bg-white overflow-visible">
-                {isLoadingWebpages ? (
-                  <div className="flex items-center justify-center py-8 text-slate-500">
-                    <p>Loading webpages...</p>
-                  </div>
-                ) : filteredWebpages.length === 0 ? (
-                  <div className="flex items-center justify-center py-8 text-slate-500">
-                    <p>No pages yet. Click "+ New Page" to create one.</p>
-                  </div>
-                ) : (
-                  filteredWebpages.map((webpage) => {
-                    const isFirstPage = webpage.name.toLowerCase() === 'welcome'
-                    return (
-                      <div
-                        key={webpage.uuid}
-                        className="flex items-center justify-between py-2 px-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-sm font-medium text-slate-900 capitalize">
-                          {webpage.name}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'view')}
-                            className="p-2 text-slate-400 hover:text-slate-600"
-                            aria-label="View"
-                            iconLeading={<FileSearch02 className="h-4 w-4" />}
-                          />
-                          <div className="relative">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => setOpenDropdownId(openDropdownId === webpage.uuid ? null : webpage.uuid)}
-                              className="inline-flex items-center gap-2  whitespace-nowrap"
-                            >
-                              <div className='flex'>       
-                              Actions                          
-                             <ChevronDown className="h-5 w-6 text-slate-500 pt-1" />
-                              </div>
-                            </Button>
-
-                            {/* Dropdown Menu */}
-                            {openDropdownId === webpage.uuid && (
-                              <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'edit')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3"
-                                >
-                                  <Edit05 className="h-4 w-4 text-slate-400" />
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'duplicate')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
-                                >
-                                  <Copy01 className="h-4 w-4 text-slate-400" />
-                                  Copy Link
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'delete')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  disabled={isFirstPage}
-                                  className={`w-full text-left px-4 py-2.5 text-sm last:rounded-b-md flex items-center gap-3 ${
-                                    isFirstPage
-                                      ? 'text-slate-300 bg-slate-50 cursor-not-allowed'
-                                      : 'text-red-600 hover:bg-red-50'
-                                  }`}
-                                >
-                                  <Trash01 className="h-4 w-4 text-slate-400" />
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
+                <WebsitePagesList
+                  webpages={filteredWebpages}
+                  isLoading={isLoadingWebpages}
+                  onAction={handlePageAction}
+                  openDropdownId={openDropdownId}
+                  setOpenDropdownId={setOpenDropdownId}
+                  enableRowClickEdit
+                />
               </div>
             </div>
           )}
@@ -1811,18 +1761,35 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                 Navigation
               </Button>
             </div>
-            <Button
-              variant="primary"
-              size="md"
-              onClick={
-                activeSubItem === 'website-header'
-                  ? () => setShowCreateNavFolderModal(true)
-                  : handleNewPage
-              }
-              iconLeading={<Plus className="h-4 w-4" />}
-            >
-              {activeSubItem === 'website-header' ? 'New folder' : 'New page'}
-            </Button>
+            {activeSubItem === 'website-header' ? (
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="primary"
+                  size="md"
+                  onClick={() => setShowAddMenuItemModal(true)}
+                  iconLeading={<Plus className="h-4 w-4" />}
+                >
+                  Add menu item
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => setShowCreateNavFolderModal(true)}
+                  iconLeading={<Plus className="h-4 w-4" />}
+                >
+                  Add group menu
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant="primary"
+                size="md"
+                onClick={handleNewPage}
+                iconLeading={<Plus className="h-4 w-4" />}
+              >
+                New page
+              </Button>
+            )}
           </div>
 
           {/* Content based on active tab */}
@@ -1856,7 +1823,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                             onClick={() => handlePageAction(webpage.uuid, 'view')}
                             className="p-2 text-slate-400 hover:text-slate-600"
                             aria-label="View"
-                            iconLeading={<FileSearch02 className="h-4 w-4" />}
+                            iconLeading={<Play className="h-4 w-4" />}
                           />
                           <div className="relative">
                             <Button
@@ -1873,7 +1840,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
                             {/* Dropdown Menu */}
                             {openDropdownId === webpage.uuid && (
-                              <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full">
+                              <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1882,7 +1849,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                                   }}
                                   className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3"
                                 >
-                                  <Edit05 className="h-4 w-4 text-slate-400" />
+                                 
                                   Edit
                                 </button>
                                 <button
@@ -1893,8 +1860,28 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                                   }}
                                   className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
                                 >
-                                  <Copy01 className="h-4 w-4 text-slate-400" />
+                                  
                                   Duplicate
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'hide')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                                >
+                                  Hide page
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'copy-link')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                                >
+                                  Copy link
                                 </button>
                                 <button
                                   type="button"
@@ -1909,7 +1896,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                                       : 'text-red-600 hover:bg-red-50'
                                   }`}
                                 >
-                                  <Trash01 className="h-4 w-4 text-slate-400" />
+                                 
                                   Delete
                                 </button>
                               </div>
@@ -1969,6 +1956,16 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           </div>
         </div>
       )}
+
+      <AddMenuItemModal
+        isVisible={showAddMenuItemModal}
+        onClose={() => setShowAddMenuItemModal(false)}
+        pages={filteredWebpages.map((w) => ({
+          id: w.uuid,
+          name: w.name,
+          isAdded: true
+        }))}
+      />
     </div>
   )
 }

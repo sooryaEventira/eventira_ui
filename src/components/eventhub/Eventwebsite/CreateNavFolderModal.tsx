@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Modal } from '../ui'
-import Button from '../ui/untitled/Button'
+import { Modal } from '../../ui'
+import Button from '../../ui/untitled/Button'
 
 interface CreateNavFolderModalProps {
   isVisible: boolean
@@ -41,8 +41,8 @@ const CreateNavFolderModal: React.FC<CreateNavFolderModalProps> = ({
     <Modal
       isVisible={isVisible}
       onClose={onClose}
-      title="New Folder"
-      subtitle="Please enter a name for this folder."
+      title="Add group menu"
+      subtitle="Please enter a name for this menu group."
       width={420}
       showHeaderBorder={false}
       footer={
@@ -58,7 +58,7 @@ const CreateNavFolderModal: React.FC<CreateNavFolderModalProps> = ({
     >
       <div className="space-y-4 mb-4">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Folder name</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2 ">Menu item</label>
           <input
             ref={inputRef}
             type="text"

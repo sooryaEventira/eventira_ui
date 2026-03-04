@@ -9,7 +9,7 @@ import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 const CommunicationPage = lazy(() => import('./communication/CommunicationPage').then((m) => ({ default: m.default })))
 const ResourceManagementPage = lazy(() => import('./resourcemanagement/ResourceManagementPage').then((m) => ({ default: m.default })))
 const SchedulePage = lazy(() => import('./schedulesession/SchedulePage').then((m) => ({ default: m.default })))
-const EventWebsitePage = lazy(() => import('./EventWebsitePage').then((m) => ({ default: m.default })))
+const EventWebsitePage = lazy(() => import('./Eventwebsite/EventWebsitePage').then((m) => ({ default: m.default })))
 const AttendeeManagementPage = lazy(() => import('./attendeemanagement/AttendeeManagementPage').then((m) => ({ default: m.default })))
 const SpeakerManagementPage = lazy(() => import('./speakermanagement/SpeakerManagementPage').then((m) => ({ default: m.default })))
 const OrganizationManagementPage = lazy(() => import('./organizationmanagement/OrganizationManagementPage').then((m) => ({ default: m.default })))

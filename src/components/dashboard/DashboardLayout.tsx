@@ -12,7 +12,7 @@ import { showToast } from '../../utils/toast'
 // Lazy load components that are only shown conditionally
 const NewEventForm = lazy(() => import('./NewEventForm').then(m => ({ default: m.default })))
 const TemplateSelectionPage = lazy(() => import('./TemplateSelectionPage').then(m => ({ default: m.default })))
-const EventWebsitePage = lazy(() => import('../eventhub/EventWebsitePage').then(m => ({ default: m.default })))
+const EventWebsitePage = lazy(() => import('../eventhub/Eventwebsite/EventWebsitePage').then(m => ({ default: m.default })))
 const WebsitePreviewPage = lazy(() => import('../eventhub/WebsitePreviewPage').then(m => ({ default: m.default })))
 const TeamManagementPage = lazy(() => import('./team/TeamManagementPage').then(m => ({ default: m.default })))
 

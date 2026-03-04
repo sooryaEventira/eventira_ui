@@ -422,7 +422,29 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                           </span>
                         )}
 
-                      
+                        {/* Tags Badge (first tag + count) */}
+                        {Array.isArray(child.tags) && child.tags.length > 0 && (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                            <svg
+                              className="h-3 w-3"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M7 7h.01M3 5a2 2 0 012-2h4.586a1 1 0 01.707.293l7.414 7.414a2 2 0 010 2.828l-3.586 3.586a2 2 0 01-2.828 0L4.293 10.707A1 1 0 014 10V5a2 2 0 00-1-1z"
+                              />
+                            </svg>
+                            <span>
+                              {String(child.tags[0])}
+                              {child.tags.length > 1 ? ` +${child.tags.length - 1}` : ''}
+                            </span>
+                          </span>
+                        )}
+
                       </div>
 
                       {onAddParallelSession && (
@@ -534,7 +556,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
               </div>
             </div>
 
-            {/* Metadata Row - Time, Location, Session Type */}
+            {/* Metadata Row - Time, Location, Tags */}
             <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
               <div className="flex items-center gap-2 flex-wrap">
                 {/* Time Badge */}
@@ -551,6 +573,29 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                     {getLocationLabel(session.location)}
+                  </span>
+                )}
+
+                {/* Tags Badge (first tag + count) */}
+                {Array.isArray(session.tags) && session.tags.length > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                    <svg
+                      className="h-3.5 w-3.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 7h.01M3 5a2 2 0 012-2h4.586a1 1 0 01.707.293l7.414 7.414a2 2 0 010 2.828l-3.586 3.586a2 2 0 01-2.828 0L4.293 10.707A1 1 0 014 10V5a2 2 0 00-1-1z"
+                      />
+                    </svg>
+                    <span>
+                      {String(session.tags[0])}
+                      {session.tags.length > 1 ? ` +${session.tags.length - 1}` : ''}
+                    </span>
                   </span>
                 )}
               </div>
