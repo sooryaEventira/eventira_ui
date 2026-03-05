@@ -371,7 +371,7 @@ const NavigationTab: React.FC<NavigationTabProps> = ({
                       {folder ? (
                         <CodeBrowser className="h-4 w-4 text-slate-400 flex-shrink-0" />
                       ) : (
-                        renderNavIcon(currentIcon || 'file')
+                        renderNavIcon(currentIcon)
                       )}
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">

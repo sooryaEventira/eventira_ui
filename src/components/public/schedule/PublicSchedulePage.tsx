@@ -3,7 +3,7 @@ import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import type { SavedSchedule, SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 import ScheduleGrid from '../../eventhub/schedulesession/ScheduleGrid'
 import { fetchPublicSchedules } from '../../../services/publicScheduleService'
-import { fetchPublicScheduleSessions } from '../../../services/publicScheduleSessionService'
+import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
 
 interface PublicSchedulePageProps {
   eventUuid: string
@@ -199,15 +199,6 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
   useEffect(() => {
     let cancelled = false
     const run = async () => {
-      // If we already have published schedule data in localStorage, do NOT overwrite it with API.
-      // This is the main cause of the "correct -> wrong" flip on refresh.
-      if (hasFallbackSchedules) {
-        setDataSource('fallback')
-        setApiSchedules([])
-        setIsLoadingSchedules(false)
-        return
-      }
-
       setIsLoadingSchedules(true)
       setDataSource('unknown')
       try {
@@ -336,7 +327,11 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             x.start_date ??
             x.startDate ??
             x.start_datetime ??
-            x.startDateTime
+            x.startDateTime ??
+            x.start_at ??
+            x.startAt ??
+            x.starts_at ??
+            x.startsAt
           const date = normalizeDate(dateRaw)
           const parentIdRaw = x.parent_uuid ?? x.parentUuid ?? x.parent_id ?? x.parentId ?? null
           const parentTitleRaw =
@@ -356,6 +351,21 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
               ? new Array(count).fill({}) // for count display only
               : []
 
+          const description = x.description ?? x.summary ?? ''
+          const apiSections = Array.isArray(x.sections)
+            ? x.sections
+            : Array.isArray(x.session_sections)
+              ? x.session_sections
+              : []
+          const apiResources = Array.isArray(x.session_resources)
+            ? x.session_resources
+            : Array.isArray(x.resources)
+              ? x.resources
+              : Array.isArray(x.resource_files)
+                ? x.resource_files
+                : []
+          const sections = mapApiSectionsToSavedSections(apiSections, apiResources, id, description)
+
           const dateKey = date ? date.toISOString().slice(0, 10) : ''
           const parentTitle =
             typeof parentTitleRaw === 'string'
@@ -374,8 +384,9 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             location: String(x.location ?? x.room ?? x.venue ?? ''),
             sessionType: String(x.session_type ?? x.sessionType ?? ''),
             tags: Array.isArray(x.tags) ? x.tags : [],
-            sections: Array.isArray(x.sections) ? x.sections : [],
+            sections,
             attachments,
+            attachment_count: count,
             date: date ?? undefined,
             parentId: parentIdRaw ? String(parentIdRaw) : undefined,
             __parentTitle: parentTitle || undefined,

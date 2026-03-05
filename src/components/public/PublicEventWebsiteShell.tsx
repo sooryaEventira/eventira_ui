@@ -170,6 +170,18 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventUuid])
 
+  const displayEventName = useMemo(() => {
+    if (!event) return undefined
+    const anyEvent = event as any
+    const raw =
+      anyEvent.eventName ??
+      anyEvent.title ??
+      anyEvent.name ??
+      ''
+    const trimmed = typeof raw === 'string' ? raw.trim() : String(raw ?? '').trim()
+    return trimmed || undefined
+  }, [event])
+
   const navbarItems: PublicNavNode[] = useMemo(() => {
     const hiddenKey = `navigation-hidden-${eventUuid}`
     const treeKey = `navigation-tree-${eventUuid}`
@@ -443,7 +455,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     <div className="flex min-h-screen flex-col bg-white" style={publicThemeVars as any}>
       <PublicNavbar
         eventUuid={eventUuid}
-        eventName={event?.eventName}
+        eventName={displayEventName}
         logoUrl={event?.logo ?? null}
         items={navbarItems}
         activePath={activePath}

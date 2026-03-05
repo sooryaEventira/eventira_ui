@@ -192,12 +192,14 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
         <ArrowNarrowLeft className="h-4 w-4" />
         Back to schedule
       </button>
-      <SessionSummaryView
-        session={session}
-        sessionId={session.id}
-        eventId={eventUuid}
-        cometChatUser={null}
-      />
+      <div className="max-w-4xl mx-auto">
+        <SessionSummaryView
+          session={session}
+          sessionId={session.id}
+          eventId={eventUuid}
+          cometChatUser={null}
+        />
+      </div>
     </div>
   )
 }

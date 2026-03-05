@@ -1118,42 +1118,28 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
                     <div className="flex items-center gap-1">
                       {page ? (
-                        <>
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={(e) => {
-                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
-                              const popoverWidth = 380
-                              const margin = 12
-                              const left = Math.min(
-                                Math.max(rect.left, margin),
-                                window.innerWidth - popoverWidth - margin
-                              )
-                              const top = Math.min(rect.bottom + 8, window.innerHeight - 420)
-                              setIconPickerAnchor({ top, left, width: popoverWidth })
-                              setIconPickerForNavId(item.id)
-                              setIconPickerQuery('')
-                            }}
-                            className="px-2"
-                            iconLeading={renderNavIcon(currentIcon, 'h-4 w-4')}
-                          >
-                            {currentIcon ? 'Change icon' : 'Add icon'}
-                          </Button>
-                          {currentIcon ? (
-                            <Button
-                              variant="tertiary"
-                              size="sm"
-                              onClick={() => setNavItemIcon(item.id, undefined)}
-                              className="px-2 text-slate-400 hover:text-red-600"
-                              aria-label="Remove icon"
-                            >
-                              Remove
-                            </Button>
-                          ) : null}
-                        </>
+                        <Button
+                          variant="tertiary"
+                          size="sm"
+                          onClick={(e) => {
+                            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                            const popoverWidth = 380
+                            const margin = 12
+                            const left = Math.min(
+                              Math.max(rect.left, margin),
+                              window.innerWidth - popoverWidth - margin
+                            )
+                            const top = Math.min(rect.bottom + 8, window.innerHeight - 420)
+                            setIconPickerAnchor({ top, left, width: popoverWidth })
+                            setIconPickerForNavId(item.id)
+                            setIconPickerQuery('')
+                          }}
+                          className="px-2"
+                        >
+                          {currentIcon ? 'Update icon' : 'Add icon'}
+                        </Button>
                       ) : null}
-                      <Button
+                      {/* <Button
                         variant="tertiary"
                         size="sm"
                         onClick={() => {
@@ -1163,7 +1149,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                         className="p-2 text-slate-400 hover:text-slate-600"
                         aria-label={isHidden ? 'Show in navbar' : 'Hide from navbar'}
                         iconLeading={isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      />
+                      /> */}
 
                       {isWebpage ? (
                         <Button

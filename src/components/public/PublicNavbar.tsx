@@ -43,7 +43,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   onProfileClick,
   profileImageUrl
 }) => {
-  const loginPath = eventUuid ? `/events/${eventUuid}/login` : '/login'
   const sidebarStyle = useMemo(
     () => (navbarBackgroundColor ? { backgroundColor: navbarBackgroundColor } : undefined),
     [navbarBackgroundColor]
@@ -309,46 +308,22 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                 <UserIcon className="h-5 w-5" />
               )}
             </button>
-            {profileMenuOpen ? (
+            {profileMenuOpen && onProfileClick ? (
               <div
                 role="menu"
                 className="absolute right-0 top-full z-[1001] mt-1 min-w-[160px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
               >
-                {eventUuid ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setProfileMenuOpen(false)
-                      onNavigate(loginPath)
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Login
-                  </button>
-                ) : (
-                  <a
-                    href="/login"
-                    role="menuitem"
-                    className="block w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
-                    onClick={() => setProfileMenuOpen(false)}
-                  >
-                    Login
-                  </a>
-                )}
-                {onProfileClick ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setProfileMenuOpen(false)
-                      onProfileClick()
-                    }}
-                    className="w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Profile
-                  </button>
-                ) : null}
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setProfileMenuOpen(false)
+                    onProfileClick()
+                  }}
+                  className="w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Profile
+                </button>
               </div>
             ) : null}
           </div>
