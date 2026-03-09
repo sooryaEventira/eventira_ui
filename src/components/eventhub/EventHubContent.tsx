@@ -30,43 +30,11 @@ interface EventHubContentProps {
 
 export const defaultCards: ContentCard[] = [
   {
-    id: 'communications',
-    title: 'Communications',
-    icon: <MessageChatSquare className="h-5 w-5" aria-hidden="true" />,
-    items: [
-      { label: 'Send broadcasts, announcements, and updates to keep attendees informed throughout the event.' }
-    ]
-  },
-  {
     id: 'resource-management',
     title: 'Resource Management',
     icon: <Folder className="h-5 w-5" aria-hidden="true" />,
     items: [
       { label: 'Organize and share event materials, documents, and files with your team and attendees.' }
-    ]
-  },
-  {
-    id: 'attendee-management',
-    title: 'Attendee Management',
-    icon: <Users01 className="h-5 w-5" aria-hidden="true" />,
-    items: [
-      { label: 'Track registrations, manage check-ins, and monitor attendee engagement in real-time.' }
-    ]
-  },
-  {
-    id: 'speaker-management',
-    title: 'Speaker Management',
-    icon: <Microphone01 className="h-5 w-5" aria-hidden="true" />,
-    items: [
-      { label: 'Manage speaker profiles, sessions, and presentations for your event.' }
-    ]
-  },
-  {
-    id: 'organization-management',
-    title: 'Organization Management',
-    icon: <Building01 className="h-5 w-5" aria-hidden="true" />,
-    items: [
-      { label: 'Manage organizations, their details, and logos for your event.' }
     ]
   },
   {
@@ -78,6 +46,32 @@ export const defaultCards: ContentCard[] = [
     ]
   },
   {
+    id: 'speaker-management',
+    title: 'Speaker Management',
+    icon: <Microphone01 className="h-5 w-5" aria-hidden="true" />,
+    items: [
+      { label: 'Manage speaker profiles, sessions, and presentations for your event.' }
+    ]
+  },
+  
+  {
+    id: 'attendee-management',
+    title: 'Attendee Management',
+    icon: <Users01 className="h-5 w-5" aria-hidden="true" />,
+    items: [
+      { label: 'Track registrations, manage check-ins, and monitor attendee engagement in real-time.' }
+    ]
+  },
+  {
+    id: 'organization-management',
+    title: 'Organization Management',
+    icon: <Building01 className="h-5 w-5" aria-hidden="true" />,
+    items: [
+      { label: 'Manage organizations, their details, and logos for your event.' }
+    ]
+  },
+
+  {
     id: 'registration-form',
     title: 'Registration ',
     icon: <Folder className="h-5 w-5" aria-hidden="true" />,
@@ -85,6 +79,15 @@ export const defaultCards: ContentCard[] = [
       { label: 'Configure and preview the registration form used for event signups.' }
     ]
   },
+  {
+    id: 'communications',
+    title: 'Communications',
+    icon: <MessageChatSquare className="h-5 w-5" aria-hidden="true" />,
+    items: [
+      { label: 'Send broadcasts, announcements, and updates to keep attendees informed throughout the event.' }
+    ]
+  },
+
   {
     id: 'analytics',
     title: 'Analytics',
