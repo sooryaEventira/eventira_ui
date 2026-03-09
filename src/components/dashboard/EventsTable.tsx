@@ -209,6 +209,14 @@ const EventsTable: React.FC<EventsTableProps> = ({
         )
       },
 
+
+      {
+        id: 'eventDate',
+        header: 'Event date',
+        sortable: true,
+        sortAccessor: (item) => item.startDate || item.eventDate,
+        render: (item) => <div>{item.eventDate}</div>
+      },
       {
         id: 'status',
         header: 'Status',
@@ -254,13 +262,7 @@ const EventsTable: React.FC<EventsTableProps> = ({
       //   sortAccessor: (item) => item.registrations,
       //   render: (item) => <div>{item.registrations}</div>
       // },
-      {
-        id: 'eventDate',
-        header: 'Event date',
-        sortable: true,
-        sortAccessor: (item) => item.startDate || item.eventDate,
-        render: (item) => <div>{item.eventDate}</div>
-      },
+
       {
         id: 'createdBy',
         header: 'Created by',
