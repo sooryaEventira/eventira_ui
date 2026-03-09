@@ -252,13 +252,13 @@ const PublicEventListPage: React.FC = () => {
             ))}
           </nav>
 
-          <div className="flex flex-1 items-center justify-end gap-2 sm:max-w-xs sm:flex-initial">
+          <div className="flex flex-1 items-center justify-end  sm:max-w-xs sm:flex-initial">
             <input
               type="search"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search all events"
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              className="w-[500px] rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
               aria-label="Search all events"
             />
             <button

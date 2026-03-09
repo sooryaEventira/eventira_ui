@@ -30,7 +30,9 @@ export interface Attendee {
 export interface Group {
   id: string
   name: string
-  attendeeCount: number
+  /** From API: attendee_count (snake_case). Fallback: attendeeCount (camelCase). */
+  attendee_count?: number
+  attendeeCount?: number
 }
 
 export interface CustomField {

@@ -504,6 +504,7 @@ export interface TagData {
   name: string
   description: string
   is_active: boolean
+  attendee_count?: number
 }
 
 export const fetchTags = async (eventUuid: string): Promise<TagData[]> => {
@@ -676,7 +677,8 @@ export const fetchTags = async (eventUuid: string): Promise<TagData[]> => {
         uuid: t?.uuid ?? t?.id ?? '',
         name: t?.name ?? t?.title ?? '',
         description: t?.description ?? '',
-        is_active: t?.is_active ?? t?.isActive ?? true
+        is_active: t?.is_active ?? t?.isActive ?? true,
+        attendee_count: typeof t?.attendee_count === 'number' ? t.attendee_count : (typeof t?.attendeeCount === 'number' ? t.attendeeCount : undefined)
       }))
       .filter((t) => Boolean(t.uuid) && Boolean(t.name)) as TagData[]
 

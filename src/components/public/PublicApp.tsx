@@ -4,6 +4,9 @@ const PublicEventListPage = lazy(() => import('./PublicEventListPage'))
 const PublicEventWebsiteShell = lazy(() => import('./PublicEventWebsiteShell'))
 const PublicLoginPage = lazy(() => import('./PublicLoginPage'))
 const PublicRegisterPage = lazy(() => import('./PublicRegisterPage'))
+const PublicRegisterVerifyPage = lazy(() => import('./PublicRegisterVerifyPage'))
+const PublicCreatePasswordPage = lazy(() => import('./PublicCreatePasswordPage'))
+const PublicProfilePage = lazy(() => import('./PublicProfilePage'))
 
 const LoadingFallback = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -46,6 +49,30 @@ const PublicApp: React.FC = () => {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <PublicRegisterPage />
+      </Suspense>
+    )
+  }
+
+  if (pathname === '/register/verify' || pathname === '/register/verify/') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <PublicRegisterVerifyPage />
+      </Suspense>
+    )
+  }
+
+  if (pathname === '/register/password' || pathname === '/register/password/') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <PublicCreatePasswordPage />
+      </Suspense>
+    )
+  }
+
+  if (pathname === '/profile' || pathname === '/profile/') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <PublicProfilePage />
       </Suspense>
     )
   }

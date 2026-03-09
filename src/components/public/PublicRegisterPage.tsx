@@ -2,17 +2,8 @@ import React, { useState } from 'react'
 import PublicAuthTopbar from './PublicAuthTopbar'
 
 interface PublicRegisterPageProps {
-  eventUuid?: string
   eventName?: string
-  onNavigate?: (path: string) => void
 }
-
-const UserIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-)
 
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -21,56 +12,24 @@ const ArrowLeftIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-const CameraIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-    <circle cx="12" cy="13" r="3" />
-  </svg>
-)
-
-const PublicRegisterPage: React.FC<PublicRegisterPageProps> = ({
-  eventUuid,
-  eventName,
-  onNavigate
-}) => {
-  const [name, setName] = useState('')
+const PublicRegisterPage: React.FC<PublicRegisterPageProps> = ({ eventName }) => {
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+
   const handleSignupSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    setError(null)
-    if (!name.trim()) {
-      setError('Please enter your name.')
-      return
-    }
     if (!email.trim()) {
-      setError('Please enter your email.')
       return
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
-      return
-    }
-    setIsLoading(true)
-    window.location.href = '/event-list'
   }
 
   const handleBack = () => {
-    if (eventUuid && onNavigate) {
-      onNavigate(`/events/${eventUuid}`)
-    } else {
-      window.location.href = '/event-list'
-    }
+    // UI-only; no navigation
   }
 
   const handleLoginClick = () => {
-    if (eventUuid && onNavigate) {
-      onNavigate(`/events/${eventUuid}/login`)
-    } else {
-      window.location.href = '/login'
-    }
+    // UI-only; no navigation
   }
 
   return (
@@ -92,43 +51,45 @@ const PublicRegisterPage: React.FC<PublicRegisterPageProps> = ({
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="mx-auto w-full max-w-7xl">
-              <div className="relative min-h-[8rem] w-full rounded-lg bg-[#E0E0E0]" aria-hidden>
-                <div className="absolute mt-12 left-1/2 flex h-24 w-24 -translate-x-1/2 items-center justify-center rounded-full border-2 border-slate-200 bg-white shadow-md">
-                  <UserIcon className="h-12 w-12 text-slate-400" />
-                  <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-md border-2 border-primary bg-white shadow-sm">
-                    <CameraIcon className="h-4 w-4 text-primary" />
-                  </div>
-                </div>
-              </div>
-
+            <div className="mx-auto w-full max-w-lg">
               {/* Signup card - same width as banner */}
               <div className="relative z-10 mt-12">
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8">
-                  <h1 className="text-center text-xl font-bold text-black">
-                    Sign up {eventName ? `for ${eventName}` : ''}
+                  <h1 className="text-center text-lg font-bold leading-6 text-slate-700">
+                    Create your account {eventName ? `for ${eventName}` : ''}
                   </h1>
+                  <p className="text-center text-sm font-normal leading-5 text-slate-500">Enter your email to continue.</p> 
 
                   <form onSubmit={handleSignupSubmit} className="mt-6 space-y-4">
-                    {error && (
-                      <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                        {error}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label htmlFor="public-register-first-name" className="block text-sm font-medium text-black">
+                          First name
+                        </label>
+                        <input
+                          id="public-register-first-name"
+                          type="text"
+                          autoComplete="given-name"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="Enter your first name"
+                        />
                       </div>
-                    )}
-                    <div>
-                      <label htmlFor="public-register-name" className="block text-sm font-medium text-black">
-                        Name
-                      </label>
-                      <input
-                        id="public-register-name"
-                        type="text"
-                        autoComplete="name"
-                        value={name}
-                        onChange={(e) => setName(e.target.value)}
-                        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Enter your name"
-                        disabled={isLoading}
-                      />
+                      <div>
+                        <label htmlFor="public-register-last-name" className="block text-sm font-medium text-black">
+                          Last name
+                        </label>
+                        <input
+                          id="public-register-last-name"
+                          type="text"
+                          autoComplete="family-name"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                          placeholder="Enter your last name"
+                        />
+                      </div>
                     </div>
                     <div>
                       <label htmlFor="public-register-email" className="block text-sm font-medium text-black">
@@ -142,31 +103,14 @@ const PublicRegisterPage: React.FC<PublicRegisterPageProps> = ({
                         onChange={(e) => setEmail(e.target.value)}
                         className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
                         placeholder="Enter your email"
-                        disabled={isLoading}
                       />
                     </div>
-                    <div>
-                      <label htmlFor="public-register-password" className="block text-sm font-medium text-black">
-                        Password
-                      </label>
-                      <input
-                        id="public-register-password"
-                        type="password"
-                        autoComplete="new-password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Create a password"
-                        disabled={isLoading}
-                      />
-                      <p className="mt-1 text-xs text-slate-500">Must be at least 8 characters.</p>
-                    </div>
+
                     <button
                       type="submit"
-                      disabled={isLoading}
-                      className="w-full rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white shadow-sm hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70"
+                      className="w-full rounded-lg bg-primary px-4 py-2 text-base font-semibold text-white shadow-sm hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70"
                     >
-                      {isLoading ? 'Signing up…' : 'Sign up'}
+                      Continue
                     </button>
                     <button
                       type="button"

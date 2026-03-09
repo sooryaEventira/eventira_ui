@@ -282,11 +282,15 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
       // Only include tags that are active (is_active === true)
       const mappedGroups: Group[] = tagsData
         .filter((tag) => tag.is_active !== false) // Only include active tags
-        .map((tag) => ({
-          id: tag.uuid,
-          name: tag.name,
-          attendeeCount: 0 // TODO: Calculate attendee count if available from API
-        }))
+        .map((tag) => {
+          const count = typeof tag.attendee_count === 'number' ? tag.attendee_count : 0
+          return {
+            id: tag.uuid,
+            name: tag.name,
+            attendee_count: count,
+            attendeeCount: count
+          }
+        })
 
       if (import.meta.env.DEV) {
         console.log('👥 [AttendeeManagement] Groups mapped from tags:', {

@@ -44,14 +44,15 @@ const SpeakerGroupsTable: React.FC<SpeakerGroupsTableProps> = ({
     // Validate that all items are proper Group objects
     // Filter out any items that don't match the Group interface structure
     const validGroups = groups.filter((group) => {
-      // Group should have: id, name, speakerCount
+      // Group should have: id, name, and (speaker_count or speakerCount)
       // Should NOT have: email, inviteCode, status, etc. (which are Speaker properties)
+      const hasCount = 'speaker_count' in group || 'speakerCount' in group
       return (
         group &&
         typeof group === 'object' &&
         'id' in group &&
         'name' in group &&
-        'speakerCount' in group &&
+        hasCount &&
         !('email' in group) && // Speakers have email, groups don't
         !('phoneNumber' in group) && // Speakers have phoneNumber, groups don't
         !('status' in group) // Speakers have status, groups don't
@@ -86,23 +87,28 @@ const SpeakerGroupsTable: React.FC<SpeakerGroupsTableProps> = ({
 
   void visibleGroupIds
 
-  // Table rows - map speakerCount to attendeeCount for compatibility with GroupTableColumns
+  // Table rows - map speaker count to attendee_count/attendeeCount for compatibility with GroupTableColumns
   const groupTableRows = useMemo<GroupTableRowData[]>(() => {
-    return paginatedGroups.map((group, index) => ({
-      group: {
-        id: group.id,
-        name: group.name,
-        attendeeCount: group.speakerCount
-      },
-      index
-    }))
+    return paginatedGroups.map((group, index) => {
+      const count = group.speaker_count ?? group.speakerCount ?? 0
+      return {
+        group: {
+          id: group.id,
+          name: group.name,
+          attendee_count: count,
+          attendeeCount: count,
+        },
+        index,
+      }
+    })
   }, [paginatedGroups])
 
   const groupColumns = useGroupTableColumns({
     builtGroupIds,
     onToggleBuildPage,
     onEditGroup,
-    onDeleteGroup
+    onDeleteGroup,
+    countColumnHeader: 'Speaker count',
   })
 
   // Empty state

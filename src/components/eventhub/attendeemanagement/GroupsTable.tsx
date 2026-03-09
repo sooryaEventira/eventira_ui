@@ -44,14 +44,15 @@ const GroupsTable: React.FC<GroupsTableProps> = ({
     // Validate that all items are proper Group objects
     // Filter out any items that don't match the Group interface structure
     const validGroups = groups.filter((group) => {
-      // Group should have: id, name, attendeeCount
+      // Group should have: id, name, and (attendee_count or attendeeCount)
       // Should NOT have: email, inviteCode, status, etc. (which are Attendee properties)
+      const hasCount = 'attendee_count' in group || 'attendeeCount' in group
       return (
         group &&
         typeof group === 'object' &&
         'id' in group &&
         'name' in group &&
-        'attendeeCount' in group &&
+        hasCount &&
         !('email' in group) && // Attendees have email, groups don't
         !('inviteCode' in group) && // Attendees have inviteCode, groups don't
         !('status' in group) // Attendees have status, groups don't

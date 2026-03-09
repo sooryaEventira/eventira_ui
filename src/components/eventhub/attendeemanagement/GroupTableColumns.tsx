@@ -10,13 +10,16 @@ interface GroupTableColumnsProps {
   onToggleBuildPage?: (group: { id: string; name: string }, checked: boolean) => void
   onEditGroup?: (groupId: string) => void
   onDeleteGroup?: (groupId: string) => void
+  /** Optional count column header (default: "Attendee count"). Use e.g. "Speaker count" for speaker groups. */
+  countColumnHeader?: string
 }
 
 export const useGroupTableColumns = ({
   builtGroupIds,
   onToggleBuildPage,
   onEditGroup,
-  onDeleteGroup
+  onDeleteGroup,
+  countColumnHeader = 'Attendee count',
 }: GroupTableColumnsProps): DividerLineTableColumn<GroupTableRowData>[] => {
   return useMemo<DividerLineTableColumn<GroupTableRowData>[]>(
     () => [
@@ -34,12 +37,13 @@ export const useGroupTableColumns = ({
       },
       {
         id: 'attendeeCount',
-        header: 'Attendee count',
+        header: countColumnHeader,
         sortable: true,
-        sortAccessor: ({ group }) => group?.attendeeCount || 0,
+        sortAccessor: ({ group }) => group?.attendee_count ?? group?.attendeeCount ?? 0,
         render: ({ group }) => {
           if (!group) return null
-          return <span className="text-sm text-slate-600">{group.attendeeCount}</span>
+          const count = group.attendee_count ?? group.attendeeCount ?? 0
+          return <span className="text-sm text-slate-600">{count}</span>
         }
       },
       {
@@ -112,7 +116,8 @@ export const useGroupTableColumns = ({
       builtGroupIds,
       onToggleBuildPage,
       onEditGroup,
-      onDeleteGroup
+      onDeleteGroup,
+      countColumnHeader,
     ]
   )
 }

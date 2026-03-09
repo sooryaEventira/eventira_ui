@@ -11,5 +11,8 @@ export function isPublicRoute(): boolean {
   if (/^\/events\/[^/]+/.test(pathname)) return true
   if (pathname === '/login' || pathname === '/login/') return true
   if (pathname === '/register' || pathname === '/register/') return true
+  if (pathname === '/register/verify' || pathname === '/register/verify/') return true
+  if (pathname === '/register/password' || pathname === '/register/password/') return true
+  if (pathname === '/profile' || pathname === '/profile/') return true
   return false
 }

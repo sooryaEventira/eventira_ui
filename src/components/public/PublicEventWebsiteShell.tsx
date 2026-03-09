@@ -28,9 +28,6 @@ type PublicSection =
   | 'session'
   | 'organizations'
   | 'organization'
-  | 'login'
-  | 'register'
-  | 'register_verify'
 
 interface PublicEventWebsiteShellProps {
   eventUuid: string
@@ -95,9 +92,6 @@ const getSectionFromPath = (
     return { section: 'session', sessionId: sessionDetailMatch[1] }
   }
 
-  if (rest === '/login' || rest.startsWith('/login/')) return { section: 'login' }
-  if (rest === '/register/verify' || rest.startsWith('/register/verify/')) return { section: 'register_verify' }
-  if (rest === '/register' || rest.startsWith('/register/')) return { section: 'register' }
   if (rest.startsWith('/organizations')) return { section: 'organizations' }
   if (rest.startsWith('/speakers')) return { section: 'speakers' }
   if (rest.startsWith('/attendees')) return { section: 'attendees' }
@@ -116,9 +110,6 @@ const AttendeesListPage = React.lazy(() => import('./attendees/AttendeesListPage
 const AttendeeDetailPage = React.lazy(() => import('./attendees/AttendeeDetailPage'))
 const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePage'))
 const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
-const PublicLoginPage = React.lazy(() => import('./PublicLoginPage'))
-const PublicRegisterPage = React.lazy(() => import('./PublicRegisterPage'))
-const PublicRegisterVerifyPage = React.lazy(() => import('./PublicRegisterVerifyPage'))
 
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
@@ -449,7 +440,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     }
   }, [publicThemeVars])
 
-  const isAuthSection = current.section === 'login' || current.section === 'register' || current.section === 'register_verify'
+  const isAuthSection = false
 
   return (
     <div className="flex min-h-screen flex-col bg-white" style={publicThemeVars as any}>
@@ -571,36 +562,6 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <PublicSchedulePage eventUuid={eventUuid} onNavigate={handleNavigate} />
           </React.Suspense>
-        ) : current.section === 'login' ? (
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-              <PublicLoginPage
-                eventUuid={eventUuid}
-                eventName={event?.eventName}
-                onNavigate={handleNavigate}
-              />
-            </React.Suspense>
-          </div>
-        ) : current.section === 'register' ? (
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-              <PublicRegisterPage
-                eventUuid={eventUuid}
-                eventName={event?.eventName}
-                onNavigate={handleNavigate}
-              />
-            </React.Suspense>
-          </div>
-        ) : current.section === 'register_verify' ? (
-          <div className="flex flex-1 flex-col items-center justify-center">
-            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-              <PublicRegisterVerifyPage
-                eventUuid={eventUuid}
-                eventName={event?.eventName}
-                onNavigate={handleNavigate}
-              />
-            </React.Suspense>
-          </div>
         ) : current.section === 'webpage' ? (
           webpageUuid ? (
             <PublicWebpageRenderer

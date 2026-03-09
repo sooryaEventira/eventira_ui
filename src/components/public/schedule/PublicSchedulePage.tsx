@@ -333,7 +333,13 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             x.starts_at ??
             x.startsAt
           const date = normalizeDate(dateRaw)
-          const parentIdRaw = x.parent_uuid ?? x.parentUuid ?? x.parent_id ?? x.parentId ?? null
+          const parentIdRaw =
+            x.parent_session_uuid ??
+            x.parent_uuid ??
+            x.parentUuid ??
+            x.parent_id ??
+            x.parentId ??
+            null
           const parentTitleRaw =
             x.parent_session ??
             x.parentSession ??
@@ -391,7 +397,24 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             parentId: parentIdRaw ? String(parentIdRaw) : undefined,
             __parentTitle: parentTitle || undefined,
             __dateKey: dateKey || undefined,
+            __numericId: x.uuid != null && x.id != null ? x.id : undefined,
           } as any
+        })
+
+        // Resolve parentId when backend sends numeric parent_id but session id is uuid (so grid can nest children).
+        const allSessionIds = new Set(mapped.map((s: any) => s.id))
+        const numericIdToSessionId = new Map<number, string>()
+        mapped.forEach((s: any) => {
+          const n = s.__numericId
+          if (n != null && n !== '') numericIdToSessionId.set(Number(n), s.id)
+        })
+        const withResolvedParentId = mapped.map((s: any) => {
+          let parentId = s.parentId
+          if (parentId && !allSessionIds.has(parentId)) {
+            const resolved = numericIdToSessionId.get(Number(parentId))
+            if (resolved) parentId = resolved
+          }
+          return { ...s, parentId }
         })
 
         // Resolve parentId using "Parent Session" title when backend doesn't provide parentId,
@@ -411,7 +434,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
         const isChild = (s: any) => Boolean(s.parentId) || Boolean(s.__parentTitle)
 
         const parentsByDayTitle = new Map<string, SavedSession[]>()
-        mapped.forEach((s: any) => {
+        withResolvedParentId.forEach((s: any) => {
           if (isChild(s)) return
           const day = s.__dateKey || ''
           const key = `${day}||${normalizeTitleKey(s.title)}`
@@ -448,14 +471,15 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
           return best?.id ?? candidates[0].id
         }
 
-        const normalized: SavedSession[] = mapped.map((s: any) => {
+        const normalized: SavedSession[] = withResolvedParentId.map((s: any) => {
+          let out: any = s
           if (!s.parentId && s.__parentTitle) {
             const resolved = resolveParentByTitle(s)
-            if (resolved) return { ...(s as any), parentId: resolved }
-            // Orphan parent title => treat as parent
-            return { ...(s as any), parentId: undefined, __parentTitle: undefined }
+            if (resolved) out = { ...s, parentId: resolved }
+            else out = { ...s, parentId: undefined, __parentTitle: undefined }
           }
-          return s
+          const { __parentTitle, __dateKey, __numericId, ...rest } = out
+          return rest as SavedSession
         })
 
         const sorted = sortSessionsLikeAdmin(normalized)

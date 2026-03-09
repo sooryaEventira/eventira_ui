@@ -5,6 +5,7 @@ import EventHubSidebar from '../EventHubSidebar'
 import CommunicationsTable from './CommunicationsTable'
 import BroadcastTypeModal from './BroadcastTypeModal'
 import BroadcastComposer from './BroadcastComposer'
+import PushNotificationMakerPage from './PushNotificationMakerPage'
 import CreateMacroModal from './CreateMacroModal'
 import { Communication, Macro } from './communicationTypes'
 import type { BroadcastType } from './BroadcastTypeModal'
@@ -328,20 +329,32 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
       {/* Communication Content */}
       <div className={hideNavbarAndSidebar ? "" : "md:pl-[250px]"}>
         {showComposer ? (
-          <BroadcastComposer
-            onCancel={handleComposerCancel}
-            onSave={handleComposerSave}
-            onSend={async (_data) => {
+          selectedBroadcastType === 'push-notification' ? (
+            <PushNotificationMakerPage
+              macros={macros}
+              initialTitle={initialBroadcastTitle}
+              onCancel={handleComposerCancel}
+              onSave={(data) => {
+                // UI-only save for now; keep consistent with existing save behavior
+                handleComposerSave({ subject: data.title, message: data.message })
+              }}
+            />
+          ) : (
+            <BroadcastComposer
+              onCancel={handleComposerCancel}
+              onSave={handleComposerSave}
+              onSend={async (_data) => {
                 // Reload communications from API after sending
                 await loadCommunications()
                 setShowComposer(false)
                 setSelectedBroadcastType(null)
                 setCurrentDraftId(null)
-            }}
-            macros={macros}
-            templateType="late-message"
-            type={selectedBroadcastType || 'email'}
-          />
+              }}
+              macros={macros}
+              templateType="late-message"
+              type={selectedBroadcastType || 'email'}
+            />
+          )
         ) : (
           <CommunicationsTable
             communications={communications}

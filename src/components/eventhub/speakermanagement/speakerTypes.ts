@@ -34,7 +34,9 @@ export interface Speaker {
 export interface Group {
   id: string
   name: string
-  speakerCount: number
+  /** From API: speaker_count (snake_case). Fallback: speakerCount (camelCase). */
+  speaker_count?: number
+  speakerCount?: number
 }
 
 export interface CustomField {

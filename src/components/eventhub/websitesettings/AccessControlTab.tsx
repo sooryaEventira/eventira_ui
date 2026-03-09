@@ -134,78 +134,8 @@ const AccessControlTab: React.FC = () => {
         </div>
       </div>
 
-      {/* Pages Section */}
-      {/* <div className="space-y-4">
-        <label className="text-sm font-semibold text-slate-900">Pages</label>
-        <div className="flex flex-col ">
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={pages.home}
-              onChange={() => handlePageToggle('home')}
-              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-            />
-            <span className={`text-sm font-medium px-4 py-2 rounded-lg transition ${
-              pages.home
-                ? ' text-primary'
-                : ' text-slate-700 '
-            }`}>
-              Home
-            </span>
-          </label>
-          
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={pages.speakers}
-              onChange={() => handlePageToggle('speakers')}
-              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-            />
-            <span className={`text-sm font-medium px-4 py-2 transition ${
-              pages.speakers
-                ? 'text-primary '
-                : 'text-slate-700 '
-            }`}>
-              Speakers
-            </span>
-          </label>
-          
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={pages.schedule}
-              onChange={() => handlePageToggle('schedule')}
-              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-            />
-            <span className={`text-sm font-medium px-4 py-2 transition ${
-              pages.schedule
-                ? 'text-primary '
-                : 'text-slate-700 '
-            }`}>
-              Schedule
-            </span>
-          </label>
-          
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="checkbox"
-              checked={pages.newPage}
-              onChange={() => handlePageToggle('newPage')}
-              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-            />
-            <span className={`text-sm font-medium px-4 py-2 transition ${
-              pages.newPage
-                ? 'text-primary'
-                : ' text-slate-700 '
-            }`}>
-              New Page
-            </span>
-          </label>
-        </div>
-      </div> */}
-
       {/* Require Registration Section */}
-      {/* <div className="space-y-4">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <label className="text-sm font-semibold text-slate-900 block mb-1">Require registration</label>
@@ -229,7 +159,7 @@ const AccessControlTab: React.FC = () => {
             />
           </button>
         </div>
-      </div> */}
+      </div>
     </div>
   )
 }

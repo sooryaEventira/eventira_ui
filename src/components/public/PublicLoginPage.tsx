@@ -1,18 +1,9 @@
 import React, { useState } from 'react'
 import PublicAuthTopbar from './PublicAuthTopbar'
 
-interface PublicLoginPageProps {
-  eventUuid?: string
-  eventName?: string
-  onNavigate?: (path: string) => void
-}
+interface PublicLoginPageProps {}
 
-const UserIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-)
+
 
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -21,22 +12,13 @@ const ArrowLeftIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-const CameraIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z" />
-    <circle cx="12" cy="13" r="3" />
-  </svg>
-)
 
-const PublicLoginPage: React.FC<PublicLoginPageProps> = ({
-  eventUuid,
-  onNavigate
-}) => {
+
+const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading] = useState(false)
-  const [error] = useState<string | null>(null)
 
   // const handleSubmit = async (e: React.FormEvent) => {
   //   e.preventDefault()
@@ -65,16 +47,10 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = ({
 
   const handleRegisterClick = (e?: React.MouseEvent) => {
     e?.preventDefault()
-    // Always navigate to main app /register (dashboard), not event website register
-    window.location.href = '/register'
   }
 
   const handleBack = () => {
-    if (onNavigate && eventUuid) {
-      onNavigate('/event-list')
-    } else {
-      window.location.href = '/event-list'
-    }
+    // UI-only; no navigation
   }
 
   return (
@@ -96,30 +72,31 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = ({
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <div className="mx-auto w-full max-w-7xl">
+            <div className="mx-auto w-[500px] max-w-7xl">
               {/* Banner (same width as card below) with avatar overlapping only the banner */}
-              <div className="relative min-h-[8rem]  w-full rounded-lg bg-[#E0E0E0]" aria-hidden>
+              {/* <div className="relative min-h-[8rem]  w-full rounded-lg bg-[#E0E0E0]" aria-hidden>
                 <div className="absolute mt-12  left-1/2 flex h-24 w-24 -translate-x-1/2 items-center justify-center rounded-full border-2 border-slate-200 bg-white shadow-md">
                   <UserIcon className="h-12 w-12 text-slate-400" />
                   <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-md border-2 border-primary bg-white shadow-sm">
                     <CameraIcon className="h-4 w-4 text-primary" />
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               {/* Login card: same width as banner */}
               <div className="relative z-10 mt-12">
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8">
-            <h1 className="text-center text-xl font-bold text-black">
+            <h1 className="text-center text-lg font-bold leading-6 text-slate-700">
               Login
             </h1>
+            <p className="text-center text-sm font-normal leading-5 text-slate-500">Welcome back! Please enter your details.</p>
 
-            <form  className="mt-6 space-y-4">
-              {error && (
-                <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
-                  {error}
-                </div>
-              )}
+            <form
+              className="mt-6 space-y-4"
+              onSubmit={(e) => {
+                e.preventDefault()
+              }}
+            >
 
               <div>
                 <label htmlFor="public-login-email" className="block text-sm font-medium text-black">
@@ -142,9 +119,7 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = ({
                   <label htmlFor="public-login-password" className="block text-sm font-medium text-black">
                     Password
                   </label>
-                  <a href="#" className="text-sm font-medium text-primary hover:underline">
-                    Forgot password
-                  </a>
+
                 </div>
                 <input
                   id="public-login-password"
@@ -156,6 +131,9 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = ({
                   placeholder="••••••••"
                   disabled={isLoading}
                 />
+                  <a href="#" className="text-sm font-medium text-primary hover:underline">
+                    Forgot password
+                  </a>
               </div>
 
               <label className="flex cursor-pointer items-center gap-2">

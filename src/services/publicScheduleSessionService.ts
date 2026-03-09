@@ -133,6 +133,7 @@ export interface PublicScheduleSessionData {
   sessionType?: string
   parent_id?: string | number
   parentId?: string | number
+  parent_session_uuid?: string
   parent_uuid?: string
   parentUuid?: string
   attachments?: any[]

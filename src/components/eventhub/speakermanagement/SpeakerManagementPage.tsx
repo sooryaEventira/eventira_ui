@@ -466,11 +466,17 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
       // Only include tags that are active (is_active !== false)
       const mappedGroups: Group[] = tagsData
         .filter((tag) => tag.is_active !== false) // Only include active tags
-        .map((tag) => ({
-          id: tag.uuid,
-          name: tag.name,
-          speakerCount: 0 // TODO: Calculate speaker count if available from API
-        }))
+        .map((tag) => {
+          const count = typeof (tag as { speaker_count?: number }).speaker_count === 'number'
+            ? (tag as unknown as { speaker_count: number }).speaker_count
+            : 0
+          return {
+            id: tag.uuid,
+            name: tag.name,
+            speaker_count: count,
+            speakerCount: count,
+          }
+        })
 
       if (import.meta.env.DEV) {
         console.log('👥 [SpeakerManagement] Groups mapped from tags:', {
