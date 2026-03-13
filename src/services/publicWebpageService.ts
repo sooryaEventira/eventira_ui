@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
+import type { WebsiteIndexData } from './webpageService'
 
 export interface PublicWebpageData {
   uuid: string
@@ -8,6 +9,49 @@ export interface PublicWebpageData {
   slug: string
   content: any
   [key: string]: any
+}
+
+/**
+ * Fetch website index for the published site (no auth).
+ * Endpoint: {{url}}{{public_url}}events/{{event_uuid}}/index/
+ * Public-only wrapper, separate from the CMS-side index fetch.
+ */
+export const fetchPublicIndex = async (eventUuid: string): Promise<WebsiteIndexData> => {
+  if (!eventUuid) {
+    const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+    throw new Error(errorMessage)
+  }
+
+  const url = API_ENDPOINTS.PUBLIC.INDEX(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include'
+  })
+
+  if (!response.ok) {
+    return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
+  }
+
+  const text = await response.text()
+  if (!text?.trim()) {
+    return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
+  }
+
+  try {
+    const data = JSON.parse(text)
+    if (data?.status === 'error') {
+      return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
+    }
+    const raw = data?.data ?? data
+    const webpages = Array.isArray(raw?.webpages) ? raw.webpages : []
+    const speaker_tags = Array.isArray(raw?.speaker_tags) ? raw.speaker_tags : []
+    const attendee_tags = Array.isArray(raw?.attendee_tags) ? raw.attendee_tags : []
+    const navigation = Array.isArray(raw?.navigation) ? raw.navigation : undefined
+    return { webpages, speaker_tags, attendee_tags, navigation }
+  } catch {
+    return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
+  }
 }
 
 export const fetchPublicWebpages = async (eventUuid: string): Promise<PublicWebpageData[]> => {

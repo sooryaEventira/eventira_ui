@@ -16,6 +16,72 @@ export interface PublicSpeakerData {
   [key: string]: any
 }
 
+export const fetchPublicSpeaker = async (
+  eventUuid: string,
+  speakerUuid: string
+): Promise<PublicSpeakerData | null> => {
+  try {
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!speakerUuid) {
+      const errorMessage = handleApiError('Speaker UUID is required.', undefined, 'Speaker UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    // Endpoint: {{public_url}}events/{{event_uuid}}/speakers/{{speaker_uuid}}
+    const url = `${API_ENDPOINTS.PUBLIC.SPEAKERS.LIST(eventUuid)}${speakerUuid}/`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (!response || !response.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        if (responseText && responseText.trim()) {
+          const errorMessage = handleApiError(responseText.trim(), response, 'Failed to fetch speaker.')
+          throw new Error(errorMessage)
+        }
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to fetch speaker.')
+      throw new Error(errorMessage)
+    }
+
+    let data: any
+    try {
+      data = await response.json()
+    } catch {
+      const errorMessage = handleParseError('Invalid response from server. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    if (data?.status === 'error') {
+      const errorMessage = handleApiError(data, undefined, 'Failed to fetch speaker.')
+      throw new Error(errorMessage)
+    }
+
+    const responseData = data?.data ?? data
+    return (responseData as PublicSpeakerData) ?? null
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+    throw error instanceof Error ? error : new Error('Failed to fetch speaker.')
+  }
+}
+
 export const fetchPublicSpeakers = async (
   eventUuid: string,
   tagId?: string

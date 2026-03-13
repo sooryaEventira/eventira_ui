@@ -886,6 +886,17 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
       data: { fileNames: (formData.resources || []).map((f) => f.name) }
     })
   }
+  if (formData.liveChatEnabled) {
+    templateSections.push({
+      id: 'template-live-chat',
+      type: 'live-chat',
+      title: 'Live Chat',
+      description: formData.comment || 'Live chat will appear here.',
+      data: {
+        submitAnonymous: formData.submitAnonymous ?? false
+      }
+    })
+  }
   const summaryDraft = {
     ...defaultSessionDraft,
     title: (formData.title || '').trim() || 'Session title',

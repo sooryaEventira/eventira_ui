@@ -58,6 +58,8 @@ export interface WebsiteIndexData {
   webpages: WebpageData[]
   speaker_tags?: WebsiteIndexTag[]
   attendee_tags?: WebsiteIndexTag[]
+  /** Optional navigation tree from index API (public or admin). */
+  navigation?: any[]
 }
 
 export const createOrUpdateWebpage = async (
@@ -411,7 +413,8 @@ export const fetchWebsiteIndex = async (eventUuid: string): Promise<WebsiteIndex
     const webpages = Array.isArray(raw?.webpages) ? raw.webpages : []
     const speaker_tags = Array.isArray(raw?.speaker_tags) ? raw.speaker_tags : []
     const attendee_tags = Array.isArray(raw?.attendee_tags) ? raw.attendee_tags : []
-    const result = { webpages, speaker_tags, attendee_tags }
+    const navigation = Array.isArray(raw?.navigation) ? raw.navigation : undefined
+    const result: WebsiteIndexData = { webpages, speaker_tags, attendee_tags, navigation }
     console.log('Website index API response:', { raw: data, parsed: result })
     return result
   } catch (error) {
@@ -447,19 +450,20 @@ export async function fetchPublicWebsiteIndex(eventUuid: string): Promise<Websit
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
   })
-  if (!response.ok) return { webpages: [], speaker_tags: [], attendee_tags: [] }
+  if (!response.ok) return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
   const text = await response.text()
-  if (!text?.trim()) return { webpages: [], speaker_tags: [], attendee_tags: [] }
+  if (!text?.trim()) return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
   try {
     const data = JSON.parse(text)
-    if (data?.status === 'error') return { webpages: [], speaker_tags: [], attendee_tags: [] }
+    if (data?.status === 'error') return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
     const raw = data?.data ?? data
     const webpages = Array.isArray(raw?.webpages) ? raw.webpages : []
     const speaker_tags = Array.isArray(raw?.speaker_tags) ? raw.speaker_tags : []
     const attendee_tags = Array.isArray(raw?.attendee_tags) ? raw.attendee_tags : []
-    return { webpages, speaker_tags, attendee_tags }
+    const navigation = Array.isArray(raw?.navigation) ? raw.navigation : undefined
+    return { webpages, speaker_tags, attendee_tags, navigation }
   } catch {
-    return { webpages: [], speaker_tags: [], attendee_tags: [] }
+    return { webpages: [], speaker_tags: [], attendee_tags: [], navigation: undefined }
   }
 }
 

@@ -138,6 +138,7 @@ export interface PublicScheduleSessionData {
   parentUuid?: string
   attachments?: any[]
   attachments_count?: number
+  attachment_count?: number
   attachmentsCount?: number
   [key: string]: any
 }

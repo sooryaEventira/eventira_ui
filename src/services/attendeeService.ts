@@ -504,6 +504,8 @@ export interface TagData {
   name: string
   description: string
   is_active: boolean
+  /** Whether this tag has a published group page (from attendees/tags list). */
+  is_published?: boolean
   attendee_count?: number
 }
 
@@ -678,6 +680,8 @@ export const fetchTags = async (eventUuid: string): Promise<TagData[]> => {
         name: t?.name ?? t?.title ?? '',
         description: t?.description ?? '',
         is_active: t?.is_active ?? t?.isActive ?? true,
+        // New field from attendees/tags/ and speakers/tags/ responses
+        is_published: typeof t?.is_published === 'boolean' ? t.is_published : undefined,
         attendee_count: typeof t?.attendee_count === 'number' ? t.attendee_count : (typeof t?.attendeeCount === 'number' ? t.attendeeCount : undefined)
       }))
       .filter((t) => Boolean(t.uuid) && Boolean(t.name)) as TagData[]

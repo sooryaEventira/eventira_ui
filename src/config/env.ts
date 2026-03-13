@@ -125,6 +125,15 @@ export const API_ENDPOINTS = {
   // Event website index (navigation + webpages list for event website)
   WEBSITE: {
     INDEX: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website/index/?event_id=${eventUuid}`,
+    /** Navigation tree for event website. GET {{admin_url}}navigation/?event_id={{event_uuid}} */
+    NAVIGATION: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/?event_id=${eventUuid}`,
+    /** Create navigation folder. POST {{admin_url}}navigation/folders/?event_id={{event_uuid}} */
+    NAVIGATION_FOLDERS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/folders/?event_id=${eventUuid}`,
+    /** Available pages for navigation. GET {{admin_url}}navigation/available/?event_id={{event_uuid}} */
+    NAVIGATION_AVAILABLE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/available/?event_id=${eventUuid}`,
+    /** Update a nav item's icon. PATCH {{admin_url}}navigation/items/{{itemUuid}}/icon/?event_id={{event_uuid}} */
+    NAVIGATION_ITEM_ICON: (eventUuid: string, navItemUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/items/${navItemUuid}/icon/?event_id=${eventUuid}`,
     /** Website settings (branding, domain, visibility). PUT/PATCH with body. */
     SETTINGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website-settings/?event_id=${eventUuid}`,
   },

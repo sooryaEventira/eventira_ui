@@ -146,9 +146,8 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
       <div className="flex flex-col gap-1">
         <span className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</span>
         <input
-          type="text"
-          inputMode="numeric"
-          placeholder="00:00"
+          type="time"
+          step={60}
           value={displayValue}
           onChange={(event) => {
             const value = event.target.value

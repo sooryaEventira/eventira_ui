@@ -14,35 +14,19 @@ import {
   type WebpageData,
   type WebsiteIndexTag
 } from '../../../services/webpageService'
+import { createNavigationFolder as createNavigationFolderApi, fetchAvailableNavigationPages, fetchEventNavigation, updateNavigationItemIcon } from '../../../services/navigationService'
 import { publishEvent } from '../../../services/eventService'
 import { fetchPublicEvent } from '../../../services/publicEventService'
 import { fetchPublicWebpages } from '../../../services/publicWebpageService'
 import Button from '../../ui/untitled/Button'
-import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import { showToast } from '../../../utils/toast'
 import { getDefaultTemplateData } from '../../../hooks/usePageManagement'
-import type { NavigationFolderItem, NavigationItem, NavigationPageItem } from '../../../types/navigation'
-import {
-  isFolder,
-  isPage,
-  loadNavigationConfigFromStorage,
-  saveNavigationConfigToStorage,
-  upsertMissingPagesToRoot
-} from '../../../utils/navigationTree'
+import type { NavigationItem } from '../../../types/navigation'
+import { isFolder, isPage } from '../../../utils/navigationTree'
 import { NAV_ICON_KEYS, renderNavIcon } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
-import { 
-  InfoCircle, 
-  CodeBrowser, 
-  Globe01,
-  Eye,
-  EyeOff,
-  Plus,
-  Trash01,
-  Play,
-  ChevronDown
-} from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder } from '@untitled-ui/icons-react'
 
 interface EventWebsitePageProps {
   onBackClick?: () => void
@@ -58,17 +42,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const { eventData, createdEvent } = useEventForm()
   const { pages, addPage, deletePage, initializePages } = useWebsitePages()
 
-  // Static demo names used for flow understanding only — not from backend; hide from both Website pages and Navigation
-  const STATIC_DEMO_PAGE_NAMES = useMemo(
-    () => new Set(
-      ['Poster Presenter Group', 'Speakers Group', 'Observer Group', 'Participant Group'].map((s) => s.trim().toLowerCase())
-    ),
-    []
-  )
-  const isStaticDemoName = useCallback(
-    (name: string) => STATIC_DEMO_PAGE_NAMES.has(String(name || '').trim().toLowerCase()),
-    [STATIC_DEMO_PAGE_NAMES]
-  )
+
+
 
   // Prioritize createdEvent data from API, fallback to eventData from form
   // Use useMemo to ensure we always get the latest value and prevent stale reads
@@ -88,6 +63,10 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [indexSpeakerTags, setIndexSpeakerTags] = useState<WebsiteIndexTag[]>([])
   const [indexAttendeeTags, setIndexAttendeeTags] = useState<WebsiteIndexTag[]>([])
   const [isLoadingIndexWebpages, setIsLoadingIndexWebpages] = useState(false)
+  const [isLoadingNavigation, setIsLoadingNavigation] = useState(false)
+  const [navigationFromApi, setNavigationFromApi] = useState<NavigationItem[]>([])
+  const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set())
+  const [availableNavPages, setAvailableNavPages] = useState<{ uuid: string; name: string; slug: string; is_added: boolean }[]>([])
   const [navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
@@ -97,14 +76,56 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
   const [draggingNavId, setDraggingNavId] = useState<string | null>(null)
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
-  const [navTreeRefresh, setNavTreeRefresh] = useState(0)
   const [isPublishing, setIsPublishing] = useState(false)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
 
-  // Website pages list without static demo entries (Poster Presenter Group, etc.)
-  const filteredWebpages = useMemo(
-    () => webpages.filter((w) => !isStaticDemoName((w as any)?.name ?? '')),
-    [webpages, isStaticDemoName]
+  const filteredWebpages = useMemo(() => webpages, [webpages])
+
+  const handleAddMenuItem = useCallback(
+    (pageUuid: string) => {
+      const page = availableNavPages.find((p) => p.uuid === pageUuid)
+      if (!page || page.is_added) return
+
+      const title = page.name || 'Untitled'
+      const slug =
+        (page.slug || '')
+          .toString()
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '') || 'page'
+
+      const newItem: NavigationItem = {
+        id: page.uuid,
+        type: 'page',
+        title,
+        slug,
+        pageId: page.uuid
+      }
+
+      const pageExistsInTree = (list: NavigationItem[], targetPageId: string): boolean => {
+        for (const it of list) {
+          if (isFolder(it)) {
+            if (pageExistsInTree(it.children || [], targetPageId)) return true
+          } else if ((it as any).pageId === targetPageId) {
+            return true
+          }
+        }
+        return false
+      }
+
+      // Append as a root-level nav item only if it doesn't already exist anywhere in the tree
+      setNavigationFromApi((prev) => {
+        if (pageExistsInTree(prev, page.uuid)) return prev
+        return [...prev, newItem]
+      })
+
+      // Mark as added so the modal shows "Added"
+      setAvailableNavPages((prev) =>
+        prev.map((p) => (p.uuid === page.uuid ? { ...p, is_added: true } : p))
+      )
+    },
+    [availableNavPages]
   )
 
   const closeIconPicker = useCallback(() => {
@@ -154,7 +175,6 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
   const getNavigationOrderStorageKey = (eventUuid: string) => `navigation-order-${eventUuid}`
   const getNavigationHiddenStorageKey = (eventUuid: string) => `navigation-hidden-${eventUuid}`
-  const getNavigationTreeStorageKey = (eventUuid: string) => `navigation-tree-${eventUuid}`
 
   const [hiddenNavIds, setHiddenNavIds] = useState<Set<string>>(() => new Set())
 
@@ -192,37 +212,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     [eventUuidForNavigation]
   )
 
-  const systemItemsForNavigation = useMemo(() => {
-    const eventUuid = eventUuidForNavigation
-    if (!eventUuid) return [] as Array<{ id: string; label: string; kind: 'system' }>
-    const speakers = readEventStoreJSON<any[]>(eventUuid, 'speakers', [])
-    const attendees = readEventStoreJSON<any[]>(eventUuid, 'attendees', [])
-    const organizations = readEventStoreJSON<any[]>(eventUuid, 'organizations', [])
-    const sessionsMap = readEventStoreJSON<Record<string, any[]>>(eventUuid, 'sessions', {})
-    const sessionsCount = Object.values(sessionsMap || {}).reduce((sum, arr) => sum + (Array.isArray(arr) ? arr.length : 0), 0)
-    const scheduleList = readEventStoreJSON<any[]>(eventUuid, 'schedule', [])
-    const hasSchedulesInStore = Array.isArray(scheduleList) && scheduleList.length > 0
-
-    const hasNamedItem = (arr: any[], fields: string[]) => {
-      return (Array.isArray(arr) ? arr : []).some((x) =>
-        fields.some((f) => String((x as any)?.[f] ?? '').trim().length > 0)
-      )
-    }
-
-    // Only show system pages when there is real data (not placeholders)
-    const hasOrganizations = hasNamedItem(organizations, ['name', 'title', 'company', 'organization', 'organisation'])
-    const hasSpeakers = hasNamedItem(speakers, ['name', 'email'])
-    const hasAttendees = hasNamedItem(attendees, ['name', 'email'])
-    // Show Schedule when there are sessions or at least one schedule (so nav appears after adding a schedule)
-    const hasSchedule = sessionsCount > 0 || hasSchedulesInStore
-
-    const out: Array<{ id: string; label: string; kind: 'system' }> = []
-    if (hasOrganizations) out.push({ id: 'system:organizations', label: 'Organizations', kind: 'system' })
-    if (hasSpeakers) out.push({ id: 'system:speakers', label: 'Speakers', kind: 'system' })
-    if (hasAttendees) out.push({ id: 'system:attendees', label: 'Attendees', kind: 'system' })
-    if (hasSchedule) out.push({ id: 'system:schedule', label: 'Schedule', kind: 'system' })
-    return out
-  }, [eventUuidForNavigation])
+  // No auto-generated system pages; navigation only shows pages from API (webpages, speaker/attendee tags from index)
+  const systemItemsForNavigation = useMemo(() => [] as Array<{ id: string; label: string; kind: 'system' }>, [])
 
   // Load + reconcile persisted navigation order per event (include speaker/attendee tag ids and folder ids)
   const speakerTagIds = useMemo(
@@ -281,215 +272,49 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     return [...ordered, ...missing]
   }, [indexWebpages, navigationOrderIds])
 
-  const navigationTreeItems = useMemo(() => {
-    const eventUuid = eventUuidForNavigation
-    if (!eventUuid) return [] as NavigationItem[]
-
-    const treeKey = getNavigationTreeStorageKey(eventUuid)
-    const slugify = (s: string) =>
-      String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'page'
-
-    const systemPages: NavigationPageItem[] = systemItemsForNavigation.map((p) => ({
-      id: p.id,
-      type: 'page',
-      title: p.label,
-      slug: p.id,
-      pageId: p.id
-    }))
-
-    const speakerTagPages: NavigationPageItem[] = indexSpeakerTags.map((t) => ({
-      id: `speaker-tag:${t.uuid}`,
-      type: 'page' as const,
-      title: t.name,
-      slug: slugify(t.name),
-      pageId: `speaker-tag:${t.uuid}`
-    }))
-    const speakerFolder: NavigationFolderItem | null =
-      speakerTagPages.length > 0
-        ? { id: 'folder:speaker', type: 'folder', title: 'Speaker', children: speakerTagPages }
-        : null
-
-    const attendeeTagPages: NavigationPageItem[] = indexAttendeeTags.map((t) => ({
-      id: `attendee-tag:${t.uuid}`,
-      type: 'page' as const,
-      title: t.name,
-      slug: slugify(t.name),
-      pageId: `attendee-tag:${t.uuid}`
-    }))
-    const attendeeFolder: NavigationFolderItem | null =
-      attendeeTagPages.length > 0
-        ? { id: 'folder:attendees', type: 'folder', title: 'Attendees', children: attendeeTagPages }
-        : null
-
-    const webpagePages: NavigationPageItem[] = orderedWebpagesForNavigation.map((w) => ({
-      id: String(w.uuid),
-      type: 'page',
-      title: w.name,
-      slug: String(w.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-      pageId: String(w.uuid)
-    }))
-
-    const defaultItems: NavigationItem[] = [
-      ...systemPages,
-      ...(speakerFolder ? [speakerFolder] : []),
-      ...(attendeeFolder ? [attendeeFolder] : []),
-      ...webpagePages
-    ]
-    // Only upsert system + webpages to root; never add speaker-tag/attendee-tag pages to root (they belong in folders)
-    const defaultFlatPagesForUpsert: NavigationPageItem[] = [...systemPages, ...webpagePages]
-    const allowedSystemIds = new Set(systemPages.map((p) => String(p.pageId)))
-
-    // Allowed nav ids from website index API only (removes old static/demo entries like "Poster Presenter Group" that are not in backend)
-    const allowedNavigationIds = new Set<string>([
-      ...systemPages.map((p) => p.id),
-      ...(speakerFolder ? ['folder:speaker', ...speakerTagPages.map((p) => p.id)] : []),
-      ...(attendeeFolder ? ['folder:attendees', ...attendeeTagPages.map((p) => p.id)] : []),
-      ...webpagePages.map((p) => p.id)
-    ])
-    const filterToAllowedItems = (items: NavigationItem[]): NavigationItem[] => {
-      const out: NavigationItem[] = []
-      for (const it of items) {
-        if (isFolder(it)) {
-          if (!allowedNavigationIds.has(it.id)) continue
-          const children = filterToAllowedItems(it.children || [])
-          out.push({ ...it, children })
-        } else {
-          if (!allowedNavigationIds.has(it.id)) continue
-          out.push(it)
-        }
-      }
-      return out
-    }
-
-    const removeStaticDemoItems = (items: NavigationItem[]): NavigationItem[] => {
-      const out: NavigationItem[] = []
-      for (const it of items) {
-        if (isFolder(it)) {
-          const children = removeStaticDemoItems(it.children || [])
-          if (children.length === 0) continue
-          out.push({ ...it, children })
-        } else {
-          const title = String((it as any)?.title ?? (it as any)?.name ?? '').trim()
-          if (isStaticDemoName(title)) continue
-          out.push(it)
-        }
-      }
-      return out
-    }
-
-    const pruneUnavailableSystemPages = (items: NavigationItem[]): NavigationItem[] => {
-      const out: NavigationItem[] = []
-      for (const it of items) {
-        if (isFolder(it)) {
-          out.push({ ...it, children: pruneUnavailableSystemPages(it.children || []) })
-          continue
-        }
-        const pageId = String((it as any)?.pageId ?? '')
-        if (pageId.startsWith('system:') && !allowedSystemIds.has(pageId)) continue
-        out.push(it)
-      }
-      return out
-    }
-
-    const hasFolder = (items: NavigationItem[], folderId: string) =>
-      items.some((it) => (it as any)?.id === folderId)
-
-    const insertFoldersIfMissing = (
-      items: NavigationItem[],
-      speaker: NavigationFolderItem | null,
-      attendee: NavigationFolderItem | null
-    ): NavigationItem[] => {
-      let out = items
-      const systemCount = systemPages.length
-      if (speaker && !hasFolder(out, 'folder:speaker')) {
-        out = [...out.slice(0, systemCount), speaker, ...out.slice(systemCount)]
-      }
-      if (attendee && !hasFolder(out, 'folder:attendees')) {
-        const insertAfter = out.findIndex((it) => (it as any)?.id === 'folder:speaker')
-        const idx = insertAfter >= 0 ? insertAfter + 1 : systemCount
-        out = [...out.slice(0, idx), attendee, ...out.slice(idx)]
-      }
-      return out
-    }
-
-    // Sync folder children with website index so all published tags show (stored config may have stale single child)
-    const syncFolderChildrenWithIndex = (items: NavigationItem[]): NavigationItem[] =>
-      items.map((it) => {
-        if (!isFolder(it)) return it
-        if (it.id === 'folder:speaker' && speakerFolder) return { ...it, children: speakerFolder.children }
-        if (it.id === 'folder:attendees' && attendeeFolder) return { ...it, children: attendeeFolder.children }
-        return it
-      })
-
-    // Remove speaker-tag/attendee-tag pages that were saved at root (they belong only inside folders)
-    const removeRootLevelTagPages = (items: NavigationItem[]): NavigationItem[] =>
-      items.filter((it) => {
-        if (isFolder(it)) return true
-        const pageId = String((it as any)?.pageId ?? '')
-        return !pageId.startsWith('speaker-tag:') && !pageId.startsWith('attendee-tag:')
-      })
-
-    const stored = loadNavigationConfigFromStorage(treeKey)
-    const baseItems =
-      stored?.items && Array.isArray(stored.items)
-        ? (stored.items as NavigationItem[])
-        : defaultItems
-    // Drop any items not from website index (e.g. old static "Poster Presenter Group", "Speakers Group" etc.)
-    const baseItemsFiltered = filterToAllowedItems(baseItems)
-    const withoutStaticDemos = removeStaticDemoItems(baseItemsFiltered)
-
-    const prunedBaseItems = pruneUnavailableSystemPages(withoutStaticDemos)
-    const withoutRootTagPages = removeRootLevelTagPages(prunedBaseItems)
-    let reconciled = upsertMissingPagesToRoot(withoutRootTagPages, defaultFlatPagesForUpsert)
-    reconciled = insertFoldersIfMissing(reconciled, speakerFolder, attendeeFolder)
-    reconciled = syncFolderChildrenWithIndex(reconciled)
-    reconciled = removeStaticDemoItems(reconciled)
-
-    try {
-      saveNavigationConfigToStorage(treeKey, reconciled)
-    } catch {
-      // ignore
-    }
-
-    return reconciled
-  }, [
-    eventUuidForNavigation,
-    systemItemsForNavigation,
-    orderedWebpagesForNavigation,
-    indexSpeakerTags,
-    indexAttendeeTags,
-    navTreeRefresh
-  ])
-
   const moveNavigationTreeItem = useCallback(
     (dragId: string, targetId: string) => {
-      const eventUuid = eventUuidForNavigation
-      if (!eventUuid) return
       if (!dragId || !targetId || dragId === targetId) return
 
-      const treeKey = getNavigationTreeStorageKey(eventUuid)
-      const stored = loadNavigationConfigFromStorage(treeKey)
-      const current =
-        stored?.items && Array.isArray(stored.items)
-          ? (stored.items as NavigationItem[])
-          : navigationTreeItems
-
-      const fromIndex = current.findIndex((it) => it.id === dragId)
-      const toIndex = current.findIndex((it) => it.id === targetId)
-      if (fromIndex === -1 || toIndex === -1) return
-
-      const next = [...current]
-      const [moved] = next.splice(fromIndex, 1)
-      next.splice(toIndex, 0, moved)
-
-      try {
-        saveNavigationConfigToStorage(treeKey, next)
-      } catch {
-        // ignore
+      const removeFromTree = (
+        list: NavigationItem[],
+        id: string
+      ): { item: NavigationItem | null; next: NavigationItem[] } => {
+        let found: NavigationItem | null = null
+        const next: NavigationItem[] = []
+        for (const it of list) {
+          if (it.id === id) {
+            found = it
+            continue
+          }
+          if (isFolder(it)) {
+            const res = removeFromTree(it.children || [], id)
+            if (res.item) {
+              found = res.item
+              next.push({ ...it, children: res.next })
+            } else {
+              next.push(it)
+            }
+          } else {
+            next.push(it)
+          }
+        }
+        return { item: found, next }
       }
-      setNavTreeRefresh((x) => x + 1)
+
+      setNavigationFromApi((prev) => {
+        const { item, next } = removeFromTree(prev, dragId)
+        if (!item) return prev
+
+        const root = [...next]
+        const toIndex = root.findIndex((it) => it.id === targetId)
+        if (toIndex === -1) return prev
+
+        root.splice(toIndex, 0, item)
+        return root
+      })
     },
-    [eventUuidForNavigation, navigationTreeItems]
+    []
   )
 
   // Fetch website index pages (used in Navigation tab)
@@ -516,10 +341,136 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     }
   }, [createdEvent?.uuid])
 
+ // Inside EventWebsitePage component -> loadNavigationFromApi function
+
+const loadNavigationFromApi = useCallback(async () => {
+  const eventUuid = createdEvent?.uuid
+  if (!eventUuid) {
+    setNavigationFromApi([])
+    return
+  }
+
+  const slugify = (s: string) =>
+    String(s || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'page'
+
+  // Map navigation items from API:
+  // - Deduplicate only among siblings at the same level (not globally),
+  //   so a page can safely appear under multiple groups if the backend wants that.
+  // - Treat *_group items as folder/group containers.
+  const mapItems = (list: any[]): NavigationItem[] => {
+    const out: NavigationItem[] = []
+    const seenAtLevel = new Set<string>()
+
+    for (const raw of Array.isArray(list) ? list : []) {
+      const itemType = String(raw?.item_type || '').toLowerCase()
+      const uuid = String(raw?.uuid ?? '').trim()
+      if (!uuid || seenAtLevel.has(uuid)) continue
+      seenAtLevel.add(uuid)
+
+      const title = String(raw?.title ?? raw?.name ?? '').trim() || 'Untitled'
+
+      // Treat speaker_group / attendee_group / schedule_group / organization_group as special "group" folders
+      if (itemType === 'folder' || itemType.endsWith('_group')) {
+        const children = mapItems(raw?.items || [])
+        const isGroupFolder = itemType.endsWith('_group')
+        out.push({
+          id: uuid,
+          type: 'folder',
+          title,
+          children,
+          ...(isGroupFolder ? { metaKind: 'group' } : {})
+        } as any)
+        continue
+      }
+
+      // Default: map to a page item (slug may be missing in API response; fallback to slugify(title))
+      const iconKey = raw?.icon ? String(raw.icon) : undefined
+      const slugFromApi = raw?.slug != null && String(raw.slug).trim() !== '' ? String(raw.slug).trim() : ''
+      const slug = slugFromApi || slugify(title)
+      out.push({ id: uuid, type: 'page', title, slug, pageId: uuid, iconKey })
+    }
+
+    return out
+  }
+
+  const normalizeNavigationTree = (list: NavigationItem[]): NavigationItem[] => {
+    return list.map((item) => {
+      if (!isFolder(item)) return item
+
+      const seenChildIds = new Set<string>()
+      const seenPageKeys = new Set<string>()
+      const dedupedChildren: NavigationItem[] = []
+
+      for (const child of item.children || []) {
+        if (child.id === item.id) continue
+        if (seenChildIds.has(child.id)) continue
+        seenChildIds.add(child.id)
+        if (isFolder(child)) {
+          dedupedChildren.push(child)
+        } else {
+          const pageId = (child as any).pageId as string | undefined
+          const slug = (child as any).slug as string | undefined
+          const title = child.title
+          const key = pageId || slug || title
+          if (!key || seenPageKeys.has(key)) continue
+          seenPageKeys.add(key)
+          dedupedChildren.push(child)
+        }
+      }
+
+      return {
+        ...item,
+        children: normalizeNavigationTree(dedupedChildren)
+      }
+    })
+  }
+
+  setIsLoadingNavigation(true)
+  try {
+    const data = await fetchEventNavigation(eventUuid)
+    const rawTree = mapItems(data.navigation || [])
+    const nextTree = normalizeNavigationTree(rawTree)
+    setNavigationFromApi(nextTree)
+    setExpandedFolderIds(new Set())
+  } catch (e) {
+    console.error('❌ [EventWebsitePage] Error fetching navigation:', e)
+    setNavigationFromApi([])
+  } finally {
+    setIsLoadingNavigation(false)
+  }
+}, [createdEvent?.uuid])
+
+  // Load available pages for Add Menu Item modal
+  useEffect(() => {
+    if (!showAddMenuItemModal) return
+    if (activeSubItem !== 'website-header') return
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) {
+      setAvailableNavPages([])
+      return
+    }
+    fetchAvailableNavigationPages(eventUuid)
+      .then((pages) => {
+        setAvailableNavPages(pages || [])
+      })
+      .catch((e) => {
+        console.error('❌ [EventWebsitePage] Error fetching available navigation pages:', e)
+        setAvailableNavPages([])
+      })
+  }, [showAddMenuItemModal, activeSubItem, createdEvent?.uuid])
+
   useEffect(() => {
     if (activeSubItem !== 'website-header') return
     loadWebsiteIndexPages()
-  }, [activeSubItem, loadWebsiteIndexPages])
+    loadNavigationFromApi()
+  }, [activeSubItem, loadWebsiteIndexPages, loadNavigationFromApi])
+
+  // When switching to Navigation tab, reset preview selection to first visible item from API.
+  useEffect(() => {
+    if (activeSubItem !== 'website-header') return
+    if (navigationFromApi.length === 0) return
+    setNavigationPreviewActive((prev) => prev ?? navigationFromApi[0]?.id ?? null)
+  }, [activeSubItem, navigationFromApi])
 
   // Fetch webpages for event website listing from WEBPAGE.LIST endpoint
   const loadWebpages = useCallback(async () => {
@@ -817,32 +768,19 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   }
 
   const createNavigationFolder = useCallback(
-    (name: string) => {
-      const eventUuid = eventUuidForNavigation
+    async (name: string) => {
+      const eventUuid = createdEvent?.uuid
       if (!eventUuid) return
-
-      const treeKey = getNavigationTreeStorageKey(eventUuid)
-      const stored = loadNavigationConfigFromStorage(treeKey)
-      const existing: NavigationItem[] =
-        stored?.items && Array.isArray(stored.items) ? (stored.items as NavigationItem[]) : []
-
-      const folder: NavigationFolderItem = {
-        id: `folder-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-        type: 'folder',
-        title: name.trim(),
-        children: []
-      }
-
-      const next: NavigationItem[] = [...existing, folder]
       try {
-        saveNavigationConfigToStorage(treeKey, next)
-      } catch {
-        // ignore
+        await createNavigationFolderApi(eventUuid, name)
+        showToast.success('Folder created')
+        setShowCreateNavFolderModal(false)
+        await loadNavigationFromApi()
+      } catch (e: any) {
+        showToast.error(e?.message ? String(e.message) : 'Failed to create folder')
       }
-      setShowCreateNavFolderModal(false)
-      setNavTreeRefresh((x) => x + 1)
     },
-    [eventUuidForNavigation]
+    [createdEvent?.uuid, loadNavigationFromApi]
   )
 
   const renderNavigationTab = () => {
@@ -851,14 +789,37 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       const out: Array<{ item: NavigationItem; depth: number }> = []
       for (const it of list) {
         out.push({ item: it, depth })
-        if (isFolder(it) && Array.isArray(it.children) && it.children.length) {
-          out.push(...flatten(it.children, depth + 1))
+
+        if (isFolder(it) && Array.isArray(it.children) && it.children.length && expandedFolderIds.has(it.id)) {
+          // Prevent folder appearing as its own child (e.g. group name === item name causing duplicate render).
+          // Deduplicate by id so the same node is never shown twice when expand/collapse or API returns duplicates.
+          const seenChildIds = new Set<string>()
+          const seenChildKeys = new Set<string>()
+          const dedupedChildren = (it.children || []).filter((child) => {
+            if (child.id === it.id) return false
+            if (seenChildIds.has(child.id)) return false
+            seenChildIds.add(child.id)
+            let key: string | undefined
+            if (isFolder(child)) {
+              key = `folder:${child.id}`
+            } else {
+              const pageId = (child as any).pageId as string | undefined
+              const slug = (child as any).slug as string | undefined
+              const title = child.title
+              key = `page:${pageId || slug || title}`
+            }
+            if (!key || seenChildKeys.has(key)) return false
+            seenChildKeys.add(key)
+            return true
+          })
+
+          out.push(...flatten(dedupedChildren, depth + 1))
         }
       }
       return out
     }
 
-    const items = navigationTreeItems
+    const items = navigationFromApi
     // For the editor preview, keep folders visible even if they have no children.
     // (The public website prunes empty folders, but in the editor it's useful to show them.)
     const applyHiddenKeepEmptyFolders = (list: NavigationItem[]): NavigationItem[] => {
@@ -879,15 +840,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
 
     const activeId = navigationPreviewActive ?? visibleFlat[0]?.item?.id ?? null
 
-    const setNavItemIcon = (targetId: string, iconKey?: string) => {
+    const setNavItemIcon = async (targetId: string, iconKey?: string) => {
       if (!eventUuid) return
-      const treeKey = getNavigationTreeStorageKey(eventUuid)
-      const stored = loadNavigationConfigFromStorage(treeKey)
-      const current =
-        stored?.items && Array.isArray(stored.items)
-          ? (stored.items as NavigationItem[])
-          : items
-
       const walk = (list: NavigationItem[]): NavigationItem[] =>
         list.map((it) => {
           if (isFolder(it)) {
@@ -896,14 +850,15 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           if (it.id !== targetId) return it
           return { ...it, iconKey: iconKey || undefined }
         })
-
-      const next = walk(current)
+      const prev = items
+      const next = walk(prev)
+      setNavigationFromApi(next)
       try {
-        saveNavigationConfigToStorage(treeKey, next)
-      } catch {
-        // ignore
+        await updateNavigationItemIcon(eventUuid, targetId, iconKey ?? null)
+      } catch (e: any) {
+        setNavigationFromApi(prev)
+        showToast.error(e?.message ?? 'Failed to update icon')
       }
-      setNavTreeRefresh((x) => x + 1)
     }
 
     const findNavItemById = (list: NavigationItem[], id: string): NavigationItem | null => {
@@ -966,32 +921,34 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       return { inserted, next }
     }
 
+    const toggleFolderExpanded = (folderId: string) => {
+      setExpandedFolderIds((prev) => {
+        const next = new Set(prev)
+        if (next.has(folderId)) next.delete(folderId)
+        else next.add(folderId)
+        return next
+      })
+    }
+
     const moveNavPageIntoFolder = (dragId: string, folderId: string) => {
       if (!eventUuid) return
       if (!dragId || !folderId || dragId === folderId) return
 
-      const treeKey = getNavigationTreeStorageKey(eventUuid)
-      const stored = loadNavigationConfigFromStorage(treeKey)
-      const current =
-        stored?.items && Array.isArray(stored.items)
-          ? (stored.items as NavigationItem[])
-          : items
-
-      const draggedItem = findNavItemById(current, dragId)
+      const draggedItem = findNavItemById(items, dragId)
       if (!draggedItem || !isPage(draggedItem)) return
 
-      const { item: removed, next: removedTree } = removeNavItemById(current, dragId)
+      const { item: removed, next: removedTree } = removeNavItemById(items, dragId)
       if (!removed) return
 
       const insertedRes = insertNavItemIntoFolder(removedTree, folderId, removed)
       if (!insertedRes.inserted) return
 
-      try {
-        saveNavigationConfigToStorage(treeKey, insertedRes.next)
-      } catch {
-        // ignore
-      }
-      setNavTreeRefresh((x) => x + 1)
+      setNavigationFromApi(insertedRes.next)
+      setExpandedFolderIds((prev) => {
+        const next = new Set(prev)
+        next.add(folderId)
+        return next
+      })
     }
 
     const filteredIconKeys = (() => {
@@ -1012,16 +969,16 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           </div>
 
           <div className="space-y-0 border border-slate-200 rounded-lg bg-white">
-            {isLoadingIndexWebpages ? (
+            {isLoadingNavigation || isLoadingIndexWebpages ? (
               <div className="flex items-center justify-center py-8 text-slate-500">
-                <p>Loading index pages...</p>
+                <p>Loading navigation...</p>
               </div>
             ) : flat.length === 0 ? (
               <div className="flex items-center justify-center py-8 text-slate-500">
                 <p>No menu items yet. Create pages or folders to see them here.</p>
               </div>
             ) : (
-              flat.map(({ item, depth }) => {
+              flat.map(({ item, depth }, flatIndex) => {
                 const folder = isFolder(item)
                 const page = isPage(item)
                 const isSystemPage = page && String(item.pageId).startsWith('system:')
@@ -1029,23 +986,14 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                 const isWelcome = isWebpage && String(item.title || '').toLowerCase() === 'welcome'
                 const isHidden = hiddenNavIds.has(item.id)
                 const currentIcon = page ? (item as any).iconKey : undefined
-                const publicUrl =
-                  !eventUuid || !page
-                    ? ''
-                    : isWebpage
-                      ? `${window.location.origin}/events/${eventUuid}/webpages/${item.pageId}`
-                      : item.pageId === 'system:organizations'
-                        ? `${window.location.origin}/events/${eventUuid}/organizations`
-                        : item.pageId === 'system:speakers'
-                          ? `${window.location.origin}/events/${eventUuid}/speakers`
-                          : item.pageId === 'system:attendees'
-                            ? `${window.location.origin}/events/${eventUuid}/attendees`
-                            : item.pageId === 'system:schedule'
-                              ? `${window.location.origin}/events/${eventUuid}/schedule`
-                              : `${window.location.origin}/events/${eventUuid}/sessions`
                 return (
                   <div
-                    key={item.id}
+                    key={`nav-${flatIndex}-${item.id}`}
+                    onClick={() => {
+                      if (folder) {
+                        toggleFolderExpanded(item.id)
+                      }
+                    }}
                     onDragOver={(e) => {
                       // Allow dropping pages onto folders (any depth).
                       if (folder) {
@@ -1079,15 +1027,16 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                       setDragOverNavId(null)
                     }}
                     className={[
-                      'flex items-center justify-between gap-3 py-2 px-4 border-b border-slate-200 last:border-b-0 transition-colors',
+                      'flex items-center justify-between gap-3 py-2 px-4 border-b border-slate-200 last:border-b-0 transition-colors cursor-pointer',
                       dragOverNavId === item.id ? 'bg-violet-50' : 'hover:bg-slate-50'
                     ].join(' ')}
                   >
                     <div className="flex items-center gap-3 min-w-0" style={{ paddingLeft: depth * 16 }}>
                       <span
-                        className="text-slate-400 cursor-grab select-none"
+                        className="text-slate-400 cursor-grab select-none p-1"
                         aria-hidden="true"
                         draggable
+                        onClick={(e) => e.stopPropagation()}
                         onDragStart={(e) => {
                           setDraggingNavId(item.id)
                           try {
@@ -1106,14 +1055,34 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                           <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
                         </svg>
                       </span>
-                      {page ? (
+                      {folder && (item as any).metaKind !== 'group' ? (
+                        <Folder className={`h-4 w-4 shrink-0 ${isHidden ? 'text-slate-300' : 'text-slate-500'}`} aria-hidden="true" />
+                      ) : page ? (
                         <span className={`shrink-0 ${isHidden ? 'text-slate-300' : 'text-slate-500'}`} aria-hidden="true">
                           {renderNavIcon(currentIcon, 'h-4 w-4')}
                         </span>
                       ) : null}
                       <span className={`text-sm font-medium capitalize truncate ${isHidden ? 'text-slate-400' : 'text-slate-900'}`}>
-                        {folder ? item.title : item.title}
+                        {item.title}
                       </span>
+                      {folder && (item.children || []).length > 0 ? (
+                        <button
+                          type="button"
+                          className="shrink-0 rounded p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            toggleFolderExpanded(item.id)
+                          }}
+                          aria-label={expandedFolderIds.has(item.id) ? 'Collapse folder' : 'Expand folder'}
+                        >
+                          {expandedFolderIds.has(item.id) ? (
+                            <ChevronUp className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </button>
+                      ) : null}
                     </div>
 
                     <div className="flex items-center gap-1">
@@ -1139,17 +1108,6 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                           {currentIcon ? 'Update icon' : 'Add icon'}
                         </Button>
                       ) : null}
-                      {/* <Button
-                        variant="tertiary"
-                        size="sm"
-                        onClick={() => {
-                          void publicUrl
-                          toggleHiddenNavId(item.id)
-                        }}
-                        className="p-2 text-slate-400 hover:text-slate-600"
-                        aria-label={isHidden ? 'Show in navbar' : 'Hide from navbar'}
-                        iconLeading={isHidden ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      /> */}
 
                       {isWebpage ? (
                         <Button
@@ -1161,6 +1119,25 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
                           }`}
                           aria-label="Delete"
                           disabled={isWelcome}
+                          iconLeading={<Trash01 className="h-4 w-4" />}
+                        />
+                      ) : null}
+                      {folder ? (
+                        <Button
+                          variant="tertiary"
+                          size="sm"
+                          onClick={() => {
+                            const ok = window.confirm(`Delete folder "${item.title || 'Untitled'}"?`)
+                            if (!ok) return
+                            setNavigationFromApi((prev) => removeNavItemById(prev, item.id).next)
+                            setExpandedFolderIds((prev) => {
+                              const next = new Set(prev)
+                              next.delete(item.id)
+                              return next
+                            })
+                          }}
+                          className="p-2 text-slate-400 hover:text-red-600"
+                          aria-label="Delete folder"
                           iconLeading={<Trash01 className="h-4 w-4" />}
                         />
                       ) : null}
@@ -1526,6 +1503,14 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         }
         break
       }
+      case 'settings': {
+        const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
+        if (!eventUuid) return
+        // Navigate to public preview Settings tab for this event
+        window.history.pushState({}, '', `/events/${eventUuid}/website-settings`)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        break
+      }
       case 'hide':
         toggleHiddenNavId(pageId)
         break
@@ -1653,6 +1638,17 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
           isVisible={showCreateNavFolderModal}
           onClose={() => setShowCreateNavFolderModal(false)}
           onConfirm={createNavigationFolder}
+        />
+
+        <AddMenuItemModal
+          isVisible={showAddMenuItemModal}
+          onClose={() => setShowAddMenuItemModal(false)}
+          pages={availableNavPages.map((p) => ({
+            id: p.uuid,
+            name: p.name,
+            isAdded: !!p.is_added
+          }))}
+          onAddPage={handleAddMenuItem}
         />
 
         {/* Delete Confirmation Modal */}
@@ -1946,11 +1942,12 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       <AddMenuItemModal
         isVisible={showAddMenuItemModal}
         onClose={() => setShowAddMenuItemModal(false)}
-        pages={filteredWebpages.map((w) => ({
-          id: w.uuid,
-          name: w.name,
-          isAdded: true
+        pages={availableNavPages.map((p) => ({
+          id: p.uuid,
+          name: p.name,
+          isAdded: !!p.is_added
         }))}
+        onAddPage={handleAddMenuItem}
       />
     </div>
   )

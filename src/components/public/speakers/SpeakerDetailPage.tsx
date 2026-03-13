@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { readEventStoreJSON } from '../../../utils/eventLocalStore'
-import { fetchPublicSpeakers } from '../../../services/publicSpeakerService'
+import { fetchPublicSpeaker } from '../../../services/publicSpeakerService'
 
 type PublicSpeaker = {
   id: string
@@ -18,7 +18,7 @@ interface SpeakerDetailPageProps {
 }
 
 const SpeakerDetailPage: React.FC<SpeakerDetailPageProps> = ({ eventUuid, speakerId, onNavigate }) => {
-  const [apiSpeakers, setApiSpeakers] = useState<PublicSpeaker[] | null>(null)
+  const [speaker, setSpeaker] = useState<PublicSpeaker | null>(null)
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
 
   useEffect(() => {
@@ -26,43 +26,41 @@ const SpeakerDetailPage: React.FC<SpeakerDetailPageProps> = ({ eventUuid, speake
     const run = async () => {
       if (!cancelled) setStatus('loading')
       try {
-        const raw = await fetchPublicSpeakers(eventUuid)
-        const mapped: PublicSpeaker[] = (Array.isArray(raw) ? raw : []).map((s: any, idx: number) => {
-          const id = String(s.uuid ?? s.id ?? `speaker-${idx}`)
-          const name =
-            String(s.name ?? '').trim() ||
-            String([s.first_name, s.last_name].filter(Boolean).join(' ')).trim() ||
-            'Unknown'
-          return {
-            id,
-            name,
-            title: s.title ?? s.role ?? undefined,
-            organization: s.organization ?? s.company ?? undefined,
-            avatarUrl: s.avatarUrl ?? s.avatar_url ?? undefined,
-            bio: s.bio ?? s.description ?? undefined
-          }
-        })
+        const raw = await fetchPublicSpeaker(eventUuid, speakerId)
+        const mapped: PublicSpeaker | null = raw
+          ? {
+              id: String(raw.uuid ?? raw.id ?? speakerId),
+              name:
+                String(raw.name ?? '').trim() ||
+                String([raw.first_name, raw.last_name].filter(Boolean).join(' ')).trim() ||
+                'Unknown',
+              title: (raw as any).designation ?? raw.title ?? raw.role ?? undefined,
+              organization:
+                (raw as any).organisation ??
+                raw.organization ??
+                (raw as any).company ??
+                undefined,
+              avatarUrl: (raw as any).avatarUrl ?? raw.avatar_url ?? (raw as any).image ?? undefined,
+              bio: raw.bio ?? raw.description ?? undefined
+            }
+          : null
         if (!cancelled) {
-          setApiSpeakers(mapped)
-          setStatus('success')
+          if (mapped) {
+            setSpeaker(mapped)
+            setStatus('success')
+          } else {
+            setStatus('error')
+          }
         }
       } catch {
-        if (!cancelled) {
-          setApiSpeakers(null)
-          setStatus('error')
-        }
+        if (!cancelled) setStatus('error')
       }
     }
     run()
     return () => {
       cancelled = true
     }
-  }, [eventUuid])
-
-  const speaker = useMemo(() => {
-    const all = apiSpeakers ?? readEventStoreJSON<PublicSpeaker[]>(eventUuid, 'speakers', [])
-    return all.find((s) => String(s.id) === String(speakerId)) || null
-  }, [apiSpeakers, eventUuid, speakerId])
+  }, [eventUuid, speakerId])
 
   // Avoid flashing "not found" while the network request is still in-flight.
   if (!speaker && status === 'loading') {

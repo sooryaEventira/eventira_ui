@@ -110,26 +110,12 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
 
   const eventUuid = createdEvent?.uuid || ''
 
-  // Load published tag IDs from website index so Build page checkbox stays checked for published tags
+  // Reset built group ids when event changes; actual published state comes from tags (is_published)
   useEffect(() => {
     if (!eventUuid) {
       setBuiltGroupIds(new Set())
       return
     }
-    let cancelled = false
-    fetchPublishedAttendeeTagIds(eventUuid).then((ids) => {
-      if (!cancelled) setBuiltGroupIds(ids)
-    })
-    return () => { cancelled = true }
-  }, [eventUuid])
-
-  // Refresh builtGroupIds when webpage-saved fires (e.g. after publishing from this page)
-  useEffect(() => {
-    const handler = () => {
-      if (eventUuid) fetchPublishedAttendeeTagIds(eventUuid).then(setBuiltGroupIds)
-    }
-    window.addEventListener('webpage-saved', handler as EventListener)
-    return () => window.removeEventListener('webpage-saved', handler as EventListener)
   }, [eventUuid])
 
   // Persist attendees for public pages (no new API on public site)
@@ -271,6 +257,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     
     if (!eventUuid) {
       setGroups([])
+      setBuiltGroupIds(new Set())
       return
     }
 
@@ -299,6 +286,15 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
         })
       }
       setGroups(mappedGroups)
+
+      // Ensure Build page checkbox reflects backend is_published flag:
+      // any tag with is_published: true will have its checkbox ticked until it becomes false.
+      const publishedIds = new Set(
+        tagsData
+          .filter((tag) => tag.is_published)
+          .map((tag) => tag.uuid)
+      )
+      setBuiltGroupIds(publishedIds)
     } catch (error) {
       // If it's a 404, tags endpoint might not exist yet - set empty array
       // Other errors are already handled in fetchTags with toast

@@ -9,7 +9,7 @@ import {
   upsertMissingPagesToRoot
 } from '../../../utils/navigationTree'
 import Button from '../../ui/untitled/Button'
-import { InfoCircle, CodeBrowser, Globe01, Copy01, Eye, EyeOff } from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Copy01, Eye, EyeOff, Folder } from '@untitled-ui/icons-react'
 
 interface NavigationTabProps {
   eventUuidForNavigation: string
@@ -369,7 +369,7 @@ const NavigationTab: React.FC<NavigationTabProps> = ({
                     </span>
                     <div className="flex items-center gap-2 min-w-0">
                       {folder ? (
-                        <CodeBrowser className="h-4 w-4 text-slate-400 flex-shrink-0" />
+                        <Folder className="h-4 w-4 text-slate-400 flex-shrink-0" />
                       ) : (
                         renderNavIcon(currentIcon)
                       )}

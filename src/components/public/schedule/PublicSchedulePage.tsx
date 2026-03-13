@@ -350,7 +350,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             x.parent ??
             null
           const attachmentsArr = Array.isArray(x.attachments) ? x.attachments : []
-          const count = Number(x.attachments_count ?? x.attachmentsCount ?? attachmentsArr.length ?? 0)
+          const count = Number(x.attachment_count ?? x.attachments_count ?? x.attachmentsCount ?? attachmentsArr.length ?? 0)
           const attachments = attachmentsArr.length
             ? attachmentsArr
             : count > 0
@@ -371,6 +371,25 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
                 ? x.resource_files
                 : []
           const sections = mapApiSectionsToSavedSections(apiSections, apiResources, id, description)
+
+          // Extract speakers from mixed structure (some items are sections, some are direct speakers)
+          const rawSpeakers = Array.isArray(x.speakers)
+            ? x.speakers
+            : Array.isArray(x.session_speakers)
+              ? x.session_speakers
+              : []
+
+          const speakersArr: any[] = []
+          rawSpeakers.forEach((item: any) => {
+            // If item has content.speakers, it's a section container - extract speakers from it
+            if (item?.content?.speakers && Array.isArray(item.content.speakers)) {
+              speakersArr.push(...item.content.speakers)
+            }
+            // If item has name/role directly, it's a direct speaker object
+            else if (item?.name || item?.first_name || item?.last_name) {
+              speakersArr.push(item)
+            }
+          })
 
           const dateKey = date ? date.toISOString().slice(0, 10) : ''
           const parentTitle =
@@ -393,6 +412,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             sections,
             attachments,
             attachment_count: count,
+            speakers: speakersArr,
             date: date ?? undefined,
             parentId: parentIdRaw ? String(parentIdRaw) : undefined,
             __parentTitle: parentTitle || undefined,

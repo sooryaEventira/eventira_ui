@@ -191,7 +191,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                       type="button"
                       role="menuitem"
                       onClick={() => {
-                        setOpenFolderId(null)
                         onNavigate(child.path)
                       }}
                       className={[

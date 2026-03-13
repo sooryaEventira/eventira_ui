@@ -488,6 +488,8 @@ export const fetchSpeakerTags = async (eventUuid: string): Promise<TagData[]> =>
         name: t?.name ?? t?.title ?? '',
         description: t?.description ?? '',
         is_active: t?.is_active ?? t?.isActive ?? true,
+        // Whether this tag has a published group page
+        is_published: typeof t?.is_published === 'boolean' ? t.is_published : undefined,
         speaker_count: typeof t?.speaker_count === 'number' ? t.speaker_count : (typeof t?.speakerCount === 'number' ? t.speakerCount : undefined),
       }))
       .filter((t: any) => Boolean(t.uuid) && Boolean(t.name)) as (TagData & { speaker_count?: number })[]

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, Attachment01, Calendar } from '@untitled-ui/icons-react'
+import { ChevronDown, ChevronUp, Attachment01, Calendar, User01 } from '@untitled-ui/icons-react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 
 interface PublicScheduleGridProps {
@@ -25,6 +25,106 @@ const formatTime = (time: string, period: string) => {
 }
 
 const getLocationLabel = (location: string) => location
+
+type SessionSpeaker = { id: string; name: string; role?: string }
+
+function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
+  const seen = new Set<string>()
+  const result: SessionSpeaker[] = []
+
+  const sections = Array.isArray(session.sections) ? session.sections : []
+  sections.forEach((sec: any) => {
+    const type = String(sec?.type || '').toLowerCase()
+    if (type !== 'speaker' && type !== 'speakers') return
+    const list = Array.isArray(sec?.data?.speakers) ? (sec.data.speakers as any[]) : []
+    list.forEach((sp) => {
+      const id = String(sp?.id ?? sp?.speaker_uuid ?? sp?.uuid ?? '').trim()
+      const firstName = (sp?.first_name ?? sp?.firstName ?? '').toString().trim()
+      const lastName = (sp?.last_name ?? sp?.lastName ?? '').toString().trim()
+      const fullName = [firstName, lastName].filter(Boolean).join(' ')
+      const explicitName =
+        (sp?.name ??
+          sp?.full_name ??
+          sp?.fullName ??
+          sp?.speaker_name ??
+          sp?.speakerName ??
+          '') as string
+      const name = (explicitName || fullName || 'Speaker').toString().trim()
+      const rawRole =
+        (sp?.role ??
+          sp?.role_name ??
+          sp?.roleName ??
+          sp?.designation ??
+          sp?.title ??
+          sp?.post ??
+          sp?.position ??
+          sp?.type ??
+          '') as string
+      const role = rawRole.toString().trim() || undefined
+      if (!id && !name) return
+      const key = id || name
+      if (seen.has(key)) return
+      seen.add(key)
+      result.push({ id: id || key, name: name || 'Speaker', role })
+    })
+  })
+
+  // If section-derived speakers are effectively empty (only default "Speaker"),
+  // fall back to speakers attached directly on the session (used by some APIs).
+  const hasRealSectionSpeakers = result.some((s) => {
+    const name = (s.name || '').trim().toLowerCase()
+    const role = (s.role || '').trim().toLowerCase()
+    return (name && name !== 'speaker') || (role && role !== 'speaker')
+  })
+
+  if (!hasRealSectionSpeakers && Array.isArray((session as any).speakers)) {
+    result.length = 0
+    seen.clear()
+    ;((session as any).speakers as any[]).forEach((sp, index) => {
+      const rawId = sp?.uuid ?? sp?.id ?? index
+      const firstName = (sp?.first_name ?? sp?.firstName ?? '').toString().trim()
+      const lastName = (sp?.last_name ?? sp?.lastName ?? '').toString().trim()
+      const fullName = [firstName, lastName].filter(Boolean).join(' ')
+      const explicitName =
+        (sp?.name ??
+          sp?.full_name ??
+          sp?.fullName ??
+          sp?.speaker_name ??
+          sp?.speakerName ??
+          '') as string
+      const name = (explicitName || fullName || 'Speaker').toString().trim()
+      const rawRole =
+        (sp?.role ??
+          sp?.role_name ??
+          sp?.roleName ??
+          sp?.designation ??
+          sp?.title ??
+          sp?.post ??
+          sp?.position ??
+          sp?.type ??
+          '') as string
+      const role = rawRole.toString().trim() || undefined
+      const id = String(rawId || name || `speaker-${index}`).trim()
+      const key = id || name
+      if (!key || seen.has(key)) return
+      seen.add(key)
+      result.push({ id: id || key, name: name || 'Speaker', role })
+    })
+  }
+
+  return result
+}
+
+function formatSessionSpeakersLabel(speakers: SessionSpeaker[]): string {
+  if (!speakers.length) return ''
+  return speakers
+    .map((s) => {
+      const role = (s.role && String(s.role).trim()) || 'Speaker'
+      const name = s.name || 'Unnamed'
+      return `${role}: ${name}`
+    })
+    .join(', ')
+}
 
 const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => {
   const parents = useMemo(() => sessions.filter((s) => !s.parentId), [sessions])
@@ -117,9 +217,23 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => 
                     <div className="mt-2">
                       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                         <Attachment01 className="h-3 w-3" />
-                        {child.attachments?.length || 0}
+                        {typeof child.attachment_count === 'number'
+                          ? child.attachment_count
+                          : (child.attachments?.length || 0)}
                       </span>
                     </div>
+
+                    {(() => {
+                      const speakers = getSessionSpeakers(child)
+                      const label = formatSessionSpeakersLabel(speakers)
+                      if (!label) return null
+                      return (
+                        <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
+                          <User01 className="h-3 w-3 text-slate-400" />
+                          <span>{label}</span>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
 
@@ -202,9 +316,23 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => 
                   <div className="mt-3">
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
                       <Attachment01 className="h-3 w-3" />
-                      {session.attachments?.length || 0}
+                      {typeof session.attachment_count === 'number'
+                        ? session.attachment_count
+                        : (session.attachments?.length || 0)}
                     </span>
                   </div>
+
+                  {(() => {
+                    const speakers = getSessionSpeakers(session)
+                    const label = formatSessionSpeakersLabel(speakers)
+                    if (!label) return null
+                    return (
+                      <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-600">
+                        <User01 className="h-3 w-3 text-slate-400" />
+                        <span>{label}</span>
+                      </div>
+                    )
+                  })()}
 
                   {hasChildren && open ? renderChildren(session, 1) : null}
                 </div>

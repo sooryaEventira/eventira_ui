@@ -16,7 +16,6 @@ import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import attendeeSpeakerTemplate from '../../../assets/excel/Attendee Speaker template.xlsx?url'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
 import { setTagPublished, setTagUnpublished } from '../../../services/eventTagService'
-import { fetchPublishedSpeakerTagIds } from '../../../services/webpageService'
 
 interface SpeakerManagementPageProps {
   eventName?: string
@@ -110,26 +109,12 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
   const eventUuid = createdEvent?.uuid || ''
 
-  // Load published tag IDs from website index so Build page checkbox stays checked for published tags
+  // Reset built group ids when event changes; actual published state comes from tags (is_published)
   useEffect(() => {
     if (!eventUuid) {
       setBuiltGroupIds(new Set())
       return
     }
-    let cancelled = false
-    fetchPublishedSpeakerTagIds(eventUuid).then((ids) => {
-      if (!cancelled) setBuiltGroupIds(ids)
-    })
-    return () => { cancelled = true }
-  }, [eventUuid])
-
-  // Refresh builtGroupIds when webpage-saved fires (e.g. after publishing from this page)
-  useEffect(() => {
-    const handler = () => {
-      if (eventUuid) fetchPublishedSpeakerTagIds(eventUuid).then(setBuiltGroupIds)
-    }
-    window.addEventListener('webpage-saved', handler as EventListener)
-    return () => window.removeEventListener('webpage-saved', handler as EventListener)
   }, [eventUuid])
 
   const handleUpload = () => {
@@ -455,6 +440,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     
     if (!eventUuid) {
       setGroups([])
+      setBuiltGroupIds(new Set())
       return
     }
 
@@ -485,6 +471,15 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
         })
       }
       setGroups(mappedGroups)
+
+      // Ensure Build page checkbox reflects backend is_published flag:
+      // any tag with is_published: true will have its checkbox ticked until it becomes false.
+      const publishedIds = new Set(
+        tagsData
+          .filter((tag) => tag.is_published)
+          .map((tag) => tag.uuid)
+      )
+      setBuiltGroupIds(publishedIds)
     } catch (error) {
       // If it's a 404, tags endpoint might not exist yet - set empty array
       // Other errors are already handled in fetchSpeakerTags with toast

@@ -2,8 +2,8 @@ import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
 import PublicNavbar from './PublicNavbar'
 import { fetchPublicEvent, type PublicEventData } from '../../services/publicEventService'
 import { fetchPublicWebsiteSettings } from '../../services/websiteSettingsService'
-import { fetchPublicWebpages, type PublicWebpageData } from '../../services/publicWebpageService'
-import { fetchPublicWebsiteIndex, type WebsiteIndexData } from '../../services/webpageService'
+import { fetchPublicWebpages, fetchPublicIndex, type PublicWebpageData } from '../../services/publicWebpageService'
+import type { WebsiteIndexData } from '../../services/webpageService'
 import { fetchPublicSchedules } from '../../services/publicScheduleService'
 import PublicWebpageRenderer from './PublicWebpageRenderer'
 import { buildPublicThemeVars, getPrimaryDarkHex } from '../../config/publicTheme'
@@ -131,7 +131,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         fetchPublicEvent(eventUuid),
         fetchPublicWebpages(eventUuid),
         fetchPublicWebsiteSettings(eventUuid),
-        fetchPublicWebsiteIndex(eventUuid),
+        fetchPublicIndex(eventUuid),
         fetchPublicSchedules(eventUuid).catch(() => [])
       ])
       setEvent(evt)
@@ -226,6 +226,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       const indexRaw = typeof window !== 'undefined' ? localStorage.getItem(`website-index-${eventUuid}`) : null
       return indexRaw ? (() => { try { return JSON.parse(indexRaw) } catch { return null } })() : null
     })()
+    const indexNavigationRaw = Array.isArray((indexData as any)?.navigation) ? (indexData as any).navigation : []
     if (indexData) {
       const indexWebpages = Array.isArray(indexData.webpages) ? indexData.webpages : []
       if (indexWebpages.length > 0) hasIndexData = true
@@ -348,16 +349,91 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       return out
     }
 
-    // When we have website index (saved on Publish), use index-ordered list so navbar shows indexed menu. Otherwise use stored tree or default.
+    // If navigation tree is present in website index (saved on Publish), mirror the CMS navbar structure.
+    const mapIndexNavigationToItems = (list: any[], parentItemType?: string): NavigationItem[] => {
+      const out: NavigationItem[] = []
+      for (const raw of Array.isArray(list) ? list : []) {
+        const itemType = String(raw?.item_type || '').toLowerCase()
+        const uuid = String(raw?.uuid ?? '').trim()
+        if (!uuid) continue
+        const title = String(raw?.title ?? raw?.name ?? '').trim() || 'Untitled'
+
+        // Folders and *_group map to folder items
+        if (itemType === 'folder' || itemType.endsWith('_group')) {
+          const children = mapIndexNavigationToItems(raw?.items || [], itemType)
+          out.push({
+            id: uuid,
+            type: 'folder',
+            title,
+            children
+          } as NavigationItem)
+          continue
+        }
+
+        // Page items: resolve path from pagePathById if available; otherwise treat as regular webpage id
+        let pageId = uuid
+        let pathOverride: string | null = null
+
+        // For speaker/attendee/schedule groups, index navigation uses tag or schedule uuid;
+        // our routing uses synthetic ids like "speaker-tag:{uuid}" / "attendee-tag:{uuid}" / "schedule-tag:{uuid}".
+        if (parentItemType === 'speaker_group') {
+          pageId = `speaker-tag:${uuid}`
+          pathOverride = `/events/${eventUuid}/speakers/tag/${uuid}`
+        } else if (parentItemType === 'attendee_group') {
+          pageId = `attendee-tag:${uuid}`
+          pathOverride = `/events/${eventUuid}/attendees/tag/${uuid}`
+        } else if (parentItemType === 'schedule_group') {
+          pageId = `schedule-tag:${uuid}`
+          pathOverride = `/events/${eventUuid}/schedule/tag/${uuid}`
+        }
+
+        const slug = String(raw?.slug ?? '').trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+
+        // Ensure pagePathById has an entry for this page id so mapToPublicNav
+        // can resolve it even if it's not present in webpages/tags arrays.
+        // Prefer explicit overrides for grouped pages; otherwise fall back to
+        // existing mapping or a generic webpage URL.
+        if (pathOverride || !pagePathById.has(pageId)) {
+          const existing = pagePathById.get(pageId)
+          const path =
+            pathOverride ??
+            existing?.path ??
+            `/events/${eventUuid}/webpages/${pageId}`
+          pagePathById.set(pageId, { label: title, path })
+        }
+
+        out.push({
+          id: pageId,
+          type: 'page',
+          title,
+          slug,
+          pageId
+        } as NavigationItem)
+      }
+      return out
+    }
+
+    // When we have website index (saved on Publish), prefer index.navigation so navbar matches CMS. Otherwise use stored tree or default.
     const stored = loadNavigationConfigFromStorage(treeKey)
-    const baseItemsRaw = hasIndexData
-      ? defaultFlat
-      : (stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat)
+    const hasIndexNavigation = indexNavigationRaw.length > 0
+    const indexNavItems = hasIndexNavigation ? mapIndexNavigationToItems(indexNavigationRaw) : null
+
+    const baseItemsRaw = hasIndexNavigation
+      ? indexNavItems!
+      : hasIndexData
+        ? defaultFlat
+        : (stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat)
     const baseItems = pruneUnavailableSystemPages(baseItemsRaw)
 
     const defaultFlatPagesForUpsert = systemAndWebpageItems as NavigationPageItem[]
     // Reconcile: ensure newly created pages appear even if the tree is stale.
-    const reconciled = upsertMissingPagesToRoot(baseItems, defaultFlatPagesForUpsert)
+    // IMPORTANT: When we have an explicit navigation tree from the public index
+    // (hasIndexNavigation), we respect it as the single source of truth and do
+    // NOT auto-append missing webpages to the root. Otherwise, keep the old
+    // behavior of upserting missing pages so they're visible.
+    const reconciled = hasIndexNavigation
+      ? baseItems
+      : upsertMissingPagesToRoot(baseItems, defaultFlatPagesForUpsert)
 
     // Persist reconciliation so future loads are stable.
     try {

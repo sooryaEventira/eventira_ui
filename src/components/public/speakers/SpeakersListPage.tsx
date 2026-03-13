@@ -15,7 +15,8 @@ type PublicSpeaker = {
   tagIds?: string[]
 }
 
-const speakersCacheKey = (eventUuid: string) => `${eventUuid}:all`
+const speakersCacheKey = (eventUuid: string, tagId?: string) =>
+  tagId ? `${eventUuid}:tag:${tagId}` : `${eventUuid}:all`
 const speakersListCache = new Map<string, PublicSpeaker[]>()
 
 interface SpeakersListPageProps {
@@ -80,7 +81,7 @@ function getTagIdsFromItem(item: any): string[] {
 }
 
 const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNavigate, tagId }) => {
-  const cacheKey = speakersCacheKey(eventUuid)
+  const cacheKey = speakersCacheKey(eventUuid, tagId)
   const [queryInput, setQueryInput] = useState('')
   const [apiSpeakers, setApiSpeakers] = useState<PublicSpeaker[] | null>(() =>
     speakersListCache.get(cacheKey) ?? null
@@ -92,7 +93,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
     const run = async () => {
       setIsLoading(true)
       try {
-        const raw = await fetchPublicSpeakers(eventUuid)
+        const raw = await fetchPublicSpeakers(eventUuid, tagId)
         if (cancelled) return
         const mapped: PublicSpeaker[] = (Array.isArray(raw) ? raw : []).map((s: any, idx: number) => {
           const id = String(s.uuid ?? s.id ?? `speaker-${idx}`)
@@ -124,7 +125,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
     return () => {
       cancelled = true
     }
-  }, [eventUuid, cacheKey])
+  }, [eventUuid, tagId, cacheKey])
 
   const speakers = useMemo(() => {
     // Prefer API speakers, fallback to local store
@@ -163,8 +164,16 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
 
   const baseByTag = useMemo(() => {
     if (!tagId) return normalizedSpeakers
+
     const tagIdStr = String(tagId)
     const tagLabelLower = tagLabel ? String(tagLabel).toLowerCase() : ''
+
+    // If API already returned only speakers for this tag (no tagIds metadata),
+    // don't filter further – just use the list as-is.
+    const hasAnyTagIds = normalizedSpeakers.some((s) => Array.isArray(s.tagIds) && s.tagIds.length > 0)
+    if (!hasAnyTagIds) return normalizedSpeakers
+
+    // Otherwise, filter by tag id / name using tagIds metadata.
     return normalizedSpeakers.filter((s) => {
       const itemIds = s.tagIds ?? []
       if (itemIds.some((tid: string) => String(tid) === tagIdStr)) return true

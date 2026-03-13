@@ -15,6 +15,72 @@ export interface PublicAttendeeData {
   [key: string]: any
 }
 
+export const fetchPublicAttendee = async (
+  eventUuid: string,
+  attendeeUuid: string
+): Promise<PublicAttendeeData | null> => {
+  try {
+    if (!eventUuid) {
+      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
+      throw new Error(errorMessage)
+    }
+    if (!attendeeUuid) {
+      const errorMessage = handleApiError('Attendee UUID is required.', undefined, 'Attendee UUID is required.')
+      throw new Error(errorMessage)
+    }
+
+    // Endpoint: {{public_url}}events/{{event_uuid}}/attendees/{{attendee_uuid}}/
+    const url = `${API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid)}${attendeeUuid}/`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    })
+
+    if (!response || !response.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+      const responseText = await response.text()
+      let errorData: any = null
+      try {
+        errorData = responseText ? JSON.parse(responseText) : null
+      } catch {
+        if (responseText && responseText.trim()) {
+          const errorMessage = handleApiError(responseText.trim(), response, 'Failed to fetch attendee.')
+          throw new Error(errorMessage)
+        }
+      }
+      const errorMessage = handleApiError(errorData, response, 'Failed to fetch attendee.')
+      throw new Error(errorMessage)
+    }
+
+    let data: any
+    try {
+      data = await response.json()
+    } catch {
+      const errorMessage = handleParseError('Invalid response from server. Please try again.')
+      throw new Error(errorMessage)
+    }
+
+    if (data?.status === 'error') {
+      const errorMessage = handleApiError(data, undefined, 'Failed to fetch attendee.')
+      throw new Error(errorMessage)
+    }
+
+    const responseData = data?.data ?? data
+    return (responseData as PublicAttendeeData) ?? null
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      if (!error.message.includes('Cannot connect')) {
+        handleNetworkError(error)
+      }
+      throw new Error(error.message || 'Network error occurred')
+    }
+    throw error instanceof Error ? error : new Error('Failed to fetch attendee.')
+  }
+}
+
 export const fetchPublicAttendees = async (
   eventUuid: string,
   tagId?: string

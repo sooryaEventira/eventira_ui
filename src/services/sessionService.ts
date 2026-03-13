@@ -209,7 +209,15 @@ export async function createSessionTag(eventUuid: string, name: string, descript
     const text = await response.text().catch(() => '')
     if (!response.ok) {
       // Surface backend error via shared handler (toast, etc.)
-      handleApiError(response.status, text)
+      const errorPayload = (() => {
+        if (!text) return null
+        try {
+          return JSON.parse(text)
+        } catch {
+          return text.trim()
+        }
+      })()
+      handleApiError(errorPayload, response, 'Failed to create session tag.')
       return null
     }
     let data: any = null

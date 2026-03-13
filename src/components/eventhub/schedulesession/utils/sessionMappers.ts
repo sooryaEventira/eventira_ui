@@ -72,7 +72,7 @@ export const mapRetrieveSessionToDraft = (
   const sections = apiSections.map((sec: any, i: number) => {
     const content = sec?.content && typeof sec.content === 'object' ? sec.content : {}
     const sectionType = (sec?.section_type ?? sec?.type ?? 'text').toString()
-    const uiType =
+    let uiType =
       sectionType === 'poster'
         ? 'slides'
         : sectionType === 'image'
@@ -82,6 +82,14 @@ export const mapRetrieveSessionToDraft = (
             : sectionType === 'resource'
               ? 'resources'
               : sectionType
+    // Treat text sections whose title is "Live Chat" as the live-chat UI type so
+    // they render using SessionChat in the summary view.
+    if (sectionType === 'text') {
+      const rawTitle = (content?.title ?? sec?.title ?? '').toString().trim().toLowerCase()
+      if (rawTitle === 'live chat' || rawTitle === 'live-chat') {
+        uiType = 'live-chat'
+      }
+    }
     const speakerUuids = content?.speaker_uuids ?? []
     const contentSpeakers = Array.isArray(content?.speakers) ? content.speakers : []
     const speakersWithRole =
@@ -107,7 +115,11 @@ export const mapRetrieveSessionToDraft = (
           ? String(rawSectionId)
           : undefined
     const defaultTitle =
-      uiType === 'speaker' || sectionType === 'speakers' ? 'Speakers' : 'Section'
+      uiType === 'speaker' || sectionType === 'speakers'
+        ? 'Speakers'
+        : uiType === 'live-chat'
+          ? 'Live Chat'
+          : 'Section'
     return {
       id: `section-${id}-${i}`,
       ...(apiSectionId ? { sectionId: apiSectionId } : {}),

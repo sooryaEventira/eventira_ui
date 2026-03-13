@@ -6,7 +6,10 @@ import { Play,  ChevronDown } from '@untitled-ui/icons-react'
 interface WebsitePagesListProps {
   webpages: WebpageData[]
   isLoading: boolean
-  onAction: (pageId: string, action: 'view' | 'edit' | 'duplicate' | 'delete') => void
+  onAction: (
+    pageId: string,
+    action: 'view' | 'edit' | 'duplicate' | 'delete' | 'settings' | 'copy-link' | 'hide'
+  ) => void
   openDropdownId: string | null
   setOpenDropdownId: (id: string | null) => void
   enableRowClickEdit?: boolean
@@ -116,6 +119,36 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
                     >
                       {/* <Copy01 className="h-4 w-4 text-slate-400" /> */}
                       Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onAction(webpage.uuid, 'settings')
+                        setOpenDropdownId(null)
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                    >
+                      Settings
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onAction(webpage.uuid, 'hide')
+                        setOpenDropdownId(null)
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                    >
+                      Hide page
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onAction(webpage.uuid, 'copy-link')
+                        setOpenDropdownId(null)
+                      }}
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                    >
+                      Copy link
                     </button>
                     <button
                       type="button"
