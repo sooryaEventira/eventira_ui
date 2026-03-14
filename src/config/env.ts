@@ -91,15 +91,6 @@ export const API_ENDPOINTS = {
     /** Login with email/password. POST {{url}}/api/v1/token/ */
     SIGNIN: `${env.AUTH_API_URL}${API_V1_BASE}token/`,
   },
-  /** Public auth (no auth headers): request OTP, verify OTP + set password, then event list */
-  PUBLIC_AUTH: {
-    /** Request login or register (sends OTP). POST {{url}}{{public_url}}auth/request-login-or-register/ */
-    REQUEST_LOGIN_OR_REGISTER: `${PUBLIC_API_ROOT}auth/request-login-or-register/`,
-    /** Verify OTP and set password. POST {{url}}{{public_url}}auth/verify-otp-set-password/ */
-    VERIFY_OTP_SET_PASSWORD: `${PUBLIC_API_ROOT}auth/verify-otp-set-password/`,
-    /** List events (e.g. after registration). GET {{url}}{{public_url}}event/ */
-    EVENT_LIST: `${PUBLIC_API_ROOT}event/`,
-  },
   // Event endpoints
   EVENT: {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}event/`,
@@ -134,11 +125,22 @@ export const API_ENDPOINTS = {
     /** Update a nav item's icon. PATCH {{admin_url}}navigation/items/{{itemUuid}}/icon/?event_id={{event_uuid}} */
     NAVIGATION_ITEM_ICON: (eventUuid: string, navItemUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/items/${navItemUuid}/icon/?event_id=${eventUuid}`,
+    /** Save navigation items (publish nav changes). POST {{admin_url}}navigation/save/?event_id={{event_uuid}} */
+    NAVIGATION_SAVE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/save/?event_id=${eventUuid}`,
     /** Website settings (branding, domain, visibility). PUT/PATCH with body. */
     SETTINGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website-settings/?event_id=${eventUuid}`,
   },
   // Public website endpoints (published pages + event details)
   PUBLIC: {
+    /** Request login or register (sends OTP). POST {{url}}{{public_url}}auth/request-login-or-register/ */
+    REQUEST_LOGIN_OR_REGISTER: `${PUBLIC_API_ROOT}auth/request-login-or-register/`,
+    /** Verify OTP. POST {{url}}{{public_url}}auth/verify-otp/ Body: { email, otp } */
+    VERIFY_OTP: `${PUBLIC_API_ROOT}auth/verify-otp/`,
+    /** Set password after OTP verification. POST {{url}}{{public_url}}auth/set-password/ */
+    SET_PASSWORD: `${PUBLIC_API_ROOT}auth/set-password/`,
+    /** Login with email + password. POST {{url}}{{public_url}}auth/token/ Body: { email, password } */
+    TOKEN: `${PUBLIC_API_ROOT}auth/token/`,
     EVENT: {
       // Public event endpoint (backend expects singular `event/`)
       GET: (eventUuid: string) => `${PUBLIC_API_ROOT}event/${eventUuid}`,
@@ -151,8 +153,8 @@ export const API_ENDPOINTS = {
     WEBPAGES: {
       LIST: (eventUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/webpages/`,
-      GET: (eventUuid: string, webpageUuid: string) =>
-        `${PUBLIC_API_ROOT}events/${eventUuid}/webpages/${webpageUuid}/`,
+      GET: (eventUuid: string, webpageSlug: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/webpages/${webpageSlug}/`,
     },
     SPEAKERS: {
       LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/speakers/`,
@@ -175,6 +177,14 @@ export const API_ENDPOINTS = {
       /** Retrieve single session with full details (sections, video, resources, speakers, text). */
       RETRIEVE: (eventUuid: string, _scheduleUuid: string, sessionUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/`,
+    },
+    SESSION_COMMENTS: {
+      /** List comments for a session. GET .../events/{eventUuid}/sessions/{sessionUuid}/comments/ */
+      LIST: (eventUuid: string, sessionUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/comments/`,
+      /** Post a comment to a session. POST .../events/{eventUuid}/sessions/{sessionUuid}/comments/ */
+      CREATE: (eventUuid: string, sessionUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/comments/`,
     },
     /** Website settings for published site (no auth). GET brand_primary_color etc. */
     WEBSITE_SETTINGS: (eventUuid: string) =>
@@ -330,7 +340,7 @@ export const API_ENDPOINTS = {
       return url
     },
     /** Create a new resource tag: POST {{url}}{{admin_url}}resource-tags/create/ */
-    TAGS_CREATE: (eventUuid: string) =>
+    TAGS_CREATE: (_eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}resource-tags/create/`,
   },
 

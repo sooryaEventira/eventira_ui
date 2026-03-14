@@ -198,6 +198,7 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
           sessionId={session.id}
           eventId={eventUuid}
           cometChatUser={null}
+          isPublic={true}
         />
       </div>
     </div>

@@ -29,6 +29,8 @@ export interface NavigationFolderItem {
   type: 'folder'
   title: string
   children: NavigationItem[]
+  /** Original item_type from the API (e.g. 'folder', 'speaker_group', 'attendee_group', 'schedule_group') */
+  originalItemType?: string
 }
 
 export interface NavigationConfigV1 {

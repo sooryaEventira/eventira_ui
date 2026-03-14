@@ -61,23 +61,55 @@ const LogOutArrowIcon = ({ className }: { className?: string }) => (
 <ArrowRight className={className} />
 )
 
+function decodeJwtPayload(token: string): Record<string, any> | null {
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(base64))
+  } catch {
+    return null
+  }
+}
+
 const PublicProfilePage: React.FC = () => {
-  const [firstName, setFirstName] = useState('Sienna')
-  const [lastName, setLastName] = useState('Hewitt')
-  const [email, setEmail] = useState('hi@siennahewitt.com')
-  const [post, setPost] = useState('Student')
-  const [organization, setOrganization] = useState('XYZ university')
-  const [location, setLocation] = useState('Los Angeles, CA')
+  const token = localStorage.getItem('pub_accessToken') ?? ''
+  const payload = token ? decodeJwtPayload(token) : null
+
+  const [firstName, setFirstName] = useState(() => payload?.first_name ?? payload?.given_name ?? '')
+  const [lastName, setLastName] = useState(() => payload?.last_name ?? payload?.family_name ?? '')
+  const [email, setEmail] = useState(() => payload?.email ?? localStorage.getItem('pub_userEmail') ?? '')
+  const [post, setPost] = useState(() => payload?.post ?? payload?.job_title ?? '')
+  const [organization, setOrganization] = useState(() => payload?.organization ?? payload?.org ?? '')
+  const [location, setLocation] = useState(() => payload?.location ?? '')
+  const [profilePicture, setProfilePicture] = useState<string>(
+    () => localStorage.getItem('pub_profilePicture') ?? payload?.picture ?? payload?.avatar ?? ''
+  )
+
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const url = reader.result as string
+      setProfilePicture(url)
+      localStorage.setItem('pub_profilePicture', url)
+    }
+    reader.readAsDataURL(file)
+  }
 
   const fullName = `${firstName} ${lastName}`.trim() || 'User'
-  const title = 'Student at XYZ university'
+  const title = [post, organization].filter(Boolean).join(' at ') || ''
 
   const handleBack = () => {
     window.history.back()
   }
 
   const handleLogOut = () => {
-    // Placeholder: wire to auth logout
+    localStorage.removeItem('pub_accessToken')
+    localStorage.removeItem('pub_refreshToken')
+    localStorage.removeItem('pub_userEmail')
+    localStorage.removeItem('pub_profilePicture')
+    localStorage.removeItem('pub_rememberMe')
+    window.location.href = '/login'
   }
 
   const inputBase =
@@ -132,15 +164,24 @@ const PublicProfilePage: React.FC = () => {
           <div className="relative -mt-14 flex justify-center px-2 sm:-mt-16 sm:px-4">
             <div className="relative bottom-10">
               <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-lg sm:h-28 sm:w-28 md:h-32 md:w-32">
-                <PersonIcon className="h-12 w-12 text-slate-400 sm:h-14 sm:w-14 md:h-16 md:w-16" />
+                {profilePicture ? (
+                  <img src={profilePicture} alt="Profile" className="h-full w-full object-cover" />
+                ) : (
+                  <PersonIcon className="h-12 w-12 text-slate-400 sm:h-14 sm:w-14 md:h-16 md:w-16" />
+                )}
               </div>
-              <button
-                type="button"
-                className="absolute -bottom-1 -right-1 flex h-8 w-8 items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow hover:bg-primary/90"
+              <label
+                className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow hover:bg-primary/90"
                 aria-label="Change profile picture"
               >
                 <CameraIcon className="h-4 w-4" />
-              </button>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleProfilePictureChange}
+                />
+              </label>
             </div>
           </div>
 

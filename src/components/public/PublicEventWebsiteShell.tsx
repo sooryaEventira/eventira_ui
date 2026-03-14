@@ -39,7 +39,7 @@ const getSectionFromPath = (
   pathname: string
 ): {
   section: PublicSection
-  webpageUuid?: string
+  webpageSlug?: string
   organizationId?: string
   speakerId?: string
   attendeeId?: string
@@ -52,7 +52,7 @@ const getSectionFromPath = (
 
   const webpageMatch = rest.match(/^\/webpages\/([^/]+)\/?$/)
   if (webpageMatch) {
-    return { section: 'webpage', webpageUuid: webpageMatch[1] }
+    return { section: 'webpage', webpageSlug: webpageMatch[1] }
   }
 
   // Grouped speaker list: /speakers/tag/:tagUuid (must be before /speakers/:id detail)
@@ -257,7 +257,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     const dynamicPages: Array<{ id: string; label: string; path: string }> = orderedWebpages.map((p) => ({
       id: String(p.uuid),
       label: p.name,
-      path: `/events/${eventUuid}/webpages/${p.uuid}`
+      path: `/events/${eventUuid}/webpages/${p.slug ?? p.uuid}`
     }))
 
     // Tag pages for grouped speaker/attendee lists (paths used when nav has Speaker / Attendees folders from website index)
@@ -391,12 +391,12 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
 
         // Ensure pagePathById has an entry for this page id so mapToPublicNav
         // can resolve it even if it's not present in webpages/tags arrays.
-        // Prefer explicit overrides for grouped pages; otherwise fall back to
-        // existing mapping or a generic webpage URL.
-        if (pathOverride || !pagePathById.has(pageId)) {
+        // Always prefer slug-based paths from the index over UUID-based fallbacks.
+        {
           const existing = pagePathById.get(pageId)
           const path =
             pathOverride ??
+            (slug ? `/events/${eventUuid}/webpages/${slug}` : null) ??
             existing?.path ??
             `/events/${eventUuid}/webpages/${pageId}`
           pagePathById.set(pageId, { label: title, path })
@@ -449,8 +449,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   }, [eventUuid, webpages, websiteIndex, hasScheduleFromApi])
 
   const current = useMemo(() => getSectionFromPath(eventUuid, activePath), [eventUuid, activePath])
-  const fallbackWebpageUuid = webpages[0]?.uuid
-  const webpageUuid = current.webpageUuid ?? fallbackWebpageUuid
+  const fallbackWebpageSlug =
+    (websiteIndex?.webpages?.[0] as any)?.slug ||
+    webpages[0]?.slug ||
+    undefined
+  const webpageSlug = current.webpageSlug ?? fallbackWebpageSlug
 
   const handleNavigate = (path: string) => {
     // Exit to event list: full navigation so PublicApp re-renders and shows PublicEventListPage
@@ -529,6 +532,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         onNavigate={handleNavigate}
         navbarBackgroundColor={navbarBackgroundColor}
         exitEventPath="/event-list"
+        onProfileClick={() => { window.location.href = '/profile' }}
       />
 
       <main className={`pt-16 md:pl-72 w-full flex-1 px-4 pb-12 sm:px-6 md:max-w-none ${isAuthSection ? 'flex flex-col' : ''}`}>
@@ -639,10 +643,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
             <PublicSchedulePage eventUuid={eventUuid} onNavigate={handleNavigate} />
           </React.Suspense>
         ) : current.section === 'webpage' ? (
-          webpageUuid ? (
+          webpageSlug ? (
             <PublicWebpageRenderer
               eventUuid={eventUuid}
-              webpageUuid={webpageUuid}
+              webpageSlug={webpageSlug}
               onPrimaryColor={setPrimaryColorFromWebpage}
             />
           ) : (

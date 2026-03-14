@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react'
-import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import { fetchPublicSpeaker } from '../../../services/publicSpeakerService'
 
 type PublicSpeaker = {
@@ -9,6 +8,7 @@ type PublicSpeaker = {
   organization?: string
   avatarUrl?: string
   bio?: string
+  tags?: string[]
 }
 
 interface SpeakerDetailPageProps {
@@ -41,7 +41,10 @@ const SpeakerDetailPage: React.FC<SpeakerDetailPageProps> = ({ eventUuid, speake
                 (raw as any).company ??
                 undefined,
               avatarUrl: (raw as any).avatarUrl ?? raw.avatar_url ?? (raw as any).image ?? undefined,
-              bio: raw.bio ?? raw.description ?? undefined
+              bio: raw.bio ?? raw.description ?? undefined,
+              tags: Array.isArray((raw as any).tags)
+                ? (raw as any).tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '').trim()).filter(Boolean)
+                : []
             }
           : null
         if (!cancelled) {
@@ -144,6 +147,34 @@ const SpeakerDetailPage: React.FC<SpeakerDetailPageProps> = ({ eventUuid, speake
             {speaker.bio}
           </div>
         ) : null}
+
+        {speaker.tags && speaker.tags.length > 0 && (
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {speaker.tags.map((tag) => (
+              <span
+                key={tag}
+                className="rounded-full border border-slate-200 px-3 py-0.5 text-xs font-medium text-slate-600"
+              >
+                {tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-center gap-3">
+        <button
+          type="button"
+          className="w-52 rounded-lg border border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+        >
+          Send a message
+        </button>
+        <button
+          type="button"
+          className="w-52 rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+        >
+          Book a meeting
+        </button>
       </div>
     </div>
   )

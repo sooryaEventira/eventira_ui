@@ -37,6 +37,10 @@ const PublicAuthTopbar: React.FC<PublicAuthTopbarProps> = ({
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
 
+  const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
+  const userEmail = localStorage.getItem('pub_userEmail') ?? ''
+  const profilePicture = localStorage.getItem('pub_profilePicture') ?? ''
+
   useEffect(() => {
     if (!profileMenuOpen) return
     const handleClickOutside = (e: MouseEvent) => {
@@ -70,20 +74,56 @@ const PublicAuthTopbar: React.FC<PublicAuthTopbarProps> = ({
           <button
             type="button"
             onClick={() => setProfileMenuOpen((v) => !v)}
-            className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/80 text-white hover:bg-white/10"
+            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-white/80 text-white hover:bg-white/10"
             aria-label="Profile"
             aria-expanded={profileMenuOpen}
             aria-haspopup="menu"
           >
-            <UserIcon className="h-5 w-5" />
+            {isAuthenticated && profilePicture ? (
+              <img src={profilePicture} alt="Profile" className="h-full w-full object-cover" />
+            ) : (
+              <UserIcon className="h-5 w-5" />
+            )}
           </button>
           {profileMenuOpen && (
             <div
               role="menu"
-              className="absolute right-0 top-full z-[1001] mt-1 min-w-[160px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+              className="absolute right-0 top-full z-[1001] mt-1 min-w-[180px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
             >
-              <span className="block px-4 py-2.5 text-base font-semibold text-slate-500">{menuTitle}</span>
-              {menuItems.map((item) => (
+              {isAuthenticated ? (
+                <>
+                  {userEmail && (
+                    <span className="block truncate px-4 py-2 text-xs text-slate-400">{userEmail}</span>
+                  )}
+                  <a
+                    href="/profile"
+                    role="menuitem"
+                    className="block w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setProfileMenuOpen(false)}
+                  >
+                    Profile
+                  </a>
+                  <hr className="my-1 border-slate-100" />
+                  <button
+                    type="button"
+                    role="menuitem"
+                    className="block w-full px-4 py-2.5 text-left text-base font-semibold text-red-600 hover:bg-slate-50"
+                    onClick={() => {
+                      localStorage.removeItem('pub_accessToken')
+                      localStorage.removeItem('pub_refreshToken')
+                      localStorage.removeItem('pub_userEmail')
+                      localStorage.removeItem('pub_profilePicture')
+                      localStorage.removeItem('pub_rememberMe')
+                      window.location.href = '/login'
+                    }}
+                  >
+                    Log Out
+                  </button>
+                </>
+              ) : (
+                <span className="block px-4 py-2.5 text-base font-semibold text-slate-500">{menuTitle}</span>
+              )}
+              {!isAuthenticated && menuItems.map((item) => (
                 <a
                   key={item.href}
                   href={item.href}

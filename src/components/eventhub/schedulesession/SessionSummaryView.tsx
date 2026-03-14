@@ -1,6 +1,7 @@
 import React from 'react'
 import { SessionDraft } from './sessionTypes'
 import SessionChat, { type CometChatUser } from './SessionChat'
+import PublicSessionComments from '../../public/schedule/PublicSessionComments'
 import { env } from '../../../config/env'
 
 function toAbsoluteMediaUrl(url: string): string {
@@ -20,6 +21,8 @@ interface SessionSummaryViewProps {
   cometChatUser?: CometChatUser | null
   /** Optional tag options (uuid + name) so we can display friendly tag names instead of UUIDs. */
   tagOptions?: Array<{ uuid: string; name: string }>
+  /** Whether this is being rendered on a public page (uses public comment service instead of CometChat). */
+  isPublic?: boolean
 }
 
 /** Get YouTube embed URL from watch URL, youtu.be, Shorts, or existing embed URL. */
@@ -63,7 +66,8 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
   sessionId: sessionIdProp,
   eventId,
   cometChatUser,
-  tagOptions
+  tagOptions,
+  isPublic = false
 }) => {
   if (!session) {
     return (
@@ -138,13 +142,18 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                 {section.type === 'text' ? 'Description' : section.title}
               </p>
               {section.type === 'live-chat' ? (
-                <SessionChat
-                  sessionId={sessionId ?? section.id}
-                  eventId={eventId}
-                  cometChatUser={cometChatUser}
-                  sessionTitle={session.title || undefined}
-                  height={360}
-                />
+                isPublic && eventId && sessionId ? (
+                  <PublicSessionComments
+                    eventUuid={eventId}
+                    sessionUuid={sessionId}
+                    sessionTitle={session.title || undefined}
+                    height={360}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Live chat section added. Comments will be available on the public event page.
+                  </div>
+                )
               ) : section.type === 'video' && (section.data?.videoUrl || section.data?.video_url) ? (
                 (() => {
                   const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? '').trim()

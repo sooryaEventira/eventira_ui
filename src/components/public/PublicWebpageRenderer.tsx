@@ -43,14 +43,14 @@ const extractPageData = (webpage: PublicWebpageData): PageData | null => {
 
 interface PublicWebpageRendererProps {
   eventUuid: string
-  webpageUuid: string
+  webpageSlug: string
   /** If the webpage GET response includes brand_primary_color, it will be passed here so the shell can apply it. */
   onPrimaryColor?: (color: string | null) => void
 }
 
 const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({
   eventUuid,
-  webpageUuid,
+  webpageSlug,
   onPrimaryColor
 }) => {
   const [webpage, setWebpage] = useState<PublicWebpageData | null>(null)
@@ -63,7 +63,7 @@ const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({
       setIsLoading(true)
       setError(null)
       try {
-        const data = await fetchPublicWebpage(eventUuid, webpageUuid)
+        const data = await fetchPublicWebpage(eventUuid, webpageSlug)
         if (!cancelled) {
           setWebpage(data)
           // If backend includes primary color in webpage GET response, use it for theme
@@ -85,7 +85,7 @@ const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({
     return () => {
       cancelled = true
     }
-  }, [eventUuid, webpageUuid, onPrimaryColor])
+  }, [eventUuid, webpageSlug, onPrimaryColor])
 
   const pageData = useMemo(() => (webpage ? extractPageData(webpage) : null), [webpage])
   const pageType = pageData?.root?.props?.pageType

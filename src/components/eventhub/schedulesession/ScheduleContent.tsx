@@ -8,6 +8,7 @@ import ScheduleGrid from './ScheduleGrid'
 import SessionCreationModal from './SessionCreationModal'
 import { SavedSession } from './sessionTypes'
 import sessionTemplate from '../../../assets/excel/Session templates.xlsx?url'
+import { fetchScheduleTags, type ScheduleTag } from '../../../services/scheduleTagService'
 
 const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-person', 'Hybrid'] as const
 type AttendanceOption = (typeof ATTENDANCE_OPTIONS)[number]
@@ -21,6 +22,7 @@ function sessionTypeToAttendance(sessionType: string): AttendanceOption {
 
 interface ScheduleContentProps {
   scheduleName?: string
+  eventUuid?: string
   onUpload?: () => void
   onUploadFiles?: (files: File[]) => Promise<void> | void
   /** Called when Download button is clicked. If not provided, downloads session template. */
@@ -34,16 +36,19 @@ interface ScheduleContentProps {
   rangeEndDate?: Date | string
   onEditSession?: (session: SavedSession) => void
   onDeleteSession?: (session: SavedSession) => void
-  /** When true, grid closes any open 3-dot menu so it doesn’t show over the session form. */
+  /** When true, grid closes any open 3-dot menu so it doesn't show over the session form. */
   /** When provided, session cards are clickable and open the session summary (e.g. in a slideout). */
   onSessionClick?: (session: SavedSession) => void
   sessionFormOpen?: boolean
   /** Optional list of location names for filter dropdown. Falls back to unique from sessions. */
   availableLocations?: string[]
+  /** Optional list of tags for filter dropdown. Will be fetched from API if eventUuid is provided. */
+  availableTags?: string[]
 }
 
 const ScheduleContent: React.FC<ScheduleContentProps> = ({
   scheduleName = 'Schedule 1',
+  eventUuid,
   onUpload,
   onUploadFiles,
   onDownload,
@@ -58,7 +63,8 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   onDeleteSession,
   onSessionClick,
   sessionFormOpen = false,
-  availableLocations: propAvailableLocations
+  availableLocations: propAvailableLocations,
+  availableTags: propAvailableTags
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
@@ -67,7 +73,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   const [filterKeywordApplied, setFilterKeywordApplied] = useState('')
   const [filterLocations, setFilterLocations] = useState<Set<string>>(new Set())
   const [filterAttendance, setFilterAttendance] = useState<Set<string>>(new Set())
+  const [filterTags, setFilterTags] = useState<Set<string>>(new Set())
   const [filterPanelPosition, setFilterPanelPosition] = useState<{ top: number; left: number } | null>(null)
+  const [apiTags, setApiTags] = useState<ScheduleTag[]>([])
   const filterDropdownRef = useRef<HTMLDivElement>(null)
   const filterTriggerRef = useRef<HTMLButtonElement>(null)
   const filterPanelRef = useRef<HTMLDivElement>(null)
@@ -247,6 +255,27 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     else handleDownloadTemplate()
   }
 
+  // Fetch schedule tags from API
+  useEffect(() => {
+    if (!eventUuid) return
+    let cancelled = false
+
+    fetchScheduleTags(eventUuid)
+      .then((tags) => {
+        if (!cancelled) setApiTags(tags)
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          console.error('Failed to fetch schedule tags:', error)
+          setApiTags([])
+        }
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [eventUuid])
+
   // Location options: from prop or unique from sessions; always include "All"
   const locationOptions = useMemo(() => {
     const base = propAvailableLocations && propAvailableLocations.length > 0
@@ -262,6 +291,26 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         })()
     return ['All', ...base]
   }, [sessions, propAvailableLocations])
+
+  // Tag options: from prop or API or unique from sessions; always include "All"
+  const tagOptions = useMemo(() => {
+    const base = propAvailableTags && propAvailableTags.length > 0
+      ? propAvailableTags
+      : apiTags.length > 0
+        ? apiTags.map((t) => t.name)
+        : (() => {
+            const raw = (sessions || []) as any[]
+            const set = new Set<string>()
+            raw.forEach((s: any) => {
+              const tags = Array.isArray(s?.tags) ? s.tags : []
+              tags.forEach((tag: string) => {
+                if (tag && String(tag).trim()) set.add(String(tag).trim())
+              })
+            })
+            return Array.from(set).sort()
+          })()
+    return ['All', ...base]
+  }, [sessions, propAvailableTags, apiTags])
 
   // Position filter panel below trigger (for portal)
   useLayoutEffect(() => {
@@ -290,6 +339,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   const appliedKeyword = filterKeywordApplied.trim().toLowerCase()
   const appliedLocations = filterLocations.size === 0 || filterLocations.has('All') ? null : filterLocations
   const appliedAttendance = filterAttendance.size === 0 || filterAttendance.has('All') ? null : filterAttendance
+  const appliedTags = filterTags.size === 0 || filterTags.has('All') ? null : filterTags
 
   const filteredSessions = useMemo(() => {
     let list = gridSessions
@@ -316,8 +366,14 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         return appliedAttendance.has(att)
       })
     }
+    if (appliedTags && appliedTags.size > 0) {
+      list = list.filter((s) => {
+        const sessionTags = Array.isArray(s.tags) ? s.tags : []
+        return sessionTags.some((tag) => appliedTags.has(String(tag).trim()))
+      })
+    }
     return list
-  }, [gridSessions, appliedKeyword, appliedLocations, appliedAttendance])
+  }, [gridSessions, appliedKeyword, appliedLocations, appliedAttendance, appliedTags])
 
   const hasAnySessions = gridSessions.length > 0
 
@@ -344,6 +400,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     setFilterKeywordApplied('')
     setFilterLocations(new Set())
     setFilterAttendance(new Set())
+    setFilterTags(new Set())
     setFilterOpen(false)
   }
 
@@ -374,6 +431,22 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       next.delete('All')
       if (next.has(att)) next.delete(att)
       else next.add(att)
+      if (next.size === 0) next.add('All')
+      return next
+    })
+  }
+
+  const toggleFilterTag = (tag: string) => {
+    setFilterTags((prev) => {
+      const next = new Set(prev)
+      if (tag === 'All') {
+        next.clear()
+        next.add('All')
+        return next
+      }
+      next.delete('All')
+      if (next.has(tag)) next.delete(tag)
+      else next.add(tag)
       if (next.size === 0) next.add('All')
       return next
     })
@@ -530,6 +603,27 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                           ))}
                         </div>
                       </div>
+                      {tagOptions.length > 1 && (
+                        <>
+                          <hr className="border-slate-100" />
+                          <div>
+                            <label className="mb-2 block text-sm font-medium text-slate-700">Tags</label>
+                            <div className="space-y-2">
+                              {tagOptions.map((tag) => (
+                                <label key={tag} className="flex cursor-pointer items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    checked={filterTags.has(tag) || (filterTags.size === 0 && tag === 'All')}
+                                    onChange={() => toggleFilterTag(tag)}
+                                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                                  />
+                                  <span className="text-sm text-slate-800">{tag}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="shrink-0 flex gap-2 border-t border-slate-100 px-4 py-4">

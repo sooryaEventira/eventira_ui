@@ -1,9 +1,8 @@
 import React, { useState } from 'react'
 import PublicAuthTopbar from './PublicAuthTopbar'
+import { publicLogin } from '../../services/publicAuthService'
 
 interface PublicLoginPageProps {}
-
-
 
 const ArrowLeftIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -12,45 +11,42 @@ const ArrowLeftIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-
-
 const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
-  const [isLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  // const handleSubmit = async (e: React.FormEvent) => {
-  //   e.preventDefault()
-  //   setError(null)
-  //   if (!email.trim() || !password.trim()) {
-  //     setError('Please enter email and password.')
-  //     return
-  //   }
-  //   setIsLoading(true)
-  //   try {
-  //     const response = await signIn(email.trim(), password)
-  //     if (response.data) {
-  //       const { access, refresh } = response.data
-  //       if (access) localStorage.setItem('accessToken', access)
-  //       if (refresh) localStorage.setItem('refreshToken', refresh)
-  //       localStorage.setItem('userEmail', email.trim())
-  //     }
-  //     localStorage.setItem('isAuthenticated', 'true')
-  //     window.location.href = '/event-list'
-  //   } catch {
-  //     setError('Invalid email or password. Please try again.')
-  //   } finally {
-  //     setIsLoading(false)
-  //   }
-  // }
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter email and password.')
+      return
+    }
+    setIsLoading(true)
+    try {
+      const { access, refresh } = await publicLogin(email, password)
+      if (access) localStorage.setItem('pub_accessToken', access)
+      if (refresh) localStorage.setItem('pub_refreshToken', refresh)
+      localStorage.setItem('pub_userEmail', email.trim())
+      if (rememberMe) localStorage.setItem('pub_rememberMe', 'true')
+      window.location.href = '/event-list'
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Invalid email or password. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleRegisterClick = (e?: React.MouseEvent) => {
     e?.preventDefault()
+    window.location.href = '/register'
   }
 
   const handleBack = () => {
-    // UI-only; no navigation
+    window.history.back()
   }
 
   return (
@@ -93,9 +89,7 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
 
             <form
               className="mt-6 space-y-4"
-              onSubmit={(e) => {
-                e.preventDefault()
-              }}
+              onSubmit={handleSubmit}
             >
 
               <div>
@@ -145,6 +139,10 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
                 />
                 <span className="text-sm font-medium text-black">Remember for 30 days</span>
               </label>
+
+              {error && (
+                <p className="text-center text-sm text-red-500">{error}</p>
+              )}
 
               <button
                 type="submit"

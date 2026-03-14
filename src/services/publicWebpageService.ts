@@ -131,19 +131,19 @@ export const fetchPublicWebpages = async (eventUuid: string): Promise<PublicWebp
 
 export const fetchPublicWebpage = async (
   eventUuid: string,
-  webpageUuid: string
+  webpageSlug: string
 ): Promise<PublicWebpageData> => {
   try {
     if (!eventUuid) {
       const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
       throw new Error(errorMessage)
     }
-    if (!webpageUuid) {
-      const errorMessage = handleApiError('Webpage UUID is required.', undefined, 'Webpage UUID is required.')
+    if (!webpageSlug) {
+      const errorMessage = handleApiError('Webpage slug is required.', undefined, 'Webpage slug is required.')
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.PUBLIC.WEBPAGES.GET(eventUuid, webpageUuid)
+    const url = API_ENDPOINTS.PUBLIC.WEBPAGES.GET(eventUuid, webpageSlug)
     const response = await fetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' },

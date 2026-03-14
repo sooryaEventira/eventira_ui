@@ -14,7 +14,7 @@ import {
   type WebpageData,
   type WebsiteIndexTag
 } from '../../../services/webpageService'
-import { createNavigationFolder as createNavigationFolderApi, fetchAvailableNavigationPages, fetchEventNavigation, updateNavigationItemIcon } from '../../../services/navigationService'
+import { createNavigationFolder as createNavigationFolderApi, fetchAvailableNavigationPages, fetchEventNavigation, updateNavigationItemIcon, saveNavigation } from '../../../services/navigationService'
 import { publishEvent } from '../../../services/eventService'
 import { fetchPublicEvent } from '../../../services/publicEventService'
 import { fetchPublicWebpages } from '../../../services/publicWebpageService'
@@ -26,7 +26,7 @@ import { isFolder, isPage } from '../../../utils/navigationTree'
 import { NAV_ICON_KEYS, renderNavIcon } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
-import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder } from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder, AlertCircle } from '@untitled-ui/icons-react'
 
 interface EventWebsitePageProps {
   onBackClick?: () => void
@@ -67,6 +67,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [navigationFromApi, setNavigationFromApi] = useState<NavigationItem[]>([])
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set())
   const [availableNavPages, setAvailableNavPages] = useState<{ uuid: string; name: string; slug: string; is_added: boolean }[]>([])
+  const [availableNavSchedules, setAvailableNavSchedules] = useState<{ uuid: string; title: string; is_added: boolean }[]>([])
   const [navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
@@ -78,6 +79,9 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
+  const [navSavedJson, setNavSavedJson] = useState<string>('[]')
+  const [showUnsavedNavModal, setShowUnsavedNavModal] = useState(false)
+  const [pendingTabSwitch, setPendingTabSwitch] = useState<string | null>(null)
 
   const filteredWebpages = useMemo(() => webpages, [webpages])
 
@@ -126,6 +130,32 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       )
     },
     [availableNavPages]
+  )
+
+  const handleAddSchedule = useCallback(
+    (scheduleUuid: string) => {
+      const schedule = availableNavSchedules.find((s) => s.uuid === scheduleUuid)
+      if (!schedule || schedule.is_added) return
+
+      const newItem: NavigationItem = {
+        id: schedule.uuid,
+        type: 'page',
+        title: schedule.title,
+        slug: schedule.uuid,
+        pageId: schedule.uuid
+      }
+
+      setNavigationFromApi((prev) => {
+        const exists = prev.some((it) => it.id === schedule.uuid)
+        if (exists) return prev
+        return [...prev, newItem]
+      })
+
+      setAvailableNavSchedules((prev) =>
+        prev.map((s) => (s.uuid === schedule.uuid ? { ...s, is_added: true } : s))
+      )
+    },
+    [availableNavSchedules]
   )
 
   const closeIconPicker = useCallback(() => {
@@ -372,13 +402,12 @@ const loadNavigationFromApi = useCallback(async () => {
       // Treat speaker_group / attendee_group / schedule_group / organization_group as special "group" folders
       if (itemType === 'folder' || itemType.endsWith('_group')) {
         const children = mapItems(raw?.items || [])
-        const isGroupFolder = itemType.endsWith('_group')
         out.push({
           id: uuid,
           type: 'folder',
           title,
           children,
-          ...(isGroupFolder ? { metaKind: 'group' } : {})
+          originalItemType: itemType,
         } as any)
         continue
       }
@@ -431,6 +460,7 @@ const loadNavigationFromApi = useCallback(async () => {
     const rawTree = mapItems(data.navigation || [])
     const nextTree = normalizeNavigationTree(rawTree)
     setNavigationFromApi(nextTree)
+    setNavSavedJson(JSON.stringify(nextTree))
     setExpandedFolderIds(new Set())
   } catch (e) {
     console.error('❌ [EventWebsitePage] Error fetching navigation:', e)
@@ -447,15 +477,18 @@ const loadNavigationFromApi = useCallback(async () => {
     const eventUuid = createdEvent?.uuid
     if (!eventUuid) {
       setAvailableNavPages([])
+      setAvailableNavSchedules([])
       return
     }
     fetchAvailableNavigationPages(eventUuid)
-      .then((pages) => {
+      .then(({ pages, schedules }) => {
         setAvailableNavPages(pages || [])
+        setAvailableNavSchedules(schedules || [])
       })
       .catch((e) => {
         console.error('❌ [EventWebsitePage] Error fetching available navigation pages:', e)
         setAvailableNavPages([])
+        setAvailableNavSchedules([])
       })
   }, [showAddMenuItemModal, activeSubItem, createdEvent?.uuid])
 
@@ -767,6 +800,44 @@ const loadNavigationFromApi = useCallback(async () => {
     }
   }
 
+  const hasUnsavedNavChanges = JSON.stringify(navigationFromApi) !== navSavedJson
+
+  const handleTabSwitch = (tabId: string) => {
+    if (activeSubItem === 'website-header' && tabId !== 'website-header' && hasUnsavedNavChanges) {
+      setPendingTabSwitch(tabId)
+      setShowUnsavedNavModal(true)
+      return
+    }
+    setActiveSubItem(tabId)
+  }
+
+  const handleDiscardNavChanges = () => {
+    loadNavigationFromApi()
+    setShowUnsavedNavModal(false)
+    if (pendingTabSwitch) {
+      setActiveSubItem(pendingTabSwitch)
+      setPendingTabSwitch(null)
+    }
+  }
+
+  const handlePublishAndSwitch = async () => {
+    setShowUnsavedNavModal(false)
+    if (pendingTabSwitch) {
+      setActiveSubItem(pendingTabSwitch)
+      setPendingTabSwitch(null)
+    }
+    const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid') ?? ''
+    if (eventUuid) {
+      try {
+        await saveNavigation(eventUuid, navigationFromApi)
+        setNavSavedJson(JSON.stringify(navigationFromApi))
+        showToast.success('Navigation saved.')
+      } catch (e: any) {
+        showToast.error(e?.message ?? 'Failed to save navigation.')
+      }
+    }
+  }
+
   const createNavigationFolder = useCallback(
     async (name: string) => {
       const eventUuid = createdEvent?.uuid
@@ -855,6 +926,7 @@ const loadNavigationFromApi = useCallback(async () => {
       setNavigationFromApi(next)
       try {
         await updateNavigationItemIcon(eventUuid, targetId, iconKey ?? null)
+        setNavSavedJson(JSON.stringify(next))
       } catch (e: any) {
         setNavigationFromApi(prev)
         showToast.error(e?.message ?? 'Failed to update icon')
@@ -995,10 +1067,13 @@ const loadNavigationFromApi = useCallback(async () => {
                       }
                     }}
                     onDragOver={(e) => {
-                      // Allow dropping pages onto folders (any depth).
                       if (folder) {
-                        e.preventDefault()
-                        if (dragOverNavId !== item.id) setDragOverNavId(item.id)
+                        const isGroupFolder = String((item as any).originalItemType ?? 'folder').endsWith('_group')
+                        // Allow reordering onto any root folder, but only highlight user-created folders for page drops
+                        if (!isGroupFolder || depth === 0) {
+                          e.preventDefault()
+                          if (dragOverNavId !== item.id) setDragOverNavId(item.id)
+                        }
                         return
                       }
                       // Keep root reordering behavior.
@@ -1010,16 +1085,26 @@ const loadNavigationFromApi = useCallback(async () => {
                       setDragOverNavId((prev) => (prev === item.id ? null : prev))
                     }}
                     onDrop={(e) => {
-                      // Dropping a PAGE onto a FOLDER moves the page into that folder.
                       if (folder) {
                         e.preventDefault()
-                        if (draggingNavId) moveNavPageIntoFolder(draggingNavId, item.id)
+                        if (draggingNavId) {
+                          const draggedItem = findNavItemById(items, draggingNavId)
+                          const isGroupFolder = String((item as any).originalItemType ?? 'folder').endsWith('_group')
+                          // Dragging a folder onto another root-level folder → reorder
+                          if (draggedItem && isFolder(draggedItem) && depth === 0) {
+                            moveNavigationTreeItem(draggingNavId, item.id)
+                          } else if (!isGroupFolder) {
+                            // Dragging a page onto a user-created folder → move into folder
+                            moveNavPageIntoFolder(draggingNavId, item.id)
+                          }
+                          // Drops onto group folders (speaker_group etc.) are ignored
+                        }
                         setDraggingNavId(null)
                         setDragOverNavId(null)
                         return
                       }
 
-                      // Otherwise, only support root reordering (existing behavior).
+                      // Root-level page as drop target → reorder
                       if (depth !== 0) return
                       e.preventDefault()
                       if (draggingNavId) moveNavigationTreeItem(draggingNavId, item.id)
@@ -1555,7 +1640,7 @@ const loadNavigationFromApi = useCallback(async () => {
               <Button
                 variant="tertiary"
                 size="sm"
-                onClick={() => setActiveSubItem('website-pages')}
+                onClick={() => handleTabSwitch('website-pages')}
                 className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
                   activeSubItem === 'website-pages'
                     ? 'text-primary border-b-primary'
@@ -1648,7 +1733,13 @@ const loadNavigationFromApi = useCallback(async () => {
             name: p.name,
             isAdded: !!p.is_added
           }))}
+          schedules={availableNavSchedules.map((s) => ({
+            id: s.uuid,
+            title: s.title,
+            isAdded: !!s.is_added
+          }))}
           onAddPage={handleAddMenuItem}
+          onAddSchedule={handleAddSchedule}
         />
 
         {/* Delete Confirmation Modal */}
@@ -1675,6 +1766,43 @@ const loadNavigationFromApi = useCallback(async () => {
                 >
                   Delete
                 </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Unsaved Navigation Changes Modal */}
+        {showUnsavedNavModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+              <div className="flex flex-col items-center text-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                  <AlertCircle className="h-6 w-6 text-amber-500" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">You have unpublished changes</h3>
+                  <p className="mt-1.5 text-sm text-slate-600">
+                    Your changes won't take effect until you publish. If you leave now, they'll be discarded.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '20px' }}>
+                  <button
+                    type="button"
+                    data-modal-button="true"
+                    style={{ flex: 1, padding: '12px 20px', backgroundColor: '#6938EF', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
+                    onClick={handlePublishAndSwitch}
+                  >
+                    Publish now
+                  </button>
+                  <button
+                    type="button"
+                    data-modal-button="true"
+                    style={{ flex: 1, padding: '12px 20px', backgroundColor: '#ffffff', color: '#344054', border: '1px solid #D0D5DD', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
+                    onClick={handleDiscardNavChanges}
+                  >
+                    Discard changes
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -1721,7 +1849,7 @@ const loadNavigationFromApi = useCallback(async () => {
               <Button
                 variant="tertiary"
                 size="sm"
-                onClick={() => setActiveSubItem('website-pages')}
+                onClick={() => handleTabSwitch('website-pages')}
                 className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
                   activeSubItem === 'website-pages'
                     ? 'text-primary border-b-primary'
@@ -1939,6 +2067,43 @@ const loadNavigationFromApi = useCallback(async () => {
         </div>
       )}
 
+      {/* Unsaved Navigation Changes Modal */}
+      {showUnsavedNavModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="flex flex-col items-center text-center gap-2">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                <AlertCircle className="h-6 w-6 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">You have unpublished changes</h3>
+                <p className="mt-1.5 text-sm text-slate-600">
+                  Your changes won't take effect until you publish. If you leave now, they'll be discarded.
+                </p>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  data-modal-button="true"
+                  style={{ flex: 1, padding: '12px 20px', backgroundColor: '#6938EF', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
+                  onClick={handlePublishAndSwitch}
+                >
+                  Publish now
+                </button>
+                <button
+                  type="button"
+                  data-modal-button="true"
+                  style={{ flex: 1, padding: '12px 20px', backgroundColor: '#ffffff', color: '#344054', border: '1px solid #D0D5DD', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
+                  onClick={handleDiscardNavChanges}
+                >
+                  Discard changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AddMenuItemModal
         isVisible={showAddMenuItemModal}
         onClose={() => setShowAddMenuItemModal(false)}
@@ -1947,7 +2112,13 @@ const loadNavigationFromApi = useCallback(async () => {
           name: p.name,
           isAdded: !!p.is_added
         }))}
+        schedules={availableNavSchedules.map((s) => ({
+          id: s.uuid,
+          title: s.title,
+          isAdded: !!s.is_added
+        }))}
         onAddPage={handleAddMenuItem}
+        onAddSchedule={handleAddSchedule}
       />
     </div>
   )

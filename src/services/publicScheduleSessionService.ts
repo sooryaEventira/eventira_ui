@@ -10,7 +10,18 @@ export function mapApiSectionsToSavedSections(
 ): Array<{ id: string; type: string; title: string; description: string; data: Record<string, unknown> }> {
   const sections = (apiSections ?? []).map((sec: any, i: number) => {
     const content = sec?.content && typeof sec.content === 'object' ? sec.content : {}
-    const sectionType = (sec?.section_type ?? sec?.type ?? 'text').toString()
+    const sectionType = (sec?.section_type ?? sec?.type ?? 'text').toString().toLowerCase()
+    const title = (content?.title ?? sec?.title ?? '').toString().toLowerCase()
+
+    // Check if it's a live chat section by type or title
+    const isLiveChat =
+      sectionType === 'chat' ||
+      sectionType === 'livechat' ||
+      sectionType === 'live_chat' ||
+      sectionType === 'comments' ||
+      title === 'live chat' ||
+      title === 'livechat'
+
     const uiType =
       sectionType === 'poster'
         ? 'slides'
@@ -20,7 +31,9 @@ export function mapApiSectionsToSavedSections(
             ? 'speaker'
             : sectionType === 'resource'
               ? 'resources'
-              : sectionType
+              : isLiveChat
+                ? 'live-chat'
+                : sectionType
     let sectionData: Record<string, unknown> = {
       ...content,
       speaker_uuids: content?.speaker_uuids ?? [],

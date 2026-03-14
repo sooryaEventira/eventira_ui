@@ -81,6 +81,11 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
     return walk
   }, [activePath])
 
+  const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
+  const userEmail = localStorage.getItem('pub_userEmail') ?? ''
+  const storedPicture = localStorage.getItem('pub_profilePicture') ?? ''
+  const resolvedProfileImage = profileImageUrl || storedPicture || null
+
   const [mobileOpen, setMobileOpen] = useState(false)
   const [openFolderId, setOpenFolderId] = useState<string | null>(null)
   const [mobileExpanded, setMobileExpanded] = useState<Record<string, boolean>>({})
@@ -301,30 +306,52 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
               aria-expanded={profileMenuOpen}
               aria-haspopup="menu"
             >
-              {profileImageUrl ? (
-                <img src={profileImageUrl} alt="" className="h-full w-full object-cover" />
+              {resolvedProfileImage ? (
+                <img src={resolvedProfileImage} alt="" className="h-full w-full object-cover" />
               ) : (
                 <UserIcon className="h-5 w-5" />
               )}
             </button>
-            {profileMenuOpen && onProfileClick ? (
+            {profileMenuOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-[1001] mt-1 min-w-[160px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                className="absolute right-0 top-full z-[1001] mt-1 min-w-[180px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
               >
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={() => {
-                    setProfileMenuOpen(false)
-                    onProfileClick()
-                  }}
-                  className="w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
-                >
-                  Profile
-                </button>
+                {isAuthenticated ? (
+                  <>
+                    {userEmail && (
+                      <span className="block truncate px-4 py-2 text-xs text-slate-400">{userEmail}</span>
+                    )}
+                    <a
+                      href="/profile"
+                      role="menuitem"
+                      className="block w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={() => setProfileMenuOpen(false)}
+                    >
+                      Profile
+                    </a>
+                  </>
+                ) : onProfileClick ? (
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => { setProfileMenuOpen(false); onProfileClick() }}
+                    className="w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
+                  >
+                    Profile
+                  </button>
+                ) : (
+                  <a
+                    href="/login"
+                    role="menuitem"
+                    className="block w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
+                    onClick={() => setProfileMenuOpen(false)}
+                  >
+                    Login
+                  </a>
+                )}
               </div>
-            ) : null}
+            )}
           </div>
         </div>
       </header>

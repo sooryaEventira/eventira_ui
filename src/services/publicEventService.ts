@@ -98,6 +98,42 @@ export const fetchPublicEvent = async (eventUuid: string): Promise<PublicEventDa
 }
 
 /**
+ * Fetch all public events.
+ * Endpoint: {{public_url}}event/
+ */
+export const fetchPublicEventList = async (): Promise<PublicEventData[]> => {
+  const url = API_ENDPOINTS.PUBLIC.EVENT.LIST()
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  if (!response.ok) {
+    let errorData: any = null
+    try { errorData = await response.json() } catch { /* ignore */ }
+    throw new Error(
+      handleApiError(errorData ?? null, response, 'Failed to fetch events. Please try again.')
+    )
+  }
+
+  let data: any
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error(handleParseError('Invalid response from server. Please try again.'))
+  }
+
+  if (data?.status === 'error') {
+    throw new Error(handleApiError(data, undefined, 'Failed to fetch events. Please try again.'))
+  }
+
+  const raw = data?.data ?? data?.results ?? data
+  if (Array.isArray(raw)) return raw as PublicEventData[]
+  if (raw && typeof raw === 'object' && Array.isArray(raw.results)) return raw.results as PublicEventData[]
+  return []
+}
+
+/**
  * Fetch public events filtered by tag.
  * Endpoint: {{public_url}}events/?tag_id={{tag_uuid}}
  */

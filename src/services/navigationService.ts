@@ -1,6 +1,7 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 import type { ApiResponse } from './authService'
+import type { NavigationItem } from '../types/navigation'
 
 export interface NavigationApiItem {
   item_type: 'page' | 'folder'
@@ -33,8 +34,20 @@ export interface AvailableNavigationPage {
   is_added: boolean
 }
 
+export interface AvailableNavigationSchedule {
+  uuid: string
+  title: string
+  is_added: boolean
+}
+
 export interface NavigationAvailableResponseData {
   pages: AvailableNavigationPage[]
+  schedules: AvailableNavigationSchedule[]
+}
+
+export interface AvailableNavigationItems {
+  pages: AvailableNavigationPage[]
+  schedules: AvailableNavigationSchedule[]
 }
 
 export async function fetchEventNavigation(eventUuid: string): Promise<NavigationResponseData> {
@@ -174,7 +187,7 @@ export async function createNavigationFolder(eventUuid: string, name: string): P
   }
 }
 
-export async function fetchAvailableNavigationPages(eventUuid: string): Promise<AvailableNavigationPage[]> {
+export async function fetchAvailableNavigationPages(eventUuid: string): Promise<AvailableNavigationItems> {
   try {
     const accessToken = localStorage.getItem('accessToken')
     if (!accessToken) {
@@ -236,9 +249,103 @@ export async function fetchAvailableNavigationPages(eventUuid: string): Promise<
 
     const data = (parsed as any)?.data ?? parsed
     const pages = Array.isArray((data as any)?.pages) ? (data as any).pages : []
-    return pages as AvailableNavigationPage[]
+    const schedules = Array.isArray((data as any)?.schedules) ? (data as any).schedules : []
+    return { pages: pages as AvailableNavigationPage[], schedules: schedules as AvailableNavigationSchedule[] }
   } catch (e: any) {
     const msg = e?.message ? String(e.message) : 'Failed to fetch available navigation pages.'
+    throw new Error(msg)
+  }
+}
+
+/**
+ * Save navigation items to the server.
+ * POST {{admin_url}}navigation/available/?event_id={{event_uuid}}
+ * Body: { pages: [uuid, ...], schedules: [uuid, ...] }
+ */
+function buildNavItems(items: NavigationItem[]): object[] {
+  return items.map((item, index) => {
+    if (item.type === 'folder') {
+      const originalType = (item as any).originalItemType as string | undefined
+      const isGroup = originalType && originalType !== 'folder'
+      const itemType = originalType ?? 'folder'
+      return {
+        item_type: itemType,
+        uuid: item.id,
+        name: item.title,
+        order: index + 1,
+        icon: '',
+        // Group item children only need uuid + order (no item_type)
+        items: isGroup
+          ? (item.children || []).map((child, ci) => ({ uuid: child.id, order: ci + 1 }))
+          : buildNavItems(item.children || []),
+      }
+    }
+    return {
+      item_type: 'page',
+      uuid: item.id,
+      order: index + 1,
+      icon: (item as any).iconKey ?? '',
+    }
+  })
+}
+
+export async function saveNavigation(
+  eventUuid: string,
+  navItems: NavigationItem[]
+): Promise<void> {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    const url = API_ENDPOINTS.WEBSITE.NAVIGATION_SAVE(eventUuid)
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify({ items: buildNavItems(navItems) }),
+    })
+
+    if (!response || !response.ok) {
+      if (!response) {
+        const errorMessage = handleNetworkError(null)
+        throw new Error(errorMessage)
+      }
+      let errorBody: any = null
+      try {
+        errorBody = await response.json()
+      } catch {
+        // ignore
+      }
+      const errorMessage = handleApiError(
+        errorBody,
+        response,
+        `Failed to save navigation (HTTP ${response.status})`
+      )
+      throw new Error(errorMessage)
+    }
+  } catch (e: any) {
+    const msg = e?.message ? String(e.message) : 'Failed to save navigation.'
     throw new Error(msg)
   }
 }

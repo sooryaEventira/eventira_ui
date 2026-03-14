@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchPublicEventList } from '../../services/authService'
-import Logo from '../../assets/images/Logo_text.png'
+import React, { useEffect, useMemo, useState } from 'react'
+import { fetchPublicEventList } from '../../services/publicEventService'
+import PublicAuthTopbar from './PublicAuthTopbar'
 
 /** Event item from public event list API ({{url}}{{public_url}}event/) */
 export interface PublicEventListItem {
@@ -17,6 +17,7 @@ export interface PublicEventListItem {
   start_at?: string | null
   start_datetime?: string | null
   start_time?: string | null
+  visibility?: string | null
   [key: string]: unknown
 }
 
@@ -76,53 +77,24 @@ const SearchIcon = ({ className }: { className?: string }) => (
   </svg>
 )
 
-const BellIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-    <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-  </svg>
-)
-
-const UserIcon = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </svg>
-)
-
 const PublicEventListPage: React.FC = () => {
+  const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
   const [events, setEvents] = useState<PublicEventListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('all')
   const [searchQuery, setSearchQuery] = useState('')
-  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
-  const profileMenuRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!profileMenuOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
-        setProfileMenuOpen(false)
-      }
-    }
-    const t = setTimeout(() => document.addEventListener('mousedown', handleClickOutside), 0)
-    return () => {
-      clearTimeout(t)
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [profileMenuOpen])
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
     fetchPublicEventList()
-      .then((data) => {
+      .then((data: unknown) => {
         if (cancelled) return
         setEvents(normalizeEventListPayload(data))
       })
-      .catch((e) => {
+      .catch((e: unknown) => {
         if (cancelled) return
         setError(e instanceof Error ? e.message : 'Failed to load events.')
       })
@@ -167,8 +139,10 @@ const PublicEventListPage: React.FC = () => {
       })
     }
     if (activeTab === 'your') {
-      // "Your events" could filter by stored registrations; for now show all when no auth
-      // list = list (keep as-is or filter by user's events when backend supports it)
+      list = list.filter((event) => {
+        const v = String(event.visibility ?? (event as any).event_visibility ?? '').toLowerCase()
+        return v === 'private'
+      })
     }
     return list
   }, [events, searchQuery, activeTab])
@@ -182,51 +156,10 @@ const PublicEventListPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Top bar: dark purple, logo + EVENTITA, bell + profile */}
-      <header
-        className="flex h-16 items-center justify-between border-b border-white/10 px-4 sm:px-6 bg-primary-dark"
-        
-      >
-        <a href="/event-list" className="flex items-center gap-3">
-      <img src={Logo} alt="Logo" className="" />
-        </a>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 hover:bg-white/10 hover:text-white"
-            aria-label="Notifications"
-          >
-            <BellIcon className="h-5 w-5" />
-          </button>
-          <div ref={profileMenuRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setProfileMenuOpen((v) => !v)}
-              className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white/80 text-white hover:bg-white/10"
-              aria-label="Profile"
-              aria-expanded={profileMenuOpen}
-              aria-haspopup="menu"
-            >
-              <UserIcon className="h-5 w-5" />
-            </button>
-            {profileMenuOpen && (
-              <div
-                role="menu"
-                className="absolute right-0 top-full z-[1001] mt-1 min-w-[160px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
-              >
-                <a
-                  href="/login"
-                  role="menuitem"
-                  className="block w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
-                  onClick={() => setProfileMenuOpen(false)}
-                >
-                  Login
-                </a>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
+      <PublicAuthTopbar
+        menuTitle="Events"
+        menuItems={[{ label: 'Login', href: '/login' }]}
+      />
 
       <div className="border-b border-slate-200 px-6 sm:px-8">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -235,7 +168,13 @@ const PublicEventListPage: React.FC = () => {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (tab.id === 'your' && !isAuthenticated) {
+                    window.location.href = '/login'
+                    return
+                  }
+                  setActiveTab(tab.id)
+                }}
                 className={`
                   relative pb-3 pt-4 text-base font-semibold transition-colors
                   ${activeTab === tab.id ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'}
@@ -285,13 +224,22 @@ const PublicEventListPage: React.FC = () => {
           </div>
         )}
 
-        {!loading && !error && filteredEvents.length === 0 && (
+        {!loading && !error && activeTab === 'your' && !isAuthenticated && (
+          <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
+            <p className="font-semibold text-slate-800">You need to log in to view your events.</p>
+            <a href="/login" className="mt-3 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary/90">
+              Log In
+            </a>
+          </div>
+        )}
+
+        {!loading && !error && !(activeTab === 'your' && !isAuthenticated) && filteredEvents.length === 0 && (
           <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
             No events match your selection.
           </div>
         )}
 
-        {!loading && !error && filteredEvents.length > 0 && (
+        {!loading && !error && !(activeTab === 'your' && !isAuthenticated) && filteredEvents.length > 0 && (
           <ul className="space-y-4">
             {filteredEvents.map((event) => {
               const name = getEventName(event)

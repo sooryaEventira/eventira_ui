@@ -2646,6 +2646,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           <ScheduleContent
             key={`${createdEvent?.uuid ?? 'no-event'}-${rangeStartDate?.getTime() ?? 'no-start'}-${rangeEndDate?.getTime() ?? 'no-end'}`}
             scheduleName={currentScheduleName}
+            eventUuid={createdEvent?.uuid}
             onUpload={handleUpload}
             onUploadFiles={handleUploadSessions}
             onAddSession={handleAddSessionClick}
