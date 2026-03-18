@@ -108,7 +108,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         type: 'page',
         title,
         slug,
-        pageId: page.uuid
+        pageId: page.uuid,
+        webpageUuid: page.uuid
       }
 
       const pageExistsInTree = (list: NavigationItem[], targetPageId: string): boolean => {
@@ -146,7 +147,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         type: 'page',
         title: schedule.title,
         slug: schedule.uuid,
-        pageId: schedule.uuid
+        pageId: schedule.uuid,
+        webpageUuid: schedule.uuid
       }
 
       setNavigationFromApi((prev) => {
@@ -420,7 +422,8 @@ const loadNavigationFromApi = useCallback(async () => {
       const iconKey = raw?.icon ? String(raw.icon) : undefined
       const slugFromApi = raw?.slug != null && String(raw.slug).trim() !== '' ? String(raw.slug).trim() : ''
       const slug = slugFromApi || slugify(title)
-      out.push({ id: uuid, type: 'page', title, slug, pageId: uuid, iconKey })
+      const webpageUuid = String(raw?.webpage_uuid ?? '').trim() || uuid
+      out.push({ id: uuid, type: 'page', title, slug, pageId: webpageUuid, iconKey, webpageUuid })
     }
 
     return out

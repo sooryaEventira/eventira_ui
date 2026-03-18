@@ -6,6 +6,7 @@ import type { NavigationItem } from '../types/navigation'
 export interface NavigationApiItem {
   item_type: 'page' | 'folder'
   uuid: string
+  webpage_uuid?: string
   title?: string
   slug?: string | null
   name?: string
@@ -291,7 +292,7 @@ function buildNavItems(items: NavigationItem[]): object[] {
     }
     return {
       item_type: 'page',
-      webpage_uuid: item.id,
+      webpage_uuid: (item as any).webpageUuid ?? item.id,
       order: index + 1,
       icon: (item as any).iconKey ?? '',
     }
@@ -437,7 +438,7 @@ export async function updateNavigationItemIcon(
         'X-Organization': organizationUuid,
       },
       credentials: 'include',
-      body: JSON.stringify({ icon: icon ?? '' }),
+      body: JSON.stringify({ icon: icon }),
     })
 
     if (!response || !response.ok) {

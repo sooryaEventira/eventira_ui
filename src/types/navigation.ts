@@ -13,6 +13,8 @@ export interface NavigationPageItem {
   title: string
   slug: string
   pageId: string
+  /** The actual webpage UUID to be sent in the save navigation API payload */
+  webpageUuid?: string
   /**
    * Optional icon identifier to render alongside the label in navbars.
    * The actual icon rendering is handled by a shared icon registry in code.
