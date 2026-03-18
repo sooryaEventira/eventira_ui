@@ -105,8 +105,8 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     if (!eventUuid) return
     setIsLoadingSpeakers(true)
     try {
-      const list = await fetchSpeakers(eventUuid)
-      setSpeakersList(Array.isArray(list) ? list : [])
+      const result = await fetchSpeakers(eventUuid)
+      setSpeakersList(Array.isArray(result.data) ? result.data : [])
     } catch {
       setSpeakersList([])
     } finally {

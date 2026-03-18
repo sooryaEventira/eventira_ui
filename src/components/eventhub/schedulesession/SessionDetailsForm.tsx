@@ -73,7 +73,10 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
           label: String(tag)
         }
       }
-      // If this looks like a UUID and exists in options, use that option
+      // Direct lookup in sessionTagOptions by UUID — most reliable when draft.tags holds UUIDs
+      const fromSessionTag = sessionTagOptions?.find((opt) => opt.uuid === tag)
+      if (fromSessionTag) return { value: fromSessionTag.uuid, label: fromSessionTag.name }
+      // Fallback: match by value or label in tagOptions
       const fromOptions = tagOptions.find((opt) => opt.value === tag || opt.label === tag)
       if (fromOptions) return fromOptions
       // Otherwise treat as freeform tag name
@@ -82,7 +85,7 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
         label: tag
       }
     })
-  }, [draft.tags, tagOptions])
+  }, [draft.tags, tagOptions, sessionTagOptions])
 
   const handleTagsMultiChange = (
     newValue: MultiValue<CreatableMultiSelectOption>,

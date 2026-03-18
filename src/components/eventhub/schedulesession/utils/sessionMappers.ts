@@ -51,7 +51,19 @@ export const mapRetrieveSessionToDraft = (
     if (!rawTags) return []
     if (Array.isArray(rawTags)) {
       return rawTags
-        .map((t) => (typeof t === 'string' ? t : (t?.uuid ?? t?.id ?? t?.name ?? t?.title ?? t?.label ?? null)))
+        .map((t) => {
+          if (typeof t === 'string') return t
+          if (t && typeof t === 'object') {
+            const nested = t?.resource_tag ?? t?.tag ?? t?.session_tag
+            // Prefer name for display — selectedTagOptions resolves name→uuid via tagOptions
+            const name = nested?.name ?? nested?.title ?? t?.name ?? t?.title ?? t?.label
+            if (typeof name === 'string' && name.trim()) return name.trim()
+            // Fall back to uuid if no name available
+            const uuid = nested?.uuid ?? t?.uuid ?? t?.id
+            return uuid ? String(uuid) : null
+          }
+          return null
+        })
         .filter(Boolean)
     }
     return []

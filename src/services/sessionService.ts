@@ -148,8 +148,10 @@ function extractSessionTagOptions(payload: unknown): SessionTagOption[] {
       if (typeof item === 'string' && item.trim()) return { uuid: item.trim(), name: item.trim() }
       if (item && typeof item === 'object') {
         const o = item as Record<string, unknown>
-        const uuid = o.uuid ?? o.id ?? o.pk
-        const name = o.name ?? o.title ?? o.label
+        // Support nested resource_tag structure: { uuid: "...", resource_tag: { uuid: "tag-uuid", name: "dev" } }
+        const nested = (o.resource_tag ?? o.tag ?? o.session_tag) as Record<string, unknown> | undefined
+        const uuid = (nested?.uuid ?? o.uuid ?? o.id ?? o.pk)
+        const name = (nested?.name ?? nested?.title ?? o.name ?? o.title ?? o.label)
         if (uuid != null && String(uuid).trim()) {
           return { uuid: String(uuid).trim(), name: typeof name === 'string' && name.trim() ? name.trim() : String(uuid).trim() }
         }

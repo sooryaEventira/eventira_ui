@@ -1819,13 +1819,18 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       normalizedSession.endTime || '00:00',
       normalizedSession.endPeriod || 'PM'
     )
-    const tagUuids = (normalizedSession.tags ?? []).filter(
-      (t) => typeof t === 'string' && UUID_REGEX.test(t.trim())
-    )
+    const tagUuids = (normalizedSession.tags ?? [])
+      .map((t) => {
+        if (typeof t !== 'string') return null
+        if (UUID_REGEX.test(t.trim())) return t.trim()
+        const fromOptions = availableSessionTags.find((opt) => opt.name === t)
+        return fromOptions?.uuid ?? null
+      })
+      .filter((t): t is string => !!t)
     const tagNames = (normalizedSession.tags ?? [])
       .map((t) => {
         if (typeof t !== 'string') return null
-        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t)
+        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t || opt.name === t)
         const name = (fromOptions?.name ?? t)?.toString().trim()
         return name || null
       })
@@ -2156,13 +2161,18 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     }
     const startAt = toUTCISOFrom24h(selectedDate, data.startTime || '00:00')
     const endAt = toUTCISOFrom24h(selectedDate, data.endTime || '00:00')
-    const tagUuids = (data.tags ?? []).filter(
-      (t: string) => typeof t === 'string' && UUID_REGEX.test(String(t).trim())
-    )
+    const tagUuids = (data.tags ?? [])
+      .map((t: string) => {
+        if (typeof t !== 'string') return null
+        if (UUID_REGEX.test(String(t).trim())) return String(t).trim()
+        const fromOptions = availableSessionTags.find((opt) => opt.name === t)
+        return fromOptions?.uuid ?? null
+      })
+      .filter((t): t is string => !!t)
     const tagNames = (data.tags ?? [])
       .map((t: string) => {
         if (typeof t !== 'string') return null
-        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t)
+        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t || opt.name === t)
         const name = (fromOptions?.name ?? t)?.toString().trim()
         return name || null
       })
