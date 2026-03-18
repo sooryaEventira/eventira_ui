@@ -402,12 +402,15 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           pagePathById.set(pageId, { label: title, path })
         }
 
+        const iconKey = String(raw?.icon ?? '').trim() || undefined
+
         out.push({
           id: pageId,
           type: 'page',
           title,
           slug,
-          pageId
+          pageId,
+          iconKey
         } as NavigationItem)
       }
       return out

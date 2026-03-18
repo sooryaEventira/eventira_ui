@@ -192,7 +192,7 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
         <ArrowNarrowLeft className="h-4 w-4" />
         Back to schedule
       </button>
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl">
         <SessionSummaryView
           session={session}
           sessionId={session.id}

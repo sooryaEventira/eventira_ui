@@ -178,11 +178,11 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   }
 
   if (section.type === 'photo-gallery') {
-    const images = (section.data?.images as Array<{ file: File; previewUrl: string }>) ?? []
+    const images = (section.data?.images as Array<{ file?: File; previewUrl?: string; url?: string }>) ?? []
     const currentIdx = galleryCurrentIndex[section.id] ?? 0
     const safeIdx = images.length ? Math.min(currentIdx, images.length - 1) : 0
     const currentImage = images[safeIdx]
-    const displaySrc = currentImage?.previewUrl ?? PLACEHOLDER_IMG
+    const displaySrc = toAbsoluteMediaUrl(currentImage?.previewUrl || currentImage?.url || '') || PLACEHOLDER_IMG
     return (
       <div className="p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -252,7 +252,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
             {images.map((img, i) => (
               <div key={i} className="relative">
                 <img
-                  src={img.previewUrl}
+                  src={toAbsoluteMediaUrl(img.previewUrl || img.url || '') || PLACEHOLDER_IMG}
                   alt=""
                   className="h-14 w-14 rounded border border-slate-200 object-cover"
                   onError={(e) => {
@@ -278,14 +278,15 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   if (section.type === 'slides' || section.type === 'image') {
     const urlValue = String(section.data?.url ?? '').trim()
     const previewUrl = section.data?.previewUrl
-    const imgSrc =
-      (typeof previewUrl === 'string' && previewUrl.startsWith('blob:') ? previewUrl : null) ||
+    const imgSrc = toAbsoluteMediaUrl(
+      (typeof previewUrl === 'string' && previewUrl ? previewUrl : null) ||
       urlValue ||
-      PLACEHOLDER_IMG
+      ''
+    ) || PLACEHOLDER_IMG
     const hasImage =
       section.data?.file != null ||
       !!urlValue ||
-      (typeof previewUrl === 'string' && previewUrl.startsWith('blob:'))
+      (typeof previewUrl === 'string' && !!previewUrl)
     const label = section.type === 'slides' ? 'Slides/Poster' : 'Image'
     return (
       <div className="p-4">
@@ -639,18 +640,6 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-700">Title</label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) =>
-                onUpdateSection(section.id, {
-                  title: e.target.value,
-                  data: { ...(section.data || {}), title: e.target.value }
-                })
-              }
-              placeholder="Section title"
-              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
           </div>
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-700">Content</label>

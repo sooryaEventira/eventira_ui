@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import Slideout, { type SlideoutHandle } from '../../ui/untitled/Slideout'
 import Input from '../../ui/untitled/Input'
 import Select from '../../ui/untitled/Select'
 import Button from '../../ui/untitled/Button'
+import CreatableMultiSelect, { type CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
+import type { MultiValue, ActionMeta } from 'react-select'
 import SectionPickerModal from './SectionPickerModal'
 import SessionSectionPreview from './SessionSectionPreview'
 import type { SessionSectionPreviewHandlers } from './SessionSectionPreview'
@@ -146,6 +148,36 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     setPendingRemoveSection(null)
     onClose()
   }, [onClose])
+
+  // Tag options for CreatableMultiSelect
+  const tagOptions: CreatableMultiSelectOption[] = useMemo(() => {
+    if (sessionTagOptions && sessionTagOptions.length > 0) {
+      return sessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
+    }
+    return availableTags.map((tag) => ({ value: tag, label: tag }))
+  }, [sessionTagOptions, availableTags])
+
+  const selectedTagOptions: CreatableMultiSelectOption[] = useMemo(() => {
+    return formData.tags.map((tag) => {
+      const fromOptions = tagOptions.find((opt) => opt.value === tag || opt.label === tag)
+      if (fromOptions) return fromOptions
+      return { value: tag.toLowerCase().replace(/\s+/g, '-'), label: tag }
+    })
+  }, [formData.tags, tagOptions])
+
+  const handleTagsChange = (
+    newValue: MultiValue<CreatableMultiSelectOption>,
+    _actionMeta: ActionMeta<CreatableMultiSelectOption>
+  ) => {
+    const tagValues = Array.from(newValue).map((option) => {
+      const fromSessionTag = sessionTagOptions?.find(
+        (opt) => opt.uuid === option.value || opt.name === option.label
+      )
+      if (fromSessionTag) return fromSessionTag.uuid
+      return option.label
+    })
+    setFormData((prev) => ({ ...prev, tags: tagValues }))
+  }
 
   useEffect(() => {
     if (isOpen && initialData != null) {
@@ -1128,39 +1160,14 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                   { value: 'in-person', label: 'In person' }
                 ]}
               />
-              {(sessionTagOptions?.length ?? 0) > 0 || availableTags.length > 0 ? (
-                <Select
-                  label="Tags"
-                  value={formData.tags[0] || ''}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setFormData(prev => ({
-                      ...prev,
-                      tags: value ? [value] : []
-                    }))
-                  }}
-                  options={[
-                    { value: '', label: 'Select tags' },
-                    ...(sessionTagOptions && sessionTagOptions.length > 0
-                      ? sessionTagOptions.map(t => ({ value: t.uuid, label: t.name }))
-                      : availableTags.map(tag => ({ value: tag, label: tag })))
-                  ]}
-                />
-              ) : (
-                <Input
-                  label="Tags"
-                  type="text"
-                  value={formData.tags.join(', ')}
-                  onChange={(e) => {
-                    const value = e.target.value
-                    setFormData(prev => ({
-                      ...prev,
-                      tags: value ? value.split(',').map(t => t.trim()).filter(Boolean) : []
-                    }))
-                  }}
-                  placeholder="Enter tags (comma separated)"
-                />
-              )}
+              <CreatableMultiSelect
+                label="Tags"
+                options={tagOptions}
+                value={selectedTagOptions}
+                onChange={handleTagsChange}
+                placeholder="Select or create"
+                className="rounded-lg"
+              />
             </div>
 
             {/* Child Session Checkbox and Add Section Button */}

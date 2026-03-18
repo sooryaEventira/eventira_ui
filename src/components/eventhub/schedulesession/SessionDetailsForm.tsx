@@ -23,6 +23,8 @@ interface SessionDetailsFormProps {
   availableLocations?: string[]
   renderSectionPreview?: (section: SessionSection) => React.ReactNode
   onRemoveSection?: (sectionId: string) => void
+  /** Called when user creates a new tag — should persist via API and update draft.tags with real UUID. */
+  onCreateTagOption?: (inputValue: string) => void
 }
 
 const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
@@ -35,7 +37,8 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   availableTags = [],
   availableLocations = [],
   renderSectionPreview,
-  onRemoveSection
+  onRemoveSection,
+  onCreateTagOption
 }) => {
 
   // Tag and location option mappings (same as ScheduleDetailsSlideout)
@@ -176,36 +179,12 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
         />
       </div>
 
-      <div className="flex flex-col gap-3 md:flex-row md:gap-3">
+      {/* Row 1: Start time | End time | Session type */}
+      <div className="flex flex-wrap gap-3">
         {renderTimeField('Start time', 'startTime')}
         {renderTimeField('End time', 'endTime')}
 
-        {/* Location Select */}
-        {availableLocations.length > 0 ? (
-          <div className="flex-1 min-w-0">
-            <Select
-              label="Location"
-              value={draft.location}
-              onChange={(event) => onFieldChange('location', event.target.value)}
-              options={[
-                { value: '', label: 'Select location' },
-                ...locationOptions
-              ]}
-              className="h-10 "
-            />
-          </div>
-        ) : (
-          <div className="flex-1 min-w-0">
-            <Input
-              label="Location"
-              placeholder="Select location"
-              value={draft.location}
-              onChange={(event) => onFieldChange('location', event.target.value)}
-            />
-          </div>
-        )}
-
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-[140px]">
           <Select
             label="Session type"
             value={draft.sessionType}
@@ -218,14 +197,41 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
             className="h-10"
           />
         </div>
+      </div>
 
-        {/* Tags: always use creatable multiselect so user can select existing tags or create new ones */}
-        <div className="flex-1 min-w-0">
+      {/* Row 2: Location | Tags */}
+      <div className="flex flex-wrap gap-3">
+        {/* Location */}
+        <div className="flex-1 min-w-[160px]">
+          {availableLocations.length > 0 ? (
+            <Select
+              label="Location"
+              value={draft.location}
+              onChange={(event) => onFieldChange('location', event.target.value)}
+              options={[
+                { value: '', label: 'Select location' },
+                ...locationOptions
+              ]}
+              className="h-10"
+            />
+          ) : (
+            <Input
+              label="Location"
+              placeholder="Enter location"
+              value={draft.location}
+              onChange={(event) => onFieldChange('location', event.target.value)}
+            />
+          )}
+        </div>
+
+        {/* Tags */}
+        <div className="flex-1 min-w-[180px]">
           <CreatableMultiSelect
             label="Tags"
             options={tagOptions}
             value={selectedTagOptions}
             onChange={handleTagsMultiChange}
+            onCreateOption={onCreateTagOption}
             placeholder="Select or create"
             className='rounded-lg'
           />

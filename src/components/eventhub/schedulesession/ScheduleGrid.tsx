@@ -455,7 +455,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                           {Array.isArray(child.tags) && child.tags.length > 0 && (
                             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-blue-600">
                               <span className="truncate max-w-[140px]">
-                                Tags: {child.tags.join(', ')}
+                                Tags: {child.tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '')).filter(Boolean).join(', ')}
                               </span>
                             </span>
                           )}
@@ -567,7 +567,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                 {Array.isArray(session.tags) && session.tags.length > 0 && (
                   <span className="inline-flex items-center gap-1.5 px-2 rounded-full text-xs font-medium border border-slate-200 text-blue-700 bg-slate-100">
                     <span className="truncate max-w-[160px]">
-                       {session.tags.join(', ')}
+                      {session.tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '')).filter(Boolean).join(', ')}
                     </span>
                   </span>
                 )}

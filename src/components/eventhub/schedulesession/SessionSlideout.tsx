@@ -11,6 +11,7 @@ import ResourceVideoPickerModal from './ResourceVideoPickerModal'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { defaultSessionDraft, sectionOptions } from './sessionConfig'
 import { SessionDraft, SessionSection } from './sessionTypes'
+import { createSessionTag, fetchSessionTags } from '../../../services/sessionService'
 
 interface SessionSlideoutProps {
   isOpen: boolean
@@ -55,6 +56,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
 }) => {
   const [draft, setDraft] = useState<SessionDraft>(defaultSessionDraft)
   const [tagsInput, setTagsInput] = useState('')
+  const [localSessionTagOptions, setLocalSessionTagOptions] = useState<Array<{ uuid: string; name: string }>>(sessionTagOptions ?? [])
   const [isSectionModalOpen, setIsSectionModalOpen] = useState(false)
   const [selectedSectionId, setSelectedSectionId] = useState<string>(sectionOptions[0]?.id ?? 'slides')
   const [isEditing, setIsEditing] = useState(startInEditMode)
@@ -75,6 +77,48 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const videoUploadSectionIdRef = useRef<string | null>(null)
   const [resourceVideoPickerSectionId, setResourceVideoPickerSectionId] = useState<string | null>(null)
   const slideoutRef = useRef<SlideoutHandle>(null)
+
+  // Sync local tag options when the prop updates (e.g. after parent fetches tags)
+  useEffect(() => {
+    setLocalSessionTagOptions(sessionTagOptions ?? [])
+  }, [sessionTagOptions])
+
+  const handleCreateTagOption = useCallback(async (inputValue: string) => {
+    if (!eventUuid) return
+    try {
+      const newTag = await createSessionTag(eventUuid, inputValue)
+      if (newTag) {
+        // Replace the temp label in draft.tags with the real UUID from backend
+        setDraft((prev) => ({
+          ...prev,
+          tags: prev.tags.map((t) =>
+            t === inputValue || t === inputValue.toLowerCase().replace(/\s+/g, '-') ? newTag.uuid : t
+          )
+        }))
+      }
+      // Always refresh the tag list after creation (even if response parsing failed)
+      const refreshed = await fetchSessionTags(eventUuid)
+      if (refreshed.length > 0) {
+        setLocalSessionTagOptions(refreshed)
+        // If we couldn't parse uuid from create response, find the new tag by name in the refreshed list
+        if (!newTag) {
+          const found = refreshed.find((t) => t.name.toLowerCase() === inputValue.toLowerCase())
+          if (found) {
+            setDraft((prev) => ({
+              ...prev,
+              tags: prev.tags.map((t) =>
+                t === inputValue || t === inputValue.toLowerCase().replace(/\s+/g, '-') ? found.uuid : t
+              )
+            }))
+          }
+        }
+      } else if (newTag) {
+        setLocalSessionTagOptions((prev) => [...prev, newTag])
+      }
+    } catch {
+      // Tag creation failed — label remains in draft.tags, will fall into tag_names on save
+    }
+  }, [eventUuid])
 
   const handleClose = useCallback(() => {
     slideoutRef.current?.returnFocus()
@@ -481,7 +525,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setResourceVideoPickerSectionId(sectionId)
   }
 
-  const handleResourceVideoSelect = (url: string, name: string) => {
+  const handleResourceVideoSelect = (url: string, _name: string) => {
     const sectionId = resourceVideoPickerSectionId
     setResourceVideoPickerSectionId(null)
     if (!sectionId) return
@@ -703,13 +747,14 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
               onFieldChange={handleChange}
               onTagsInputChange={setTagsInput}
               onAddSectionClick={handleAddSection}
-              sessionTagOptions={sessionTagOptions}
+              sessionTagOptions={localSessionTagOptions}
               availableTags={availableTags}
               availableLocations={availableLocations}
               renderSectionPreview={(section) => (
                 <SessionSectionPreview section={section} handlers={sectionPreviewHandlers} />
               )}
               onRemoveSection={handleRemoveSection}
+              onCreateTagOption={handleCreateTagOption}
             />
           ) : (
             <SessionSummaryView

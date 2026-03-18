@@ -259,8 +259,8 @@ export async function fetchAvailableNavigationPages(eventUuid: string): Promise<
 
 /**
  * Save navigation items to the server.
- * POST {{admin_url}}navigation/available/?event_id={{event_uuid}}
- * Body: { pages: [uuid, ...], schedules: [uuid, ...] }
+ * POST {{admin_url}}navigation/save/?event_id={{event_uuid}}
+ * Body: { items: [...] }
  */
 function buildNavItems(items: NavigationItem[]): object[] {
   return items.map((item, index) => {
@@ -268,21 +268,30 @@ function buildNavItems(items: NavigationItem[]): object[] {
       const originalType = (item as any).originalItemType as string | undefined
       const isGroup = originalType && originalType !== 'folder'
       const itemType = originalType ?? 'folder'
+
+      if (isGroup) {
+        // Group items (speaker_group, attendee_group, schedule_group) — no uuid at group level
+        return {
+          item_type: itemType,
+          name: item.title,
+          order: index + 1,
+          icon: '',
+          items: (item.children || []).map((child, ci) => ({ uuid: child.id, order: ci + 1 })),
+        }
+      }
+
+      // Regular user-created folder — no uuid at folder level, children are full page items
       return {
-        item_type: itemType,
-        uuid: item.id,
+        item_type: 'folder',
         name: item.title,
         order: index + 1,
         icon: '',
-        // Group item children only need uuid + order (no item_type)
-        items: isGroup
-          ? (item.children || []).map((child, ci) => ({ uuid: child.id, order: ci + 1 }))
-          : buildNavItems(item.children || []),
+        items: buildNavItems(item.children || []),
       }
     }
     return {
       item_type: 'page',
-      uuid: item.id,
+      webpage_uuid: item.id,
       order: index + 1,
       icon: (item as any).iconKey ?? '',
     }
@@ -347,6 +356,44 @@ export async function saveNavigation(
   } catch (e: any) {
     const msg = e?.message ? String(e.message) : 'Failed to save navigation.'
     throw new Error(msg)
+  }
+}
+
+/**
+ * Delete a navigation folder. Uses backend endpoint:
+ * DELETE {{admin_url}}navigation/folders/{{folderUuid}}/?event_id={{event_uuid}}
+ */
+export async function deleteNavigationFolder(eventUuid: string, folderUuid: string): Promise<void> {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
+    }
+
+    const url = API_ENDPOINTS.WEBSITE.NAVIGATION_FOLDER_DELETE(eventUuid, folderUuid)
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response || !response.ok) {
+      if (!response) throw new Error(handleNetworkError(null))
+      let errorBody: any = null
+      try { errorBody = await response.json() } catch { /* ignore */ }
+      throw new Error(handleApiError(errorBody, response, `Failed to delete folder (HTTP ${response.status})`))
+    }
+  } catch (e: any) {
+    throw new Error(e?.message || 'Failed to delete folder.')
   }
 }
 

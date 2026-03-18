@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { SessionDraft } from './sessionTypes'
 import SessionChat, { type CometChatUser } from './SessionChat'
 import PublicSessionComments from '../../public/schedule/PublicSessionComments'
 import { env } from '../../../config/env'
+import ImageLightbox from '../../ui/untitled/ImageLightbox'
 
 function toAbsoluteMediaUrl(url: string): string {
   const raw = String(url || '').trim()
@@ -69,6 +70,8 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
   tagOptions,
   isPublic = false
 }) => {
+  const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null)
+
   if (!session) {
     return (
       <div className="px-6 py-4 text-sm text-slate-500">
@@ -110,6 +113,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
   ].filter(Boolean) as Array<{ id: string; label: string; intent?: 'tag' }>
 
   return (
+    <>
     <div className="flex flex-col gap-6">
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-slate-900">
@@ -260,9 +264,16 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
               ) : section.type === 'slides' || section.type === 'image' ? (() => {
                 const url = section.data?.url as string | undefined
                 const previewUrl = section.data?.previewUrl as string | undefined
-                const imgSrc = (typeof previewUrl === 'string' && previewUrl ? previewUrl : null) || (url?.trim() || '') || null
+                const imgSrc = toAbsoluteMediaUrl(
+                  (typeof previewUrl === 'string' && previewUrl ? previewUrl : null) ||
+                  (url?.trim() || '') ||
+                  ''
+                ) || null
                 return imgSrc ? (
-                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                  <div
+                    className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-zoom-in"
+                    onClick={() => setLightbox({ images: [imgSrc], index: 0 })}
+                  >
                     <img
                       src={imgSrc}
                       alt={section.type === 'slides' ? 'Slides/Poster' : 'Image'}
@@ -278,7 +289,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                   </p>
                 )
               })() : section.type === 'photo-gallery' ? (() => {
-                const images = (section.data?.images as Array<{ file?: File; previewUrl: string }>) ?? []
+                const images = (section.data?.images as Array<{ file?: File; previewUrl?: string; url?: string }>) ?? []
                 if (images.length === 0) {
                   return (
                     <p className="text-sm leading-6 text-slate-600">
@@ -286,13 +297,18 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                     </p>
                   )
                 }
+                const galleryUrls = images.map((img) => toAbsoluteMediaUrl(img.previewUrl || img.url || '')).filter(Boolean)
                 return (
                   <div className="space-y-3">
                     <div className="flex flex-wrap gap-2">
                       {images.slice(0, 6).map((img, i) => (
-                        <div key={i} className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                        <div
+                          key={i}
+                          className="h-20 w-20 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-zoom-in"
+                          onClick={() => setLightbox({ images: galleryUrls, index: i })}
+                        >
                           <img
-                            src={img.previewUrl}
+                            src={toAbsoluteMediaUrl(img.previewUrl || img.url || '')}
                             alt=""
                             className="h-full w-full object-cover"
                             onError={(e) => {
@@ -303,7 +319,9 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                       ))}
                     </div>
                     {images.length > 6 && (
-                      <p className="text-xs text-slate-500">+{images.length - 6} more image(s)</p>
+                      <p className="text-xs text-slate-500 cursor-zoom-in" onClick={() => setLightbox({ images: galleryUrls, index: 6 })}>
+                        +{images.length - 6} more image(s)
+                      </p>
                     )}
                   </div>
                 )
@@ -347,6 +365,16 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
         )}
       </div>
     </div>
+
+    {lightbox && (
+      <ImageLightbox
+        images={lightbox.images}
+        currentIndex={lightbox.index}
+        onClose={() => setLightbox(null)}
+        onNavigate={(index) => setLightbox((prev) => prev ? { images: prev.images, index } : null)}
+      />
+    )}
+    </>
   )
 }
 

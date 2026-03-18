@@ -301,6 +301,18 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
           </div>
 
           <div className="grid grid-cols-2 gap-3">
+                        <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Designation
+              </label>
+              <input
+                type="text"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                placeholder="Designation"
+                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+              />
+            </div>
           <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                Group
@@ -313,18 +325,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
                 className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Designation
-              </label>
-              <input
-                type="text"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                placeholder="Designation"
-                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
-              />
-            </div>
+
           </div>
 
 

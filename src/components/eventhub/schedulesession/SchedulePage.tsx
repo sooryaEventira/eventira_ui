@@ -1846,7 +1846,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       sessionUuid: sessionUuidForUpdate ?? '(create)',
       sectionsCount,
       section_type: normalizedSession.sections?.map((s) => s.type) ?? [],
-      filesCount: allFilesCount
+      filesCount: allFilesCount,
+      rawTags: normalizedSession.tags,
+      tagUuids,
+      tagNames
     })
     normalizedSession.sections?.forEach((s, i) => {
       console.log(`[Session save] section ${i + 1}:`, {
@@ -1879,9 +1882,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             location: normalizedSession.location ?? '',
             session_type: parentSessionId ? 'child' : (normalizedSession.sessionType?.trim() || 'keynote'),
             tag_uuids: tagUuids,
-            tag_names: tagNames,
+            tags: tagUuids,
             ...(parentSessionId ? { parent: parentSessionId } : { parent: null })
           }
+          console.log('[Session save] PATCH body:', JSON.stringify({ tag_uuids: tagUuids, tags: tagUuids }))
           const updateResponse = await updateSession(eventUuid, sessionUuidForUpdate, String(activeScheduleId), updateBody)
           console.log('[Session save] PATCH session response:', updateResponse)
 

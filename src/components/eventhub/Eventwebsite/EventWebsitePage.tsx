@@ -14,7 +14,7 @@ import {
   type WebpageData,
   type WebsiteIndexTag
 } from '../../../services/webpageService'
-import { createNavigationFolder as createNavigationFolderApi, fetchAvailableNavigationPages, fetchEventNavigation, updateNavigationItemIcon, saveNavigation } from '../../../services/navigationService'
+import { createNavigationFolder as createNavigationFolderApi, deleteNavigationFolder as deleteNavigationFolderApi, fetchAvailableNavigationPages, fetchEventNavigation, updateNavigationItemIcon, saveNavigation } from '../../../services/navigationService'
 import { publishEvent } from '../../../services/eventService'
 import { fetchPublicEvent } from '../../../services/publicEventService'
 import { fetchPublicWebpages } from '../../../services/publicWebpageService'
@@ -27,6 +27,7 @@ import { NAV_ICON_KEYS, renderNavIcon } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
 import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder, AlertCircle } from '@untitled-ui/icons-react'
+import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface EventWebsitePageProps {
   onBackClick?: () => void
@@ -77,11 +78,14 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
   const [draggingNavId, setDraggingNavId] = useState<string | null>(null)
   const [dragOverNavId, setDragOverNavId] = useState<string | null>(null)
+  const [dragHalf, setDragHalf] = useState<'top' | 'bottom' | null>(null)
   const [isPublishing, setIsPublishing] = useState(false)
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null)
+  const [deleteFolderCandidate, setDeleteFolderCandidate] = useState<{ id: string; name: string } | null>(null)
+  const [isDeletingFolder, setIsDeletingFolder] = useState(false)
   const [navSavedJson, setNavSavedJson] = useState<string>('[]')
   const [showUnsavedNavModal, setShowUnsavedNavModal] = useState(false)
-  const [pendingTabSwitch, setPendingTabSwitch] = useState<string | null>(null)
+  const [pendingNavCallback, setPendingNavCallback] = useState<(() => void) | null>(null)
 
   const filteredWebpages = useMemo(() => webpages, [webpages])
 
@@ -303,7 +307,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   }, [indexWebpages, navigationOrderIds])
 
   const moveNavigationTreeItem = useCallback(
-    (dragId: string, targetId: string) => {
+    (dragId: string, targetId: string, insertAfter = false) => {
       if (!dragId || !targetId || dragId === targetId) return
 
       const removeFromTree = (
@@ -340,7 +344,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         const toIndex = root.findIndex((it) => it.id === targetId)
         if (toIndex === -1) return prev
 
-        root.splice(toIndex, 0, item)
+        root.splice(toIndex + (insertAfter ? 1 : 0), 0, item)
         return root
       })
     },
@@ -706,35 +710,45 @@ const loadNavigationFromApi = useCallback(async () => {
     ]
   }, [])
 
+  const guardNavigation = (callback: () => void) => {
+    if (activeSubItem === 'website-header' && hasUnsavedNavChanges) {
+      setPendingNavCallback(() => callback)
+      setShowUnsavedNavModal(true)
+      return
+    }
+    callback()
+  }
+
   const handleSidebarItemClick = (itemId: string) => {
     if (hideNavbarAndSidebar) {
       return
     }
-    
-    // Top-level navigation items
-    if (itemId === 'summary') {
-      window.history.pushState({ section: 'summary' }, '', '/event/hub?section=summary')
-      window.dispatchEvent(new PopStateEvent('popstate'))
-      return
-    }
-    if (itemId === 'event-website') {
-      window.history.pushState({ section: 'event-website' }, '', '/event/hub?section=event-website')
-      window.dispatchEvent(new PopStateEvent('popstate'))
-      return
+
+    const navigate = () => {
+      // Top-level navigation items
+      if (itemId === 'summary') {
+        window.history.pushState({ section: 'summary' }, '', '/event/hub?section=summary')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        return
+      }
+      if (itemId === 'event-website') {
+        window.history.pushState({ section: 'event-website' }, '', '/event/hub?section=event-website')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        return
+      }
+      if (itemId === 'event-hub') {
+        window.history.pushState({}, '', '/event/hub')
+        window.dispatchEvent(new PopStateEvent('popstate'))
+        return
+      }
+      const isCardId = defaultCards.some((card) => card.id === itemId)
+      if (isCardId) {
+        window.history.pushState({ section: itemId }, '', `/event/hub?section=${itemId}`)
+        window.dispatchEvent(new PopStateEvent('popstate'))
+      }
     }
 
-    if (itemId === 'event-hub') {
-      window.history.pushState({}, '', '/event/hub')
-      window.dispatchEvent(new PopStateEvent('popstate'))
-      return
-    }
-    
-    const isCardId = defaultCards.some((card) => card.id === itemId)
-    if (isCardId) {
-      window.history.pushState({ section: itemId }, '', `/event/hub?section=${itemId}`)
-      window.dispatchEvent(new PopStateEvent('popstate'))
-      return
-    }
+    guardNavigation(navigate)
   }
 
   const handlePreview = () => {
@@ -746,7 +760,13 @@ const loadNavigationFromApi = useCallback(async () => {
     }
   }
 
-  const handlePublishWebsite = async () => {
+  const handlePublishWebsite = async (skipGuard = false) => {
+    if (!skipGuard && activeSubItem === 'website-header' && hasUnsavedNavChanges) {
+      setPendingNavCallback(() => () => handlePublishWebsite(true))
+      setShowUnsavedNavModal(true)
+      return
+    }
+
     const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
     if (!eventUuid) return
 
@@ -803,29 +823,21 @@ const loadNavigationFromApi = useCallback(async () => {
   const hasUnsavedNavChanges = JSON.stringify(navigationFromApi) !== navSavedJson
 
   const handleTabSwitch = (tabId: string) => {
-    if (activeSubItem === 'website-header' && tabId !== 'website-header' && hasUnsavedNavChanges) {
-      setPendingTabSwitch(tabId)
-      setShowUnsavedNavModal(true)
-      return
-    }
-    setActiveSubItem(tabId)
+    guardNavigation(() => setActiveSubItem(tabId))
   }
 
   const handleDiscardNavChanges = () => {
     loadNavigationFromApi()
     setShowUnsavedNavModal(false)
-    if (pendingTabSwitch) {
-      setActiveSubItem(pendingTabSwitch)
-      setPendingTabSwitch(null)
-    }
+    const cb = pendingNavCallback
+    setPendingNavCallback(null)
+    cb?.()
   }
 
   const handlePublishAndSwitch = async () => {
     setShowUnsavedNavModal(false)
-    if (pendingTabSwitch) {
-      setActiveSubItem(pendingTabSwitch)
-      setPendingTabSwitch(null)
-    }
+    const cb = pendingNavCallback
+    setPendingNavCallback(null)
     const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid') ?? ''
     if (eventUuid) {
       try {
@@ -836,6 +848,7 @@ const loadNavigationFromApi = useCallback(async () => {
         showToast.error(e?.message ?? 'Failed to save navigation.')
       }
     }
+    cb?.()
   }
 
   const createNavigationFolder = useCallback(
@@ -853,6 +866,32 @@ const loadNavigationFromApi = useCallback(async () => {
     },
     [createdEvent?.uuid, loadNavigationFromApi]
   )
+
+  const removeNavItemById = (
+    list: NavigationItem[],
+    id: string
+  ): { item: NavigationItem | null; next: NavigationItem[] } => {
+    let found: NavigationItem | null = null
+    const next: NavigationItem[] = []
+    for (const it of list) {
+      if (it.id === id) {
+        found = it
+        continue
+      }
+      if (isFolder(it)) {
+        const res = removeNavItemById(it.children || [], id)
+        if (res.item) {
+          found = res.item
+          next.push({ ...it, children: res.next })
+        } else {
+          next.push(it)
+        }
+      } else {
+        next.push(it)
+      }
+    }
+    return { item: found, next }
+  }
 
   const renderNavigationTab = () => {
     const eventUuid = eventUuidForNavigation
@@ -1067,53 +1106,49 @@ const loadNavigationFromApi = useCallback(async () => {
                       }
                     }}
                     onDragOver={(e) => {
-                      if (folder) {
-                        const isGroupFolder = String((item as any).originalItemType ?? 'folder').endsWith('_group')
-                        // Allow reordering onto any root folder, but only highlight user-created folders for page drops
-                        if (!isGroupFolder || depth === 0) {
-                          e.preventDefault()
-                          if (dragOverNavId !== item.id) setDragOverNavId(item.id)
-                        }
-                        return
-                      }
-                      // Keep root reordering behavior.
-                      if (depth !== 0) return
+                      if (depth !== 0 && !folder) return
+                      const isGroupFolder = folder && String((item as any).originalItemType ?? 'folder').endsWith('_group')
+                      if (folder && !isGroupFolder && depth !== 0) return
                       e.preventDefault()
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
+                      const half = e.clientY < rect.top + rect.height / 2 ? 'top' : 'bottom'
                       if (dragOverNavId !== item.id) setDragOverNavId(item.id)
+                      if (dragHalf !== half) setDragHalf(half)
                     }}
                     onDragLeave={() => {
                       setDragOverNavId((prev) => (prev === item.id ? null : prev))
+                      setDragHalf(null)
                     }}
                     onDrop={(e) => {
-                      if (folder) {
-                        e.preventDefault()
-                        if (draggingNavId) {
-                          const draggedItem = findNavItemById(items, draggingNavId)
-                          const isGroupFolder = String((item as any).originalItemType ?? 'folder').endsWith('_group')
-                          // Dragging a folder onto another root-level folder → reorder
-                          if (draggedItem && isFolder(draggedItem) && depth === 0) {
-                            moveNavigationTreeItem(draggingNavId, item.id)
-                          } else if (!isGroupFolder) {
-                            // Dragging a page onto a user-created folder → move into folder
-                            moveNavPageIntoFolder(draggingNavId, item.id)
-                          }
-                          // Drops onto group folders (speaker_group etc.) are ignored
-                        }
-                        setDraggingNavId(null)
-                        setDragOverNavId(null)
-                        return
-                      }
-
-                      // Root-level page as drop target → reorder
-                      if (depth !== 0) return
                       e.preventDefault()
-                      if (draggingNavId) moveNavigationTreeItem(draggingNavId, item.id)
+                      const isGroupFolder = folder && String((item as any).originalItemType ?? 'folder').endsWith('_group')
+                      if (depth !== 0 && !folder) { setDraggingNavId(null); setDragOverNavId(null); setDragHalf(null); return }
+                      if (folder && !isGroupFolder && depth !== 0) { setDraggingNavId(null); setDragOverNavId(null); setDragHalf(null); return }
+                      if (draggingNavId) {
+                        const draggedItem = findNavItemById(items, draggingNavId)
+                        const isFolder_ = draggedItem && isFolder(draggedItem)
+                        const half = dragHalf
+                        if (half === 'top' || isGroupFolder || !folder || isFolder_) {
+                          // Insert before (top half of any item, or group folder, or dragging a folder)
+                          moveNavigationTreeItem(draggingNavId, item.id, false)
+                        } else if (folder && !isGroupFolder && half === 'bottom') {
+                          // Insert into user-created folder (bottom half)
+                          moveNavPageIntoFolder(draggingNavId, item.id)
+                        }
+                      }
                       setDraggingNavId(null)
                       setDragOverNavId(null)
+                      setDragHalf(null)
                     }}
                     className={[
                       'flex items-center justify-between gap-3 py-2 px-4 border-b border-slate-200 last:border-b-0 transition-colors cursor-pointer',
-                      dragOverNavId === item.id ? 'bg-violet-50' : 'hover:bg-slate-50'
+                      dragOverNavId === item.id && dragHalf === 'top'
+                        ? 'border-t-2 border-t-violet-500 bg-slate-50'
+                        : dragOverNavId === item.id && dragHalf === 'bottom' && folder && !String((item as any).originalItemType ?? 'folder').endsWith('_group')
+                          ? 'bg-violet-50'
+                          : dragOverNavId === item.id
+                            ? 'border-b-2 border-b-violet-500 bg-slate-50'
+                            : 'hover:bg-slate-50'
                     ].join(' ')}
                   >
                     <div className="flex items-center gap-3 min-w-0" style={{ paddingLeft: depth * 16 }}>
@@ -1208,23 +1243,17 @@ const loadNavigationFromApi = useCallback(async () => {
                         />
                       ) : null}
                       {folder ? (
-                        <Button
-                          variant="tertiary"
-                          size="sm"
-                          onClick={() => {
-                            const ok = window.confirm(`Delete folder "${item.title || 'Untitled'}"?`)
-                            if (!ok) return
-                            setNavigationFromApi((prev) => removeNavItemById(prev, item.id).next)
-                            setExpandedFolderIds((prev) => {
-                              const next = new Set(prev)
-                              next.delete(item.id)
-                              return next
-                            })
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setDeleteFolderCandidate({ id: item.id, name: item.title || 'Untitled' })
                           }}
-                          className="p-2 text-slate-400 hover:text-red-600"
+                          className="p-2 text-slate-400 hover:text-red-600 rounded transition-colors"
                           aria-label="Delete folder"
-                          iconLeading={<Trash01 className="h-4 w-4" />}
-                        />
+                        >
+                          <Trash01 className="h-4 w-4" />
+                        </button>
                       ) : null}
                     </div>
                   </div>
@@ -1408,7 +1437,7 @@ const loadNavigationFromApi = useCallback(async () => {
       <Button
         variant="primary"
         size="md"
-        onClick={handlePublishWebsite}
+        onClick={() => handlePublishWebsite()}
         disabled={isPublishing}
         data-custom-publish-button="true"
         className="bg-[#6938EF] hover:bg-[#5925DC] text-white whitespace-nowrap"
@@ -1589,10 +1618,8 @@ const loadNavigationFromApi = useCallback(async () => {
         break
       }
       case 'settings': {
-        const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
-        if (!eventUuid) return
-        // Navigate to public preview Settings tab for this event
-        window.history.pushState({}, '', `/events/${eventUuid}/website-settings`)
+        // Navigate to the preview page for this specific webpage, opening the Settings tab
+        window.history.pushState({}, '', `/event/website/preview/${pageId}?tab=settings`)
         window.dispatchEvent(new PopStateEvent('popstate'))
         break
       }
@@ -1740,6 +1767,35 @@ const loadNavigationFromApi = useCallback(async () => {
           }))}
           onAddPage={handleAddMenuItem}
           onAddSchedule={handleAddSchedule}
+        />
+
+        <ConfirmDeleteModal
+          isOpen={!!deleteFolderCandidate}
+          title="Delete folder?"
+          itemName={deleteFolderCandidate?.name}
+          isLoading={isDeletingFolder}
+          onCancel={() => {
+            if (isDeletingFolder) return
+            setDeleteFolderCandidate(null)
+          }}
+          onConfirm={async () => {
+            if (!deleteFolderCandidate || isDeletingFolder) return
+            setIsDeletingFolder(true)
+            try {
+              await deleteNavigationFolderApi(eventUuidForNavigation, deleteFolderCandidate.id)
+              setNavigationFromApi((prev) => removeNavItemById(prev, deleteFolderCandidate.id).next)
+              setExpandedFolderIds((prev) => {
+                const next = new Set(prev)
+                next.delete(deleteFolderCandidate.id)
+                return next
+              })
+              setDeleteFolderCandidate(null)
+            } catch {
+              // API failed — keep folder in list
+            } finally {
+              setIsDeletingFolder(false)
+            }
+          }}
         />
 
         {/* Delete Confirmation Modal */}
@@ -1950,7 +2006,7 @@ const loadNavigationFromApi = useCallback(async () => {
 
                             {/* Dropdown Menu */}
                             {openDropdownId === webpage.uuid && (
-                              <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full">
+                              <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full" onClick={(e) => e.stopPropagation()}>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -1959,7 +2015,6 @@ const loadNavigationFromApi = useCallback(async () => {
                                   }}
                                   className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3"
                                 >
-                                 
                                   Edit
                                 </button>
                                 <button
@@ -1970,8 +2025,17 @@ const loadNavigationFromApi = useCallback(async () => {
                                   }}
                                   className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
                                 >
-                                  
                                   Duplicate
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handlePageAction(webpage.uuid, 'settings')
+                                    setOpenDropdownId(null)
+                                  }}
+                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                                >
+                                  Settings
                                 </button>
                                 <button
                                   type="button"
@@ -2119,6 +2183,35 @@ const loadNavigationFromApi = useCallback(async () => {
         }))}
         onAddPage={handleAddMenuItem}
         onAddSchedule={handleAddSchedule}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteFolderCandidate}
+        title="Delete folder?"
+        itemName={deleteFolderCandidate?.name}
+        isLoading={isDeletingFolder}
+        onCancel={() => {
+          if (isDeletingFolder) return
+          setDeleteFolderCandidate(null)
+        }}
+        onConfirm={async () => {
+          if (!deleteFolderCandidate || isDeletingFolder) return
+          setIsDeletingFolder(true)
+          try {
+            await deleteNavigationFolderApi(eventUuidForNavigation, deleteFolderCandidate.id)
+            setNavigationFromApi((prev) => removeNavItemById(prev, deleteFolderCandidate.id).next)
+            setExpandedFolderIds((prev) => {
+              const next = new Set(prev)
+              next.delete(deleteFolderCandidate.id)
+              return next
+            })
+            setDeleteFolderCandidate(null)
+          } catch {
+            // API failed — keep folder in list
+          } finally {
+            setIsDeletingFolder(false)
+          }
+        }}
       />
     </div>
   )

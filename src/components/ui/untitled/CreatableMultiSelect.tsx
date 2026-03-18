@@ -34,6 +34,20 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
 }) => {
   const [localOptions, setLocalOptions] = useState<CreatableMultiSelectOption[]>(options)
 
+  // Sync localOptions when options prop changes (e.g. async load after component mount)
+  React.useEffect(() => {
+    setLocalOptions(prev => {
+      const merged = [...options]
+      // Preserve any locally-created options not in the server list
+      for (const lo of prev) {
+        if (!merged.some(o => o.value === lo.value)) {
+          merged.push(lo)
+        }
+      }
+      return merged
+    })
+  }, [options])
+
   const handleCreateOption = useCallback(
     (inputValue: string) => {
       const newOption: CreatableMultiSelectOption = {
@@ -51,12 +65,19 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
         return [...prev, newOption]
       })
 
-      // Call parent's onCreateOption if provided
+      // react-select/creatable doesn't call onChange when onCreateOption is set —
+      // call it manually so parent state (draft.tags) is updated immediately
+      if (onChange) {
+        const updatedValue = [...(value ?? []), newOption] as MultiValue<CreatableMultiSelectOption>
+        onChange(updatedValue, { action: 'create-option', option: newOption } as ActionMeta<CreatableMultiSelectOption>)
+      }
+
+      // Call parent's onCreateOption if provided (e.g. to persist tag via API)
       if (onCreateOption) {
         onCreateOption(inputValue)
       }
     },
-    [onCreateOption]
+    [onCreateOption, onChange, value]
   )
 
   // Custom styles to match Untitled UI design system

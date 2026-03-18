@@ -97,7 +97,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
                 </Button>
 
                 {openDropdownId === webpage.uuid && (
-                  <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full">
+                  <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
                       onClick={() => {

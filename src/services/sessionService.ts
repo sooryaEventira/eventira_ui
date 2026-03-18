@@ -29,8 +29,8 @@ export interface UpdateSessionBody {
   location: string
   session_type: string
   tag_uuids: string[]
-  /** Human-readable tag names corresponding to tag_uuids (backend field: tag_names). */
-  tag_names?: string[]
+  /** Also send tags as UUID array — some backend serializers accept `tags` instead of `tag_uuids` for PATCH. */
+  tags?: string[]
   /** Optional: parent session UUID when updating a child/parallel session. Backend expects the field name `parent`. */
   parent?: string | null
 }
@@ -227,8 +227,10 @@ export async function createSessionTag(eventUuid: string, name: string, descript
       data = null
     }
     if (!data || typeof data !== 'object') return null
-    const uuid = data.uuid ?? data.id ?? data.pk
-    const tagName = data.name ?? name
+    // Unwrap common envelope formats: { data: {...} } or { status, data: {...} }
+    const inner = (data.data && typeof data.data === 'object' && !Array.isArray(data.data)) ? data.data : data
+    const uuid = inner.uuid ?? inner.id ?? inner.pk
+    const tagName = inner.name ?? name
     if (!uuid) return null
     return {
       uuid: String(uuid).trim(),

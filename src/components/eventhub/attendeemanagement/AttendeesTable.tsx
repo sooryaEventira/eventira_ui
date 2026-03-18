@@ -32,6 +32,12 @@ interface AttendeesTableProps {
   isLoading?: boolean
   // Bulk delete handler (used for multi-select delete button)
   onBulkDeleteAttendees?: (attendeeIds: string[]) => void | Promise<void>
+  // Server-side pagination for the attendee list
+  serverSidePagination?: {
+    totalCount: number
+    currentPage: number
+    onPageChange: (page: number) => void
+  }
 }
 
 const AttendeesTable: React.FC<AttendeesTableProps> = ({
@@ -52,13 +58,18 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   onGridView: _onGridView,
   onFilter,
   isLoading = false,
-  onBulkDeleteAttendees
+  onBulkDeleteAttendees,
+  serverSidePagination
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<Set<string>>(new Set())
   const [selectedCustomFieldIds, setSelectedCustomFieldIds] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+
+  // When server-side pagination is active, use its page/onChange; otherwise use local state
+  const activePage = serverSidePagination ? serverSidePagination.currentPage : currentPage
+  const handlePageChange = serverSidePagination ? serverSidePagination.onPageChange : setCurrentPage
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
   const [addToGroupOpen, setAddToGroupOpen] = useState(false)
@@ -105,39 +116,44 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     })
   }, [searchQuery, customFields])
 
-  // Get visible IDs based on active tab
-  const visibleAttendeeIds = useMemo(
-    () => filteredAttendees.map((attendee) => attendee.id),
-    [filteredAttendees]
-  )
 
-
-  const visibleCustomFieldIds = useMemo(
-    () => filteredCustomFields.map((field) => field.id),
-    [filteredCustomFields]
-  )
+  // Sort attendees before pagination
+  const sortedAttendees = useMemo(() => {
+    if (!sortDescriptor) return filteredAttendees
+    return [...filteredAttendees].sort((a, b) => {
+      const aVal = String(a.name ?? '').toLowerCase()
+      const bVal = String(b.name ?? '').toLowerCase()
+      const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
+      return sortDescriptor.direction === 'ascending' ? cmp : -cmp
+    })
+  }, [filteredAttendees, sortDescriptor])
 
   // Paginate data based on active tab
   const paginatedAttendees = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
+    // When server-side pagination is active, attendees are already the current page
+    if (serverSidePagination) return sortedAttendees
+    const startIndex = (activePage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
-    return filteredAttendees.slice(startIndex, endIndex)
-  }, [filteredAttendees, currentPage])
+    return sortedAttendees.slice(startIndex, endIndex)
+  }, [sortedAttendees, activePage, serverSidePagination])
 
 
   const paginatedCustomFields = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
+    const startIndex = (activePage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     return filteredCustomFields.slice(startIndex, endIndex)
-  }, [filteredCustomFields, currentPage])
+  }, [filteredCustomFields, activePage])
 
   // Calculate total pages based on active tab
   const totalPages = useMemo(() => {
-    const totalItems = activeTab === 'user' 
-      ? filteredAttendees.length 
+    if (activeTab === 'user' && serverSidePagination) {
+      return Math.ceil(serverSidePagination.totalCount / itemsPerPage)
+    }
+    const totalItems = activeTab === 'user'
+      ? filteredAttendees.length
       : filteredCustomFields.length
     return Math.ceil(totalItems / itemsPerPage)
-  }, [activeTab, filteredAttendees.length, filteredCustomFields.length])
+  }, [activeTab, filteredAttendees.length, filteredCustomFields.length, serverSidePagination])
 
   const handleToggleAttendee = useCallback((id: string, checked: boolean) => {
     setSelectedAttendeeIds((previous) => {
@@ -286,7 +302,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const attendeeEmptyState = (
     <div className="flex min-h-[280px] items-center justify-center px-6 py-10 text-sm text-slate-500">
       {attendees.length === 0
-        ? 'No attendees have been added yet!'
+        ? 'Coming soon!'
         : 'No attendees match your search.'}
     </div>
   )
@@ -444,14 +460,23 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const handleSortChange = useCallback(
     (descriptor: DividerLineTableSortDescriptor) => {
       setSortDescriptor(descriptor)
+      setCurrentPage(1)
     },
     []
   )
 
-  // Reset page when switching tabs or search changes
+  // Reset local page when switching tabs or search changes
   React.useEffect(() => {
     setCurrentPage(1)
   }, [activeTab, searchQuery])
+
+  // Reset server-side page when search changes
+  React.useEffect(() => {
+    if (serverSidePagination && searchQuery) {
+      serverSidePagination.onPageChange(1)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
 
   // Filter attendee columns by visibility (name and actions always shown)
   const visibleAttendeeColumns = useMemo(() => {
@@ -545,9 +570,14 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
         } : undefined}
         footer={
           <TablePagination
-            currentPage={currentPage}
+            currentPage={activePage}
             totalPages={totalPages}
-            onPageChange={setCurrentPage}
+            onPageChange={handlePageChange}
+            totalCount={
+              activeTab === 'user'
+                ? (serverSidePagination ? serverSidePagination.totalCount : filteredAttendees.length)
+                : undefined
+            }
           />
         }
       />

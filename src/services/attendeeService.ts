@@ -182,7 +182,14 @@ export const uploadUserFile = async (file: File, eventUuid?: string): Promise<Ap
   }
 }
 
-export const fetchAttendees = async (eventUuid: string): Promise<AttendeeData[]> => {
+export interface AttendeesPageResult {
+  data: AttendeeData[]
+  count: number
+  next: string | null
+  previous: string | null
+}
+
+export const fetchAttendees = async (eventUuid: string, page = 1): Promise<AttendeesPageResult> => {
   try {
     const accessToken = localStorage.getItem('accessToken')
     if (!accessToken) {
@@ -201,7 +208,7 @@ export const fetchAttendees = async (eventUuid: string): Promise<AttendeeData[]>
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.LIST(eventUuid)
+    const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.LIST(eventUuid, page)
     if (import.meta.env.DEV) {
       console.log('📡 fetchAttendees: Fetching from URL:', url)
     }
@@ -279,21 +286,36 @@ export const fetchAttendees = async (eventUuid: string): Promise<AttendeeData[]>
 
     // Extract attendees from multiple possible formats
     // 1) Direct array: []
-    if (Array.isArray(responseData)) return responseData
+    if (Array.isArray(responseData)) return { data: responseData, count: responseData.length, next: null, previous: null }
 
-    // 2) ApiResponse: { status, data: [] }
-    if (Array.isArray(responseData?.data)) return responseData.data
+    // 2) Paginated ApiResponse: { status, count, next, previous, data: [] }
+    if (Array.isArray(responseData?.data)) return {
+      data: responseData.data,
+      count: typeof responseData.count === 'number' ? responseData.count : responseData.data.length,
+      next: responseData.next ?? null,
+      previous: responseData.previous ?? null,
+    }
 
-    // 3) DRF pagination: { count, results: [] }
-    if (Array.isArray(responseData?.results)) return responseData.results
+    // 3) DRF pagination: { count, next, previous, results: [] }
+    if (Array.isArray(responseData?.results)) return {
+      data: responseData.results,
+      count: typeof responseData.count === 'number' ? responseData.count : responseData.results.length,
+      next: responseData.next ?? null,
+      previous: responseData.previous ?? null,
+    }
 
     // 4) ApiResponse + pagination: { status, data: { results: [] } }
-    if (Array.isArray(responseData?.data?.results)) return responseData.data.results
+    if (Array.isArray(responseData?.data?.results)) return {
+      data: responseData.data.results,
+      count: typeof responseData.data.count === 'number' ? responseData.data.count : responseData.data.results.length,
+      next: responseData.data.next ?? null,
+      previous: responseData.data.previous ?? null,
+    }
 
     // 5) Legacy nested: { data: { data: [] } }
-    if (Array.isArray(responseData?.data?.data)) return responseData.data.data
+    if (Array.isArray(responseData?.data?.data)) return { data: responseData.data.data, count: responseData.data.data.length, next: null, previous: null }
 
-    return []
+    return { data: [], count: 0, next: null, previous: null }
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
       if (!error.message.includes('Cannot connect')) {

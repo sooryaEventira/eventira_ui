@@ -107,6 +107,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   const [isLoadingAttendees, setIsLoadingAttendees] = useState(false)
   const [isLoadingGroups, setIsLoadingGroups] = useState(false)
   const [builtGroupIds, setBuiltGroupIds] = useState<Set<string>>(new Set())
+  const [attendeeCurrentPage, setAttendeeCurrentPage] = useState(1)
+  const [attendeeTotalCount, setAttendeeTotalCount] = useState(0)
 
   const eventUuid = createdEvent?.uuid || ''
 
@@ -156,17 +158,19 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   }
 
   // Load attendees from API
-  const loadAttendees = async () => {
+  const loadAttendees = async (page = attendeeCurrentPage) => {
     const eventUuid = createdEvent?.uuid
-    
+
     if (!eventUuid) {
       return
     }
 
     setIsLoadingAttendees(true)
     try {
-      const attendeesData = await fetchAttendees(eventUuid)
-      
+      const result = await fetchAttendees(eventUuid, page)
+      const attendeesData = result.data
+      setAttendeeTotalCount(result.count)
+
       // Map API response to Attendee interface
       const mappedAttendees: Attendee[] = attendeesData.map((attendeeData: AttendeeData) => {
         const pickStr = (...values: Array<any>) => {
@@ -312,11 +316,17 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   // Load attendees on mount and when event changes
   useEffect(() => {
     if (createdEvent?.uuid) {
-      loadAttendees()
+      loadAttendees(1)
+      setAttendeeCurrentPage(1)
       loadTags()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [createdEvent?.uuid])
+
+  const handleAttendeePageChange = (page: number) => {
+    setAttendeeCurrentPage(page)
+    loadAttendees(page)
+  }
 
   const handleCreateProfile = () => {
     setIsCreateProfileModalOpen(true)
@@ -556,6 +566,11 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onDownload={handleDownload}
             onGridView={handleGridView}
             onFilter={handleFilter}
+            serverSidePagination={{
+              totalCount: attendeeTotalCount,
+              currentPage: attendeeCurrentPage,
+              onPageChange: handleAttendeePageChange,
+            }}
           />
         )}
       </div>

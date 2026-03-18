@@ -235,14 +235,21 @@ export const uploadSpeakerFile = async (file: File, eventUuid?: string): Promise
   }
 }
 
+export interface SpeakersPageResult {
+  data: SpeakerData[]
+  count: number
+  next: string | null
+  previous: string | null
+}
+
 /**
- * Fetch speakers for an event
+ * Fetch speakers for an event (server-side paginated)
  */
-export const fetchSpeakers = async (eventUuid: string): Promise<SpeakerData[]> => {
+export const fetchSpeakers = async (eventUuid: string, page = 1): Promise<SpeakersPageResult> => {
   try {
     // Get access token from localStorage
     const accessToken = localStorage.getItem('accessToken')
-    
+
     if (!accessToken) {
       const errorMessage = handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.')
       throw new Error(errorMessage)
@@ -250,7 +257,7 @@ export const fetchSpeakers = async (eventUuid: string): Promise<SpeakerData[]> =
 
     // Get organization UUID from localStorage
     const organizationUuid = localStorage.getItem('organizationUuid')
-    
+
     if (!organizationUuid) {
       const errorMessage = handleApiError('Organization UUID is missing. Please create or select an organization first.', undefined, 'Organization UUID is missing. Please create or select an organization first.')
       throw new Error(errorMessage)
@@ -261,7 +268,7 @@ export const fetchSpeakers = async (eventUuid: string): Promise<SpeakerData[]> =
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.CREATE(eventUuid)
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid, page)
     console.log('📡 fetchSpeakers: Fetching from URL:', url)
     
     const response = await fetch(url, {
@@ -341,55 +348,55 @@ export const fetchSpeakers = async (eventUuid: string): Promise<SpeakerData[]> =
 
     // Extract speakers from response - handle multiple formats
     let speakers: SpeakerData[]
-    
+    let totalCount = 0
+    let next: string | null = null
+    let previous: string | null = null
+
     console.log('📡 fetchSpeakers: Raw response data:', responseData)
-    
+
     // Format 1: Direct array
     if (Array.isArray(responseData)) {
       speakers = responseData
-      console.log('✅ fetchSpeakers: Found direct array format with', speakers.length, 'speakers')
+      totalCount = speakers.length
     }
-    // Format 2: Wrapped in data field (ApiResponse format)
+    // Format 2: Paginated response { status, count, next, previous, data: [] }
     else if (responseData.data && Array.isArray(responseData.data)) {
       speakers = responseData.data
-      console.log('✅ fetchSpeakers: Found data array format with', speakers.length, 'speakers')
+      totalCount = typeof responseData.count === 'number' ? responseData.count : speakers.length
+      next = responseData.next ?? null
+      previous = responseData.previous ?? null
     }
     // Format 2b: ApiResponse + pagination: { status, data: { results: [] } }
     else if (responseData.data && Array.isArray(responseData.data.results)) {
       speakers = responseData.data.results
-      console.log('✅ fetchSpeakers: Found data.results array format with', speakers.length, 'speakers')
+      totalCount = typeof responseData.data.count === 'number' ? responseData.data.count : speakers.length
+      next = responseData.data.next ?? null
+      previous = responseData.data.previous ?? null
     }
     // Format 3: Wrapped in results field (Django REST Framework pagination)
     else if (responseData.results && Array.isArray(responseData.results)) {
       speakers = responseData.results
-      console.log('✅ fetchSpeakers: Found results array format with', speakers.length, 'speakers')
+      totalCount = typeof responseData.count === 'number' ? responseData.count : speakers.length
+      next = responseData.next ?? null
+      previous = responseData.previous ?? null
     }
     // Format 3b: Legacy nested: { data: { data: [] } }
     else if (responseData.data && Array.isArray(responseData.data.data)) {
       speakers = responseData.data.data
-      console.log('✅ fetchSpeakers: Found data.data array format with', speakers.length, 'speakers')
+      totalCount = speakers.length
     }
     // Format 4: Direct object with data
     else if (responseData.data && typeof responseData.data === 'object' && !Array.isArray(responseData.data)) {
-      // Single object - wrap in array
       speakers = [responseData.data]
-      console.log('✅ fetchSpeakers: Found single object format, wrapped in array')
+      totalCount = 1
     }
     // Format 5: Empty or unexpected format
     else {
       console.warn('⚠️ fetchSpeakers: Unexpected response format:', responseData)
-      return []
+      return { data: [], count: 0, next: null, previous: null }
     }
 
-    console.log('📡 fetchSpeakers: Extracted speakers:', speakers)
-    // Speaker Excel import: "list" response (raw speaker records returned by backend)
-    console.log('🧾 Speaker Excel Import (list) response:', {
-      count: Array.isArray(speakers) ? speakers.length : 0,
-      speakers
-    })
-    // Note: Profile data should ideally be included in the API response
-    // If profile is just an ID, the mapping in SpeakerManagementPage will handle it
-    return speakers || []
+    return { data: speakers, count: totalCount, next, previous }
   } catch (error) {
     // Handle network errors
     if (error instanceof TypeError && error.message.includes('fetch')) {

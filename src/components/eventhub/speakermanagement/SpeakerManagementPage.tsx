@@ -106,6 +106,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   const [isLoadingSpeakers, setIsLoadingSpeakers] = useState(false)
   const [isLoadingGroups, setIsLoadingGroups] = useState(false)
   const [builtGroupIds, setBuiltGroupIds] = useState<Set<string>>(new Set())
+  const [speakerCurrentPage, setSpeakerCurrentPage] = useState(1)
+  const [speakerTotalCount, setSpeakerTotalCount] = useState(0)
 
   const eventUuid = createdEvent?.uuid || ''
 
@@ -159,9 +161,9 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   }
 
   // Load speakers from API
-  const loadSpeakers = async () => {
+  const loadSpeakers = async (page = speakerCurrentPage) => {
     const eventUuid = createdEvent?.uuid
-    
+
     if (!eventUuid) {
       console.log('No event UUID available, skipping speaker load')
       return
@@ -169,12 +171,10 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
     setIsLoadingSpeakers(true)
     try {
-      const speakersData = await fetchSpeakers(eventUuid)
-      console.log('🧾 Speaker Excel Import (list) response:', {
-        count: speakersData.length,
-        speakers: speakersData
-      })
-      
+      const result = await fetchSpeakers(eventUuid, page)
+      const speakersData = result.data
+      setSpeakerTotalCount(result.count)
+
       // Map API response to Speaker interface
       const mappedSpeakers: Speaker[] = speakersData.map((speakerData: SpeakerData, idx: number) => {
         const profile: any = (speakerData as any).profile
@@ -519,11 +519,17 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   // Load speakers on mount and when event changes
   useEffect(() => {
     if (createdEvent?.uuid) {
-      loadSpeakers()
+      loadSpeakers(1)
+      setSpeakerCurrentPage(1)
       loadTags()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [createdEvent?.uuid])
+
+  const handleSpeakerPageChange = (page: number) => {
+    setSpeakerCurrentPage(page)
+    loadSpeakers(page)
+  }
 
   const handleCreateProfile = () => {
     setIsCreateProfileModalOpen(true)
@@ -775,6 +781,11 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
             onDownload={handleDownload}
             onGridView={handleGridView}
             onFilter={handleFilter}
+            serverSidePagination={{
+              totalCount: speakerTotalCount,
+              currentPage: speakerCurrentPage,
+              onPageChange: handleSpeakerPageChange,
+            }}
           />
         )}
       </div>

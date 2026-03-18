@@ -75,13 +75,15 @@ export const mapRetrieveSessionToDraft = (
     let uiType =
       sectionType === 'poster'
         ? 'slides'
-        : sectionType === 'image'
+        : sectionType === 'gallery' || sectionType === 'photo_gallery' || sectionType === 'photo-gallery'
           ? 'photo-gallery'
-          : sectionType === 'speakers'
-            ? 'speaker'
-            : sectionType === 'resource'
-              ? 'resources'
-              : sectionType
+          : sectionType === 'image'
+            ? 'image'
+            : sectionType === 'speakers'
+              ? 'speaker'
+              : sectionType === 'resource'
+                ? 'resources'
+                : sectionType
     // Treat text sections whose title is "Live Chat" as the live-chat UI type so
     // they render using SessionChat in the summary view.
     if (sectionType === 'text') {
@@ -142,6 +144,8 @@ export const mapRetrieveSessionToDraft = (
         ? [(rawResources as any)]
         : []
   const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|ogg|m4v|ogv)(\?|$)/i
+  const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|svg|bmp|avif|tiff?)(\?|$)/i
+  const SLIDES_EXTENSIONS = /\.(pdf|pptx?|key|odp)(\?|$)/i
   if (apiResources.length > 0) {
     const resourceFiles = apiResources.map((r: any) => {
       if (typeof r === 'string') return { url: r, name: r?.split?.('/')?.pop?.() ?? 'File' }
@@ -154,14 +158,20 @@ export const mapRetrieveSessionToDraft = (
       }
     })
     const videoResources: typeof resourceFiles = []
-    const nonVideoResources: typeof resourceFiles = []
+    const imageResources: typeof resourceFiles = []
+    const slidesResources: typeof resourceFiles = []
+    const otherResources: typeof resourceFiles = []
     resourceFiles.forEach((item: { url?: string; name: string }) => {
       const url = item?.url ?? ''
       const name = item?.name ?? ''
       if (VIDEO_EXTENSIONS.test(String(url)) || VIDEO_EXTENSIONS.test(String(name))) {
         videoResources.push(item)
+      } else if (IMAGE_EXTENSIONS.test(String(url)) || IMAGE_EXTENSIONS.test(String(name))) {
+        imageResources.push(item)
+      } else if (SLIDES_EXTENSIONS.test(String(url)) || SLIDES_EXTENSIONS.test(String(name))) {
+        slidesResources.push(item)
       } else {
-        nonVideoResources.push(item)
+        otherResources.push(item)
       }
     })
     if (videoResources.length > 0) {
@@ -186,18 +196,70 @@ export const mapRetrieveSessionToDraft = (
         })
       }
     }
-    if (nonVideoResources.length > 0) {
+    if (imageResources.length === 1) {
+      // Single image resource → restore as `image` section
+      const r = imageResources[0] as { url?: string; name?: string; resourceId?: string }
+      const existingImage = sections.find((s: any) => s.type === 'image')
+      if (existingImage) {
+        existingImage.data = { ...existingImage.data, url: r.url ?? '', previewUrl: r.url ?? '', ...(r.resourceId ? { resourceId: r.resourceId } : {}) }
+      } else {
+        sections.push({
+          id: `section-${id}-image`,
+          type: 'image',
+          title: 'Image',
+          description: '',
+          data: { url: r.url ?? '', previewUrl: r.url ?? '', ...(r.resourceId ? { resourceId: r.resourceId } : {}) }
+        })
+      }
+    } else if (imageResources.length > 1) {
+      // Multiple image resources → restore as `photo-gallery` section
+      const existingGallery = sections.find((s: any) => s.type === 'photo-gallery')
+      const galleryImages = imageResources.map((r: { url?: string; name?: string; resourceId?: string }) => ({
+        url: r.url ?? '',
+        previewUrl: r.url ?? '',
+        name: r.name ?? '',
+        ...(r.resourceId ? { resourceId: r.resourceId } : {})
+      }))
+      if (existingGallery) {
+        const current = (existingGallery.data?.images as any[]) ?? []
+        existingGallery.data = { ...existingGallery.data, images: [...current, ...galleryImages] }
+      } else {
+        sections.push({
+          id: `section-${id}-gallery`,
+          type: 'photo-gallery',
+          title: 'Photo Gallery',
+          description: '',
+          data: { images: galleryImages }
+        })
+      }
+    }
+    if (slidesResources.length > 0) {
+      slidesResources.forEach((r: { url?: string; name?: string; resourceId?: string }, idx: number) => {
+        sections.push({
+          id: `section-${id}-slides-${idx}`,
+          type: 'slides',
+          title: 'Slides',
+          description: '',
+          data: {
+            url: r.url ?? '',
+            previewUrl: r.url ?? '',
+            ...(r.resourceId ? { resourceId: r.resourceId } : {})
+          }
+        })
+      })
+    }
+    if (otherResources.length > 0) {
       const existingResources = sections.find((s: any) => s.type === 'resources')
       if (existingResources) {
         const current = (existingResources.data?.files as any[]) ?? []
-        existingResources.data = { ...existingResources.data, files: [...current, ...nonVideoResources] }
+        existingResources.data = { ...existingResources.data, files: [...current, ...otherResources] }
       } else {
         sections.push({
           id: `section-${id}-resources`,
           type: 'resources',
           title: 'Resources',
           description: '',
-          data: { files: nonVideoResources }
+          data: { files: otherResources }
         })
       }
     }

@@ -120,6 +120,9 @@ export const API_ENDPOINTS = {
     NAVIGATION: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/?event_id=${eventUuid}`,
     /** Create navigation folder. POST {{admin_url}}navigation/folders/?event_id={{event_uuid}} */
     NAVIGATION_FOLDERS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/folders/?event_id=${eventUuid}`,
+    /** Delete navigation folder. DELETE {{admin_url}}navigation/folders/{{folderUuid}}/?event_id={{event_uuid}} */
+    NAVIGATION_FOLDER_DELETE: (eventUuid: string, folderUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/folders/${folderUuid}/?event_id=${eventUuid}`,
     /** Available pages for navigation. GET {{admin_url}}navigation/available/?event_id={{event_uuid}} */
     NAVIGATION_AVAILABLE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/available/?event_id=${eventUuid}`,
     /** Update a nav item's icon. PATCH {{admin_url}}navigation/items/{{itemUuid}}/icon/?event_id={{event_uuid}} */
@@ -196,7 +199,7 @@ export const API_ENDPOINTS = {
   // User Management endpoints
   ATTENDEE_MANAGEMENT: {
     UPLOAD_USER: `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/upload-excel/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
+    LIST: (eventUuid: string, page = 1) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}&page=${page}`,
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
     UPDATE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`,
@@ -295,7 +298,7 @@ export const API_ENDPOINTS = {
   // Speaker Management endpoints
   SPEAKER_MANAGEMENT: {
     UPLOAD_SPEAKER: `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/import/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
+    LIST: (eventUuid: string, page = 1) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}&page=${page}`,
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
     UPDATE: (speakerUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/${speakerUuid}/`,

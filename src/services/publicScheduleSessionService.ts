@@ -25,15 +25,17 @@ export function mapApiSectionsToSavedSections(
     const uiType =
       sectionType === 'poster'
         ? 'slides'
-        : sectionType === 'image'
+        : sectionType === 'gallery' || sectionType === 'photo_gallery' || sectionType === 'photo-gallery'
           ? 'photo-gallery'
-          : sectionType === 'speakers'
-            ? 'speaker'
-            : sectionType === 'resource'
-              ? 'resources'
-              : isLiveChat
-                ? 'live-chat'
-                : sectionType
+          : sectionType === 'image'
+            ? 'image'
+            : sectionType === 'speakers'
+              ? 'speaker'
+              : sectionType === 'resource'
+                ? 'resources'
+                : isLiveChat
+                  ? 'live-chat'
+                  : sectionType
     let sectionData: Record<string, unknown> = {
       ...content,
       speaker_uuids: content?.speaker_uuids ?? [],
@@ -55,27 +57,37 @@ export function mapApiSectionsToSavedSections(
     }
   })
   const rawResources = apiResources ?? []
-  const resourceFiles = rawResources.map((r: any) =>
-    typeof r === 'string'
-      ? { url: r, name: r?.split?.('/')?.pop?.() ?? 'File' }
-      : {
-          url: r?.file_url ?? r?.url ?? r?.file,
-          name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File'
-        }
-  )
+  const resourceFiles = rawResources.map((r: any) => {
+    if (typeof r === 'string') return { url: r, name: r?.split?.('/')?.pop?.() ?? 'File' }
+    const rawId = [r?.id, r?.uuid, r?.session_resource_id, r?.pk].find((v) => v != null && v !== '')
+    const resourceId = rawId != null ? String(rawId).trim() : undefined
+    return {
+      url: r?.file_url ?? r?.url ?? r?.file,
+      name: r?.file_name ?? r?.name ?? (r?.url ?? r?.file_url ?? r?.file)?.split?.('/')?.pop?.() ?? 'File',
+      ...(resourceId ? { resourceId } : {})
+    }
+  })
 
   if (resourceFiles.length > 0) {
     const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|ogg|m4v|ogv)(\?|$)/i
+    const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|svg|bmp|avif|tiff?)(\?|$)/i
+    const SLIDES_EXTENSIONS = /\.(pdf|pptx?|key|odp)(\?|$)/i
     const videoResources: typeof resourceFiles = []
-    const nonVideoResources: typeof resourceFiles = []
+    const imageResources: typeof resourceFiles = []
+    const slidesResources: typeof resourceFiles = []
+    const otherResources: typeof resourceFiles = []
 
     resourceFiles.forEach((item) => {
       const url = item?.url ?? ''
       const name = item?.name ?? ''
       if (VIDEO_EXTENSIONS.test(String(url)) || VIDEO_EXTENSIONS.test(String(name))) {
         videoResources.push(item)
+      } else if (IMAGE_EXTENSIONS.test(String(url)) || IMAGE_EXTENSIONS.test(String(name))) {
+        imageResources.push(item)
+      } else if (SLIDES_EXTENSIONS.test(String(url)) || SLIDES_EXTENSIONS.test(String(name))) {
+        slidesResources.push(item)
       } else {
-        nonVideoResources.push(item)
+        otherResources.push(item)
       }
     })
 
@@ -85,11 +97,7 @@ export function mapApiSectionsToSavedSections(
       const videoUrl = firstVideo?.url ? String(firstVideo.url) : ''
       let videoSection = sections.find((s: any) => s.type === 'video')
       if (videoSection) {
-        videoSection.data = {
-          ...(videoSection.data || {}),
-          videoUrl,
-          video_url: videoUrl
-        }
+        videoSection.data = { ...(videoSection.data || {}), videoUrl, video_url: videoUrl }
       } else {
         sections.push({
           id: `section-${sessionId}-video`,
@@ -101,19 +109,69 @@ export function mapApiSectionsToSavedSections(
       }
     }
 
-    // Non-video resources → Resources section
-    if (nonVideoResources.length > 0) {
+    // Single image → `image` section; multiple → `photo-gallery`
+    if (imageResources.length === 1) {
+      const r = imageResources[0] as { url?: string; name?: string; resourceId?: string }
+      const existingImage = sections.find((s: any) => s.type === 'image')
+      if (existingImage) {
+        existingImage.data = { ...existingImage.data, url: r.url ?? '', previewUrl: r.url ?? '', ...(r.resourceId ? { resourceId: r.resourceId } : {}) }
+      } else {
+        sections.push({
+          id: `section-${sessionId}-image`,
+          type: 'image',
+          title: 'Image',
+          description: '',
+          data: { url: r.url ?? '', previewUrl: r.url ?? '', ...(r.resourceId ? { resourceId: r.resourceId } : {}) }
+        })
+      }
+    } else if (imageResources.length > 1) {
+      const existingGallery = sections.find((s: any) => s.type === 'photo-gallery')
+      const galleryImages = imageResources.map((r: { url?: string; name?: string; resourceId?: string }) => ({
+        url: r.url ?? '',
+        previewUrl: r.url ?? '',
+        name: r.name ?? '',
+        ...(r.resourceId ? { resourceId: r.resourceId } : {})
+      }))
+      if (existingGallery) {
+        const current = (existingGallery.data?.images as any[]) ?? []
+        existingGallery.data = { ...existingGallery.data, images: [...current, ...galleryImages] }
+      } else {
+        sections.push({
+          id: `section-${sessionId}-gallery`,
+          type: 'photo-gallery',
+          title: 'Photo Gallery',
+          description: '',
+          data: { images: galleryImages }
+        })
+      }
+    }
+
+    // Slides/PDF resources → `slides` section
+    if (slidesResources.length > 0) {
+      slidesResources.forEach((r: { url?: string; name?: string; resourceId?: string }, idx: number) => {
+        sections.push({
+          id: `section-${sessionId}-slides-${idx}`,
+          type: 'slides',
+          title: 'Slides',
+          description: '',
+          data: { url: r.url ?? '', previewUrl: r.url ?? '', ...(r.resourceId ? { resourceId: r.resourceId } : {}) }
+        })
+      })
+    }
+
+    // Other non-image, non-video files → Resources section
+    if (otherResources.length > 0) {
       const existing = sections.find((s: any) => s.type === 'resources')
       if (existing) {
         const current = (existing.data?.files as any[]) ?? []
-        existing.data = { ...existing.data, files: [...current, ...nonVideoResources] }
+        existing.data = { ...existing.data, files: [...current, ...otherResources] }
       } else {
         sections.push({
           id: `section-${sessionId}-resources`,
           type: 'resources',
           title: 'Resources',
           description: '',
-          data: { files: nonVideoResources }
+          data: { files: otherResources }
         })
       }
     }

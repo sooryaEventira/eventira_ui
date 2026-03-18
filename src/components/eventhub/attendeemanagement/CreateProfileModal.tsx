@@ -301,18 +301,6 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-               Group
-              </label>
-              <input
-                type="text"
-                value={group}
-                onChange={(e) => setGroup(e.target.value)}
-                placeholder="Group"
-                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
                 Designation
               </label>
               <input
@@ -323,6 +311,19 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
                 className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
               />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+               Group
+              </label>
+              <input
+                type="text"
+                value={group}
+                onChange={(e) => setGroup(e.target.value)}
+                placeholder="Group"
+                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+              />
+            </div>
+
           </div>
 
 

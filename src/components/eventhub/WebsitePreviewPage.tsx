@@ -33,7 +33,10 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
   const { eventData, createdEvent } = useEventForm()
   const { pages: websitePages } = useWebsitePages()
   const [bannerUrl, setBannerUrl] = useState<string>('')
-  const [activeTab, setActiveTab] = useState<'preview' | 'settings'>('preview')
+  const [activeTab, setActiveTab] = useState<'preview' | 'settings'>(() => {
+    const params = new URLSearchParams(window.location.search)
+    return params.get('tab') === 'settings' ? 'settings' : 'preview'
+  })
   const [webpageData, setWebpageData] = useState<WebpageData | null>(null)
   const [isLoadingWebpage, setIsLoadingWebpage] = useState(false)
   const [webpageError, setWebpageError] = useState<string | null>(null)

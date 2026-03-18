@@ -33,6 +33,12 @@ interface SpeakersTableProps {
   isLoading?: boolean
   // Bulk delete handler (multi-select delete)
   onBulkDeleteSpeakers?: (speakerIds: string[]) => void | Promise<void>
+  // Server-side pagination for the speaker list
+  serverSidePagination?: {
+    totalCount: number
+    currentPage: number
+    onPageChange: (page: number) => void
+  }
 }
 
 const SpeakersTable: React.FC<SpeakersTableProps> = ({
@@ -53,13 +59,18 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   onDownload,
   onGridView,
   onFilter,
-  onBulkDeleteSpeakers
+  onBulkDeleteSpeakers,
+  serverSidePagination
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSpeakerIds, setSelectedSpeakerIds] = useState<Set<string>>(new Set())
   const [selectedCustomFieldIds, setSelectedCustomFieldIds] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
+
+  // When server-side pagination is active, use its page/onChange; otherwise use local state
+  const activePage = serverSidePagination ? serverSidePagination.currentPage : currentPage
+  const handlePageChange = serverSidePagination ? serverSidePagination.onPageChange : setCurrentPage
   const [deleteCandidate, setDeleteCandidate] = useState<{ id: string; name: string } | null>(null)
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
   const [addToGroupOpen, setAddToGroupOpen] = useState(false)
@@ -117,27 +128,43 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     [filteredCustomFields]
   )
 
+  // Sort speakers before pagination
+  const sortedSpeakers = useMemo(() => {
+    if (!sortDescriptor) return filteredSpeakers
+    return [...filteredSpeakers].sort((a, b) => {
+      const aVal = String(a.name ?? '').toLowerCase()
+      const bVal = String(b.name ?? '').toLowerCase()
+      const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0
+      return sortDescriptor.direction === 'ascending' ? cmp : -cmp
+    })
+  }, [filteredSpeakers, sortDescriptor])
+
   // Paginate data based on active tab
   const paginatedSpeakers = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
+    // When server-side pagination is active, speakers are already the current page
+    if (serverSidePagination) return sortedSpeakers
+    const startIndex = (activePage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
-    return filteredSpeakers.slice(startIndex, endIndex)
-  }, [filteredSpeakers, currentPage])
+    return sortedSpeakers.slice(startIndex, endIndex)
+  }, [sortedSpeakers, activePage, serverSidePagination])
 
 
   const paginatedCustomFields = useMemo(() => {
-    const startIndex = (currentPage - 1) * itemsPerPage
+    const startIndex = (activePage - 1) * itemsPerPage
     const endIndex = startIndex + itemsPerPage
     return filteredCustomFields.slice(startIndex, endIndex)
-  }, [filteredCustomFields, currentPage])
+  }, [filteredCustomFields, activePage])
 
   // Calculate total pages based on active tab
   const totalPages = useMemo(() => {
-    const totalItems = activeTab === 'user' 
-      ? filteredSpeakers.length 
+    if (activeTab === 'user' && serverSidePagination) {
+      return Math.ceil(serverSidePagination.totalCount / itemsPerPage)
+    }
+    const totalItems = activeTab === 'user'
+      ? filteredSpeakers.length
       : filteredCustomFields.length
     return Math.ceil(totalItems / itemsPerPage)
-  }, [activeTab, filteredSpeakers.length, filteredCustomFields.length])
+  }, [activeTab, filteredSpeakers.length, filteredCustomFields.length, serverSidePagination])
 
   const handleToggleSpeaker = useCallback((id: string, checked: boolean) => {
     setSelectedSpeakerIds((previous) => {
@@ -293,7 +320,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   const customFieldEmptyState = (
     <div className="flex min-h-[280px] items-center justify-center px-6 py-10 text-sm text-slate-500">
       {customFields.length === 0
-        ? 'No custom fields have been created yet!'
+        ? 'Coming soon!'
         : 'No custom fields match your search.'}
     </div>
   )
@@ -442,14 +469,23 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   const handleSortChange = useCallback(
     (descriptor: DividerLineTableSortDescriptor) => {
       setSortDescriptor(descriptor)
+      setCurrentPage(1)
     },
     []
   )
 
-  // Reset page when switching tabs or search changes
+  // Reset local page when switching tabs or search changes
   React.useEffect(() => {
     setCurrentPage(1)
   }, [activeTab, searchQuery])
+
+  // Reset server-side page when search changes
+  React.useEffect(() => {
+    if (serverSidePagination && searchQuery) {
+      serverSidePagination.onPageChange(1)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery])
 
   // Get table data, columns, and empty state based on active tab
   const getTableData = () => {
@@ -551,9 +587,14 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
         } : undefined}
         footer={
           <TablePagination
-            currentPage={currentPage}
+            currentPage={activePage}
             totalPages={totalPages}
-            onPageChange={setCurrentPage}
+            onPageChange={handlePageChange}
+            totalCount={
+              activeTab === 'user'
+                ? (serverSidePagination ? serverSidePagination.totalCount : filteredSpeakers.length)
+                : undefined
+            }
           />
         }
       />
