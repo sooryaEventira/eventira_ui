@@ -22,7 +22,7 @@ interface LiveChatProps {
 }
 
 const LiveChat: React.FC<LiveChatProps> = ({
-  title = 'Live Chat',
+  title = 'Discussion/comment',
   height = '500px',
   backgroundColor = '#ffffff',
   headerColor = '#8b5cf6',

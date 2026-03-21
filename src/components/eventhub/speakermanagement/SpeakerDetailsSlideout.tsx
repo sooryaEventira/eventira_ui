@@ -245,13 +245,13 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
               <Camera01 className="h-3.5 w-3.5" />
             </button>
           </div>
-          <button
+          {/* <button
             type="button"
             className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             aria-label="View"
           >
             <Eye className="h-4 w-4" />
-          </button>
+          </button> */}
         </div>
 
         <div className="mt-4 text-center">

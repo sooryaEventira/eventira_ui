@@ -528,6 +528,10 @@ type UpdateSpeakerInput = {
   email?: string
   organization?: string
   designation?: string
+  role?: string
+  description?: string
+  groups?: string[]
+  custom_fields?: Record<string, string>
   /** Profile picture file; when set, request is sent as multipart/form-data. */
   image?: File
   [key: string]: any
@@ -578,10 +582,12 @@ export const updateSpeaker = async (
       if (input.first_name != null) form.append('first_name', input.first_name)
       if (input.last_name != null) form.append('last_name', input.last_name)
       if (input.email != null) form.append('email', input.email)
-      if (input.organization != null) form.append('organisation', input.organization)
+      if (input.organization != null) form.append('organization', input.organization)
       if (input.designation != null) form.append('designation', input.designation)
-      if (input.bio != null && input.bio !== '') form.append('bio', input.bio)
-      if (Array.isArray(input.groups)) input.groups.forEach((g) => form.append('group_names', g))
+      if (input.role != null) form.append('role', input.role)
+      if (input.description != null && input.description !== '') form.append('description', input.description)
+      if (Array.isArray(input.groups)) input.groups.forEach((g) => form.append('groups', g))
+      if (input.custom_fields) form.append('custom_fields', JSON.stringify(input.custom_fields))
       form.append('image', input.image!)
 
       const response = await fetch(url, {
@@ -617,80 +623,49 @@ export const updateSpeaker = async (
       throw new Error(errorMessage)
     }
 
-    const designation = input.designation
-    const organization = input.organization
-    const email = input.email
-    const base = cleanObject({
-      ...input,
-      designation,
-      organization,
-      email,
+    const payload = cleanObject({
+      email: input.email,
+      first_name: input.first_name,
+      last_name: input.last_name,
+      organization: input.organization,
+      designation: input.designation,
+      role: input.role,
+      description: input.description,
+      groups: input.groups,
+      custom_fields: input.custom_fields,
     })
-    delete (base as any).image
 
-    const candidates: Array<Record<string, any>> = [
-      base,
-      cleanObject({
-        ...input,
-        designation,
-        organisation: organization,
-        user_email: email,
-        organization: undefined,
-        email: undefined,
-        image: undefined,
-      }),
-    ]
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    })
 
-    let lastError: any = null
-
-    for (const payload of candidates) {
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Organization': organizationUuid,
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      })
-
-      if (response.ok) {
-        let responseData: any = null
-        try {
-          responseData = await response.json()
-        } catch {
-          // Some endpoints respond with 204 or non-JSON; treat as success.
-          responseData = null
-        }
-        console.log('PATCH speaker API response:', responseData)
-        showToast.success('Speaker updated successfully')
-        return responseData
-      }
-
-      // Read body for error details
-      const responseText = await response.text()
-      let errorData: any = null
+    if (response.ok) {
+      let responseData: any = null
       try {
-        errorData = responseText ? JSON.parse(responseText) : null
+        responseData = await response.json()
       } catch {
-        errorData = responseText?.trim() ? responseText.trim() : null
+        responseData = null
       }
-
-      lastError = { response, errorData }
-
-      // Only try next candidate for validation-ish errors
-      if (response.status !== 400 && response.status !== 404 && response.status !== 422) {
-        const errorMessage = handleApiError(errorData, response, 'Failed to update speaker. Please try again.')
-        throw new Error(errorMessage)
-      }
+      showToast.success('Speaker updated successfully')
+      return responseData
     }
 
-    const errorMessage = handleApiError(
-      lastError?.errorData ?? null,
-      lastError?.response,
-      'Failed to update speaker. Please try again.'
-    )
+    const responseText = await response.text()
+    let errorData: any = null
+    try {
+      errorData = responseText ? JSON.parse(responseText) : null
+    } catch {
+      errorData = responseText?.trim() ? responseText.trim() : null
+    }
+
+    const errorMessage = handleApiError(errorData, response, 'Failed to update speaker. Please try again.')
     throw new Error(errorMessage)
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -958,8 +933,10 @@ type CreateSpeakerInput = {
   email: string
   organization?: string
   designation?: string
-  bio?: string
+  role?: string
+  description?: string
   groups?: string[]
+  custom_fields?: Record<string, string>
   /** Profile picture file; when set, request is sent as multipart/form-data. */
   image?: File
   [key: string]: any
@@ -1004,16 +981,17 @@ export const createSpeaker = async (
 
     if (hasImage) {
       const form = new FormData()
-      form.append('user_email', input.email)
+      form.append('email', input.email)
       form.append('first_name', input.first_name)
       form.append('last_name', input.last_name)
-      if (input.organization != null && input.organization !== '') form.append('organisation', input.organization)
-      const description = (input as any).description ?? input.designation ?? input.bio ?? ''
-      if (description !== '') form.append('description', description)
-      if (input.bio != null && input.bio !== '') form.append('bio', input.bio)
+      if (input.organization != null && input.organization !== '') form.append('organization', input.organization)
+      if (input.designation != null && input.designation !== '') form.append('designation', input.designation)
+      if (input.role != null && input.role !== '') form.append('role', input.role)
+      if (input.description != null && input.description !== '') form.append('description', input.description)
       if (Array.isArray(input.groups) && input.groups.length) {
         input.groups.forEach((g) => form.append('groups', g))
       }
+      if (input.custom_fields) form.append('custom_fields', JSON.stringify(input.custom_fields))
       form.append('image', input.image!)
 
       const response = await fetch(url, {
@@ -1048,66 +1026,50 @@ export const createSpeaker = async (
       throw new Error(errorMessage)
     }
 
-    // No image: JSON body — payload shape: user_email, first_name, last_name, organisation, description, groups, bio
-    const description = (input as any).description ?? input.designation ?? input.bio ?? ''
-    const base = cleanObject({
-      user_email: input.email,
+    // No image: JSON body
+    const payload = cleanObject({
+      email: input.email,
       first_name: input.first_name,
       last_name: input.last_name,
-      organisation: input.organization,
-      description: description || undefined,
+      organization: input.organization,
+      designation: input.designation,
+      role: input.role,
+      description: input.description,
       groups: Array.isArray(input.groups) && input.groups.length ? input.groups : undefined,
-      bio: input.bio,
+      custom_fields: input.custom_fields,
     })
 
-    const candidates: Array<Record<string, any>> = [base]
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    })
 
-    let lastError: any = null
-
-    for (const payload of candidates) {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Organization': organizationUuid,
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      })
-
-      if (response.ok) {
-        let responseData: any = null
-        try {
-          responseData = await response.json()
-        } catch {
-          responseData = null
-        }
-        showToast.success('Speaker created successfully')
-        return responseData
-      }
-
-      const responseText = await response.text()
-      let errorData: any = null
+    if (response.ok) {
+      let responseData: any = null
       try {
-        errorData = responseText ? JSON.parse(responseText) : null
+        responseData = await response.json()
       } catch {
-        errorData = responseText?.trim() ? responseText.trim() : null
+        responseData = null
       }
-
-      lastError = { response, errorData }
-
-      if (response.status !== 400 && response.status !== 404 && response.status !== 422) {
-        const errorMessage = handleApiError(errorData, response, 'Failed to create speaker. Please try again.')
-        throw new Error(errorMessage)
-      }
+      showToast.success('Speaker created successfully')
+      return responseData
     }
 
-    const errorMessage = handleApiError(
-      lastError?.errorData ?? null,
-      lastError?.response,
-      'Failed to create speaker. Please try again.'
-    )
+    const responseText = await response.text()
+    let errorData: any = null
+    try {
+      errorData = responseText ? JSON.parse(responseText) : null
+    } catch {
+      errorData = responseText?.trim() ? responseText.trim() : null
+    }
+
+    const errorMessage = handleApiError(errorData, response, 'Failed to create speaker. Please try again.')
     throw new Error(errorMessage)
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {

@@ -40,7 +40,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   homePath: homePathProp,
   exitEventPath = '/',
   onNotificationClick,
-  onProfileClick,
   profileImageUrl
 }) => {
   const sidebarStyle = useMemo(
@@ -330,16 +329,23 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                     >
                       Profile
                     </a>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => {
+                        localStorage.removeItem('pub_accessToken')
+                        localStorage.removeItem('pub_refreshToken')
+                        localStorage.removeItem('pub_userEmail')
+                        localStorage.removeItem('pub_profilePicture')
+                        localStorage.removeItem('pub_rememberMe')
+                        setProfileMenuOpen(false)
+                        window.location.href = '/login'
+                      }}
+                      className="w-full px-4 py-2.5 text-left text-base font-semibold text-red-600 hover:bg-slate-50"
+                    >
+                      Logout
+                    </button>
                   </>
-                ) : onProfileClick ? (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => { setProfileMenuOpen(false); onProfileClick() }}
-                    className="w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
-                  >
-                    Profile
-                  </button>
                 ) : (
                   <a
                     href="/login"

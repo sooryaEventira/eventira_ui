@@ -88,9 +88,7 @@ const PageSidebar: React.FC<PageSidebarProps> = ({
 
     {/* Scrollable page list */}
     <div className="flex-1 overflow-y-auto px-3 min-h-0">
-      {[...pages]
-        .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
-        .map((page) => {
+      {pages.map((page) => {
           // Check if page is active by ID or by name (case-insensitive)
           // This handles cases where:
           // 1. Page ID matches currentPage (exact match)

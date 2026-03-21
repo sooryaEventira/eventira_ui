@@ -125,9 +125,11 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
         email: payload.email,
         organization: payload.organization,
         designation: payload.role,
-        bio: payload.description,
+        description: payload.description,
         groups: payload.group ? [payload.group] : undefined,
-        avatar_url: payload.avatarUrl,
+        custom_fields: payload.customFields?.length
+          ? Object.fromEntries(payload.customFields.map((f) => [f.label, f.value]))
+          : undefined,
       })
 
       onSave(payload)

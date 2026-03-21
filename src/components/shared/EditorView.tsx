@@ -724,21 +724,15 @@ export const EditorView: React.FC<EditorViewProps> = ({
                 pagesForSidebar = websitePages.map(page => ({ id: page.id, name: page.name }))
               }
 
-              // Never show a phantom Welcome page unless it's actually the current page
-              pagesForSidebar = pagesForSidebar.filter(p => {
-                const isWelcome = p.name.toLowerCase() === 'welcome' || p.id.toLowerCase() === 'welcome'
-                return !isWelcome || p.id === currentPage
-              })
-              
-              // Ensure current page is included if not already in the list
-              const currentPageExists = pagesForSidebar.some(p => 
-                p.id === currentPage || 
+              // Ensure current page is included if not already in the list (e.g. newly created page not yet in API response)
+              const currentPageExists = pagesForSidebar.some(p =>
+                p.id === currentPage ||
                 (currentPageName && p.name.toLowerCase() === currentPageName.toLowerCase())
               )
               if (!currentPageExists && currentPage && currentPageName) {
                 pagesForSidebar.push({ id: currentPage, name: currentPageName })
               }
-              
+
               // Remove duplicates based on case-insensitive name matching
               const uniquePagesForSidebar = pagesForSidebar.reduce((acc, page) => {
                 const existingIndex = acc.findIndex(p => 
@@ -763,7 +757,7 @@ export const EditorView: React.FC<EditorViewProps> = ({
               }, [] as typeof pagesForSidebar)
               pagesForSidebar = uniquePagesForSidebar
             }
-            
+
             return (
               <div className="absolute inset-y-0 left-0 w-[280px] border-r border-slate-200 bg-white z-[1000]">
                 <PageSidebar

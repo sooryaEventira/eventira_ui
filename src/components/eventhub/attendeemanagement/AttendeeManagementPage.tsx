@@ -243,6 +243,12 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
           emailVerified: attendeeData.email_verified,
           emailVerifiedDate: attendeeData.email_verified_date,
           feedbackIncomplete: attendeeData.feedback_incomplete,
+          customFields: (() => {
+            const cf = (attendeeData as any).custom_fields
+            if (!cf || typeof cf !== 'object' || Array.isArray(cf)) return undefined
+            const entries = Object.entries(cf).map(([label, value]) => ({ label, value: String(value) }))
+            return entries.length ? entries : undefined
+          })(),
         }
       })
 
@@ -368,9 +374,11 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
       email: updatedAttendee.email,
       organization: updatedAttendee.organization,
       designation: updatedAttendee.post || undefined,
-      bio: updatedAttendee.description,
+      description: updatedAttendee.description,
       groups: groupValues.length ? groupValues : undefined,
-      avatar_url: updatedAttendee.avatarUrl,
+      custom_fields: updatedAttendee.customFields?.length
+        ? Object.fromEntries(updatedAttendee.customFields.map((f) => [f.label, f.value]))
+        : undefined,
     })
 
     setAttendees((prev) => prev.map((a) => (a.id === updatedAttendee.id ? updatedAttendee : a)))

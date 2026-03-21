@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { SessionDraft } from './sessionTypes'
+import { sectionOptions } from './sessionConfig'
 import SessionChat, { type CometChatUser } from './SessionChat'
-import PublicSessionComments from '../../public/schedule/PublicSessionComments'
 import { env } from '../../../config/env'
 import ImageLightbox from '../../ui/untitled/ImageLightbox'
 
@@ -24,6 +24,14 @@ interface SessionSummaryViewProps {
   tagOptions?: Array<{ uuid: string; name: string }>
   /** Whether this is being rendered on a public page (uses public comment service instead of CometChat). */
   isPublic?: boolean
+  /** When true, renders the live-chat section with auth-aware button for public attendees. */
+  isPublicView?: boolean
+  /** Called when unauthenticated user clicks "Login to open chat" — navigation handled by caller. */
+  onLoginClick?: () => void
+  /** Called when authenticated user clicks "Open chat". */
+  onChatOpen?: () => void
+  /** When true, disables the "Open chat" button (chat is already open). */
+  chatOpen?: boolean
 }
 
 /** Get YouTube embed URL from watch URL, youtu.be, Shorts, or existing embed URL. */
@@ -64,11 +72,12 @@ const formatTime = (time: string, period: 'AM' | 'PM') => {
 
 const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
   session,
-  sessionId: sessionIdProp,
-  eventId,
   cometChatUser,
   tagOptions,
-  isPublic = false
+  isPublicView = false,
+  onLoginClick,
+  onChatOpen,
+  chatOpen = false,
 }) => {
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null)
 
@@ -80,7 +89,6 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
     )
   }
 
-  const sessionId = sessionIdProp ?? (session as { id?: string }).id
   const startLabel = formatTime(session.startTime ?? '', session.startPeriod ?? 'AM')
   const endLabel = formatTime(session.endTime ?? '', session.endPeriod ?? 'AM')
   const timeRange =
@@ -127,7 +135,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                 key={chip.id}
                 className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-medium ${
                   chip.intent === 'tag'
-                    ? 'bg-rose-100 text-rose-700'
+                    ? 'bg-blue-100 text-blue-700'
                     : 'bg-slate-100 text-slate-600'
                 }`}
               >
@@ -143,21 +151,39 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
           (session.sections ?? []).map((section) => (
             <section key={section.id} className="space-y-3">
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
-                {section.type === 'text' ? 'Description' : section.title}
+                {section.type === 'text' ? 'Description' : (sectionOptions.find(o => o.id === section.type)?.label ?? section.title)}
               </p>
               {section.type === 'live-chat' ? (
-                isPublic && eventId && sessionId ? (
-                  <PublicSessionComments
-                    eventUuid={eventId}
-                    sessionUuid={sessionId}
-                    sessionTitle={session.title || undefined}
-                    height={360}
-                  />
-                ) : (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    Live chat section added. Comments will be available on the public event page.
+                <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <div className="flex flex-col items-center gap-4 px-4 py-8 text-center">
+                    <p className="text-sm text-slate-500">
+                      Join the conversation to interact with panelists and others watching this livestream.
+                    </p>
+                    {isPublicView ? (
+                      (() => {
+                        const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
+                        return (
+                          <button
+                            type="button"
+                            disabled={isAuthenticated && chatOpen}
+                            className="w-full rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={isAuthenticated ? onChatOpen : onLoginClick}
+                          >
+                            {isAuthenticated ? 'Open chat' : 'Login to open chat'}
+                          </button>
+                        )
+                      })()
+                    ) : (
+                      <button
+                        type="button"
+                        disabled
+                        className="w-full rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm"
+                      >
+                        Open chat
+                      </button>
+                    )}
                   </div>
-                )
+                </div>
               ) : section.type === 'video' && (section.data?.videoUrl || section.data?.video_url) ? (
                 (() => {
                   const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? '').trim()

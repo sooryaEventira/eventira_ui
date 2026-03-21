@@ -18,9 +18,13 @@ export function mapApiSectionsToSavedSections(
       sectionType === 'chat' ||
       sectionType === 'livechat' ||
       sectionType === 'live_chat' ||
+      sectionType === 'live-chat' ||
       sectionType === 'comments' ||
       title === 'live chat' ||
-      title === 'livechat'
+      title === 'live-chat' ||
+      title === 'livechat' ||
+      title === 'discussion/chat' ||
+      title === 'discussion/comment'
 
     const uiType =
       sectionType === 'poster'

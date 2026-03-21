@@ -64,7 +64,7 @@ export const mapRetrieveSessionToDraft = (
           }
           return null
         })
-        .filter(Boolean)
+        .filter((x): x is string => typeof x === 'string')
     }
     return []
   }
@@ -95,12 +95,18 @@ export const mapRetrieveSessionToDraft = (
               ? 'speaker'
               : sectionType === 'resource'
                 ? 'resources'
-                : sectionType
-    // Treat text sections whose title is "Live Chat" as the live-chat UI type so
-    // they render using SessionChat in the summary view.
+                : sectionType === 'live_chat'
+                  ? 'live-chat'
+                  : sectionType
+    // Treat text sections whose title matches any known live-chat label as live-chat UI type.
     if (sectionType === 'text') {
       const rawTitle = (content?.title ?? sec?.title ?? '').toString().trim().toLowerCase()
-      if (rawTitle === 'live chat' || rawTitle === 'live-chat') {
+      if (
+        rawTitle === 'live chat' ||
+        rawTitle === 'live-chat' ||
+        rawTitle === 'discussion/comment' ||
+        rawTitle === 'discussion/chat'
+      ) {
         uiType = 'live-chat'
       }
     }
@@ -132,7 +138,7 @@ export const mapRetrieveSessionToDraft = (
       uiType === 'speaker' || sectionType === 'speakers'
         ? 'Speakers'
         : uiType === 'live-chat'
-          ? 'Live Chat'
+          ? 'Discussion/comment'
           : 'Section'
     return {
       id: `section-${id}-${i}`,

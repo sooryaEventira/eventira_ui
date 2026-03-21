@@ -47,8 +47,10 @@ type CreateAttendeeInput = {
   email: string
   organization?: string
   designation?: string
-  bio?: string
+  role?: string
+  description?: string
   groups?: string[]
+  custom_fields?: Record<string, string>
   [key: string]: any
 }
 
@@ -772,81 +774,49 @@ export const createAttendee = async (
 
     const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.CREATE(eventUuid)
 
-    // Try a couple payload shapes for backend compatibility.
-    // Backend list responses commonly use `organisation` + `designation` (+ sometimes `bio`/`description`).
-    const base = cleanObject({
-      ...input,
-      // Some backends require `user_email` instead of `email`
-      user_email: input.email,
-      organisation: input.organization,
+    const payload = cleanObject({
+      email: input.email,
+      first_name: input.first_name,
+      last_name: input.last_name,
+      organization: input.organization,
       designation: input.designation,
-      bio: input.bio,
-      description: input.bio,
+      role: input.role,
+      description: input.description,
       groups: input.groups,
+      custom_fields: input.custom_fields,
     })
 
-    const candidates: Array<Record<string, any>> = [
-      base,
-      cleanObject({
-        ...input,
-        user_email: input.email,
-        // Alternate field names some endpoints accept
-        institute: input.organization,
-        post: input.designation,
-        description: input.bio,
-        // keep original keys out of this attempt to avoid conflicts
-        organisation: undefined,
-        designation: undefined,
-        bio: undefined,
-      }),
-    ]
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    })
 
-    let lastError: any = null
-
-    for (const payload of candidates) {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Organization': organizationUuid,
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      })
-
-      if (response.ok) {
-        let responseData: any = null
-        try {
-          responseData = await response.json()
-        } catch {
-          responseData = null
-        }
-        showToast.success('Attendee created successfully')
-        return responseData
-      }
-
-      const responseText = await response.text()
-      let errorData: any = null
+    if (response.ok) {
+      let responseData: any = null
       try {
-        errorData = responseText ? JSON.parse(responseText) : null
+        responseData = await response.json()
       } catch {
-        errorData = responseText?.trim() ? responseText.trim() : null
+        responseData = null
       }
-
-      lastError = { response, errorData }
-
-      if (response.status !== 400 && response.status !== 404 && response.status !== 422) {
-        const errorMessage = handleApiError(errorData, response, 'Failed to create attendee. Please try again.')
-        throw new Error(errorMessage)
-      }
+      showToast.success('Attendee created successfully')
+      return responseData
     }
 
-    const errorMessage = handleApiError(
-      lastError?.errorData ?? null,
-      lastError?.response,
-      'Failed to create attendee. Please try again.'
-    )
+    const responseText = await response.text()
+    let errorData: any = null
+    try {
+      errorData = responseText ? JSON.parse(responseText) : null
+    } catch {
+      errorData = responseText?.trim() ? responseText.trim() : null
+    }
+
+    const errorMessage = handleApiError(errorData, response, 'Failed to create attendee. Please try again.')
     throw new Error(errorMessage)
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
@@ -1109,7 +1079,10 @@ type UpdateAttendeeInput = {
   email?: string
   organization?: string
   designation?: string
-  // if backend supports tags/groups, callers can pass them through
+  role?: string
+  description?: string
+  groups?: string[]
+  custom_fields?: Record<string, string>
   [key: string]: any
 }
 
@@ -1147,80 +1120,49 @@ export const updateAttendee = async (
 
     const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.UPDATE(attendeeUuid)
 
-    // Backends in this repo have returned both `organization` and `organisation`,
-    // and both `email` and `user_email` depending on endpoint.
-    const designation = input.designation
-    const organization = input.organization
-    const email = input.email
-    const base = cleanObject({
-      ...input,
-      designation,
-      organization,
-      email,
+    const payload = cleanObject({
+      email: input.email,
+      first_name: input.first_name,
+      last_name: input.last_name,
+      organization: input.organization,
+      designation: input.designation,
+      role: input.role,
+      description: input.description,
+      groups: input.groups,
+      custom_fields: input.custom_fields,
     })
 
-    const candidates: Array<Record<string, any>> = [
-      base,
-      cleanObject({
-        ...input,
-        designation,
-        organisation: organization,
-        user_email: email,
-        // avoid sending conflicting keys in this attempt
-        organization: undefined,
-        email: undefined,
-      }),
-    ]
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    })
 
-    let lastError: any = null
-
-    for (const payload of candidates) {
-      const response = await fetch(url, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`,
-          'X-Organization': organizationUuid,
-        },
-        credentials: 'include',
-        body: JSON.stringify(payload),
-      })
-
-      if (response.ok) {
-        let responseData: any = null
-        try {
-          responseData = await response.json()
-        } catch {
-          // Some endpoints respond with 204 or non-JSON; treat as success.
-          responseData = null
-        }
-        showToast.success('Attendee updated successfully')
-        return responseData
-      }
-
-      // Read body for error details
-      const responseText = await response.text()
-      let errorData: any = null
+    if (response.ok) {
+      let responseData: any = null
       try {
-        errorData = responseText ? JSON.parse(responseText) : null
+        responseData = await response.json()
       } catch {
-        errorData = responseText?.trim() ? responseText.trim() : null
+        responseData = null
       }
-
-      lastError = { response, errorData }
-
-      // Only try next candidate for validation-ish errors
-      if (response.status !== 400 && response.status !== 404 && response.status !== 422) {
-        const errorMessage = handleApiError(errorData, response, 'Failed to update attendee. Please try again.')
-        throw new Error(errorMessage)
-      }
+      showToast.success('Attendee updated successfully')
+      return responseData
     }
 
-    const errorMessage = handleApiError(
-      lastError?.errorData ?? null,
-      lastError?.response,
-      'Failed to update attendee. Please try again.'
-    )
+    const responseText = await response.text()
+    let errorData: any = null
+    try {
+      errorData = responseText ? JSON.parse(responseText) : null
+    } catch {
+      errorData = responseText?.trim() ? responseText.trim() : null
+    }
+
+    const errorMessage = handleApiError(errorData, response, 'Failed to update attendee. Please try again.')
     throw new Error(errorMessage)
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {

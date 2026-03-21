@@ -5340,12 +5340,12 @@ textColor: {
       }
     },
     LiveChat: {
-      label: "Live Chat",
+      label: "Discussion/comment",
       fields: {
         title: {
           type: 'text' as const,
           label: 'Chat Title',
-          placeholder: 'Live Chat',
+          placeholder: 'Discussion/comment',
           contentEditable: true
         },
         height: {
@@ -5405,7 +5405,7 @@ textColor: {
         }
       },
       defaultProps: {
-        title: 'Live Chat',
+        title: 'Discussion/comment',
         height: '500px',
         backgroundColor: '#ffffff',
         headerColor: '#8b5cf6',

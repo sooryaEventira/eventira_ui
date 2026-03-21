@@ -308,6 +308,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     return [...ordered, ...missing]
   }, [indexWebpages, navigationOrderIds])
 
+  const sortedWebpagesForListing = useMemo(() => webpages, [webpages])
+
   const moveNavigationTreeItem = useCallback(
     (dragId: string, targetId: string, insertAfter = false) => {
       if (!dragId || !targetId || dragId === targetId) return
@@ -1728,7 +1730,7 @@ const loadNavigationFromApi = useCallback(async () => {
             <div className="pb-96">
               <div className="space-y-0 border border-slate-200 rounded-lg bg-white overflow-visible">
                 <WebsitePagesList
-                  webpages={filteredWebpages}
+                  webpages={sortedWebpagesForListing}
                   isLoading={isLoadingWebpages}
                   onAction={handlePageAction}
                   openDropdownId={openDropdownId}

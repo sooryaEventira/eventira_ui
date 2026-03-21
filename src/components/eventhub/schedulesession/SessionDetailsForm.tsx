@@ -4,6 +4,7 @@ import { Input, Select, Button } from '../../ui/untitled'
 import CreatableMultiSelect, { type CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
 import type { MultiValue, ActionMeta } from 'react-select'
 import { SessionDraft, SessionSection } from './sessionTypes'
+import { sectionOptions } from './sessionConfig'
 
 /** Tag option with uuid for sending tag_uuids to backend. */
 export interface SessionTagOption {
@@ -278,12 +279,17 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
                   className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm"
                 >
                   <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold uppercase text-primary">
-                        {section.title.slice(0, 1)}
-                      </span>
-                      <span className="text-sm font-semibold text-slate-700">{section.title}</span>
-                    </div>
+                    {(() => {
+                      const displayTitle = sectionOptions.find(o => o.id === section.type)?.label ?? section.title
+                      return (
+                        <div className="flex items-center gap-3">
+                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold uppercase text-primary">
+                            {displayTitle.slice(0, 1)}
+                          </span>
+                          <span className="text-sm font-semibold text-slate-700">{displayTitle}</span>
+                        </div>
+                      )
+                    })()}
                     <div className="flex items-center gap-1">
                       <button
                         type="button"

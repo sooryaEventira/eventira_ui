@@ -124,8 +124,11 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
         email: payload.email,
         organization: payload.organization,
         designation: payload.role,
-        bio: payload.bio,
+        description: payload.bio,
         groups: payload.group ? [payload.group] : undefined,
+        custom_fields: payload.customFields?.length
+          ? Object.fromEntries(payload.customFields.map((f) => [f.label, f.value]))
+          : undefined,
         image: profileImageFile ?? undefined,
       })
 

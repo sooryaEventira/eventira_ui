@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import { ArrowNarrowLeft } from '@untitled-ui/icons-react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 import SessionSummaryView from '../../eventhub/schedulesession/SessionSummaryView'
+import PublicSessionComments from './PublicSessionComments'
 import { fetchPublicSchedules } from '../../../services/publicScheduleService'
 import { fetchPublicScheduleSessions, fetchPublicSession, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
 
@@ -85,7 +86,9 @@ const mapApiSessionToSaved = (x: any, idx: number): SavedSession => {
     endPeriod: end.period,
     location: String(x.location ?? x.room ?? x.venue ?? ''),
     sessionType: String(x.session_type ?? x.sessionType ?? ''),
-    tags: Array.isArray(x.tags) ? x.tags : [],
+    tags: Array.isArray(x.tags)
+      ? x.tags.map((t: any) => (typeof t === 'string' ? t : String(t?.name ?? t?.uuid ?? '')))
+      : [],
     sections,
     attachments,
     date: date ?? undefined,
@@ -107,6 +110,7 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
   const [session, setSession] = useState<SavedSession | null>(null)
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
+  const [chatOpen, setChatOpen] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -192,14 +196,29 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
         <ArrowNarrowLeft className="h-4 w-4" />
         Back to schedule
       </button>
-      <div className="max-w-4xl">
-        <SessionSummaryView
-          session={session}
-          sessionId={session.id}
-          eventId={eventUuid}
-          cometChatUser={null}
-          isPublic={true}
-        />
+      <div className={`flex gap-6 items-start`}>
+        <div className={chatOpen ? 'flex-1 min-w-0' : 'w-full max-w-4xl'}>
+          <SessionSummaryView
+            session={session}
+            sessionId={session.id}
+            eventId={eventUuid}
+            cometChatUser={null}
+            isPublic={true}
+            isPublicView={true}
+            onLoginClick={() => { window.location.href = '/login' }}
+            onChatOpen={() => setChatOpen(true)}
+            chatOpen={chatOpen}
+          />
+        </div>
+        {chatOpen && (
+          <div className="w-80 shrink-0 sticky top-20 self-start">
+            <PublicSessionComments
+              eventUuid={eventUuid}
+              sessionUuid={sessionId}
+              onClose={() => setChatOpen(false)}
+            />
+          </div>
+        )}
       </div>
     </div>
   )

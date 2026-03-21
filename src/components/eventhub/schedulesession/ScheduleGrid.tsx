@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, ChevronUp, ChevronDown, Calendar, Attachment01, User01, Clock, MarkerPin01, VideoRecorder } from '@untitled-ui/icons-react'
+import { Plus, ChevronUp, ChevronDown, Calendar, Attachment01, User01, Clock, MarkerPin01, VideoRecorder, Bookmark } from '@untitled-ui/icons-react'
 import { SavedSession } from './sessionTypes'
 
 interface ScheduleGridProps {
@@ -12,6 +12,7 @@ interface ScheduleGridProps {
   onSessionClick?: (session: SavedSession) => void
   sessionFormOpen?: boolean
   onReorderParallelSessions?: (timeKey: string, orderedSessionIds: string[]) => void
+  showBookmark?: boolean
 }
 
 interface SessionContainerProps {
@@ -40,6 +41,7 @@ interface SessionContainerProps {
   onParallelDragEnd?: () => void
   isDragOver?: boolean
   isDragging?: boolean
+  showBookmark?: boolean
 }
 
 type SessionSpeaker = { id: string; name: string; role?: string }
@@ -311,7 +313,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   onParallelDragStart,
   onParallelDragEnd,
   isDragOver = false,
-  isDragging = false
+  isDragging = false,
+  showBookmark = false
 }) => {
   const [menuOpenForId, setMenuOpenForId] = useState<string | null>(null)
 
@@ -503,8 +506,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   const cardColumn = (
     <div className="flex-1 min-w-0" key="card">
         <div
-          className={`border rounded-lg shadow-sm transition-shadow ${
-            isDragging ? 'border-violet-500 ring-2 ring-violet-300/50 bg-violet-50/80' : 
+          className={`min-h-20 border rounded-lg shadow-sm transition-shadow ${
+            isDragging ? 'border-violet-500 ring-2 ring-violet-300/50 bg-violet-50/80' :
             isDragOver ? 'border-primary ring-2 ring-primary/30 bg-primary/5' : 'border-slate-200 bg-white'
           } ${onSessionClick ? 'cursor-pointer hover:shadow-md hover:border-slate-300' : 'hover:shadow-md'}`}
           onClick={onSessionClick ? (e) => { if (!(e.target as HTMLElement).closest('button')) onSessionClick(session) } : undefined}
@@ -535,14 +538,25 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                   )}
                 </div>
               </div>
-              <SessionMenuDropdown
-                session={session}
-                isOpen={menuOpenForId === String(session.id)}
-                onToggle={() => setMenuOpenForId((id) => (id === String(session.id) ? null : String(session.id)))}
-                onClose={() => setMenuOpenForId(null)}
-                onEdit={(s) => onEditSession?.(s)}
-                onDelete={(s) => onDeleteSession?.(s)}
-              />
+              {showBookmark ? (
+                <button
+                  type="button"
+                  className="flex-shrink-0 p-1 text-slate-400 hover:text-primary transition-colors"
+                  aria-label="Bookmark session"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Bookmark className="h-4 w-4" />
+                </button>
+              ) : (
+                <SessionMenuDropdown
+                  session={session}
+                  isOpen={menuOpenForId === String(session.id)}
+                  onToggle={() => setMenuOpenForId((id) => (id === String(session.id) ? null : String(session.id)))}
+                  onClose={() => setMenuOpenForId(null)}
+                  onEdit={(s) => onEditSession?.(s)}
+                  onDelete={(s) => onDeleteSession?.(s)}
+                />
+              )}
             </div>
 
             <div className="flex items-center justify-between flex-wrap ">
@@ -655,7 +669,7 @@ function getOrderedSessionsForGroup(sessions: SavedSession[], timeKey: string, p
 }
 
 const ScheduleGrid: React.FC<ScheduleGridProps> = ({
-  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions
+  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
   const [parallelOrder, setParallelOrder] = useState<Record<string, string[]>>({})
@@ -728,7 +742,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
           <div key={groupIndex} className="relative flex items-stretch gap-8">
             {/* Time Column Slot */}
             <div className="flex-shrink-0 w-32 self-stretch">
-              <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between py-4">
+              <div className="h-full min-h-20 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between py-1.5">
                 <div className="text-center font-semibold text-slate-900">{timeStart}</div>
                 <div className="flex justify-center">
                   {parallelCount > 1 && (
@@ -780,6 +794,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     sessionFormOpen={sessionFormOpen}
                     showTimeColumn={false}
                     showDragHandle={parallelCount > 1}
+                    showBookmark={showBookmark}
                   />
                 ))}
               </div>

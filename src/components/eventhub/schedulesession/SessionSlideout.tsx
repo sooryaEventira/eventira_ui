@@ -88,7 +88,12 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     try {
       const newTag = await createSessionTag(eventUuid, inputValue)
       if (newTag) {
-        // Replace the temp label in draft.tags with the real UUID from backend
+        // Add to localSessionTagOptions FIRST so the UUID resolves to a name before draft.tags is updated
+        setLocalSessionTagOptions((prev) => {
+          if (prev.some((t) => t.uuid === newTag.uuid)) return prev
+          return [...prev, newTag]
+        })
+        // Then replace the temp label in draft.tags with the real UUID from backend
         setDraft((prev) => ({
           ...prev,
           tags: prev.tags.map((t) =>

@@ -87,7 +87,8 @@ export async function postSessionComment(
   eventUuid: string,
   sessionUuid: string,
   content: string,
-  parentUuid?: string | null
+  parentUuid?: string | null,
+  isAnonymous?: boolean
 ): Promise<SessionComment> {
   try {
     if (!eventUuid || !sessionUuid || !content) {
@@ -102,6 +103,10 @@ export async function postSessionComment(
 
     if (parentUuid) {
       body.parent_uuid = parentUuid
+    }
+
+    if (isAnonymous) {
+      body.is_anonymous = true
     }
 
     const token = localStorage.getItem('pub_accessToken')

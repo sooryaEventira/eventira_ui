@@ -1,9 +1,20 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import type { SavedSchedule, SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 import ScheduleGrid from '../../eventhub/schedulesession/ScheduleGrid'
 import { fetchPublicSchedules } from '../../../services/publicScheduleService'
 import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
+import { SearchLg, FilterLines, Download01 } from '@untitled-ui/icons-react'
+
+const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-Person', 'Hybrid']
+
+function sessionTypeToAttendance(sessionType: string): string {
+  const t = String(sessionType || '').toLowerCase()
+  if (t === 'virtual' || t === 'online') return 'Online'
+  if (t === 'hybrid') return 'Hybrid'
+  return 'In-Person'
+}
 
 interface PublicSchedulePageProps {
   eventUuid: string
@@ -589,6 +600,137 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
     setActiveDayIndex(0)
   }, [activeScheduleId])
 
+  // Search & filter state
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [filterLocations, setFilterLocations] = useState<Set<string>>(new Set())
+  const [filterAttendance, setFilterAttendance] = useState<Set<string>>(new Set())
+  const [filterTags, setFilterTags] = useState<Set<string>>(new Set())
+  const [filterPanelPosition, setFilterPanelPosition] = useState<{ top: number; left: number } | null>(null)
+  const filterTriggerRef = useRef<HTMLButtonElement>(null)
+  const filterPanelRef = useRef<HTMLDivElement>(null)
+
+  const locationOptions = useMemo(() => {
+    const set = new Set<string>()
+    sessions.forEach((s: any) => {
+      const loc = s?.location ?? s?.venue
+      if (loc && String(loc).trim()) set.add(String(loc).trim())
+    })
+    return ['All', ...Array.from(set).sort()]
+  }, [sessions])
+
+  const tagOptions = useMemo(() => {
+    const set = new Set<string>()
+    sessions.forEach((s: any) => {
+      const tags = Array.isArray(s?.tags) ? s.tags : []
+      tags.forEach((tag: any) => {
+        const name = String(tag?.name ?? tag ?? '').trim()
+        if (name) set.add(name)
+      })
+    })
+    return ['All', ...Array.from(set).sort()]
+  }, [sessions])
+
+  const appliedLocations = filterLocations.size === 0 || filterLocations.has('All') ? null : filterLocations
+  const appliedAttendance = filterAttendance.size === 0 || filterAttendance.has('All') ? null : filterAttendance
+  const appliedTags = filterTags.size === 0 || filterTags.has('All') ? null : filterTags
+  const appliedKeyword = searchQuery.trim().toLowerCase()
+
+  const filteredSessionsForDay = useMemo(() => {
+    let list = sessionsForDay
+    if (appliedKeyword) {
+      list = list.filter((s) => {
+        const title = String(s.title ?? '').toLowerCase()
+        const desc = String((s as any).description ?? '').toLowerCase()
+        const loc = String(s.location ?? '').toLowerCase()
+        const speakers = (Array.isArray((s as any).speakers) ? (s as any).speakers : [])
+          .map((sp: any) => [sp?.firstName, sp?.lastName, sp?.name].filter(Boolean).join(' ').toLowerCase())
+          .join(' ')
+        return title.includes(appliedKeyword) || desc.includes(appliedKeyword) || loc.includes(appliedKeyword) || speakers.includes(appliedKeyword)
+      })
+    }
+    if (appliedLocations) {
+      list = list.filter((s) => {
+        const loc = String(s.location ?? '').trim()
+        return loc && appliedLocations.has(loc)
+      })
+    }
+    if (appliedAttendance) {
+      list = list.filter((s) => appliedAttendance.has(sessionTypeToAttendance(s.sessionType ?? '')))
+    }
+    if (appliedTags) {
+      list = list.filter((s) => {
+        const sessionTags = Array.isArray(s.tags) ? s.tags : []
+        return sessionTags.some((tag: any) => appliedTags.has(String(tag?.name ?? tag ?? '').trim()))
+      })
+    }
+    return list
+  }, [sessionsForDay, appliedKeyword, appliedLocations, appliedAttendance, appliedTags])
+
+  // Position filter panel below trigger
+  useEffect(() => {
+    if (!filterOpen || !filterTriggerRef.current) return
+    const rect = filterTriggerRef.current.getBoundingClientRect()
+    setFilterPanelPosition({ top: rect.bottom + 8, left: rect.right - 250 })
+  }, [filterOpen])
+
+  // Close filter on outside click
+  useEffect(() => {
+    if (!filterOpen) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (!filterTriggerRef.current?.contains(target) && !filterPanelRef.current?.contains(target)) {
+        setFilterOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [filterOpen])
+
+  const toggleSet = (setter: React.Dispatch<React.SetStateAction<Set<string>>>, value: string) => {
+    setter((prev) => {
+      const next = new Set(prev)
+      if (value === 'All') { next.clear(); next.add('All'); return next }
+      next.delete('All')
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      if (next.size === 0) next.add('All')
+      return next
+    })
+  }
+
+  const handleFilterClearAll = () => {
+    setFilterLocations(new Set())
+    setFilterAttendance(new Set())
+    setFilterTags(new Set())
+    setFilterOpen(false)
+  }
+
+  const handleDownload = () => {
+    const lines = ['Title,Start,End,Location,Attendance,Speakers']
+    filteredSessionsForDay.forEach((s) => {
+      const speakers = (Array.isArray((s as any).speakers) ? (s as any).speakers : [])
+        .map((sp: any) => [sp?.firstName, sp?.lastName, sp?.name].filter(Boolean).join(' '))
+        .join('; ')
+      const row = [
+        `"${String(s.title ?? '').replace(/"/g, '""')}"`,
+        `"${s.startTime ?? ''} ${s.startPeriod ?? ''}"`,
+        `"${s.endTime ?? ''} ${s.endPeriod ?? ''}"`,
+        `"${String(s.location ?? '').replace(/"/g, '""')}"`,
+        `"${sessionTypeToAttendance(s.sessionType ?? '')}"`,
+        `"${speakers.replace(/"/g, '""')}"`
+      ].join(',')
+      lines.push(row)
+    })
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'schedule.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
   const toCapital = (input: string) => {
     const raw = String(input || '').trim()
     if (!raw) return ''
@@ -655,6 +797,134 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
         </div>
       ) : null}
 
+      {/* Search / Filter / Download toolbar */}
+      {activeSchedule && sessionsForDay.length > 0 && (
+        <div className="flex items-center justify-end gap-2">
+          {/* Search bar */}
+          <div className="flex items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search schedule"
+              className="w-48 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+            />
+            <button
+              type="button"
+              className="flex h-full items-center bg-primary px-3 py-2 text-white hover:bg-primary/90 transition-colors"
+              aria-label="Search"
+            >
+              <SearchLg className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Filter button */}
+          <div className="relative">
+            <button
+              ref={filterTriggerRef}
+              type="button"
+              onClick={() => setFilterOpen((v) => !v)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm text-slate-600 hover:border-primary/40 hover:text-primary transition-colors"
+              aria-label="Filter sessions"
+              aria-expanded={filterOpen}
+            >
+              <FilterLines className="h-4 w-4" strokeWidth={2} />
+            </button>
+            {filterOpen && filterPanelPosition && typeof document !== 'undefined' && createPortal(
+              <div
+                ref={filterPanelRef}
+                className="flex max-h-[min(400px,70vh)] w-[250px] flex-col rounded-xl border border-slate-200 bg-white shadow-xl"
+                style={{ position: 'fixed', top: filterPanelPosition.top, left: Math.max(8, filterPanelPosition.left), zIndex: 9999 }}
+              >
+                <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Location</label>
+                    <div className="space-y-2">
+                      {locationOptions.map((loc) => (
+                        <label key={loc} className="flex cursor-pointer items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={filterLocations.has(loc) || (filterLocations.size === 0 && loc === 'All')}
+                            onChange={() => toggleSet(setFilterLocations, loc)}
+                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                          />
+                          <span className="text-sm text-slate-800">{loc}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <hr className="border-slate-100" />
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">Attendance type</label>
+                    <div className="space-y-2">
+                      {ATTENDANCE_OPTIONS.map((att) => (
+                        <label key={att} className="flex cursor-pointer items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={filterAttendance.has(att) || (filterAttendance.size === 0 && att === 'All')}
+                            onChange={() => toggleSet(setFilterAttendance, att)}
+                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                          />
+                          <span className="text-sm text-slate-800">{att}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {tagOptions.length > 1 && (
+                    <>
+                      <hr className="border-slate-100" />
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-slate-700">Tags</label>
+                        <div className="space-y-2">
+                          {tagOptions.map((tag) => (
+                            <label key={tag} className="flex cursor-pointer items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={filterTags.has(tag) || (filterTags.size === 0 && tag === 'All')}
+                                onChange={() => toggleSet(setFilterTags, tag)}
+                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                              />
+                              <span className="text-sm text-slate-800">{tag}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="shrink-0 flex gap-2 border-t border-slate-100 px-4 py-3">
+                  <button
+                    type="button"
+                    onClick={handleFilterClearAll}
+                    className="flex-1 rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Clear all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterOpen(false)}
+                    className="flex-1 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
+
+          {/* Download button */}
+          <button
+            type="button"
+            onClick={handleDownload}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm text-slate-600 hover:border-primary/40 hover:text-primary transition-colors"
+            aria-label="Download schedule"
+          >
+            <Download01 className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
       {/* Sessions grid (read-only) */}
       {activeSchedule ? (
         sessionsForDay.length ? (
@@ -668,8 +938,9 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             ].join(' ')}
           >
             <ScheduleGrid
-              sessions={sessionsForDay}
+              sessions={filteredSessionsForDay}
               selectedDate={selectedGridDate}
+              showBookmark
               onSessionClick={onNavigate ? (session) => onNavigate(`/events/${eventUuid}/sessions/${session.id}`) : undefined}
             />
           </div>

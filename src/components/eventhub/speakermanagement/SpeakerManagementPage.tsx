@@ -412,7 +412,13 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
           title: designation || undefined,
           groups: mappedSpeakerGroups,
           sessions: undefined,
-          socialLinks: undefined
+          socialLinks: undefined,
+          customFields: (() => {
+            const cf = (speakerData as any).custom_fields ?? profile?.custom_fields ?? user?.custom_fields
+            if (!cf || typeof cf !== 'object' || Array.isArray(cf)) return undefined
+            const entries = Object.entries(cf).map(([label, value]) => ({ label, value: String(value) }))
+            return entries.length ? entries : undefined
+          })()
         }
       })
 
@@ -574,8 +580,11 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
       email: updatedSpeaker.email,
       organization: updatedSpeaker.organization,
       designation: designation || undefined,
-      bio: updatedSpeaker.bio,
+      description: updatedSpeaker.bio,
       groups: groupValues.length ? groupValues : undefined,
+      custom_fields: updatedSpeaker.customFields?.length
+        ? Object.fromEntries(updatedSpeaker.customFields.map((f) => [f.label, f.value]))
+        : undefined,
       image: options?.profileImageFile,
     })
 
