@@ -14,6 +14,7 @@ interface TableHeaderProps {
   searchPlaceholder?: string
   debounceMs?: number
   debounceSearch?: boolean
+  searchOnButtonClick?: boolean
   onTabChange: (tabId: string) => void
   onSearchChange: (query: string) => void
   onFilterClick?: () => void
@@ -29,6 +30,7 @@ export const useTableHeader = ({
   searchPlaceholder = 'Search...',
   debounceMs = 250,
   debounceSearch = true,
+  searchOnButtonClick = false,
   onTabChange,
   onSearchChange,
   onFilterClick,
@@ -44,9 +46,9 @@ export const useTableHeader = ({
   }, [searchQuery])
 
   useEffect(() => {
-    if (!debounceSearch) return
+    if (!debounceSearch || searchOnButtonClick) return
     onSearchChange(debouncedQuery)
-  }, [debouncedQuery, debounceSearch, onSearchChange])
+  }, [debouncedQuery, debounceSearch, searchOnButtonClick, onSearchChange])
 
   return useMemo(
     () => {
@@ -82,7 +84,14 @@ export const useTableHeader = ({
               onChange={(event) => {
                 const next = event.target.value
                 setLocalQuery(next)
-                if (!debounceSearch) onSearchChange(next)
+                if (searchOnButtonClick) {
+                  if (next === '') onSearchChange('')
+                } else if (!debounceSearch) {
+                  onSearchChange(next)
+                }
+              }}
+              onKeyDown={(event) => {
+                if (searchOnButtonClick && event.key === 'Enter') onSearchChange(localQuery)
               }}
               placeholder={searchPlaceholder}
               className="w-full md:w-[350px] px-3 py-2 text-sm text-slate-600 focus:outline-none min-w-0"
@@ -130,7 +139,8 @@ export const useTableHeader = ({
       showFilter,
       filterLabel,
       customActions,
-      debounceSearch
+      debounceSearch,
+      searchOnButtonClick
     ]
   )
 }

@@ -542,21 +542,9 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
   const handleSpeakerSearchChange = (query: string) => {
     setSpeakerSearchQuery(query)
+    setSpeakerCurrentPage(1)
+    loadSpeakers(1, query)
   }
-
-  // Debounced search: call API 350ms after the user stops typing
-  useEffect(() => {
-    const eventUuid = createdEvent?.uuid
-    if (!eventUuid) return
-
-    const timer = setTimeout(() => {
-      setSpeakerCurrentPage(1)
-      loadSpeakers(1, speakerSearchQuery)
-    }, 350)
-
-    return () => clearTimeout(timer)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [speakerSearchQuery, createdEvent?.uuid])
 
   const handleCreateProfile = () => {
     setIsCreateProfileModalOpen(true)

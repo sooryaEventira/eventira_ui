@@ -382,6 +382,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     searchPlaceholder,
     onTabChange: (tabId) => onTabChange(tabId as SpeakerTab),
     onSearchChange: handleSearchChange,
+    searchOnButtonClick: activeTab === 'user' && onExternalSearchChange !== undefined,
     showFilter: !(activeTab === 'user' && selectedSpeakerIds.size > 0),
     onFilterClick: onFilter || (() => {}),
     filterLabel: `Filter ${activeTab === 'custom-schedule' ? 'custom fields' : 'speakers'}`,
