@@ -30,6 +30,8 @@ interface AttendeesTableProps {
   onGridView?: () => void
   onFilter?: () => void
   isLoading?: boolean
+  externalSearchQuery?: string
+  onExternalSearchChange?: (query: string) => void
   // Bulk delete handler (used for multi-select delete button)
   onBulkDeleteAttendees?: (attendeeIds: string[]) => void | Promise<void>
   // Server-side pagination for the attendee list
@@ -58,6 +60,8 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   onGridView: _onGridView,
   onFilter,
   isLoading = false,
+  externalSearchQuery,
+  onExternalSearchChange,
   onBulkDeleteAttendees,
   serverSidePagination
 }) => {
@@ -96,15 +100,17 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const columnDropdownRef = useRef<HTMLDivElement>(null)
 
   // Filter data based on active tab
+  // When external search is active (user tab), attendees are already filtered by the API
   const filteredAttendees = useMemo(() => {
+    if (activeTab === 'user' && externalSearchQuery !== undefined) return attendees
+
     const query = searchQuery.trim().toLowerCase()
     if (!query) return attendees
 
     return attendees.filter((attendee) => {
-      // Search by attendee name only
       return String(attendee.name ?? '').toLowerCase().includes(query)
     })
-  }, [searchQuery, attendees])
+  }, [searchQuery, attendees, activeTab, externalSearchQuery])
 
 
   const filteredCustomFields = useMemo(() => {
@@ -344,6 +350,18 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     }
   }, [activeTab, onCreateField, onCreateProfile])
 
+  const activeSearchQuery = activeTab === 'user' && externalSearchQuery !== undefined
+    ? externalSearchQuery
+    : searchQuery
+
+  const handleSearchChange = (query: string) => {
+    if (activeTab === 'user' && onExternalSearchChange) {
+      onExternalSearchChange(query)
+    } else {
+      setSearchQuery(query)
+    }
+  }
+
   const tableHeader = useTableHeader({
     tabs: [
       { id: 'user', label: 'User' },
@@ -351,10 +369,11 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
       { id: 'custom-schedule', label: 'Custom schedule' }
     ],
     activeTabId: activeTab,
-    searchQuery,
+    searchQuery: activeSearchQuery,
     searchPlaceholder,
     onTabChange: (tabId) => onTabChange(tabId as AttendeeTab),
-    onSearchChange: setSearchQuery,
+    onSearchChange: handleSearchChange,
+    searchOnButtonClick: activeTab === 'user' && onExternalSearchChange !== undefined,
     showFilter: !(activeTab === 'user' && selectedAttendeeIds.size > 0),
     onFilterClick: onFilter || (() => {}),
     filterLabel: `Filter ${activeTab === 'custom-schedule' ? 'custom fields' : 'attendees'}`,

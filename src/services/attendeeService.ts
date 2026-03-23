@@ -343,6 +343,77 @@ export const fetchAttendees = async (eventUuid: string, page = 1): Promise<Atten
   }
 }
 
+/**
+ * Search attendees by query string (server-side)
+ */
+export const searchAttendees = async (eventUuid: string, query: string, tagId?: string): Promise<AttendeesPageResult> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
+    }
+
+    if (!eventUuid) {
+      throw new Error(handleApiError('Event UUID is required.', undefined, 'Event UUID is required.'))
+    }
+
+    const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.SEARCH(eventUuid, query, tagId)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      let errorData: any = null
+      try { errorData = responseText ? JSON.parse(responseText) : null } catch { /* ignore */ }
+      throw new Error(handleApiError(errorData || responseText || null, response, 'Failed to search attendees.'))
+    }
+
+    let responseData: any
+    try {
+      responseData = await response.json()
+    } catch {
+      throw new Error(handleParseError('Invalid response from server.'))
+    }
+
+    if (responseData?.status === 'error') {
+      throw new Error(handleApiError(responseData, undefined, 'Failed to search attendees.'))
+    }
+
+    if (Array.isArray(responseData)) return { data: responseData, count: responseData.length, next: null, previous: null }
+    if (Array.isArray(responseData?.data)) return {
+      data: responseData.data,
+      count: typeof responseData.count === 'number' ? responseData.count : responseData.data.length,
+      next: responseData.next ?? null,
+      previous: responseData.previous ?? null,
+    }
+    if (Array.isArray(responseData?.results)) return {
+      data: responseData.results,
+      count: typeof responseData.count === 'number' ? responseData.count : responseData.results.length,
+      next: responseData.next ?? null,
+      previous: responseData.previous ?? null,
+    }
+
+    return { data: [], count: 0, next: null, previous: null }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(error.message || 'Network error occurred')
+    }
+    throw error
+  }
+}
+
 export interface CreateTagRequest {
   event_uuid: string
   name: string

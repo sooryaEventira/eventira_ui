@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { uploadUserFile, fetchAttendees, fetchTags, deleteAttendee, updateAttendee, bulkAddAttendeeTag, bulkDeleteAttendees, type AttendeeData } from '../../../services/attendeeService'
+import { uploadUserFile, fetchAttendees, searchAttendees, fetchTags, deleteAttendee, updateAttendee, bulkAddAttendeeTag, bulkDeleteAttendees, type AttendeeData } from '../../../services/attendeeService'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import AttendeesTable from './AttendeesTable'
@@ -109,6 +109,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   const [builtGroupIds, setBuiltGroupIds] = useState<Set<string>>(new Set())
   const [attendeeCurrentPage, setAttendeeCurrentPage] = useState(1)
   const [attendeeTotalCount, setAttendeeTotalCount] = useState(0)
+  const [attendeeSearchQuery, setAttendeeSearchQuery] = useState('')
 
   const eventUuid = createdEvent?.uuid || ''
 
@@ -157,8 +158,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     await loadAttendees()
   }
 
-  // Load attendees from API
-  const loadAttendees = async (page = attendeeCurrentPage) => {
+  // Load attendees from API (or search if query is provided)
+  const loadAttendees = async (page = attendeeCurrentPage, query = '') => {
     const eventUuid = createdEvent?.uuid
 
     if (!eventUuid) {
@@ -167,7 +168,9 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
 
     setIsLoadingAttendees(true)
     try {
-      const result = await fetchAttendees(eventUuid, page)
+      const result = query
+        ? await searchAttendees(eventUuid, query)
+        : await fetchAttendees(eventUuid, page)
       const attendeesData = result.data
       setAttendeeTotalCount(result.count)
 
@@ -331,7 +334,13 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
 
   const handleAttendeePageChange = (page: number) => {
     setAttendeeCurrentPage(page)
-    loadAttendees(page)
+    loadAttendees(page, attendeeSearchQuery)
+  }
+
+  const handleAttendeeSearchChange = (query: string) => {
+    setAttendeeSearchQuery(query)
+    setAttendeeCurrentPage(1)
+    loadAttendees(1, query)
   }
 
   const handleCreateProfile = () => {
@@ -574,6 +583,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onDownload={handleDownload}
             onGridView={handleGridView}
             onFilter={handleFilter}
+            externalSearchQuery={attendeeSearchQuery}
+            onExternalSearchChange={handleAttendeeSearchChange}
             serverSidePagination={{
               totalCount: attendeeTotalCount,
               currentPage: attendeeCurrentPage,

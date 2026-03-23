@@ -207,7 +207,12 @@ export const API_ENDPOINTS = {
     BULK_ADD_TAG: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/bulk-add-tag/?event_id=${eventUuid}`,
     BULK_DELETE: (eventUuid: string) =>
-      `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/bulk-delete/?event_id=${eventUuid}`
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/bulk-delete/?event_id=${eventUuid}`,
+    SEARCH: (eventUuid: string, query: string, tagId?: string) => {
+      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/search/?event_id=${eventUuid}&q=${encodeURIComponent(query)}`
+      if (tagId) url += `&tag_id=${tagId}`
+      return url
+    },
   },
   // Tags/Groups endpoints
   TAGS: {
