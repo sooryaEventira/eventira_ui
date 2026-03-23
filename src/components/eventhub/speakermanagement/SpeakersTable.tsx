@@ -31,6 +31,8 @@ interface SpeakersTableProps {
   onGridView?: () => void
   onFilter?: () => void
   isLoading?: boolean
+  externalSearchQuery?: string
+  onExternalSearchChange?: (query: string) => void
   // Bulk delete handler (multi-select delete)
   onBulkDeleteSpeakers?: (speakerIds: string[]) => void | Promise<void>
   // Server-side pagination for the speaker list
@@ -60,7 +62,9 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   onGridView,
   onFilter,
   onBulkDeleteSpeakers,
-  serverSidePagination
+  serverSidePagination,
+  externalSearchQuery,
+  onExternalSearchChange
 }) => {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSpeakerIds, setSelectedSpeakerIds] = useState<Set<string>>(new Set())
@@ -96,15 +100,17 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   })
 
   // Filter data based on active tab
+  // When external search is active (user tab), speakers are already filtered by the API
   const filteredSpeakers = useMemo(() => {
+    if (activeTab === 'user' && externalSearchQuery !== undefined) return speakers
+
     const query = searchQuery.trim().toLowerCase()
     if (!query) return speakers
 
     return speakers.filter((speaker) => {
-      // Search by speaker name only
       return String(speaker.name ?? '').toLowerCase().includes(query)
     })
-  }, [searchQuery, speakers])
+  }, [searchQuery, speakers, activeTab, externalSearchQuery])
 
 
   const filteredCustomFields = useMemo(() => {
@@ -353,6 +359,18 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     }
   }, [activeTab, onCreateField, onCreateProfile])
 
+  const activeSearchQuery = activeTab === 'user' && externalSearchQuery !== undefined
+    ? externalSearchQuery
+    : searchQuery
+
+  const handleSearchChange = (query: string) => {
+    if (activeTab === 'user' && onExternalSearchChange) {
+      onExternalSearchChange(query)
+    } else {
+      setSearchQuery(query)
+    }
+  }
+
   const tableHeader = useTableHeader({
     tabs: [
       { id: 'user', label: 'User' },
@@ -360,10 +378,10 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
       { id: 'custom-schedule', label: 'Custom schedule' }
     ],
     activeTabId: activeTab,
-    searchQuery,
+    searchQuery: activeSearchQuery,
     searchPlaceholder,
     onTabChange: (tabId) => onTabChange(tabId as SpeakerTab),
-    onSearchChange: setSearchQuery,
+    onSearchChange: handleSearchChange,
     showFilter: !(activeTab === 'user' && selectedSpeakerIds.size > 0),
     onFilterClick: onFilter || (() => {}),
     filterLabel: `Filter ${activeTab === 'custom-schedule' ? 'custom fields' : 'speakers'}`,

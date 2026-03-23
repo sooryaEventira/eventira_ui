@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { uploadSpeakerFile, fetchSpeakers, fetchSpeakerTags, updateSpeaker, deleteSpeaker, bulkAddSpeakerTag, bulkDeleteSpeakers, type SpeakerData } from '../../../services/speakerService'
+import { uploadSpeakerFile, fetchSpeakers, searchSpeakers, fetchSpeakerTags, updateSpeaker, deleteSpeaker, bulkAddSpeakerTag, bulkDeleteSpeakers, type SpeakerData } from '../../../services/speakerService'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import SpeakersTable from './SpeakersTable'
@@ -108,6 +108,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   const [builtGroupIds, setBuiltGroupIds] = useState<Set<string>>(new Set())
   const [speakerCurrentPage, setSpeakerCurrentPage] = useState(1)
   const [speakerTotalCount, setSpeakerTotalCount] = useState(0)
+  const [speakerSearchQuery, setSpeakerSearchQuery] = useState('')
 
   const eventUuid = createdEvent?.uuid || ''
 
@@ -160,8 +161,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     setIsUploadModalOpen(false)
   }
 
-  // Load speakers from API
-  const loadSpeakers = async (page = speakerCurrentPage) => {
+  // Load speakers from API (or search if query is provided)
+  const loadSpeakers = async (page = speakerCurrentPage, query = '') => {
     const eventUuid = createdEvent?.uuid
 
     if (!eventUuid) {
@@ -171,7 +172,9 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
     setIsLoadingSpeakers(true)
     try {
-      const result = await fetchSpeakers(eventUuid, page)
+      const result = query
+        ? await searchSpeakers(eventUuid, query)
+        : await fetchSpeakers(eventUuid, page)
       const speakersData = result.data
       setSpeakerTotalCount(result.count)
 
@@ -534,8 +537,26 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
   const handleSpeakerPageChange = (page: number) => {
     setSpeakerCurrentPage(page)
-    loadSpeakers(page)
+    loadSpeakers(page, speakerSearchQuery)
   }
+
+  const handleSpeakerSearchChange = (query: string) => {
+    setSpeakerSearchQuery(query)
+  }
+
+  // Debounced search: call API 350ms after the user stops typing
+  useEffect(() => {
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) return
+
+    const timer = setTimeout(() => {
+      setSpeakerCurrentPage(1)
+      loadSpeakers(1, speakerSearchQuery)
+    }, 350)
+
+    return () => clearTimeout(timer)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [speakerSearchQuery, createdEvent?.uuid])
 
   const handleCreateProfile = () => {
     setIsCreateProfileModalOpen(true)
@@ -790,6 +811,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
             onDownload={handleDownload}
             onGridView={handleGridView}
             onFilter={handleFilter}
+            externalSearchQuery={speakerSearchQuery}
+            onExternalSearchChange={handleSpeakerSearchChange}
             serverSidePagination={{
               totalCount: speakerTotalCount,
               currentPage: speakerCurrentPage,

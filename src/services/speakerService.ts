@@ -426,6 +426,86 @@ export const fetchSpeakers = async (eventUuid: string, page = 1): Promise<Speake
 }
 
 /**
+ * Search speakers by query string (server-side)
+ */
+export const searchSpeakers = async (eventUuid: string, query: string, tagId?: string): Promise<SpeakersPageResult> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) {
+      throw new Error(handleApiError('Authentication required. Please login again.', undefined, 'Authentication required. Please login again.'))
+    }
+
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!organizationUuid) {
+      throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
+    }
+
+    if (!eventUuid) {
+      throw new Error(handleApiError('Event UUID is required.', undefined, 'Event UUID is required.'))
+    }
+
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.SEARCH(eventUuid, query, tagId)
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+
+    if (!response.ok) {
+      const responseText = await response.text()
+      let errorData: any = null
+      try { errorData = responseText ? JSON.parse(responseText) : null } catch { /* ignore */ }
+      const errorMessage = handleApiError(errorData || responseText || null, response, 'Failed to search speakers.')
+      throw new Error(errorMessage)
+    }
+
+    let responseData: any
+    try {
+      responseData = await response.json()
+    } catch {
+      throw new Error(handleParseError('Invalid response from server.'))
+    }
+
+    if (responseData.status === 'error') {
+      throw new Error(handleApiError(responseData, undefined, 'Failed to search speakers.'))
+    }
+
+    let speakers: SpeakerData[]
+    let totalCount = 0
+    let next: string | null = null
+    let previous: string | null = null
+
+    if (Array.isArray(responseData)) {
+      speakers = responseData
+      totalCount = speakers.length
+    } else if (responseData.data && Array.isArray(responseData.data)) {
+      speakers = responseData.data
+      totalCount = typeof responseData.count === 'number' ? responseData.count : speakers.length
+      next = responseData.next ?? null
+      previous = responseData.previous ?? null
+    } else if (responseData.results && Array.isArray(responseData.results)) {
+      speakers = responseData.results
+      totalCount = typeof responseData.count === 'number' ? responseData.count : speakers.length
+      next = responseData.next ?? null
+      previous = responseData.previous ?? null
+    } else {
+      return { data: [], count: 0, next: null, previous: null }
+    }
+
+    return { data: speakers, count: totalCount, next, previous }
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(error.message || 'Network error occurred')
+    }
+    throw error
+  }
+}
+
+/**
  * Fetch speaker tags for an event.
  * Endpoint: {{url}}{{admin_url}}speakers/tags/?event_id={{event_uuid}}
  */

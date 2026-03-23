@@ -308,6 +308,11 @@ export const API_ENDPOINTS = {
       `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/bulk-add-tag/?event_id=${eventUuid}`,
     BULK_DELETE: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/bulk-delete/?event_id=${eventUuid}`,
+    SEARCH: (eventUuid: string, query: string, tagId?: string) => {
+      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/search/?event_id=${eventUuid}&q=${encodeURIComponent(query)}`
+      if (tagId) url += `&tag_id=${tagId}`
+      return url
+    },
   },
   // Organization/Exhibitors endpoints
   EXHIBITORS: {
