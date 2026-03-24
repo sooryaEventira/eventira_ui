@@ -70,6 +70,13 @@ export function useAuth(
         if (refresh) localStorage.setItem('refreshToken', refresh)
         localStorage.setItem('userEmail', email)
 
+        const pendingInvites = response.data?.pending_invites
+        if (Array.isArray(pendingInvites) && pendingInvites.length > 0) {
+          localStorage.setItem('pendingInvitesFromToken', JSON.stringify(pendingInvites))
+        } else {
+          localStorage.removeItem('pendingInvitesFromToken')
+        }
+
         if (organizations && organizations.length > 0) {
           localStorage.setItem('organizationsFromToken', JSON.stringify(organizations))
           if (organizations.length === 1) {
@@ -94,8 +101,12 @@ export function useAuth(
       setIsAuthenticated(true)
       localStorage.setItem('isAuthenticated', 'true')
       const hasOrg = hasOrganization()
+      const hasPendingInvites = Array.isArray(response.data?.pending_invites) && response.data.pending_invites.length > 0
 
-      if (hasOrg) {
+      if (hasPendingInvites) {
+        // Always show org select page so invitee can see & act on pending invitations
+        setShowOrganizationSelect(true)
+      } else if (hasOrg) {
         setCurrentView('dashboard')
       } else if (organizations && organizations.length > 0) {
         setShowOrganizationSelect(true)
@@ -200,6 +211,7 @@ export function useAuth(
     localStorage.removeItem('organizationUuid')
     localStorage.removeItem('organizationName')
     localStorage.removeItem('organizationsFromToken')
+    localStorage.removeItem('pendingInvitesFromToken')
     localStorage.removeItem('userRole')
     showToast.success('Logged out successfully')
   }
