@@ -1,6 +1,9 @@
 /**
  * Icon names from iconsax-react (ESM namespace is not enumerable, so we list them explicitly).
  */
+export const ICONSAX_VARIANTS = ['Linear', 'Outline', 'Broken', 'Bold', 'Bulk', 'TwoTone'] as const
+export type IconsaxVariant = typeof ICONSAX_VARIANTS[number]
+
 export const ICONSAX_ICON_NAMES: string[] = [
   'Aave', 'Activity', 'Add', 'AddCircle', 'AddSquare', 'Additem', 'Airdrop', 'Airplane', 'AirplaneSquare',
   'Airpod', 'Airpods', 'Alarm', 'AlignBottom', 'AlignHorizontally', 'AlignLeft', 'AlignRight', 'AlignTop',

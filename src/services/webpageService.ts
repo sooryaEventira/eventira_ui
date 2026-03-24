@@ -660,7 +660,7 @@ export const deleteWebpage = async (webpageUuid: string, eventUuid: string): Pro
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.WEBPAGE.DELETE(webpageUuid)
+    const url = API_ENDPOINTS.WEBPAGE.DELETE(webpageUuid, eventUuid)
     const response = await fetch(url, {
       method: 'DELETE',
       headers: {

@@ -10,6 +10,7 @@ import {
   createWebpage,
   fetchWebpages,
   fetchWebsiteIndex,
+  deleteWebpage,
   type CreateWebpageRequest,
   type WebpageData,
   type WebsiteIndexTag
@@ -23,7 +24,7 @@ import { showToast } from '../../../utils/toast'
 import { getDefaultTemplateData } from '../../../hooks/usePageManagement'
 import type { NavigationItem } from '../../../types/navigation'
 import { isFolder, isPage } from '../../../utils/navigationTree'
-import { NAV_ICON_KEYS, renderNavIcon } from '../../../utils/navIcons'
+import { NAV_ICON_KEYS, renderNavIcon, ICONSAX_VARIANTS, buildIconKey, parseIconKey } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
 import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder, AlertCircle } from '@untitled-ui/icons-react'
@@ -72,6 +73,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
+  const [iconPickerVariant, setIconPickerVariant] = useState<string>('Linear')
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
   const iconPopoverRef = useRef<HTMLDivElement | null>(null)
   const ensuredWelcomeWebpageForEventRef = useRef<string | null>(null)
@@ -1227,6 +1229,7 @@ const loadNavigationFromApi = useCallback(async () => {
                             setIconPickerAnchor({ top, left, width: popoverWidth })
                             setIconPickerForNavId(item.id)
                             setIconPickerQuery('')
+                            setIconPickerVariant(currentIcon ? parseIconKey(currentIcon).variant : 'Linear')
                           }}
                           className="px-2"
                         >
@@ -1280,7 +1283,7 @@ const loadNavigationFromApi = useCallback(async () => {
                 top: iconPickerAnchor.top,
                 left: iconPickerAnchor.left,
                 width: iconPickerAnchor.width,
-                maxHeight: 420
+                maxHeight: 460
               }}
               role="dialog"
               aria-label="Choose an icon"
@@ -1306,6 +1309,25 @@ const loadNavigationFromApi = useCallback(async () => {
                 />
               </div>
 
+              {/* Variant tabs */}
+              <div className="mt-2 flex flex-wrap gap-1">
+                {ICONSAX_VARIANTS.map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setIconPickerVariant(v)}
+                    className={[
+                      'rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors',
+                      iconPickerVariant === v
+                        ? 'border-primary bg-primary text-white'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    ].join(' ')}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+
               <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
                 <span>
                   {limitedIconKeys.length} results
@@ -1323,27 +1345,28 @@ const loadNavigationFromApi = useCallback(async () => {
                 </button>
               </div>
 
-              <div className="mt-2 overflow-auto pr-1" style={{ maxHeight: 320 }}>
+              <div className="mt-2 overflow-auto pr-1" style={{ maxHeight: 300 }}>
                 <div className="grid grid-cols-4 gap-2">
                   {limitedIconKeys.map((key) => {
+                    const compositeKey = buildIconKey(key, iconPickerVariant)
                     const found = flat.find((x) => x.item.id === iconPickerForNavId)
                     const isSelected =
-                      isPage(found?.item as any) && (found?.item as any)?.iconKey === key
+                      isPage(found?.item as any) && (found?.item as any)?.iconKey === compositeKey
                     return (
                       <button
                         key={key}
                         type="button"
                         onClick={() => {
-                          setNavItemIcon(iconPickerForNavId, key)
+                          setNavItemIcon(iconPickerForNavId, compositeKey)
                           closeIconPicker()
                         }}
                         className={[
                           'flex flex-col items-center justify-center gap-1 rounded-lg border p-2 transition-colors',
                           isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 hover:bg-slate-50'
                         ].join(' ')}
-                        title={key}
+                        title={`${key} (${iconPickerVariant})`}
                       >
-                        <span className="text-slate-700">{renderNavIcon(key, 'h-5 w-5')}</span>
+                        <span className="text-slate-700">{renderNavIcon(compositeKey, 'h-5 w-5')}</span>
                         <span className="w-full truncate text-[10px] text-slate-600">{key}</span>
                       </button>
                     )
@@ -1645,13 +1668,17 @@ const loadNavigationFromApi = useCallback(async () => {
   }
 
   const confirmDelete = async () => {
-    if (showDeleteConfirm) {
-      // TODO: Implement backend API call to delete webpage
-      // deletePage(showDeleteConfirm.id) // This is for local pages, not backend webpages
-      // For now, remove from local state and refresh the list
-      setWebpages(prev => prev.filter(w => w.uuid !== showDeleteConfirm.id))
+    if (!showDeleteConfirm) return
+    const { id: webpageUuid, name } = showDeleteConfirm
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) return
+    try {
+      await deleteWebpage(webpageUuid, eventUuid)
+      setWebpages(prev => prev.filter(w => w.uuid !== webpageUuid))
       setShowDeleteConfirm(null)
-      // TODO: Call backend API to delete webpage: deleteWebpage(showDeleteConfirm.id, createdEvent?.uuid)
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Failed to delete page.'
+      alert(msg)
     }
   }
 

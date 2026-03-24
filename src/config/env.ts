@@ -111,7 +111,7 @@ export const API_ENDPOINTS = {
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/?event_id=${eventUuid}`,
     GET: (webpageUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/?event_id=${eventUuid}`,
     UPDATE: (webpageUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/`,
-    DELETE: (webpageUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/`,
+    DELETE: (webpageUuid: string, eventUuid?: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}webpages/${webpageUuid}/${eventUuid ? `?event_id=${eventUuid}` : ''}`,
   },
   // Event website index (navigation + webpages list for event website)
   WEBSITE: {
