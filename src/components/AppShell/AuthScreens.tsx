@@ -75,6 +75,8 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
     )
   }
 
+  const hasInviteInUrl = Boolean(new URLSearchParams(window.location.search).get('invite'))
+
   if (!isAuthenticated) {
     if (showCreatePassword && !isLoginPath) {
       return withSuspense(
@@ -100,7 +102,7 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
       )
     }
 
-    if (showRegistration && !isLoginPath) {
+    if ((showRegistration || hasInviteInUrl) && !isLoginPath) {
       return withSuspense(
         <RegistrationPage
           onSubmit={handleRegistration}

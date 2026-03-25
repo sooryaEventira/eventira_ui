@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { showToast } from '../utils/toast'
 import { verifyRegistrationOtp, createPassword, createOrganization, signIn } from '../services/authService'
+import { fetchMyInvitations } from '../services/teamService'
 
 export function hasOrganization(): boolean {
   const orgUuid = localStorage.getItem('organizationUuid')
@@ -59,13 +60,41 @@ export function useAuth(
   const [isCreatingOrganization, setIsCreatingOrganization] = useState(false)
   const [organizationCreationError, setOrganizationCreationError] = useState<string | null>(null)
 
-  // On mount: if already authenticated and URL has ?invite= or pending invites exist, show org select page
+  // On mount: if already authenticated (with a real token) and URL has ?invite= or pending invites exist,
+  // fetch invite details from the API and show org select page.
   useEffect(() => {
     if (!isAuthenticated) return
+    // Guard against stale isAuthenticated flag — require a real access token
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken) return
+
     const params = new URLSearchParams(window.location.search)
     const inviteFromUrl = params.get('invite')
     const hasPendingInStorage = Boolean(localStorage.getItem('pendingInvitesFromToken'))
-    if (inviteFromUrl || hasPendingInStorage) {
+
+    if (inviteFromUrl && !hasPendingInStorage) {
+      // Invite UUID is in the URL but we have no invite data yet — fetch from API
+      fetchMyInvitations()
+        .then((invites) => {
+          const pending = invites.filter((i) => i.status === 'pending')
+          if (pending.length > 0) {
+            const mapped = pending.map((i) => ({
+              invite_uuid: i.uuid,
+              organization_uuid: i.organization.uuid,
+              organization_name: i.organization.name,
+              role: i.role,
+              invited_by: null,
+              expires_at: i.expires_at,
+            }))
+            localStorage.setItem('pendingInvitesFromToken', JSON.stringify(mapped))
+          }
+          setShowOrganizationSelect(true)
+        })
+        .catch(() => {
+          // If API fails, still show org select so user isn't stuck
+          setShowOrganizationSelect(true)
+        })
+    } else if (hasPendingInStorage) {
       setShowOrganizationSelect(true)
     }
   }, [isAuthenticated])
@@ -163,9 +192,40 @@ export function useAuth(
         if (access) localStorage.setItem('accessToken', access)
         if (refresh) localStorage.setItem('refreshToken', refresh)
         if (user?.email) localStorage.setItem('userEmail', user.email)
+
+        // Save pending invites so OrganizationSelectPage can show them
+        const pendingInvites = response.data?.pending_invites
+        if (Array.isArray(pendingInvites) && pendingInvites.length > 0) {
+          localStorage.setItem('pendingInvitesFromToken', JSON.stringify(pendingInvites))
+        } else {
+          localStorage.removeItem('pendingInvitesFromToken')
+        }
+
+        // Save organizations from token
+        const organizations = response.data?.organizations
+        if (Array.isArray(organizations) && organizations.length > 0) {
+          localStorage.setItem('organizationsFromToken', JSON.stringify(organizations))
+        } else {
+          localStorage.removeItem('organizationsFromToken')
+        }
+
+        setIsAuthenticated(true)
+        localStorage.setItem('isAuthenticated', 'true')
+        setShowCreatePassword(false)
+
+        const hasPendingInvites = Array.isArray(pendingInvites) && pendingInvites.length > 0
+        const hasOrgs = Array.isArray(organizations) && organizations.length > 0
+
+        if (hasPendingInvites || hasOrgs) {
+          // Show org select page so the new user can see & act on pending invitations
+          setShowOrganizationSelect(true)
+        } else {
+          setShowEventspaceSetup(true)
+        }
+      } else {
+        setShowCreatePassword(false)
+        setShowEventspaceSetup(true)
       }
-      setShowCreatePassword(false)
-      setShowEventspaceSetup(true)
     } catch (error) {
       setPasswordCreationError(
         error instanceof Error ? error.message : 'Failed to create password. Please try again.'
