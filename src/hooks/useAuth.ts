@@ -59,6 +59,17 @@ export function useAuth(
   const [isCreatingOrganization, setIsCreatingOrganization] = useState(false)
   const [organizationCreationError, setOrganizationCreationError] = useState<string | null>(null)
 
+  // On mount: if already authenticated and URL has ?invite= or pending invites exist, show org select page
+  useEffect(() => {
+    if (!isAuthenticated) return
+    const params = new URLSearchParams(window.location.search)
+    const inviteFromUrl = params.get('invite')
+    const hasPendingInStorage = Boolean(localStorage.getItem('pendingInvitesFromToken'))
+    if (inviteFromUrl || hasPendingInStorage) {
+      setShowOrganizationSelect(true)
+    }
+  }, [isAuthenticated])
+
   const handleLogin = async (email: string, password: string) => {
     try {
       const response = await signIn(email, password)

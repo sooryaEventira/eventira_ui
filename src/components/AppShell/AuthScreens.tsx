@@ -50,7 +50,11 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
 
   const isLoginPath = typeof window !== 'undefined' && window.location.pathname === '/login'
 
-  if (isAuthenticated && !hasOrganization() && showOrganizationSelect && !showCreatePassword && !showEmailVerification && !showRegistration) {
+  const hasPendingInvites =
+    Boolean(localStorage.getItem('pendingInvitesFromToken')) ||
+    Boolean(new URLSearchParams(window.location.search).get('invite'))
+
+  if (isAuthenticated && showOrganizationSelect && (!hasOrganization() || hasPendingInvites) && !showCreatePassword && !showEmailVerification && !showRegistration) {
     return withSuspense(
       <OrganizationSelectPage
         onSelect={handleOrganizationSelect}

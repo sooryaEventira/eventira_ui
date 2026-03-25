@@ -143,8 +143,12 @@ const App: React.FC = () => {
     handleProfileClick
   }
 
-  // Auth screens when not authenticated or no organization
-  if (!auth.isAuthenticated || !hasOrganization()) {
+  // Auth screens when not authenticated, no organization, or has pending invites to handle
+  const hasPendingInvites =
+    Boolean(localStorage.getItem('pendingInvitesFromToken')) ||
+    Boolean(new URLSearchParams(window.location.search).get('invite'))
+
+  if (!auth.isAuthenticated || !hasOrganization() || (auth.showOrganizationSelect && hasPendingInvites)) {
     return <AuthScreens auth={auth} />
   }
 
