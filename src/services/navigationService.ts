@@ -406,7 +406,8 @@ export async function deleteNavigationFolder(eventUuid: string, folderUuid: stri
 export async function updateNavigationItemIcon(
   eventUuid: string,
   itemUuid: string,
-  icon: string | null
+  icon: string | null,
+  childUuid?: string
 ): Promise<void> {
   try {
     const accessToken = localStorage.getItem('accessToken')
@@ -438,7 +439,7 @@ export async function updateNavigationItemIcon(
         'X-Organization': organizationUuid,
       },
       credentials: 'include',
-      body: JSON.stringify({ icon: icon }),
+      body: JSON.stringify({ icon: icon, ...(childUuid ? { child_uuid: childUuid } : {}) }),
     })
 
     if (!response || !response.ok) {

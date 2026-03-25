@@ -75,6 +75,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [iconPickerQuery, setIconPickerQuery] = useState('')
   const [iconPickerVariant, setIconPickerVariant] = useState<string>('Linear')
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [iconPickerParentGroupId, setIconPickerParentGroupId] = useState<string | null>(null)
   const iconPopoverRef = useRef<HTMLDivElement | null>(null)
   const ensuredWelcomeWebpageForEventRef = useRef<string | null>(null)
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
@@ -170,6 +171,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     setIconPickerForNavId(null)
     setIconPickerQuery('')
     setIconPickerAnchor(null)
+    setIconPickerParentGroupId(null)
   }, [])
 
   // Close icon popover on outside click / Esc
@@ -412,12 +414,14 @@ const loadNavigationFromApi = useCallback(async () => {
       // Treat speaker_group / attendee_group / schedule_group / organization_group as special "group" folders
       if (itemType === 'folder' || itemType.endsWith('_group')) {
         const children = mapItems(raw?.items || [])
+        const folderIconKey = raw?.icon ? String(raw.icon) : undefined
         out.push({
           id: uuid,
           type: 'folder',
           title,
           children,
           originalItemType: itemType,
+          iconKey: folderIconKey,
         } as any)
         continue
       }
@@ -902,10 +906,15 @@ const loadNavigationFromApi = useCallback(async () => {
 
   const renderNavigationTab = () => {
     const eventUuid = eventUuidForNavigation
-    const flatten = (list: NavigationItem[], depth = 0): Array<{ item: NavigationItem; depth: number }> => {
-      const out: Array<{ item: NavigationItem; depth: number }> = []
+    const flatten = (
+      list: NavigationItem[],
+      depth = 0,
+      parentId: string | null = null,
+      parentIsGroup = false
+    ): Array<{ item: NavigationItem; depth: number; parentId: string | null; parentIsGroup: boolean }> => {
+      const out: Array<{ item: NavigationItem; depth: number; parentId: string | null; parentIsGroup: boolean }> = []
       for (const it of list) {
-        out.push({ item: it, depth })
+        out.push({ item: it, depth, parentId, parentIsGroup })
 
         if (isFolder(it) && Array.isArray(it.children) && it.children.length && expandedFolderIds.has(it.id)) {
           // Prevent folder appearing as its own child (e.g. group name === item name causing duplicate render).
@@ -930,7 +939,8 @@ const loadNavigationFromApi = useCallback(async () => {
             return true
           })
 
-          out.push(...flatten(dedupedChildren, depth + 1))
+          const isGroupFolder = String((it as any).originalItemType ?? 'folder').endsWith('_group')
+          out.push(...flatten(dedupedChildren, depth + 1, it.id, isGroupFolder))
         }
       }
       return out
@@ -957,21 +967,23 @@ const loadNavigationFromApi = useCallback(async () => {
 
     const activeId = navigationPreviewActive ?? visibleFlat[0]?.item?.id ?? null
 
-    const setNavItemIcon = async (targetId: string, iconKey?: string) => {
+    const setNavItemIcon = async (targetId: string, iconKey?: string, parentGroupId?: string | null) => {
       if (!eventUuid) return
       const walk = (list: NavigationItem[]): NavigationItem[] =>
         list.map((it) => {
-          if (isFolder(it)) {
-            return { ...it, children: walk(it.children || []) }
-          }
-          if (it.id !== targetId) return it
-          return { ...it, iconKey: iconKey || undefined }
+          if (it.id === targetId) return { ...it, iconKey: iconKey || undefined } as any
+          if (isFolder(it)) return { ...it, children: walk(it.children || []) }
+          return it
         })
       const prev = items
       const next = walk(prev)
       setNavigationFromApi(next)
+      // For group folders and their children, nav_item_uuid in URL = group UUID,
+      // child_uuid in body = the item being updated (group itself or child).
+      const apiNavItemUuid = parentGroupId ?? targetId
+      const apiChildUuid = parentGroupId ? targetId : undefined
       try {
-        await updateNavigationItemIcon(eventUuid, targetId, iconKey ?? null)
+        await updateNavigationItemIcon(eventUuid, apiNavItemUuid, iconKey ?? null, apiChildUuid)
         setNavSavedJson(JSON.stringify(next))
       } catch (e: any) {
         setNavigationFromApi(prev)
@@ -1096,14 +1108,15 @@ const loadNavigationFromApi = useCallback(async () => {
                 <p>No menu items yet. Create pages or folders to see them here.</p>
               </div>
             ) : (
-              flat.map(({ item, depth }, flatIndex) => {
+              flat.map(({ item, depth, parentId, parentIsGroup }, flatIndex) => {
                 const folder = isFolder(item)
                 const page = isPage(item)
+                const isGroupFolder = folder && String((item as any).originalItemType ?? 'folder').endsWith('_group')
                 const isSystemPage = page && String(item.pageId).startsWith('system:')
                 const isWebpage = page && !isSystemPage
                 const isWelcome = isWebpage && String(item.title || '').toLowerCase() === 'welcome'
                 const isHidden = hiddenNavIds.has(item.id)
-                const currentIcon = page ? (item as any).iconKey : undefined
+                const currentIcon = (item as any).iconKey as string | undefined
                 return (
                   <div
                     key={`nav-${flatIndex}-${item.id}`}
@@ -1182,8 +1195,12 @@ const loadNavigationFromApi = useCallback(async () => {
                           <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
                         </svg>
                       </span>
-                      {folder && (item as any).metaKind !== 'group' ? (
-                        <Folder className={`h-4 w-4 shrink-0 ${isHidden ? 'text-slate-300' : 'text-slate-500'}`} aria-hidden="true" />
+                      {folder ? (
+                        <span className={`shrink-0 ${isHidden ? 'text-slate-300' : 'text-slate-500'}`} aria-hidden="true">
+                          {currentIcon
+                            ? renderNavIcon(currentIcon, 'h-4 w-4')
+                            : <Folder className="h-4 w-4" />}
+                        </span>
                       ) : page ? (
                         <span className={`shrink-0 ${isHidden ? 'text-slate-300' : 'text-slate-500'}`} aria-hidden="true">
                           {renderNavIcon(currentIcon, 'h-4 w-4')}
@@ -1213,11 +1230,12 @@ const loadNavigationFromApi = useCallback(async () => {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      {page ? (
+                      {(page || isGroupFolder) ? (
                         <Button
                           variant="tertiary"
                           size="sm"
                           onClick={(e) => {
+                            e.stopPropagation()
                             const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
                             const popoverWidth = 380
                             const margin = 12
@@ -1228,6 +1246,11 @@ const loadNavigationFromApi = useCallback(async () => {
                             const top = Math.min(rect.bottom + 8, window.innerHeight - 420)
                             setIconPickerAnchor({ top, left, width: popoverWidth })
                             setIconPickerForNavId(item.id)
+                            setIconPickerParentGroupId(
+                              isGroupFolder ? item.id :
+                              parentIsGroup ? parentId :
+                              null
+                            )
                             setIconPickerQuery('')
                             setIconPickerVariant(currentIcon ? parseIconKey(currentIcon).variant : 'Linear')
                           }}
@@ -1336,7 +1359,7 @@ const loadNavigationFromApi = useCallback(async () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setNavItemIcon(iconPickerForNavId, undefined)
+                    setNavItemIcon(iconPickerForNavId, undefined, iconPickerParentGroupId)
                     closeIconPicker()
                   }}
                   className="rounded-md px-2 py-1 font-semibold text-slate-500 hover:bg-slate-100 hover:text-red-600"
@@ -1350,14 +1373,13 @@ const loadNavigationFromApi = useCallback(async () => {
                   {limitedIconKeys.map((key) => {
                     const compositeKey = buildIconKey(key, iconPickerVariant)
                     const found = flat.find((x) => x.item.id === iconPickerForNavId)
-                    const isSelected =
-                      isPage(found?.item as any) && (found?.item as any)?.iconKey === compositeKey
+                    const isSelected = (found?.item as any)?.iconKey === compositeKey
                     return (
                       <button
                         key={key}
                         type="button"
                         onClick={() => {
-                          setNavItemIcon(iconPickerForNavId, compositeKey)
+                          setNavItemIcon(iconPickerForNavId, compositeKey, iconPickerParentGroupId)
                           closeIconPicker()
                         }}
                         className={[

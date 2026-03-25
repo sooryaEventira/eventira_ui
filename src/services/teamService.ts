@@ -189,9 +189,7 @@ export async function inviteTeamMember(request: InviteTeamMemberRequest): Promis
 
 export async function acceptTeamInvite(teamInviteUuid: string): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
-  const organizationUuid = localStorage.getItem('organizationUuid')
   if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
-  if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
 
   const url = API_ENDPOINTS.TEAM.ACCEPT_INVITE(teamInviteUuid)
   const response = await fetch(url, {
@@ -199,7 +197,6 @@ export async function acceptTeamInvite(teamInviteUuid: string): Promise<void> {
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-      'X-Organization': organizationUuid,
     },
     credentials: 'include',
   })
@@ -215,9 +212,7 @@ export async function acceptTeamInvite(teamInviteUuid: string): Promise<void> {
 
 export async function revokeTeamInvite(teamInviteUuid: string): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
-  const organizationUuid = localStorage.getItem('organizationUuid')
   if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
-  if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
 
   const url = API_ENDPOINTS.TEAM.REVOKE_INVITE(teamInviteUuid)
   const response = await fetch(url, {
@@ -225,7 +220,6 @@ export async function revokeTeamInvite(teamInviteUuid: string): Promise<void> {
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
-      'X-Organization': organizationUuid,
     },
     credentials: 'include',
   })
