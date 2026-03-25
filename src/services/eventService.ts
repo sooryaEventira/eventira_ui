@@ -772,7 +772,11 @@ export const publishEvent = async (eventUuid: string): Promise<any> => {
       try {
         errorData = responseText ? JSON.parse(responseText) : null
       } catch {
-        errorData = responseText?.trim() ? responseText.trim() : null
+        // If the server returned an HTML error page, don't pass it as the message
+        const isHtml = responseText
+          ? /^\s*</.test(responseText) || /<!doctype/i.test(responseText)
+          : false
+        errorData = isHtml ? null : (responseText?.trim() || null)
       }
       const errorMessage = handleApiError(errorData, response, 'Failed to publish event. Please try again.')
       throw new Error(errorMessage)

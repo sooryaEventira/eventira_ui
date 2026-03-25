@@ -187,7 +187,50 @@ export async function inviteTeamMember(request: InviteTeamMemberRequest): Promis
   return { teamInviteUuid: String(uuid || '') }
 }
 
-export async function acceptTeamInvite(teamInviteUuid: string): Promise<void> {
+export interface AcceptTeamInviteResponse {
+  organization_uuid: string
+  organization_name?: string
+}
+
+export interface MyInvitation {
+  uuid: string
+  organization: { uuid: string; name: string }
+  role: string
+  events: { uuid: string; title: string }[]
+  status: string
+  expires_at: string
+  created_date: string
+}
+
+export async function fetchMyInvitations(): Promise<MyInvitation[]> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
+  if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
+
+  const res = await tryFetchJson(API_ENDPOINTS.TEAM.INVITATIONS_MINE, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!res.ok) {
+    if (isHtmlResponse(res.response, res.text)) throw new Error(friendlyHttpError(res.response))
+    let err: any = null
+    try { err = res.text ? JSON.parse(res.text) : null } catch {}
+    throw new Error(handleApiError(err || res.text, res.response, 'Failed to fetch invitations.'))
+  }
+
+  const data = res.json
+  const arr = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : []
+  return arr as MyInvitation[]
+}
+
+export async function acceptTeamInvite(teamInviteUuid: string): Promise<AcceptTeamInviteResponse> {
   const accessToken = localStorage.getItem('accessToken')
   if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
 
@@ -201,12 +244,20 @@ export async function acceptTeamInvite(teamInviteUuid: string): Promise<void> {
     credentials: 'include',
   })
 
+  const txt = await response.text()
   if (!response.ok) {
-    const txt = await response.text()
     if (isHtmlResponse(response, txt)) throw new Error(friendlyHttpError(response))
     let err: any = null
     try { err = txt ? JSON.parse(txt) : null } catch {}
     throw new Error(handleApiError(err || txt, response, 'Failed to accept invitation.'))
+  }
+
+  let data: any = null
+  try { data = txt ? JSON.parse(txt) : null } catch {}
+  const inner = data?.data ?? data
+  return {
+    organization_uuid: String(inner?.organization_uuid ?? ''),
+    organization_name: inner?.organization_name ? String(inner.organization_name) : undefined,
   }
 }
 

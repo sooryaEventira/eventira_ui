@@ -978,10 +978,11 @@ const loadNavigationFromApi = useCallback(async () => {
       const prev = items
       const next = walk(prev)
       setNavigationFromApi(next)
-      // For group folders and their children, nav_item_uuid in URL = group UUID,
-      // child_uuid in body = the item being updated (group itself or child).
+      // For group folders and their children, nav_item_uuid in URL = group UUID.
+      // Only send child_uuid when updating a child page inside a group (targetId !== parentGroupId).
+      // When updating the group folder itself, targetId === parentGroupId — send no child_uuid.
       const apiNavItemUuid = parentGroupId ?? targetId
-      const apiChildUuid = parentGroupId ? targetId : undefined
+      const apiChildUuid = (parentGroupId && parentGroupId !== targetId) ? targetId : undefined
       try {
         await updateNavigationItemIcon(eventUuid, apiNavItemUuid, iconKey ?? null, apiChildUuid)
         setNavSavedJson(JSON.stringify(next))

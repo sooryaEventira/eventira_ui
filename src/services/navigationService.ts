@@ -276,7 +276,7 @@ function buildNavItems(items: NavigationItem[]): object[] {
           item_type: itemType,
           name: item.title,
           order: index + 1,
-          icon: '',
+          icon: (item as any).iconKey ?? '',
           items: (item.children || []).map((child, ci) => ({ uuid: child.id, order: ci + 1 })),
         }
       }
@@ -286,7 +286,7 @@ function buildNavItems(items: NavigationItem[]): object[] {
         item_type: 'folder',
         name: item.title,
         order: index + 1,
-        icon: '',
+        icon: (item as any).iconKey ?? '',
         items: buildNavItems(item.children || []),
       }
     }

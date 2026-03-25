@@ -41,7 +41,6 @@ const PENDING_INVITES_KEY = 'pendingInvitesFromToken'
 const OrganizationSelectPage: React.FC<OrganizationSelectPageProps> = ({
   onSelect,
   onNeedToCreateOrg,
-  onLogout
 }) => {
   let organizations: OrgItem[] = []
   try {
@@ -83,9 +82,14 @@ const OrganizationSelectPage: React.FC<OrganizationSelectPageProps> = ({
   const handleAccept = async (invite: PendingInvite) => {
     setProcessingUuid(invite.invite_uuid)
     try {
-      await acceptTeamInvite(invite.invite_uuid)
+      const result = await acceptTeamInvite(invite.invite_uuid)
       removeInvite(invite.invite_uuid)
       showToast.success(`Joined "${invite.organization_name}" as ${ROLE_LABELS[invite.role] ?? invite.role}.`)
+      const orgUuid = result.organization_uuid || invite.organization_uuid
+      const orgName = result.organization_name || invite.organization_name
+      if (orgUuid) {
+        onSelect({ uuid: orgUuid, name: orgName, role: invite.role })
+      }
     } catch (error) {
       showToast.error(error instanceof Error ? error.message : 'Failed to accept invitation.')
     } finally {

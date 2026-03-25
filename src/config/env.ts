@@ -360,6 +360,8 @@ export const API_ENDPOINTS = {
   TEAM: {
     INVITE: `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/`,
     LIST: `${env.AUTH_API_URL}${ADMIN_API_BASE}list-invites/`,
+    /** Invitations sent to the current user. GET {{admin_url}}invites/mine/ */
+    INVITATIONS_MINE: `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/mine/`,
     /** Accept team invite: POST invites/{{team_invite_uuid}}/accept/ */
     ACCEPT_INVITE: (teamInviteUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/${teamInviteUuid}/accept/`,

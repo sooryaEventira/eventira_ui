@@ -5,7 +5,7 @@ import { showToast } from '../../../utils/toast'
 import Slideout from '../../ui/untitled/Slideout'
 import { useTableHeader } from '../../ui/TableHeader'
 import { API_ENDPOINTS } from '../../../config/env'
-import { fetchTeamMembers, inviteTeamMember } from '../../../services/teamService'
+import { fetchTeamMembers, inviteTeamMember, fetchMyInvitations, acceptTeamInvite, revokeTeamInvite, type MyInvitation } from '../../../services/teamService'
 
 type TeamMemberStatus = 'active' | 'pending'
 type TeamMember = {
@@ -58,23 +58,6 @@ const Avatar = ({ name }: { name: string }) => {
   )
 }
 
-const RefreshIcon = ({ className }: { className?: string }) => (
-  <svg
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.8"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-    className={className}
-    aria-hidden="true"
-  >
-    <path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9" />
-    <path d="M3 12a9 9 0 0 1 9-9 9 9 0 0 1 9 9" />
-    <path d="M7 7H3V3" />
-    <path d="M21 21v-4h-4" />
-  </svg>
-)
 
 const ROLE_SELECT_OPTIONS = [
   { value: '', label: 'Select access level' },
@@ -206,6 +189,9 @@ const TeamManagementPage: React.FC = () => {
   const [eventOptions, setEventOptions] = useState<Array<{ id: string; name: string }>>([])
 
   const [inviteOpen, setInviteOpen] = useState(false)
+  const [invitations, setInvitations] = useState<MyInvitation[]>([])
+  const [invitationsLoading, setInvitationsLoading] = useState(false)
+  const [processingInviteUuid, setProcessingInviteUuid] = useState<string | null>(null)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
@@ -275,6 +261,49 @@ const TeamManagementPage: React.FC = () => {
       .catch(() => setEventOptions([]))
   }, [])
 
+  useEffect(() => {
+    if (activeTabId !== 'invitations') return
+    let cancelled = false
+    setInvitationsLoading(true)
+    fetchMyInvitations()
+      .then((list) => { if (!cancelled) setInvitations(list) })
+      .catch(() => { if (!cancelled) showToast.error('Failed to load invitations.') })
+      .finally(() => { if (!cancelled) setInvitationsLoading(false) })
+    return () => { cancelled = true }
+  }, [activeTabId])
+
+  const handleAcceptInvitation = async (inv: MyInvitation) => {
+    setProcessingInviteUuid(inv.uuid)
+    try {
+      const result = await acceptTeamInvite(inv.uuid)
+      setInvitations((prev) => prev.filter((i) => i.uuid !== inv.uuid))
+      showToast.success(`Joined "${inv.organization.name}" successfully.`)
+      const orgUuid = result.organization_uuid || inv.organization.uuid
+      const orgName = result.organization_name || inv.organization.name
+      if (orgUuid) {
+        localStorage.setItem('organizationUuid', orgUuid)
+        localStorage.setItem('organizationName', orgName)
+      }
+    } catch (e: any) {
+      showToast.error(e?.message ?? 'Failed to accept invitation.')
+    } finally {
+      setProcessingInviteUuid(null)
+    }
+  }
+
+  const handleDeclineInvitation = async (inv: MyInvitation) => {
+    setProcessingInviteUuid(inv.uuid)
+    try {
+      await revokeTeamInvite(inv.uuid)
+      setInvitations((prev) => prev.filter((i) => i.uuid !== inv.uuid))
+      showToast.success('Invitation declined.')
+    } catch (e: any) {
+      showToast.error(e?.message ?? 'Failed to decline invitation.')
+    } finally {
+      setProcessingInviteUuid(null)
+    }
+  }
+
   const activeMember = useMemo(
     () => (activeMemberId ? members.find((m) => m.id === activeMemberId) || null : null),
     [activeMemberId, members]
@@ -315,18 +344,21 @@ const TeamManagementPage: React.FC = () => {
   }
 
   const filtered = useMemo(() => {
+    const byTab = activeTabId === 'invitations'
+      ? members.filter((m) => m.status === 'pending')
+      : members.filter((m) => m.status === 'active')
     const q = search.trim().toLowerCase()
-    if (!q) return members
-    return members.filter((m) => {
+    if (!q) return byTab
+    return byTab.filter((m) => {
       const roleLabel = ROLE_LABELS[m.role] ?? m.role
-        return (
-          m.name.toLowerCase().includes(q) ||
-          m.email.toLowerCase().includes(q) ||
-          m.role.toLowerCase().includes(q) ||
-          roleLabel.toLowerCase().includes(q)
-        )
+      return (
+        m.name.toLowerCase().includes(q) ||
+        m.email.toLowerCase().includes(q) ||
+        m.role.toLowerCase().includes(q) ||
+        roleLabel.toLowerCase().includes(q)
+      )
     })
-  }, [members, search])
+  }, [members, search, activeTabId])
 
   const allVisibleSelected = filtered.length > 0 && filtered.every((m) => selectedIds.has(m.id))
 
@@ -366,11 +398,14 @@ const TeamManagementPage: React.FC = () => {
   }
 
   const { leading: tableHeaderLeading, actions: tableHeaderActions } = useTableHeader({
-    tabs: [{ id: 'team-members', label: 'Team members' }],
+    tabs: [
+      { id: 'team-members', label: 'Team members' },
+      { id: 'invitations', label: 'Invitations' },
+    ],
     activeTabId,
     searchQuery: search,
-    searchPlaceholder: 'Search team',
-    onTabChange: setActiveTabId,
+    searchPlaceholder: activeTabId === 'invitations' ? 'Search invitations' : 'Search team',
+    onTabChange: (id) => { setActiveTabId(id); setSearch(''); setSelectedIds(new Set()) },
     onSearchChange: setSearch,
     showFilter: false,
   })
@@ -562,23 +597,92 @@ const TeamManagementPage: React.FC = () => {
         </div>
       ) : null}
 
-      <DividerLineTable
-        data={tableData}
-        columns={columns}
-        getRowKey={(item) => item.id}
-        onRowClick={(item) => {
-          if ((item as TeamRow).__skeleton) return
-          openDrawerFor(item as TeamMember)
-        }}
-        headerLeading={tableHeaderLeading}
-        headerActions={tableHeaderActions}
-        emptyState={
-          <div className="flex min-h-[200px] items-center justify-center text-sm text-slate-500">
-            {search.trim() ? `No team members found matching "${search}".` : 'No team members.'}
+      {activeTabId === 'invitations' ? (
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+          {/* Tab header row */}
+          <div className="flex items-center justify-between px-6 py-6 border-b border-slate-200">
+            {tableHeaderLeading}
+            {tableHeaderActions}
           </div>
-        }
-        size="md"
-      />
+
+          {invitationsLoading ? (
+            <div className="space-y-3 p-4">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="h-24 rounded-lg bg-slate-100 animate-pulse" />
+              ))}
+            </div>
+          ) : invitations.length === 0 ? (
+            <div className="flex min-h-[200px] items-center justify-center text-sm text-slate-500">
+              No pending invitations.
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-200">
+              {invitations.map((inv) => {
+                const isProcessing = processingInviteUuid === inv.uuid
+                const roleLabel = ROLE_LABELS[inv.role] ?? inv.role
+                const expires = inv.expires_at
+                  ? new Intl.DateTimeFormat(undefined, { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(inv.expires_at))
+                  : null
+                return (
+                  <div key={inv.uuid} className="flex items-center justify-between gap-4 px-4 py-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-10 w-10 rounded-full bg-violet-100 flex items-center justify-center text-sm font-bold text-violet-700 shrink-0">
+                        {inv.organization.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="text-sm font-semibold text-slate-900 truncate">{inv.organization.name}</div>
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          Role: <span className="font-medium text-slate-700">{roleLabel}</span>
+                          {inv.events.length > 0 && (
+                            <span className="ml-2">· {inv.events.map((e) => e.title).join(', ')}</span>
+                          )}
+                          {expires && <span className="ml-2">· Expires {expires}</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={isProcessing}
+                        onClick={() => handleAcceptInvitation(inv)}
+                        className="inline-flex items-center rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isProcessing ? 'Processing…' : 'Accept'}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isProcessing}
+                        onClick={() => handleDeclineInvitation(inv)}
+                        className="inline-flex items-center rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isProcessing ? 'Processing…' : 'Decline'}
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      ) : (
+        <DividerLineTable
+          data={tableData}
+          columns={columns}
+          getRowKey={(item) => item.id}
+          onRowClick={(item) => {
+            if ((item as TeamRow).__skeleton) return
+            openDrawerFor(item as TeamMember)
+          }}
+          headerLeading={tableHeaderLeading}
+          headerActions={tableHeaderActions}
+          emptyState={
+            <div className="flex min-h-[200px] items-center justify-center text-sm text-slate-500">
+              {search.trim() ? `No team members found matching "${search}".` : 'No team members.'}
+            </div>
+          }
+          size="md"
+        />
+      )}
 
       <InviteTeamSlideout
         isOpen={inviteOpen}

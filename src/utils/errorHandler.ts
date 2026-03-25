@@ -5,9 +5,9 @@
 
 import { showToast } from './toast'
 
-// Track if an error has already been shown to prevent duplicates
-let lastErrorShown: { message: string; timestamp: number } | null = null
-const ERROR_DEBOUNCE_MS = 100 // Prevent duplicate toasts within 100ms
+// Track recently shown error messages to prevent duplicate toasts
+const shownErrors = new Map<string, number>() // message → timestamp
+const ERROR_DEBOUNCE_MS = 5000 // suppress the same message for 5 seconds
 
 /**
  * Get user-friendly error message from various error formats
@@ -15,6 +15,8 @@ const ERROR_DEBOUNCE_MS = 100 // Prevent duplicate toasts within 100ms
 const getUserFriendlyMessage = (error: any, defaultMessage: string = 'An error occurred. Please try again.'): string => {
   // If it's already a user-friendly string, return it
   if (typeof error === 'string') {
+    // Reject raw HTML responses (server error pages) — never show them to users
+    if (/^\s*</.test(error) || /<!doctype/i.test(error)) return defaultMessage
     // Remove technical prefixes like "Server error: 401 Unauthorized"
     const cleaned = error.replace(/^Server error:\s*/i, '').trim()
     if (cleaned) return cleaned
@@ -72,18 +74,16 @@ const getUserFriendlyMessage = (error: any, defaultMessage: string = 'An error o
  */
 const showErrorToast = (message: string): void => {
   const now = Date.now()
-  
-  // Check if this is a duplicate of the last error shown
-  if (lastErrorShown && 
-      lastErrorShown.message === message && 
-      (now - lastErrorShown.timestamp) < ERROR_DEBOUNCE_MS) {
-    return // Skip duplicate toast
+
+  // Evict expired entries
+  for (const [msg, ts] of shownErrors.entries()) {
+    if (now - ts > ERROR_DEBOUNCE_MS) shownErrors.delete(msg)
   }
-  
-  // Update last error shown
-  lastErrorShown = { message, timestamp: now }
-  
-  // Show the toast
+
+  // Skip if this exact message was already shown recently
+  if (shownErrors.has(message)) return
+
+  shownErrors.set(message, now)
   showToast.error(message)
 }
 
@@ -141,7 +141,7 @@ export const handleApiError = (
 /**
  * Handle network/connection errors
  */
-export const handleNetworkError = (error: any): string => {
+export const handleNetworkError = (_error: any): string => {
   const message = 'Cannot connect to the server. Please check your internet connection and try again.'
   showErrorToast(message)
   return message
@@ -159,5 +159,5 @@ export const handleParseError = (defaultMessage: string = 'Invalid response from
  * Reset error tracking (useful for testing or manual reset)
  */
 export const resetErrorTracking = (): void => {
-  lastErrorShown = null
+  shownErrors.clear()
 }
