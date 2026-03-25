@@ -402,7 +402,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                   onClick={() => setMobileExpanded((prev) => ({ ...prev, [node.id]: !prev[node.id] }))}
                   className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-base font-semibold text-white"
                 >
-                  <span>{node.label}</span>
+                  <span className="flex items-center gap-2">
+                    {renderNavIcon((node as any).iconKey, 'h-4 w-4 shrink-0')}
+                    <span>{node.label}</span>
+                  </span>
                   <ChevronDown className={['h-4 w-4', expanded ? 'rotate-180' : ''].join(' ')} />
                 </button>
                 {expanded && (node.children || []).map((child) => {

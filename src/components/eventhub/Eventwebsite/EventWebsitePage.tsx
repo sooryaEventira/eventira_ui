@@ -985,6 +985,10 @@ const loadNavigationFromApi = useCallback(async () => {
       const apiChildUuid = (parentGroupId && parentGroupId !== targetId) ? targetId : undefined
       try {
         await updateNavigationItemIcon(eventUuid, apiNavItemUuid, iconKey ?? null, apiChildUuid)
+        // Re-publish the full navigation tree so the public site's index endpoint
+        // picks up the icon change immediately (icons are stored on nav item records
+        // but the public INDEX uses the published navigation structure).
+        await saveNavigation(eventUuid, next)
         setNavSavedJson(JSON.stringify(next))
       } catch (e: any) {
         setNavigationFromApi(prev)
@@ -1231,7 +1235,7 @@ const loadNavigationFromApi = useCallback(async () => {
                     </div>
 
                     <div className="flex items-center gap-1">
-                      {(page || isGroupFolder) ? (
+                      {(page || folder) ? (
                         <Button
                           variant="tertiary"
                           size="sm"

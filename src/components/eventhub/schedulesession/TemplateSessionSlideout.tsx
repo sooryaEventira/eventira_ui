@@ -922,8 +922,8 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     templateSections.push({
       id: 'template-live-chat',
       type: 'live-chat',
-      title: 'Discussion/comment',
-      description: formData.comment || 'Discussion/comment will appear here.',
+      title: 'Live Chat',
+      description: formData.comment || 'Live Chat will appear here.',
       data: {
         submitAnonymous: formData.submitAnonymous ?? false
       }

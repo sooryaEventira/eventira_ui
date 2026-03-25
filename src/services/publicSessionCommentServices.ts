@@ -1,6 +1,26 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError } from '../utils/errorHandler'
 
+/**
+ * Fetch a short-lived Ably token for real-time chat.
+ * Called by authCallback so we control the fetch (avoids CORS preflight issues with authUrl + Authorization header).
+ */
+export async function fetchAblyToken(): Promise<string> {
+  const pubToken = localStorage.getItem('pub_accessToken')
+  const response = await fetch(API_ENDPOINTS.PUBLIC.ABLY_TOKEN, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(pubToken ? { Authorization: `Bearer ${pubToken}` } : {}),
+    },
+  })
+  if (!response.ok) throw new Error('Failed to fetch Ably token.')
+  const data = await response.json()
+  const token = data?.data?.token ?? data?.token
+  if (!token) throw new Error('Ably token missing in response.')
+  return String(token)
+}
+
 export interface SessionComment {
   uuid: string
   parent_uuid: string | null

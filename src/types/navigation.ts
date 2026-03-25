@@ -33,6 +33,7 @@ export interface NavigationFolderItem {
   children: NavigationItem[]
   /** Original item_type from the API (e.g. 'folder', 'speaker_group', 'attendee_group', 'schedule_group') */
   originalItemType?: string
+  iconKey?: string
 }
 
 export interface NavigationConfigV1 {
@@ -55,5 +56,6 @@ export interface PublicNavFolderNode {
   id: string
   label: string
   children: PublicNavNode[]
+  iconKey?: string
 }
 

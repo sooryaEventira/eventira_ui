@@ -361,11 +361,14 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         // Folders and *_group map to folder items
         if (itemType === 'folder' || itemType.endsWith('_group')) {
           const children = mapIndexNavigationToItems(raw?.items || [], itemType)
+          const folderIconKey = String(raw?.icon ?? '').trim() || undefined
           out.push({
             id: uuid,
             type: 'folder',
             title,
-            children
+            children,
+            iconKey: folderIconKey,
+            originalItemType: itemType
           } as NavigationItem)
           continue
         }

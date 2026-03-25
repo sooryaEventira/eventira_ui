@@ -138,7 +138,7 @@ export const mapRetrieveSessionToDraft = (
       uiType === 'speaker' || sectionType === 'speakers'
         ? 'Speakers'
         : uiType === 'live-chat'
-          ? 'Discussion/comment'
+          ? 'Live Chat'
           : 'Section'
     return {
       id: `section-${id}-${i}`,

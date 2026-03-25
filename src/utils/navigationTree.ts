@@ -108,7 +108,7 @@ export function mapToPublicNav(
       if (isFolder(it)) {
         const children = walk(it.children || [])
         if (children.length === 0) continue
-        out.push({ type: 'folder', id: it.id, label: it.title, children })
+        out.push({ type: 'folder', id: it.id, label: it.title, children, iconKey: it.iconKey })
         continue
       }
 

@@ -451,7 +451,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   }
 
   if (section.type === 'live-chat') {
-    const chatTitle = String(section.data?.title ?? section.data?.name ?? '').trim() || 'Discussion/Chat'
+    const chatTitle = String(section.data?.title ?? section.data?.name ?? '').trim() || 'Live Chat'
     return (
       <div className="p-4">
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
