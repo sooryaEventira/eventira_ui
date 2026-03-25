@@ -44,9 +44,16 @@ export interface UseAuthReturn {
 export function useAuth(
   setCurrentView: (view: string) => void
 ): UseAuthReturn {
-  const [isAuthenticated, setIsAuthenticated] = useState(() =>
-    localStorage.getItem('isAuthenticated') === 'true'
-  )
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    const flag = localStorage.getItem('isAuthenticated') === 'true'
+    const token = localStorage.getItem('accessToken')
+    if (flag && !token) {
+      // Stale auth flag with no token — clear it so invite links show signup
+      localStorage.removeItem('isAuthenticated')
+      return false
+    }
+    return flag
+  })
   const [showRegistration, setShowRegistration] = useState(false)
   const [showEmailVerification, setShowEmailVerification] = useState(false)
   const [showCreatePassword, setShowCreatePassword] = useState(false)
@@ -87,12 +94,11 @@ export function useAuth(
               expires_at: i.expires_at,
             }))
             localStorage.setItem('pendingInvitesFromToken', JSON.stringify(mapped))
+            setShowOrganizationSelect(true)
           }
-          setShowOrganizationSelect(true)
         })
         .catch(() => {
-          // If API fails, still show org select so user isn't stuck
-          setShowOrganizationSelect(true)
+          // API failed — do not force OrgSelectPage; let normal auth flow handle it
         })
     } else if (hasPendingInStorage) {
       setShowOrganizationSelect(true)
