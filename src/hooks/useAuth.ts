@@ -162,10 +162,41 @@ export function useAuth(
       localStorage.setItem('isAuthenticated', 'true')
       const hasOrg = hasOrganization()
       const hasPendingInvites = Array.isArray(response.data?.pending_invites) && response.data.pending_invites.length > 0
+      const inviteFromUrl = getInviteUuidFromUrl()
 
       if (hasPendingInvites) {
-        // Always show org select page so invitee can see & act on pending invitations
+        // Login response already contains pending invites — show org select with toast cards
         setShowOrganizationSelect(true)
+      } else if (inviteFromUrl) {
+        // User arrived via invite link but login response has no pending_invites.
+        // Fetch from API — the invite may still be pending server-side.
+        try {
+          const invites = await fetchMyInvitations()
+          const pending = invites.filter((i: any) => i.status === 'pending')
+          if (pending.length > 0) {
+            const mapped = pending.map((i: any) => ({
+              invite_uuid: i.uuid,
+              organization_uuid: i.organization?.uuid ?? '',
+              organization_name: i.organization?.name ?? '',
+              role: i.role,
+              invited_by: null,
+              expires_at: i.expires_at,
+            }))
+            localStorage.setItem('pendingInvitesFromToken', JSON.stringify(mapped))
+            setShowOrganizationSelect(true)
+          } else if (hasOrg) {
+            setCurrentView('dashboard')
+          } else if (organizations && organizations.length > 0) {
+            setShowOrganizationSelect(true)
+          } else {
+            setShowEventspaceSetup(true)
+          }
+        } catch {
+          // API failed — fall back to normal routing
+          if (hasOrg) setCurrentView('dashboard')
+          else if (organizations && organizations.length > 0) setShowOrganizationSelect(true)
+          else setShowEventspaceSetup(true)
+        }
       } else if (hasOrg) {
         setCurrentView('dashboard')
       } else if (organizations && organizations.length > 0) {
