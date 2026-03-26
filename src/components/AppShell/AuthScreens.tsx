@@ -45,7 +45,9 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
     handleGoogleSignIn,
     handleMicrosoftSignIn,
     handleMagicLinkSignIn,
-    handleResendCode
+    handleResendCode,
+    invitePreferLogin,
+    setInvitePreferLogin
   } = auth
 
   const isLoginPath = typeof window !== 'undefined' && window.location.pathname === '/login'
@@ -105,19 +107,18 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
 
     // Show RegistrationPage when: user clicked "Create account" OR arrived via invite link
     // (invite links default to signup since most invitees are new users)
-    if ((showRegistration || inviteInUrl) && !isLoginPath) {
+    // Skip if the user explicitly chose to log in instead (invitePreferLogin flag)
+    if ((showRegistration || (inviteInUrl && !invitePreferLogin)) && !isLoginPath) {
       return withSuspense(
         <RegistrationPage
           onSubmit={handleRegistration}
           onTermsClick={() => {}}
           onAlreadyHaveAccount={() => {
-            // Change URL to /login so inviteInUrl becomes false on next render,
-            // breaking the loop that kept showing RegistrationPage despite showRegistration=false
-            window.history.replaceState({}, '', '/login')
+            setInvitePreferLogin(true)
             setShowRegistration(false)
           }}
           onClose={() => {
-            window.history.replaceState({}, '', '/login')
+            setInvitePreferLogin(true)
             setShowRegistration(false)
           }}
         />

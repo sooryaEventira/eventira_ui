@@ -23,6 +23,8 @@ export interface UseAuthReturn {
   passwordCreationError: string | null
   isCreatingOrganization: boolean
   organizationCreationError: string | null
+  invitePreferLogin: boolean
+  setInvitePreferLogin: (v: boolean) => void
   setShowRegistration: (v: boolean) => void
   setOtpVerificationError: (v: string | null) => void
   setPasswordCreationError: (v: string | null) => void
@@ -59,6 +61,7 @@ export function useAuth(
   const [showCreatePassword, setShowCreatePassword] = useState(false)
   const [showEventspaceSetup, setShowEventspaceSetup] = useState(false)
   const [showOrganizationSelect, setShowOrganizationSelect] = useState(false)
+  const [invitePreferLogin, setInvitePreferLogin] = useState(false)
   const [registrationEmail, setRegistrationEmail] = useState('')
   const [isVerifyingOtp, setIsVerifyingOtp] = useState(false)
   const [otpVerificationError, setOtpVerificationError] = useState<string | null>(null)
@@ -354,6 +357,7 @@ export function useAuth(
     setShowRegistration(false)
     setShowEmailVerification(false)
     setShowCreatePassword(false)
+    setInvitePreferLogin(false)
 
     localStorage.removeItem('isAuthenticated')
     localStorage.removeItem('accessToken')
@@ -364,11 +368,6 @@ export function useAuth(
     localStorage.removeItem('organizationsFromToken')
     localStorage.removeItem('pendingInvitesFromToken')
     localStorage.removeItem('userRole')
-
-    // Clear invite param from URL so the invite path doesn't re-trigger on next render
-    if (window.location.pathname.match(/\/invites\//) || new URLSearchParams(window.location.search).get('invite')) {
-      window.history.replaceState({}, '', '/login')
-    }
 
     showToast.success('Logged out successfully')
   }
@@ -425,6 +424,8 @@ export function useAuth(
     showCreatePassword,
     showEventspaceSetup,
     showOrganizationSelect,
+    invitePreferLogin,
+    setInvitePreferLogin,
     registrationEmail,
     isVerifyingOtp,
     otpVerificationError,
