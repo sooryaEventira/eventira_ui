@@ -67,39 +67,53 @@ export function useAuth(
   const [isCreatingOrganization, setIsCreatingOrganization] = useState(false)
   const [organizationCreationError, setOrganizationCreationError] = useState<string | null>(null)
 
-  // On mount: if already authenticated (with a real token) and URL has ?invite= or pending invites exist,
-  // fetch invite details from the API and show org select page.
+  // Helper: extract invite UUID from both /invites/{uuid}/ path and ?invite= query param
+  const getInviteUuidFromUrl = () => {
+    const pathMatch = window.location.pathname.match(/\/invites\/([^/]+)/)
+    if (pathMatch) return pathMatch[1]
+    return new URLSearchParams(window.location.search).get('invite')
+  }
+
+  // On mount: handle invite URL for already-authenticated users
   useEffect(() => {
     if (!isAuthenticated) return
-    // Guard against stale isAuthenticated flag — require a real access token
     const accessToken = localStorage.getItem('accessToken')
     if (!accessToken) return
 
-    const params = new URLSearchParams(window.location.search)
-    const inviteFromUrl = params.get('invite')
-    const hasPendingInStorage = Boolean(localStorage.getItem('pendingInvitesFromToken'))
+    const inviteUuidFromUrl = getInviteUuidFromUrl()
+    const storedInvites = localStorage.getItem('pendingInvitesFromToken')
+    const hasPendingInStorage = Boolean(storedInvites)
 
-    if (inviteFromUrl && !hasPendingInStorage) {
-      // Invite UUID is in the URL but we have no invite data yet — fetch from API
-      fetchMyInvitations()
-        .then((invites) => {
-          const pending = invites.filter((i) => i.status === 'pending')
-          if (pending.length > 0) {
-            const mapped = pending.map((i) => ({
-              invite_uuid: i.uuid,
-              organization_uuid: i.organization.uuid,
-              organization_name: i.organization.name,
-              role: i.role,
-              invited_by: null,
-              expires_at: i.expires_at,
-            }))
-            localStorage.setItem('pendingInvitesFromToken', JSON.stringify(mapped))
-            setShowOrganizationSelect(true)
-          }
-        })
-        .catch(() => {
-          // API failed — do not force OrgSelectPage; let normal auth flow handle it
-        })
+    if (inviteUuidFromUrl) {
+      // Check if this invite UUID belongs to the currently logged-in user
+      const storedList = storedInvites ? JSON.parse(storedInvites) : []
+      const belongsToCurrentUser = storedList.some((i: any) => i.invite_uuid === inviteUuidFromUrl)
+
+      if (belongsToCurrentUser) {
+        setShowOrganizationSelect(true)
+      } else {
+        // Fetch from API to verify — the invite may have arrived after last login
+        fetchMyInvitations()
+          .then((invites) => {
+            const pending = invites.filter((i) => i.status === 'pending')
+            const matchedInvite = pending.find((i) => i.uuid === inviteUuidFromUrl)
+            if (matchedInvite) {
+              // Invite belongs to current user — update storage and show org select
+              const mapped = pending.map((i) => ({
+                invite_uuid: i.uuid,
+                organization_uuid: i.organization.uuid,
+                organization_name: i.organization.name,
+                role: i.role,
+                invited_by: null,
+                expires_at: i.expires_at,
+              }))
+              localStorage.setItem('pendingInvitesFromToken', JSON.stringify(mapped))
+              setShowOrganizationSelect(true)
+            }
+            // If not found: invite is for a different user — stay on dashboard, do nothing
+          })
+          .catch(() => { /* API failed — stay on dashboard */ })
+      }
     } else if (hasPendingInStorage) {
       setShowOrganizationSelect(true)
     }
@@ -221,10 +235,32 @@ export function useAuth(
 
         const hasPendingInvites = Array.isArray(pendingInvites) && pendingInvites.length > 0
         const hasOrgs = Array.isArray(organizations) && organizations.length > 0
+        const inviteFromUrl = new URLSearchParams(window.location.search).get('invite')
 
         if (hasPendingInvites || hasOrgs) {
-          // Show org select page so the new user can see & act on pending invitations
           setShowOrganizationSelect(true)
+        } else if (inviteFromUrl) {
+          // New user arrived via invite link — fetch their pending invites now that they are authenticated
+          try {
+            const invites = await fetchMyInvitations()
+            const pending = invites.filter((i: any) => i.status === 'pending')
+            if (pending.length > 0) {
+              const mapped = pending.map((i: any) => ({
+                invite_uuid: i.uuid,
+                organization_uuid: i.organization?.uuid ?? '',
+                organization_name: i.organization?.name ?? '',
+                role: i.role,
+                invited_by: null,
+                expires_at: i.expires_at,
+              }))
+              localStorage.setItem('pendingInvitesFromToken', JSON.stringify(mapped))
+              setShowOrganizationSelect(true)
+            } else {
+              setShowEventspaceSetup(true)
+            }
+          } catch {
+            setShowEventspaceSetup(true)
+          }
         } else {
           setShowEventspaceSetup(true)
         }

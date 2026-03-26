@@ -206,15 +206,16 @@ export async function fetchMyInvitations(): Promise<MyInvitation[]> {
   const accessToken = localStorage.getItem('accessToken')
   const organizationUuid = localStorage.getItem('organizationUuid')
   if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
-  if (!organizationUuid) throw new Error(handleApiError('Organization UUID is missing.', undefined, 'Organization UUID is missing.'))
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    Authorization: `Bearer ${accessToken}`,
+  }
+  if (organizationUuid) headers['X-Organization'] = organizationUuid
 
   const res = await tryFetchJson(API_ENDPOINTS.TEAM.INVITATIONS_MINE, {
     method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-      'X-Organization': organizationUuid,
-    },
+    headers,
     credentials: 'include',
   })
 

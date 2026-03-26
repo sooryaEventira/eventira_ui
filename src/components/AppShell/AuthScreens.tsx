@@ -50,9 +50,12 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
 
   const isLoginPath = typeof window !== 'undefined' && window.location.pathname === '/login'
 
-  const hasPendingInvites =
-    Boolean(localStorage.getItem('pendingInvitesFromToken')) ||
+  const inviteInUrl =
+    Boolean(window.location.pathname.match(/\/invites\/[^/]+/)) ||
     Boolean(new URLSearchParams(window.location.search).get('invite'))
+
+  const hasPendingInvites =
+    Boolean(localStorage.getItem('pendingInvitesFromToken')) || inviteInUrl
 
   if (isAuthenticated && showOrganizationSelect && (!hasOrganization() || hasPendingInvites) && !showCreatePassword && !showEmailVerification && !showRegistration) {
     return withSuspense(
@@ -75,7 +78,9 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
     )
   }
 
-  const hasInviteInUrl = Boolean(new URLSearchParams(window.location.search).get('invite'))
+  const hasInviteInUrl =
+    Boolean(window.location.pathname.match(/\/invites\/[^/]+/)) ||
+    Boolean(new URLSearchParams(window.location.search).get('invite'))
 
   if (!isAuthenticated) {
     if (showCreatePassword && !isLoginPath) {

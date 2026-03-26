@@ -146,6 +146,7 @@ const App: React.FC = () => {
   // Auth screens when not authenticated, no organization, or has pending invites to handle
   const hasPendingInvites =
     Boolean(localStorage.getItem('pendingInvitesFromToken')) ||
+    Boolean(window.location.pathname.match(/\/invites\/[^/]+/)) ||
     Boolean(new URLSearchParams(window.location.search).get('invite'))
 
   if (!auth.isAuthenticated || !hasOrganization() || (auth.showOrganizationSelect && hasPendingInvites)) {
