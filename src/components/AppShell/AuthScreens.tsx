@@ -107,7 +107,7 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
       )
     }
 
-    if ((showRegistration || hasInviteInUrl) && !isLoginPath) {
+    if (showRegistration && !isLoginPath) {
       return withSuspense(
         <RegistrationPage
           onSubmit={handleRegistration}

@@ -316,7 +316,14 @@ export function useAuth(
   }
 
   const handleLogout = () => {
+    // Clear all auth state flags first so AuthScreens shows LoginPage
     setIsAuthenticated(false)
+    setShowOrganizationSelect(false)
+    setShowEventspaceSetup(false)
+    setShowRegistration(false)
+    setShowEmailVerification(false)
+    setShowCreatePassword(false)
+
     localStorage.removeItem('isAuthenticated')
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
@@ -326,6 +333,12 @@ export function useAuth(
     localStorage.removeItem('organizationsFromToken')
     localStorage.removeItem('pendingInvitesFromToken')
     localStorage.removeItem('userRole')
+
+    // Clear invite param from URL so the invite path doesn't re-trigger on next render
+    if (window.location.pathname.match(/\/invites\//) || new URLSearchParams(window.location.search).get('invite')) {
+      window.history.replaceState({}, '', '/login')
+    }
+
     showToast.success('Logged out successfully')
   }
 
