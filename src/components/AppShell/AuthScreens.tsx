@@ -78,10 +78,6 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
     )
   }
 
-  const hasInviteInUrl =
-    Boolean(window.location.pathname.match(/\/invites\/[^/]+/)) ||
-    Boolean(new URLSearchParams(window.location.search).get('invite'))
-
   if (!isAuthenticated) {
     if (showCreatePassword && !isLoginPath) {
       return withSuspense(
@@ -107,13 +103,23 @@ export function AuthScreens({ auth }: AuthScreensProps): React.ReactElement | nu
       )
     }
 
-    if (showRegistration && !isLoginPath) {
+    // Show RegistrationPage when: user clicked "Create account" OR arrived via invite link
+    // (invite links default to signup since most invitees are new users)
+    if ((showRegistration || inviteInUrl) && !isLoginPath) {
       return withSuspense(
         <RegistrationPage
           onSubmit={handleRegistration}
           onTermsClick={() => {}}
-          onAlreadyHaveAccount={() => setShowRegistration(false)}
-          onClose={() => setShowRegistration(false)}
+          onAlreadyHaveAccount={() => {
+            // Change URL to /login so inviteInUrl becomes false on next render,
+            // breaking the loop that kept showing RegistrationPage despite showRegistration=false
+            window.history.replaceState({}, '', '/login')
+            setShowRegistration(false)
+          }}
+          onClose={() => {
+            window.history.replaceState({}, '', '/login')
+            setShowRegistration(false)
+          }}
         />
       )
     }
