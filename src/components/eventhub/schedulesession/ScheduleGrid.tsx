@@ -13,6 +13,8 @@ interface ScheduleGridProps {
   sessionFormOpen?: boolean
   onReorderParallelSessions?: (timeKey: string, orderedSessionIds: string[]) => void
   showBookmark?: boolean
+  eventUuid?: string
+  onNavigate?: (path: string) => void
 }
 
 interface SessionContainerProps {
@@ -42,6 +44,8 @@ interface SessionContainerProps {
   isDragOver?: boolean
   isDragging?: boolean
   showBookmark?: boolean
+  eventUuid?: string
+  onNavigate?: (path: string) => void
 }
 
 type SessionSpeaker = { id: string; name: string; role?: string }
@@ -132,16 +136,6 @@ function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
   return result
 }
 
-function formatSessionSpeakersLabel(speakers: SessionSpeaker[]): string {
-  if (!speakers.length) return ''
-  return speakers
-    .map((s) => {
-      const role = (s.role && String(s.role).trim()) || 'Speaker'
-      const name = s.name || 'Unnamed'
-      return `${role}: ${name}`
-    })
-    .join(', ')
-}
 
 const SESSION_MENU_WIDTH = 120
 
@@ -314,7 +308,9 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   onParallelDragEnd,
   isDragOver = false,
   isDragging = false,
-  showBookmark = false
+  showBookmark = false,
+  eventUuid,
+  onNavigate
 }) => {
   const [menuOpenForId, setMenuOpenForId] = useState<string | null>(null)
 
@@ -481,12 +477,31 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                       {/* Speakers */}
                       {(() => {
                         const speakers = getSessionSpeakers(child)
-                        const label = formatSessionSpeakersLabel(speakers)
-                        if (!label) return null
+                        if (!speakers.length) return null
                         return (
-                          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
-                            <User01 className="h-3 w-3 text-slate-400" />
-                            <span>{label}</span>
+                          <div className="mt-1 flex items-center gap-1.5 flex-wrap text-xs text-slate-600">
+                            <User01 className="h-3 w-3 text-slate-400 shrink-0" />
+                            {speakers.map((sp, i) => {
+                              const role = (sp.role && String(sp.role).trim()) || 'Speaker'
+                              const canLink = !!(eventUuid && onNavigate && sp.id)
+                              return (
+                                <span key={sp.id || i}>
+                                  {role}:{' '}
+                                  {canLink ? (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => { e.stopPropagation(); onNavigate!(`/events/${eventUuid}/speakers/${sp.id}`) }}
+                                      className="font-medium text-primary hover:underline"
+                                    >
+                                      {sp.name}
+                                    </button>
+                                  ) : (
+                                    <span>{sp.name}</span>
+                                  )}
+                                  {i < speakers.length - 1 ? ', ' : ''}
+                                </span>
+                              )
+                            })}
                           </div>
                         )
                       })()}
@@ -603,12 +618,31 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
 
             {(() => {
               const speakers = getSessionSpeakers(session)
-              const label = formatSessionSpeakersLabel(speakers)
-              if (!label) return null
+              if (!speakers.length) return null
               return (
-                <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
-                  <User01 className="h-3.5 w-3.5 text-slate-400" />
-                  <span>{label}</span>
+                <div className="mt-1 flex items-center gap-1.5 flex-wrap text-xs text-slate-600">
+                  <User01 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  {speakers.map((sp, i) => {
+                    const role = (sp.role && String(sp.role).trim()) || 'Speaker'
+                    const canLink = !!(eventUuid && onNavigate && sp.id)
+                    return (
+                      <span key={sp.id || i}>
+                        {role}:{' '}
+                        {canLink ? (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); onNavigate!(`/events/${eventUuid}/speakers/${sp.id}`) }}
+                            className="font-medium text-primary hover:underline"
+                          >
+                            {sp.name}
+                          </button>
+                        ) : (
+                          <span>{sp.name}</span>
+                        )}
+                        {i < speakers.length - 1 ? ', ' : ''}
+                      </span>
+                    )
+                  })}
                 </div>
               )
             })()}
@@ -669,7 +703,7 @@ function getOrderedSessionsForGroup(sessions: SavedSession[], timeKey: string, p
 }
 
 const ScheduleGrid: React.FC<ScheduleGridProps> = ({
-  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false
+  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, eventUuid, onNavigate
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
   const [parallelOrder, setParallelOrder] = useState<Record<string, string[]>>({})
@@ -795,6 +829,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     showTimeColumn={false}
                     showDragHandle={parallelCount > 1}
                     showBookmark={showBookmark}
+                    eventUuid={eventUuid}
+                    onNavigate={onNavigate}
                   />
                 ))}
               </div>

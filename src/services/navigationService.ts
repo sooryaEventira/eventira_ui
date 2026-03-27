@@ -277,7 +277,7 @@ function buildNavItems(items: NavigationItem[]): object[] {
           name: item.title,
           order: index + 1,
           icon: (item as any).iconKey ?? '',
-          items: (item.children || []).map((child, ci) => ({ uuid: child.id, order: ci + 1 })),
+          items: (item.children || []).map((child, ci) => ({ uuid: child.id, order: ci + 1, icon: (child as any).iconKey ?? '' })),
         }
       }
 

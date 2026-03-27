@@ -3,9 +3,10 @@ import { handleApiError, handleNetworkError } from '../utils/errorHandler'
 
 /**
  * Fetch a short-lived Ably token for real-time chat.
- * Called by authCallback so we control the fetch (avoids CORS preflight issues with authUrl + Authorization header).
+ * Returns the raw token value — could be a JWT string, TokenRequest, or TokenDetails object.
+ * Ably's authCallback accepts all three; we must NOT call String() on an object.
  */
-export async function fetchAblyToken(): Promise<string> {
+export async function fetchAblyToken(): Promise<string | object> {
   const pubToken = localStorage.getItem('pub_accessToken')
   const response = await fetch(API_ENDPOINTS.PUBLIC.ABLY_TOKEN, {
     method: 'GET',
@@ -16,9 +17,14 @@ export async function fetchAblyToken(): Promise<string> {
   })
   if (!response.ok) throw new Error('Failed to fetch Ably token.')
   const data = await response.json()
-  const token = data?.data?.token ?? data?.token
+
+  // Backend may return { data: { token: "jwt" } }, { data: { keyName, mac, ... } } (TokenRequest),
+  // or the TokenRequest/TokenDetails object at the top level.
+  const token = data?.data?.token ?? data?.token ?? data?.data ?? data
   if (!token) throw new Error('Ably token missing in response.')
-  return String(token)
+
+  // Return as-is — do NOT coerce to String. Ably handles JWT strings and TokenRequest objects natively.
+  return token
 }
 
 export interface SessionComment {

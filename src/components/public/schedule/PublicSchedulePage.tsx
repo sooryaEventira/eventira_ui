@@ -942,6 +942,8 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
               selectedDate={selectedGridDate}
               showBookmark
               onSessionClick={onNavigate ? (session) => onNavigate(`/events/${eventUuid}/sessions/${session.id}`) : undefined}
+              eventUuid={eventUuid}
+              onNavigate={onNavigate}
             />
           </div>
         ) : (

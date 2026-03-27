@@ -27,7 +27,7 @@ import { isFolder, isPage } from '../../../utils/navigationTree'
 import { NAV_ICON_KEYS, renderNavIcon, ICONSAX_VARIANTS, buildIconKey, parseIconKey } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
-import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder, AlertCircle } from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder, AlertCircle, Settings01 } from '@untitled-ui/icons-react'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface EventWebsitePageProps {
@@ -75,7 +75,6 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [iconPickerQuery, setIconPickerQuery] = useState('')
   const [iconPickerVariant, setIconPickerVariant] = useState<string>('Linear')
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
-  const [iconPickerParentGroupId, setIconPickerParentGroupId] = useState<string | null>(null)
   const iconPopoverRef = useRef<HTMLDivElement | null>(null)
   const ensuredWelcomeWebpageForEventRef = useRef<string | null>(null)
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
@@ -171,7 +170,6 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
     setIconPickerForNavId(null)
     setIconPickerQuery('')
     setIconPickerAnchor(null)
-    setIconPickerParentGroupId(null)
   }, [])
 
   // Close icon popover on outside click / Esc
@@ -688,6 +686,7 @@ const loadNavigationFromApi = useCallback(async () => {
       })
     }
   }, [pages, deletePage])
+  
 
   const handleSearchClick = () => {
     // TODO: Implement search functionality
@@ -761,6 +760,7 @@ const loadNavigationFromApi = useCallback(async () => {
 
     guardNavigation(navigate)
   }
+  
 
   const handlePreview = () => {
     // Navigate to preview of the first webpage
@@ -904,6 +904,81 @@ const loadNavigationFromApi = useCallback(async () => {
     return { item: found, next }
   }
 
+  const renderConfigurationTab = () => {
+    const flattenPages = (list: NavigationItem[]): NavigationItem[] => {
+      const out: NavigationItem[] = []
+      for (const it of list) {
+        if (isFolder(it)) {
+          out.push(...flattenPages(it.children || []))
+        } else {
+          out.push(it)
+        }
+      }
+      return out
+    }
+
+    const configPages = flattenPages(navigationFromApi)
+
+    return (
+      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className="bg-slate-50">
+            <tr>
+              {['Page', 'Icon', 'Browser', 'Who has access', 'Visibility', 'Platform', 'Home page', ''].map((col) => (
+                <th
+                  key={col}
+                  className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                >
+                  {col}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {configPages.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
+                  No pages in navigation yet.
+                </td>
+              </tr>
+            ) : (
+              configPages.map((item) => {
+                const iconKey = (item as any).iconKey as string | undefined
+                return (
+                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 font-medium text-slate-900 capitalize whitespace-nowrap">
+                      {item.title}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {iconKey
+                        ? renderNavIcon(iconKey, 'h-4 w-4')
+                        : <span className="text-xs text-slate-400">Not added</span>}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handlePageAction((item as any).pageId || item.id, 'settings')}
+                        className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        aria-label="Configure page"
+                      >
+                        <Settings01 className="h-4 w-4" />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
   const renderNavigationTab = () => {
     const eventUuid = eventUuidForNavigation
     const flatten = (
@@ -967,7 +1042,7 @@ const loadNavigationFromApi = useCallback(async () => {
 
     const activeId = navigationPreviewActive ?? visibleFlat[0]?.item?.id ?? null
 
-    const setNavItemIcon = async (targetId: string, iconKey?: string, parentGroupId?: string | null) => {
+    const setNavItemIcon = async (targetId: string, iconKey?: string) => {
       if (!eventUuid) return
       const walk = (list: NavigationItem[]): NavigationItem[] =>
         list.map((it) => {
@@ -978,18 +1053,34 @@ const loadNavigationFromApi = useCallback(async () => {
       const prev = items
       const next = walk(prev)
       setNavigationFromApi(next)
-      // For group folders and their children, nav_item_uuid in URL = group UUID.
-      // Only send child_uuid when updating a child page inside a group (targetId !== parentGroupId).
-      // When updating the group folder itself, targetId === parentGroupId — send no child_uuid.
-      const apiNavItemUuid = parentGroupId ?? targetId
-      const apiChildUuid = (parentGroupId && parentGroupId !== targetId) ? targetId : undefined
+
+      // Detect if the target item is a child of a group folder (speaker_group, etc.)
+      const findItemAndParent = (list: NavigationItem[], parent: NavigationItem | null = null): { item: NavigationItem; parent: NavigationItem | null } | null => {
+        for (const it of list) {
+          if (it.id === targetId) return { item: it, parent }
+          if (isFolder(it)) {
+            const found = findItemAndParent(it.children || [], it)
+            if (found) return found
+          }
+        }
+        return null
+      }
+      const found = findItemAndParent(items)
+      const parentItem = found?.parent
+      const isGroupChild = !!(
+        parentItem &&
+        isFolder(parentItem) &&
+        String((parentItem as any).originalItemType ?? 'folder').endsWith('_group')
+      )
+
       try {
-        await updateNavigationItemIcon(eventUuid, apiNavItemUuid, iconKey ?? null, apiChildUuid)
-        // Re-publish the full navigation tree so the public site's index endpoint
-        // picks up the icon change immediately (icons are stored on nav item records
-        // but the public INDEX uses the published navigation structure).
+        if (isGroupChild && parentItem) {
+          // API: URL = parent group's nav UUID, body child_uuid = child's own UUID
+          await updateNavigationItemIcon(eventUuid, parentItem.id, iconKey ?? null, targetId)
+        }
         await saveNavigation(eventUuid, next)
         setNavSavedJson(JSON.stringify(next))
+        await loadNavigationFromApi()
       } catch (e: any) {
         setNavigationFromApi(prev)
         showToast.error(e?.message ?? 'Failed to update icon')
@@ -1113,7 +1204,7 @@ const loadNavigationFromApi = useCallback(async () => {
                 <p>No menu items yet. Create pages or folders to see them here.</p>
               </div>
             ) : (
-              flat.map(({ item, depth, parentId, parentIsGroup }, flatIndex) => {
+              flat.map(({ item, depth }, flatIndex) => {
                 const folder = isFolder(item)
                 const page = isPage(item)
                 const isGroupFolder = folder && String((item as any).originalItemType ?? 'folder').endsWith('_group')
@@ -1214,6 +1305,12 @@ const loadNavigationFromApi = useCallback(async () => {
                       <span className={`text-sm font-medium capitalize truncate ${isHidden ? 'text-slate-400' : 'text-slate-900'}`}>
                         {item.title}
                       </span>
+                      {folder && !isGroupFolder ? (
+                        <span className="shrink-0 inline-flex items-center gap-1 rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-600">
+                          <Folder className="h-3 w-3" />
+                          folder
+                        </span>
+                      ) : null}
                       {folder && (item.children || []).length > 0 ? (
                         <button
                           type="button"
@@ -1251,11 +1348,6 @@ const loadNavigationFromApi = useCallback(async () => {
                             const top = Math.min(rect.bottom + 8, window.innerHeight - 420)
                             setIconPickerAnchor({ top, left, width: popoverWidth })
                             setIconPickerForNavId(item.id)
-                            setIconPickerParentGroupId(
-                              isGroupFolder ? item.id :
-                              parentIsGroup ? parentId :
-                              null
-                            )
                             setIconPickerQuery('')
                             setIconPickerVariant(currentIcon ? parseIconKey(currentIcon).variant : 'Linear')
                           }}
@@ -1364,7 +1456,7 @@ const loadNavigationFromApi = useCallback(async () => {
                 <button
                   type="button"
                   onClick={() => {
-                    setNavItemIcon(iconPickerForNavId, undefined, iconPickerParentGroupId)
+                    setNavItemIcon(iconPickerForNavId, undefined)
                     closeIconPicker()
                   }}
                   className="rounded-md px-2 py-1 font-semibold text-slate-500 hover:bg-slate-100 hover:text-red-600"
@@ -1384,7 +1476,7 @@ const loadNavigationFromApi = useCallback(async () => {
                         key={key}
                         type="button"
                         onClick={() => {
-                          setNavItemIcon(iconPickerForNavId, compositeKey, iconPickerParentGroupId)
+                          setNavItemIcon(iconPickerForNavId, compositeKey)
                           closeIconPicker()
                         }}
                         className={[
@@ -1405,7 +1497,7 @@ const loadNavigationFromApi = useCallback(async () => {
         ) : null}
 
         {/* Demo navbar preview: show folders with their children nested under the folder */}
-        <div className="space-y-2 mt-auto">
+        {/* <div className="space-y-2 mt-auto">
           <div className="text-sm font-semibold text-slate-900">Preview</div>
           <div className="rounded-lg border border-slate-200 bg-white p-4">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-3 overflow-x-auto">
@@ -1473,7 +1565,7 @@ const loadNavigationFromApi = useCallback(async () => {
               )}
             </div>
           </div>
-        </div>
+        </div> */}
       </div>
     )
   }
@@ -1747,14 +1839,27 @@ const loadNavigationFromApi = useCallback(async () => {
               >
                 Navigation
               </Button>
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={() => setActiveSubItem('website-config')}
+                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
+                  activeSubItem === 'website-config'
+                    ? 'text-primary border-b-primary'
+                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
+                }`}
+              >
+                Configuration
+              </Button>
             </div>
             {activeSubItem === 'website-header' ? (
               <div className="flex items-center gap-3">
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="md"
                   onClick={() => setShowAddMenuItemModal(true)}
                   iconLeading={<Plus className="h-4 w-4" />}
+                  className="bg-white border-primary text-primary hover:bg-primary/5"
                 >
                   Add menu item
                 </Button>
@@ -1767,7 +1872,7 @@ const loadNavigationFromApi = useCallback(async () => {
                   Add group menu
                 </Button>
               </div>
-            ) : (
+            ) : activeSubItem === 'website-pages' ? (
               <Button
                 variant="primary"
                 size="md"
@@ -1776,7 +1881,7 @@ const loadNavigationFromApi = useCallback(async () => {
               >
                 New page
               </Button>
-            )}
+            ) : null}
           </div>
 
           {/* Content based on active tab */}
@@ -1796,6 +1901,7 @@ const loadNavigationFromApi = useCallback(async () => {
           )}
 
           {activeSubItem === 'website-header' && renderNavigationTab()}
+          {activeSubItem === 'website-config' && renderConfigurationTab()}
         </div>
 
         {/* Page Creation Modal */}
@@ -1985,14 +2091,27 @@ const loadNavigationFromApi = useCallback(async () => {
               >
                 Navigation
               </Button>
+              <Button
+                variant="tertiary"
+                size="sm"
+                onClick={() => setActiveSubItem('website-config')}
+                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
+                  activeSubItem === 'website-config'
+                    ? 'text-primary border-b-primary'
+                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
+                }`}
+              >
+                Configuration
+              </Button>
             </div>
             {activeSubItem === 'website-header' ? (
               <div className="flex items-center gap-3">
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   size="md"
                   onClick={() => setShowAddMenuItemModal(true)}
                   iconLeading={<Plus className="h-4 w-4" />}
+                  className="bg-white border-primary text-primary hover:bg-primary/5"
                 >
                   Add menu item
                 </Button>
@@ -2005,7 +2124,7 @@ const loadNavigationFromApi = useCallback(async () => {
                   Add group menu
                 </Button>
               </div>
-            ) : (
+            ) : activeSubItem === 'website-pages' ? (
               <Button
                 variant="primary"
                 size="md"
@@ -2014,7 +2133,7 @@ const loadNavigationFromApi = useCallback(async () => {
               >
                 New page
               </Button>
-            )}
+            ) : null}
           </div>
 
           {/* Content based on active tab */}
@@ -2145,6 +2264,7 @@ const loadNavigationFromApi = useCallback(async () => {
           )}
 
           {activeSubItem === 'website-header' && renderNavigationTab()}
+          {activeSubItem === 'website-config' && renderConfigurationTab()}
         </div>
       </main>
 

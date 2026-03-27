@@ -204,14 +204,24 @@ export interface MyInvitation {
 
 export async function fetchMyInvitations(): Promise<MyInvitation[]> {
   const accessToken = localStorage.getItem('accessToken')
-  const organizationUuid = localStorage.getItem('organizationUuid')
   if (!accessToken) throw new Error(handleApiError('Authentication required.', undefined, 'Authentication required.'))
+
+  // X-Organization is required by the backend. Use current org, or fall back to the
+  // first org from the login response (needed when user has no active org yet, e.g. invite flow).
+  let organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) {
+    try {
+      const orgs = JSON.parse(localStorage.getItem('organizationsFromToken') || '[]')
+      organizationUuid = orgs[0]?.organization_uuid ?? orgs[0]?.uuid ?? null
+    } catch { /* ignore */ }
+  }
+  if (!organizationUuid) throw new Error('No organization context available to fetch invitations.')
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${accessToken}`,
+    'X-Organization': organizationUuid,
   }
-  if (organizationUuid) headers['X-Organization'] = organizationUuid
 
   const res = await tryFetchJson(API_ENDPOINTS.TEAM.INVITATIONS_MINE, {
     method: 'GET',

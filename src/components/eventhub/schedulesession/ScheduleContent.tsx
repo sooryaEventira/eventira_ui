@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Upload01, Download01, Plus, ArrowNarrowLeft, FilterLines, SearchLg } from '@untitled-ui/icons-react'
+import { Upload01, Download01, Plus, ArrowNarrowLeft, FilterLines, SearchLg, Edit02, Trash01, XClose, SearchMd, Tag01 } from '@untitled-ui/icons-react'
 import { Button } from '../../ui/untitled'
 import WeekDateSelector from './WeekDateSelector'
 import UploadModal from '../../ui/UploadModal'
@@ -68,6 +68,21 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
+  const [tagsLocationOpen, setTagsLocationOpen] = useState(false)
+  const [tagsLocationTab, setTagsLocationTab] = useState<'tags' | 'locations'>('tags')
+  const [tagSearch, setTagSearch] = useState('')
+  const [locationSearch, setLocationSearch] = useState('')
+  const [dummyTags] = useState([
+    { uuid: '1', name: 'Break', sessions: 1 },
+    { uuid: '2', name: 'poster',  sessions: 3 },
+    { uuid: '3', name: 'Keynote',  sessions: 2 },
+  ])
+  const [dummyLocations] = useState([
+    { uuid: '1', name: 'Room A', sessions: 4 },
+    { uuid: '2', name: 'Room B', sessions: 2 },
+    { uuid: '3', name: 'Drawing Room', sessions: 3 },
+    { uuid: '4', name: 'Cafeteria', sessions: 1 },
+  ])
   const [filterOpen, setFilterOpen] = useState(false)
   const [filterKeyword, setFilterKeyword] = useState('')
   const [filterKeywordApplied, setFilterKeywordApplied] = useState('')
@@ -511,16 +526,27 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         />
 
         <div ref={filterDropdownRef} className="relative flex w-full items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="primary"
-            size="md"
-            onClick={() => setIsSessionCreationModalOpen(true)}
-            iconLeading={<Plus className="h-4 w-4" />}
-            style={{ fontFamily: 'Inter' }}
-          >
-            Add session
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="primary"
+              size="md"
+              onClick={() => setIsSessionCreationModalOpen(true)}
+              iconLeading={<Plus className="h-4 w-4" />}
+              style={{ fontFamily: 'Inter' }}
+            >
+              Add session
+            </Button>
+            <Button
+              type="button"
+              onClick={() => setTagsLocationOpen(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-100 hover:text-slate-600 focus:outline-none"
+              style={{ fontFamily: 'Inter' }}
+              iconLeading={<Tag01 className="h-4 w-4" />}
+            >
+              Tags &amp; location
+            </Button>
+          </div>
           <div className="relative">
             <button
               ref={filterTriggerRef}
@@ -683,6 +709,178 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         showTemplate={true}
         templateLabel="Session Template"
       />
+
+      {/* Tags & Location Slideout */}
+      {tagsLocationOpen && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/30 z-[1000]"
+            onClick={() => setTagsLocationOpen(false)}
+          />
+          {/* Panel */}
+          <div className="fixed right-0 top-0 h-full w-full max-w-[480px] bg-white shadow-2xl z-[1001] flex flex-col">
+            {/* Header */}
+            <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Manage tags &amp; location</h2>
+                <p className="mt-0.5 text-sm text-slate-500">Changes apply to this schedule only</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTagsLocationOpen(false)}
+                className="ml-4 mt-0.5 rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Close"
+              >
+                <XClose className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Search + Add */}
+            <div className="flex items-center gap-2 px-6 pt-4 pb-3">
+              <div className="relative flex-1">
+                <SearchMd className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={tagsLocationTab === 'tags' ? tagSearch : locationSearch}
+                  onChange={(e) =>
+                    tagsLocationTab === 'tags'
+                      ? setTagSearch(e.target.value)
+                      : setLocationSearch(e.target.value)
+                  }
+                  placeholder={tagsLocationTab === 'tags' ? 'Search for tags' : 'Search for locations'}
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              {tagsLocationTab === 'tags' && (
+                <button
+                  type="button"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:border-primary/40 hover:text-primary transition-colors whitespace-nowrap"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add tag
+                </button>
+              )}
+            </div>
+
+            {/* Tabs */}
+            <div className="flex border-b border-slate-200 px-6">
+              <button
+                type="button"
+                onClick={() => setTagsLocationTab('tags')}
+                className={`-mb-px mr-6 pb-3 text-sm font-medium transition-colors ${
+                  tagsLocationTab === 'tags'
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Tags
+              </button>
+              <button
+                type="button"
+                onClick={() => setTagsLocationTab('locations')}
+                className={`-mb-px pb-3 text-sm font-medium transition-colors ${
+                  tagsLocationTab === 'locations'
+                    ? 'border-b-2 border-primary text-primary'
+                    : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                Locations
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto">
+              {/* Table header */}
+              <div className="grid grid-cols-[1fr_auto_auto] items-center border-b border-slate-100 px-6 py-3 text-xs font-medium text-slate-500 uppercase tracking-wide">
+                <span>Name</span>
+                <span className="pr-12">Used in</span>
+                <span />
+              </div>
+
+              {tagsLocationTab === 'tags' ? (
+                <div className="divide-y divide-slate-100">
+                  {dummyTags
+                    .filter((t) => t.name.toLowerCase().includes(tagSearch.toLowerCase()))
+                    .map((tag) => (
+                      <div key={tag.uuid} className="grid grid-cols-[1fr_auto_auto] items-center px-6 py-4">
+                        <span
+                          className="inline-flex w-fit items-center rounded-full  px-2.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50"
+                          
+                        >
+                          {tag.name}
+                        </span>
+                        <span className="pr-8 text-sm text-slate-600">{tag.sessions} sessions</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                            aria-label="Edit tag"
+                          >
+                            <Edit02 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded p-1 text-slate-400 hover:text-red-500 transition-colors"
+                            aria-label="Delete tag"
+                          >
+                            <Trash01 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {dummyLocations
+                    .filter((l) => l.name.toLowerCase().includes(locationSearch.toLowerCase()))
+                    .map((loc) => (
+                      <div key={loc.uuid} className="grid grid-cols-[1fr_auto_auto] items-center px-6 py-4">
+                        <span className="text-sm font-medium text-slate-800">{loc.name}</span>
+                        <span className="pr-8 text-sm text-slate-600">{loc.sessions} sessions</span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                            aria-label="Edit location"
+                          >
+                            <Edit02 className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded p-1 text-slate-400 hover:text-red-500 transition-colors"
+                            aria-label="Delete location"
+                          >
+                            <Trash01 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-end gap-3 border-t border-slate-200 px-6 py-4">
+              <button
+                type="button"
+                onClick={() => setTagsLocationOpen(false)}
+                className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="inline-flex h-10 items-center rounded-lg bg-slate-200 px-4 text-sm font-medium text-slate-400 cursor-not-allowed"
+                disabled
+              >
+                Save changes
+              </button>
+            </div>
+          </div>
+        </>,
+        document.body
+      )}
 
       {/* Session Creation Modal */}
       <SessionCreationModal

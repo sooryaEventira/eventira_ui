@@ -25,6 +25,7 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
   const [connectionState, setConnectionState] = useState<ConnectionState>('connecting')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<Ably.RealtimeChannel | null>(null)
+  const ablyClientRef = useRef<Ably.Realtime | null>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -51,6 +52,8 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
     // 2. Initialize Ably with authCallback — we fetch the token ourselves to avoid
     //    CORS preflight issues that occur when Ably sends an Authorization header via authUrl.
     const client = new Ably.Realtime({
+      disconnectedRetryTimeout: 5000,
+      suspendedRetryTimeout: 10000,
       authCallback: async (_tokenParams, callback) => {
         try {
           const token = await fetchAblyToken()
@@ -60,6 +63,8 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
         }
       },
     })
+
+    ablyClientRef.current = client
 
     // 3. Handle connection state changes
     client.connection.on((stateChange: Ably.ConnectionStateChange) => {
@@ -73,6 +78,7 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
         case 'disconnected':
         case 'suspended':
           setConnectionState('disconnected')
+          // Ably will auto-retry per disconnectedRetryTimeout / suspendedRetryTimeout
           break
         default:
           setConnectionState('connecting')
@@ -103,6 +109,7 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
       channel.detach()
       client.close()
       channelRef.current = null
+      ablyClientRef.current = null
     }
   }, [eventUuid, sessionUuid, loadComments, scrollToBottom])
 
@@ -241,8 +248,18 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
 
       {/* Connection failed banner */}
       {connectionState === 'failed' && (
-        <div className="px-4 py-2 bg-red-50 border-t border-red-100 text-xs text-red-600 text-center">
-          Real-time connection failed. Refresh the page to reconnect.
+        <div className="px-4 py-2 bg-red-50 border-t border-red-100 text-xs text-red-600 flex items-center justify-between gap-2">
+          <span>Real-time connection failed.</span>
+          <button
+            type="button"
+            onClick={() => {
+              setConnectionState('connecting')
+              ablyClientRef.current?.connect()
+            }}
+            className="underline font-semibold whitespace-nowrap"
+          >
+            Retry
+          </button>
         </div>
       )}
 
