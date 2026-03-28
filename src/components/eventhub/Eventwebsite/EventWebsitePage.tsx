@@ -70,7 +70,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set())
   const [availableNavPages, setAvailableNavPages] = useState<{ uuid: string; name: string; slug: string; is_added: boolean }[]>([])
   const [availableNavSchedules, setAvailableNavSchedules] = useState<{ uuid: string; title: string; is_added: boolean }[]>([])
-  const [navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
+  const [_navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
   const [iconPickerVariant, setIconPickerVariant] = useState<string>('Linear')
@@ -1022,25 +1022,8 @@ const loadNavigationFromApi = useCallback(async () => {
     }
 
     const items = navigationFromApi
-    // For the editor preview, keep folders visible even if they have no children.
-    // (The public website prunes empty folders, but in the editor it's useful to show them.)
-    const applyHiddenKeepEmptyFolders = (list: NavigationItem[]): NavigationItem[] => {
-      const out: NavigationItem[] = []
-      for (const it of list) {
-        if (hiddenNavIds.has(it.id)) continue
-        if (isFolder(it)) {
-          out.push({ ...it, children: applyHiddenKeepEmptyFolders(it.children || []) })
-        } else {
-          out.push(it)
-        }
-      }
-      return out
-    }
-    const visibleTree = applyHiddenKeepEmptyFolders(items)
     const flat = flatten(items)
-    const visibleFlat = flatten(visibleTree)
 
-    const activeId = navigationPreviewActive ?? visibleFlat[0]?.item?.id ?? null
 
     const setNavItemIcon = async (targetId: string, iconKey?: string) => {
       if (!eventUuid) return
@@ -1788,7 +1771,7 @@ const loadNavigationFromApi = useCallback(async () => {
 
   const confirmDelete = async () => {
     if (!showDeleteConfirm) return
-    const { id: webpageUuid, name } = showDeleteConfirm
+    const { id: webpageUuid } = showDeleteConfirm
     const eventUuid = createdEvent?.uuid
     if (!eventUuid) return
     try {

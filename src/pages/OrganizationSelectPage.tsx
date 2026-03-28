@@ -41,6 +41,7 @@ const PENDING_INVITES_KEY = 'pendingInvitesFromToken'
 const OrganizationSelectPage: React.FC<OrganizationSelectPageProps> = ({
   onSelect,
   onNeedToCreateOrg,
+  onLogout,
 }) => {
   let organizations: OrgItem[] = []
   try {
@@ -124,6 +125,15 @@ const OrganizationSelectPage: React.FC<OrganizationSelectPageProps> = ({
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-white p-4 sm:p-6 lg:p-8">
+      {onLogout && (
+        <button
+          type="button"
+          onClick={onLogout}
+          className="fixed top-4 left-4 flex items-center gap-1.5 text-sm text-[#6938EF] hover:underline"
+        >
+          ← Back to login
+        </button>
+      )}
 
       {/* Pending invitation toasts — fixed top-right */}
       {pendingInvites.length > 0 && (
