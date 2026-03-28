@@ -539,6 +539,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         navbarBackgroundColor={navbarBackgroundColor}
         exitEventPath="/event-list"
         onProfileClick={() => { window.location.href = '/profile' }}
+        yourSchedulePath={`/events/${eventUuid}/your-schedule`}
       />
 
       <main className={`pt-16 md:pl-72 w-full flex-1 px-4 pb-12 sm:px-6 md:max-w-none ${isAuthSection ? 'flex flex-col' : ''}`}>

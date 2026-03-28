@@ -110,6 +110,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   const [attendeeCurrentPage, setAttendeeCurrentPage] = useState(1)
   const [attendeeTotalCount, setAttendeeTotalCount] = useState(0)
   const [attendeeSearchQuery, setAttendeeSearchQuery] = useState('')
+  const [filterTagId, setFilterTagId] = useState<string | undefined>(undefined)
+  const [attendeeOrdering, setAttendeeOrdering] = useState<string>('name')
 
   const eventUuid = createdEvent?.uuid || ''
 
@@ -159,7 +161,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   }
 
   // Load attendees from API (or search if query is provided)
-  const loadAttendees = async (page = attendeeCurrentPage, query = '') => {
+  const loadAttendees = async (page = attendeeCurrentPage, query = '', tagId = filterTagId, ordering = attendeeOrdering) => {
     const eventUuid = createdEvent?.uuid
 
     if (!eventUuid) {
@@ -169,8 +171,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     setIsLoadingAttendees(true)
     try {
       const result = query
-        ? await searchAttendees(eventUuid, query)
-        : await fetchAttendees(eventUuid, page)
+        ? await searchAttendees(eventUuid, query, tagId)
+        : await fetchAttendees(eventUuid, page, tagId, ordering)
       const attendeesData = result.data
       setAttendeeTotalCount(result.count)
 
@@ -334,13 +336,25 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
 
   const handleAttendeePageChange = (page: number) => {
     setAttendeeCurrentPage(page)
-    loadAttendees(page, attendeeSearchQuery)
+    loadAttendees(page, attendeeSearchQuery, filterTagId, attendeeOrdering)
+  }
+
+  const handleFilterTagChange = (tagId: string | undefined) => {
+    setFilterTagId(tagId)
+    setAttendeeCurrentPage(1)
+    loadAttendees(1, attendeeSearchQuery, tagId, attendeeOrdering)
   }
 
   const handleAttendeeSearchChange = (query: string) => {
     setAttendeeSearchQuery(query)
     setAttendeeCurrentPage(1)
-    loadAttendees(1, query)
+    loadAttendees(1, query, filterTagId, attendeeOrdering)
+  }
+
+  const handleServerSortChange = (ordering: string) => {
+    setAttendeeOrdering(ordering)
+    setAttendeeCurrentPage(1)
+    loadAttendees(1, attendeeSearchQuery, filterTagId, ordering)
   }
 
   const handleCreateProfile = () => {
@@ -518,10 +532,6 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     // TODO: Implement grid view functionality
   }
 
-  const handleFilter = () => {
-    console.log('Filter clicked')
-    // TODO: Implement filter functionality
-  }
 
   return (
     <div className={hideNavbarAndSidebar ? "" : "min-h-screen overflow-x-hidden bg-white"}>
@@ -559,7 +569,6 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onDeleteGroup={handleDeleteGroup}
             builtGroupIds={builtGroupIds}
             onToggleBuildPage={handleToggleBuildPage}
-            onFilter={handleFilter}
             onTabChange={setActiveTab}
             isLoading={isLoadingGroups}
           />
@@ -582,7 +591,9 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onDeleteCustomField={handleDeleteCustomField}
             onDownload={handleDownload}
             onGridView={handleGridView}
-            onFilter={handleFilter}
+            filterTagId={filterTagId}
+            onFilterTagChange={handleFilterTagChange}
+            onServerSortChange={handleServerSortChange}
             externalSearchQuery={attendeeSearchQuery}
             onExternalSearchChange={handleAttendeeSearchChange}
             serverSidePagination={{

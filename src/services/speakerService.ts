@@ -245,7 +245,7 @@ export interface SpeakersPageResult {
 /**
  * Fetch speakers for an event (server-side paginated)
  */
-export const fetchSpeakers = async (eventUuid: string, page = 1): Promise<SpeakersPageResult> => {
+export const fetchSpeakers = async (eventUuid: string, page = 1, tagId?: string, ordering?: string): Promise<SpeakersPageResult> => {
   try {
     // Get access token from localStorage
     const accessToken = localStorage.getItem('accessToken')
@@ -268,7 +268,7 @@ export const fetchSpeakers = async (eventUuid: string, page = 1): Promise<Speake
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid, page)
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid, page, tagId, ordering)
     console.log('📡 fetchSpeakers: Fetching from URL:', url)
     
     const response = await fetch(url, {

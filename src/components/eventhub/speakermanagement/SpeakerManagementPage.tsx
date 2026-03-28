@@ -109,6 +109,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   const [speakerCurrentPage, setSpeakerCurrentPage] = useState(1)
   const [speakerTotalCount, setSpeakerTotalCount] = useState(0)
   const [speakerSearchQuery, setSpeakerSearchQuery] = useState('')
+  const [filterTagId, setFilterTagId] = useState<string | undefined>(undefined)
+  const [speakerOrdering, setSpeakerOrdering] = useState<string>('first_name')
 
   const eventUuid = createdEvent?.uuid || ''
 
@@ -162,7 +164,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   }
 
   // Load speakers from API (or search if query is provided)
-  const loadSpeakers = async (page = speakerCurrentPage, query = '') => {
+  const loadSpeakers = async (page = speakerCurrentPage, query = '', tagId = filterTagId, ordering = speakerOrdering) => {
     const eventUuid = createdEvent?.uuid
 
     if (!eventUuid) {
@@ -173,8 +175,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     setIsLoadingSpeakers(true)
     try {
       const result = query
-        ? await searchSpeakers(eventUuid, query)
-        : await fetchSpeakers(eventUuid, page)
+        ? await searchSpeakers(eventUuid, query, tagId)
+        : await fetchSpeakers(eventUuid, page, tagId, ordering)
       const speakersData = result.data
       setSpeakerTotalCount(result.count)
 
@@ -537,13 +539,25 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
 
   const handleSpeakerPageChange = (page: number) => {
     setSpeakerCurrentPage(page)
-    loadSpeakers(page, speakerSearchQuery)
+    loadSpeakers(page, speakerSearchQuery, filterTagId, speakerOrdering)
   }
 
   const handleSpeakerSearchChange = (query: string) => {
     setSpeakerSearchQuery(query)
     setSpeakerCurrentPage(1)
-    loadSpeakers(1, query)
+    loadSpeakers(1, query, filterTagId, speakerOrdering)
+  }
+
+  const handleFilterTagChange = (tagId: string | undefined) => {
+    setFilterTagId(tagId)
+    setSpeakerCurrentPage(1)
+    loadSpeakers(1, speakerSearchQuery, tagId, speakerOrdering)
+  }
+
+  const handleServerSortChange = (ordering: string) => {
+    setSpeakerOrdering(ordering)
+    setSpeakerCurrentPage(1)
+    loadSpeakers(1, speakerSearchQuery, filterTagId, ordering)
   }
 
   const handleCreateProfile = () => {
@@ -797,8 +811,9 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
             onEditCustomField={handleEditCustomField}
             onDeleteCustomField={handleDeleteCustomField}
             onDownload={handleDownload}
-            onGridView={handleGridView}
-            onFilter={handleFilter}
+            filterTagId={filterTagId}
+            onFilterTagChange={handleFilterTagChange}
+            onServerSortChange={handleServerSortChange}
             externalSearchQuery={speakerSearchQuery}
             onExternalSearchChange={handleSpeakerSearchChange}
             serverSidePagination={{

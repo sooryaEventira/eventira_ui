@@ -191,7 +191,7 @@ export interface AttendeesPageResult {
   previous: string | null
 }
 
-export const fetchAttendees = async (eventUuid: string, page = 1): Promise<AttendeesPageResult> => {
+export const fetchAttendees = async (eventUuid: string, page = 1, tagId?: string, ordering?: string): Promise<AttendeesPageResult> => {
   try {
     const accessToken = localStorage.getItem('accessToken')
     if (!accessToken) {
@@ -210,7 +210,7 @@ export const fetchAttendees = async (eventUuid: string, page = 1): Promise<Atten
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.LIST(eventUuid, page)
+    const url = API_ENDPOINTS.ATTENDEE_MANAGEMENT.LIST(eventUuid, page, tagId, ordering)
     if (import.meta.env.DEV) {
       console.log('📡 fetchAttendees: Fetching from URL:', url)
     }

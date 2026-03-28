@@ -5,6 +5,7 @@ import type { SavedSchedule, SavedSession } from '../../eventhub/schedulesession
 import ScheduleGrid from '../../eventhub/schedulesession/ScheduleGrid'
 import { fetchPublicSchedules } from '../../../services/publicScheduleService'
 import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
+import { addBookmark, removeBookmark } from '../../../services/bookmarkService'
 import { SearchLg, FilterLines, Download01 } from '@untitled-ui/icons-react'
 
 const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-Person', 'Hybrid']
@@ -186,6 +187,14 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
   const [isLoadingSessions, setIsLoadingSessions] = useState(false)
   const [activeScheduleId, setActiveScheduleId] = useState<string>('')
   const [dataSource, setDataSource] = useState<'unknown' | 'api' | 'fallback'>('unknown')
+  const [bookmarkedSessionIds, setBookmarkedSessionIds] = useState<Set<string>>(() => {
+    try {
+      const stored = localStorage.getItem(`bookmarks_${eventUuid}`)
+      return stored ? new Set(JSON.parse(stored) as string[]) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
 
   const fallbackSchedules = useMemo(
     () => readEventStoreJSON<SavedSchedule[]>(eventUuid, 'schedule', []),
@@ -532,6 +541,42 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
       cancelled = true
     }
   }, [activeSchedule?.id, dataSource, eventUuid])
+
+  const handleBookmark = async (session: SavedSession) => {
+    const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
+    if (!isAuthenticated) {
+      onNavigate?.(`/events/${eventUuid}/login`)
+      return
+    }
+    const sessionId = String(session.id)
+    const alreadyBookmarked = bookmarkedSessionIds.has(sessionId)
+    // Optimistic update
+    setBookmarkedSessionIds((prev) => {
+      const next = new Set(prev)
+      if (alreadyBookmarked) next.delete(sessionId)
+      else next.add(sessionId)
+      return next
+    })
+    try {
+      if (alreadyBookmarked) {
+        await removeBookmark(eventUuid, sessionId)
+      } else {
+        await addBookmark(eventUuid, sessionId)
+      }
+    } catch {
+      // Revert on failure
+      setBookmarkedSessionIds((prev) => {
+        const next = new Set(prev)
+        if (alreadyBookmarked) next.add(sessionId)
+        else next.delete(sessionId)
+        return next
+      })
+    }
+  }
+
+  useEffect(() => {
+    localStorage.setItem(`bookmarks_${eventUuid}`, JSON.stringify(Array.from(bookmarkedSessionIds)))
+  }, [bookmarkedSessionIds, eventUuid])
 
   const sessions = useMemo(() => {
     if (dataSource === 'api') {
@@ -941,6 +986,8 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
               sessions={filteredSessionsForDay}
               selectedDate={selectedGridDate}
               showBookmark
+              bookmarkedSessionIds={bookmarkedSessionIds}
+              onBookmark={handleBookmark}
               onSessionClick={onNavigate ? (session) => onNavigate(`/events/${eventUuid}/sessions/${session.id}`) : undefined}
               eventUuid={eventUuid}
               onNavigate={onNavigate}

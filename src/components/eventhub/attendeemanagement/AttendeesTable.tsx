@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useCallback, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import {
   DividerLineTable,
   type DividerLineTableSortDescriptor,
@@ -9,7 +10,7 @@ import type { AttendeeTableRowData, CustomFieldTableRowData } from './attendeeTy
 import { TablePagination, useTableHeader } from '../../ui'
 import { useAttendeeTableColumns } from './AttendeeTableColumns'
 import { useCustomFieldTableColumns } from './CustomFieldTableColumns'
-import { Download01, Columns03, Upload01, ChevronDown } from '@untitled-ui/icons-react'
+import { Download01, Columns03, Upload01, ChevronDown, FilterLines } from '@untitled-ui/icons-react'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface AttendeesTableProps {
@@ -29,6 +30,9 @@ interface AttendeesTableProps {
   onDownload?: () => void
   onGridView?: () => void
   onFilter?: () => void
+  filterTagId?: string
+  onFilterTagChange?: (tagId: string | undefined) => void
+  onServerSortChange?: (ordering: string) => void
   isLoading?: boolean
   externalSearchQuery?: string
   onExternalSearchChange?: (query: string) => void
@@ -58,7 +62,10 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   onDeleteCustomField,
   onDownload,
   onGridView: _onGridView,
-  onFilter,
+  onFilter: _onFilter,
+  filterTagId,
+  onFilterTagChange,
+  onServerSortChange,
   isLoading = false,
   externalSearchQuery,
   onExternalSearchChange,
@@ -78,6 +85,10 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
   const [addToGroupOpen, setAddToGroupOpen] = useState(false)
   const addToGroupRef = useRef<HTMLDivElement>(null)
+  const [filterDropdownOpen, setFilterDropdownOpen] = useState(false)
+  const filterDropdownRef = useRef<HTMLDivElement>(null)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
+  const [filterDropdownPos, setFilterDropdownPos] = useState<{ top: number; left: number } | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>({
     column: 'name',
@@ -264,6 +275,21 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [columnDropdownOpen])
 
+  useEffect(() => {
+    if (!filterDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (
+        filterBtnRef.current && !filterBtnRef.current.contains(target) &&
+        filterDropdownRef.current && !filterDropdownRef.current.contains(target)
+      ) {
+        setFilterDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [filterDropdownOpen])
+
   const visibleAttendeeIdsOnPage = useMemo(
     () => paginatedAttendees.map((a) => a.id),
     [paginatedAttendees]
@@ -374,8 +400,8 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     onTabChange: (tabId) => onTabChange(tabId as AttendeeTab),
     onSearchChange: handleSearchChange,
     searchOnButtonClick: activeTab === 'user' && onExternalSearchChange !== undefined,
-    showFilter: !(activeTab === 'user' && selectedAttendeeIds.size > 0),
-    onFilterClick: onFilter || (() => {}),
+    showFilter: false,
+    onFilterClick: _onFilter || (() => {}),
     filterLabel: `Filter ${activeTab === 'custom-schedule' ? 'custom fields' : 'attendees'}`,
     customActions: activeTab === 'user' ? (
       <div className="flex items-center gap-2">
@@ -433,6 +459,69 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
             >
               <Download01 className="h-4 w-4" strokeWidth={2} />
             </button>
+
+            {/* Tag filter dropdown */}
+            <button
+              ref={filterBtnRef}
+              type="button"
+              onClick={() => {
+                if (!filterDropdownOpen) {
+                  const rect = filterBtnRef.current?.getBoundingClientRect()
+                  if (rect) {
+                    setFilterDropdownPos({ top: rect.bottom + 4, left: Math.max(0, rect.right - 200) })
+                  }
+                }
+                setFilterDropdownOpen((v) => !v)
+              }}
+              className={[
+                'inline-flex h-10 w-10 items-center justify-center rounded-md border bg-white transition focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40',
+                filterTagId
+                  ? 'border-primary text-primary'
+                  : 'border-slate-200 text-slate-500 hover:border-primary/40 hover:text-primary'
+              ].join(' ')}
+              aria-label="Filter by tag"
+              aria-expanded={filterDropdownOpen}
+            >
+              <FilterLines className="h-4 w-4" strokeWidth={2} />
+            </button>
+
+            {filterDropdownOpen && filterDropdownPos && createPortal(
+              <div
+                ref={filterDropdownRef}
+                className="z-[9999] min-w-[200px] max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                style={{ position: 'fixed', top: filterDropdownPos.top, left: filterDropdownPos.left }}
+              >
+                <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Filter by tag
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { onFilterTagChange?.(undefined); setFilterDropdownOpen(false) }}
+                  className={[
+                    'w-full px-3 py-2 text-left text-sm transition hover:bg-slate-50',
+                    !filterTagId ? 'font-semibold text-primary' : 'text-slate-700'
+                  ].join(' ')}
+                >
+                  All attendees
+                </button>
+                {groups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => { onFilterTagChange?.(g.id); setFilterDropdownOpen(false) }}
+                    className={[
+                      'w-full px-3 py-2 text-left text-sm transition hover:bg-slate-50',
+                      filterTagId === g.id ? 'font-semibold text-primary' : 'text-slate-700'
+                    ].join(' ')}
+                  >
+                    {g.name}
+                  </button>
+                ))}
+              </div>,
+              document.body
+            )}
+
+
             <div className="relative" ref={columnDropdownRef}>
               <button
                 type="button"
@@ -476,12 +565,23 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     ) : undefined
   })
 
+  // Column id → Django ordering field mapping
+  const SORT_FIELD_MAP: Record<string, string> = {
+    name: 'name',
+    designation: 'designation',
+  }
+
   const handleSortChange = useCallback(
     (descriptor: DividerLineTableSortDescriptor) => {
       setSortDescriptor(descriptor)
       setCurrentPage(1)
+      if (serverSidePagination && onServerSortChange) {
+        const field = SORT_FIELD_MAP[String(descriptor.column)] ?? String(descriptor.column)
+        const ordering = descriptor.direction === 'descending' ? `-${field}` : field
+        onServerSortChange(ordering)
+      }
     },
-    []
+    [serverSidePagination, onServerSortChange]
   )
 
   // Reset local page when switching tabs or search changes
@@ -532,8 +632,8 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   // Loading state - check after all hooks
   if (isLoading) {
     return (
-      <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="px-4 pt-8 pb-4 md:px-10 lg:px-16">
+        <div className="flex flex-col gap-3 pb-8 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-[26px] font-bold text-primary-dark">Attendee management</h1>
         </div>
         <div className="flex min-h-[400px] items-center justify-center">
@@ -547,8 +647,8 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   }
 
   return (
-    <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="px-4 pt-8 pb-4 md:px-10 lg:px-16">
+      <div className="flex flex-col gap-3 pb-8 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-[26px] font-bold text-primary-dark">Attendee management</h1>
         <div className="flex items-center gap-3">
           {activeTab === 'user' && (

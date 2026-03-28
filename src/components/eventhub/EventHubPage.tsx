@@ -202,7 +202,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
       case 'analytics':
         // Placeholder for pages that haven't been implemented yet
         return (
-          <div className="min-h-screen flex items-center justify-center p-8">
+          <div className="min-h-screen flex items-center justify-center p-8 ">
             <div className="text-center">
               <h2 className="text-2xl font-bold text-slate-700 mb-4">
                 {defaultCards.find(card => card.id === activeSection)?.title || 'Coming Soon'}
@@ -257,7 +257,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
       />
 
       {/* Content Area */}
-      <div key={activeSection} className="md:pl-[250px] pt-16 h-[calc(100vh-64px)] overflow-y-auto">
+      <div key={activeSection} className="md:pl-[250px] pt-16 h-[calc(100vh-6px)] overflow-y-auto">
         <Suspense fallback={<SectionFallback />}>
           {renderContent()}
         </Suspense>

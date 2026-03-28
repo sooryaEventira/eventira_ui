@@ -181,6 +181,14 @@ export const API_ENDPOINTS = {
       RETRIEVE: (eventUuid: string, _scheduleUuid: string, sessionUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/`,
     },
+    SESSION_BOOKMARKS: {
+      /** Add a bookmark. POST .../events/{eventUuid}/sessions/{sessionUuid}/bookmarks/add/ */
+      ADD: (eventUuid: string, sessionUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/bookmarks/add/`,
+      /** Remove a bookmark. DELETE .../events/{eventUuid}/sessions/{sessionUuid}/bookmarks/remove/ */
+      REMOVE: (eventUuid: string, sessionUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/bookmarks/remove/`,
+    },
     SESSION_COMMENTS: {
       /** List comments for a session. GET .../events/{eventUuid}/sessions/{sessionUuid}/comments/ */
       LIST: (eventUuid: string, sessionUuid: string) =>
@@ -201,7 +209,12 @@ export const API_ENDPOINTS = {
   // User Management endpoints
   ATTENDEE_MANAGEMENT: {
     UPLOAD_USER: `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/upload-excel/`,
-    LIST: (eventUuid: string, page = 1) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}&page=${page}`,
+    LIST: (eventUuid: string, page = 1, tagId?: string, ordering?: string) => {
+      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}&page=${page}`
+      if (tagId) url += `&tag_id=${tagId}`
+      if (ordering) url += `&ordering=${ordering}`
+      return url
+    },
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/?event_id=${eventUuid}`,
     UPDATE: (attendeeUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}attendees/${attendeeUuid}/`,
@@ -305,7 +318,12 @@ export const API_ENDPOINTS = {
   // Speaker Management endpoints
   SPEAKER_MANAGEMENT: {
     UPLOAD_SPEAKER: `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/import/`,
-    LIST: (eventUuid: string, page = 1) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}&page=${page}`,
+    LIST: (eventUuid: string, page = 1, tagId?: string, ordering?: string) => {
+      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}&page=${page}`
+      if (tagId) url += `&tag_id=${tagId}`
+      if (ordering) url += `&ordering=${ordering}`
+      return url
+    },
     TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/tags/?event_id=${eventUuid}`,
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}`,
     UPDATE: (speakerUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/${speakerUuid}/`,

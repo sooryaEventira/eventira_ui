@@ -13,6 +13,8 @@ interface ScheduleGridProps {
   sessionFormOpen?: boolean
   onReorderParallelSessions?: (timeKey: string, orderedSessionIds: string[]) => void
   showBookmark?: boolean
+  bookmarkedSessionIds?: Set<string>
+  onBookmark?: (session: SavedSession) => void
   eventUuid?: string
   onNavigate?: (path: string) => void
   showConflictBanner?: boolean
@@ -46,6 +48,8 @@ interface SessionContainerProps {
   isDragOver?: boolean
   isDragging?: boolean
   showBookmark?: boolean
+  bookmarkedSessionIds?: Set<string>
+  onBookmark?: (session: SavedSession) => void
   eventUuid?: string
   onNavigate?: (path: string) => void
 }
@@ -311,6 +315,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   isDragOver = false,
   isDragging = false,
   showBookmark = false,
+  bookmarkedSessionIds,
+  onBookmark,
   eventUuid,
   onNavigate
 }) => {
@@ -556,14 +562,33 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                 </div>
               </div>
               {showBookmark ? (
-                <button
-                  type="button"
-                  className="flex-shrink-0 p-1 text-slate-400 hover:text-primary transition-colors"
-                  aria-label="Bookmark session"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Bookmark className="h-4 w-4" />
-                </button>
+                <div className="relative group flex-shrink-0">
+                  <button
+                    type="button"
+                    className={[
+                      'p-1 transition-colors',
+                      bookmarkedSessionIds?.has(String(session.id))
+                        ? 'text-primary'
+                        : 'text-slate-400 hover:text-primary'
+                    ].join(' ')}
+                    aria-label={bookmarkedSessionIds?.has(String(session.id)) ? 'Remove bookmark' : 'Bookmark session'}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      onBookmark?.(session)
+                    }}
+                  >
+                    <Bookmark
+                      className="h-4 w-4"
+                      fill={bookmarkedSessionIds?.has(String(session.id)) ? 'currentColor' : 'none'}
+                    />
+                  </button>
+                  <div className="pointer-events-none absolute bottom-full right-0 mb-1.5 hidden group-hover:block z-50">
+                    <div className="bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap shadow-lg">
+                      Save session to your personal schedule
+                      <div className="absolute top-full right-2 border-4 border-transparent border-t-slate-800" />
+                    </div>
+                  </div>
+                </div>
               ) : (
                 <SessionMenuDropdown
                   session={session}
@@ -705,7 +730,7 @@ function getOrderedSessionsForGroup(sessions: SavedSession[], timeKey: string, p
 }
 
 const ScheduleGrid: React.FC<ScheduleGridProps> = ({
-  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, eventUuid, onNavigate, showConflictBanner = false, onResolveConflict
+  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, bookmarkedSessionIds, onBookmark, eventUuid, onNavigate, showConflictBanner = false, onResolveConflict
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
   const [parallelOrder, setParallelOrder] = useState<Record<string, string[]>>({})
@@ -848,6 +873,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     showTimeColumn={false}
                     showDragHandle={parallelCount > 1}
                     showBookmark={showBookmark}
+                    bookmarkedSessionIds={bookmarkedSessionIds}
+                    onBookmark={onBookmark}
                     eventUuid={eventUuid}
                     onNavigate={onNavigate}
                   />
