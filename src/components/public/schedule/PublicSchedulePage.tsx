@@ -5,7 +5,7 @@ import type { SavedSchedule, SavedSession } from '../../eventhub/schedulesession
 import ScheduleGrid from '../../eventhub/schedulesession/ScheduleGrid'
 import { fetchPublicSchedules } from '../../../services/publicScheduleService'
 import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
-import { SearchLg, FilterLines, Download01 } from '@untitled-ui/icons-react'
+import { SearchLg, FilterLines, Download01, AlertCircle, X } from '@untitled-ui/icons-react'
 
 const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-Person', 'Hybrid']
 
@@ -667,6 +667,47 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
     return list
   }, [sessionsForDay, appliedKeyword, appliedLocations, appliedAttendance, appliedTags])
 
+  const formatConflictTimeLabel = (s: SavedSession) => {
+    const fmt = (t: string, p: string) => {
+      const [hRaw, mRaw] = String(t || '00:00').split(':')
+      let h = Number(hRaw || 0)
+      const m = Number(mRaw || 0)
+      const period = String(p || 'AM').toUpperCase() as 'AM' | 'PM'
+      if (period === 'PM' && h !== 12) h += 12
+      if (period === 'AM' && h === 12) h = 0
+      const hh = h % 12 === 0 ? 12 : h % 12
+      return `${String(hh).padStart(2, '0')}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`
+    }
+    return `${fmt(s.startTime, s.startPeriod || 'AM')} - ${fmt(s.endTime, s.endPeriod || 'PM')}`
+  }
+
+  const allConflictGroups = useMemo(() => {
+    const map: Record<string, SavedSession[]> = {}
+    filteredSessionsForDay
+      .filter((s) => !s.parentId)
+      .forEach((s) => {
+        const key = `${s.startTime}|${s.startPeriod || 'AM'}|${s.endTime}|${s.endPeriod || 'PM'}`
+        if (!map[key]) map[key] = []
+        map[key].push(s)
+      })
+    return Object.values(map).filter((g) => g.length > 1)
+  }, [filteredSessionsForDay])
+
+  const conflictGroupCount = allConflictGroups.length
+
+  type ConflictModalGroup = { timeLabel: string; sessions: SavedSession[] }
+  const [resolveModalGroups, setResolveModalGroups] = useState<ConflictModalGroup[] | null>(null)
+  const [resolveSelections, setResolveSelections] = useState<Record<string, string>>({})
+
+  const openResolveModal = (groups: ConflictModalGroup[]) => {
+    const initial: Record<string, string> = {}
+    groups.forEach((g) => { initial[g.timeLabel] = '' })
+    setResolveSelections(initial)
+    setResolveModalGroups(groups)
+  }
+
+  const closeResolveModal = () => setResolveModalGroups(null)
+
   // Position filter panel below trigger
   useEffect(() => {
     if (!filterOpen || !filterTriggerRef.current) return
@@ -925,6 +966,23 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
         </div>
       )}
 
+      {/* Conflict summary banner */}
+      {conflictGroupCount > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
+          <div className="flex items-center gap-2 text-sm font-medium text-red-700">
+            <AlertCircle className="h-4 w-4 flex-shrink-0" />
+            <span>{conflictGroupCount} conflict{conflictGroupCount > 1 ? 's' : ''} to resolve</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => openResolveModal(allConflictGroups.map((g) => ({ timeLabel: formatConflictTimeLabel(g[0]), sessions: g })))}
+            className="text-sm font-semibold text-red-700 hover:underline"
+          >
+            Resolve all
+          </button>
+        </div>
+      )}
+
       {/* Sessions grid (read-only) */}
       {activeSchedule ? (
         sessionsForDay.length ? (
@@ -944,6 +1002,10 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
               onSessionClick={onNavigate ? (session) => onNavigate(`/events/${eventUuid}/sessions/${session.id}`) : undefined}
               eventUuid={eventUuid}
               onNavigate={onNavigate}
+              showConflictBanner
+              onResolveConflict={(sessions) =>
+                openResolveModal([{ timeLabel: formatConflictTimeLabel(sessions[0]), sessions }])
+              }
             />
           </div>
         ) : (
@@ -961,6 +1023,78 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
             {isLoadingSchedules ? 'Loading schedules…' : 'Create schedules and sessions in Event Hub to publish them here.'}
           </div>
         </div>
+      )}
+      {/* Resolve conflicts modal */}
+      {resolveModalGroups && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl flex flex-col max-h-[90vh]">
+            {/* Header */}
+            <div className="flex items-start justify-between px-6 pt-6 pb-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Resolve conflicts</h2>
+                <p className="mt-0.5 text-sm text-slate-500">Choose one session to attend for each time slot</p>
+              </div>
+              <button
+                type="button"
+                onClick={closeResolveModal}
+                className="p-1 text-slate-400 hover:text-slate-600 rounded transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Groups */}
+            <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-6">
+              {resolveModalGroups.map((group) => (
+                <div key={group.timeLabel}>
+                  <div className="mb-2 text-sm font-medium text-slate-500">{group.timeLabel}</div>
+                  <div className="space-y-2">
+                    {group.sessions.map((session) => {
+                      const isSelected = resolveSelections[group.timeLabel] === String(session.id)
+                      return (
+                        <button
+                          key={session.id}
+                          type="button"
+                          onClick={() => setResolveSelections((prev) => ({ ...prev, [group.timeLabel]: String(session.id) }))}
+                          className={[
+                            'w-full rounded-lg border px-4 py-3 text-left transition-colors',
+                            isSelected
+                              ? 'border-[#6938EF] bg-[#F5F3FF]'
+                              : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                          ].join(' ')}
+                        >
+                          <div className="text-sm font-semibold text-slate-900">{session.title}</div>
+                          {session.location ? (
+                            <div className="mt-0.5 text-xs text-slate-500">{session.location}</div>
+                          ) : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={closeResolveModal}
+                className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={closeResolveModal}
+                className="rounded-lg bg-[#6938EF] px-4 py-2 text-sm font-semibold text-white hover:bg-[#5925DC] transition-colors"
+              >
+                {resolveModalGroups.length > 1 ? 'Confirm all' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

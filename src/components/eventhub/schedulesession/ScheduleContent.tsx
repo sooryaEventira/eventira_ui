@@ -83,6 +83,13 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     { uuid: '3', name: 'Drawing Room', sessions: 3 },
     { uuid: '4', name: 'Cafeteria', sessions: 1 },
   ])
+  type TagLocationModalState = { type: 'tag' | 'location'; mode: 'add' | 'edit'; name: string; uuid?: string }
+  const [tagLocationModal, setTagLocationModal] = useState<TagLocationModalState | null>(null)
+  const openAddModal = (type: 'tag' | 'location') => setTagLocationModal({ type, mode: 'add', name: '' })
+  const openEditModal = (type: 'tag' | 'location', uuid: string, name: string) =>
+    setTagLocationModal({ type, mode: 'edit', name, uuid })
+  const closeTagLocationModal = () => setTagLocationModal(null)
+
   const [filterOpen, setFilterOpen] = useState(false)
   const [filterKeyword, setFilterKeyword] = useState('')
   const [filterKeywordApplied, setFilterKeywordApplied] = useState('')
@@ -752,13 +759,23 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                   className="w-full rounded-lg border border-slate-200 bg-white py-2 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
               </div>
-              {tagsLocationTab === 'tags' && (
+              {tagsLocationTab === 'tags' ? (
                 <button
                   type="button"
+                  onClick={() => openAddModal('tag')}
                   className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:border-primary/40 hover:text-primary transition-colors whitespace-nowrap"
                 >
                   <Plus className="h-4 w-4" />
                   Add tag
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => openAddModal('location')}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 shadow-sm hover:border-primary/40 hover:text-primary transition-colors whitespace-nowrap"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add location
                 </button>
               )}
             </div>
@@ -806,7 +823,6 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                       <div key={tag.uuid} className="grid grid-cols-[1fr_auto_auto] items-center px-6 py-4">
                         <span
                           className="inline-flex w-fit items-center rounded-full  px-2.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50"
-                          
                         >
                           {tag.name}
                         </span>
@@ -814,6 +830,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
+                            onClick={() => openEditModal('tag', tag.uuid, tag.name)}
                             className="rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
                             aria-label="Edit tag"
                           >
@@ -841,6 +858,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
+                            onClick={() => openEditModal('location', loc.uuid, loc.name)}
                             className="rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
                             aria-label="Edit location"
                           >
@@ -879,6 +897,64 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
             </div>
           </div>
         </>,
+        document.body
+      )}
+
+      {/* Add / Edit Tag or Location Modal */}
+      {tagLocationModal && typeof document !== 'undefined' && createPortal(
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 pt-6 pb-4">
+              <h3 className="text-base font-semibold text-slate-900">
+                {tagLocationModal.mode === 'add'
+                  ? tagLocationModal.type === 'tag' ? 'Add tag' : 'Add location'
+                  : tagLocationModal.type === 'tag' ? 'Edit tag' : 'Edit location'}
+              </h3>
+              <button
+                type="button"
+                onClick={closeTagLocationModal}
+                className="rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Close"
+              >
+                <XClose className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="px-6 pb-6">
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">
+                {tagLocationModal.type === 'tag' ? 'Tag name' : 'Location name'}
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={tagLocationModal.name}
+                onChange={(e) => setTagLocationModal((prev) => prev ? { ...prev, name: e.target.value } : prev)}
+                placeholder={tagLocationModal.type === 'tag' ? 'e.g. Keynote' : 'e.g. Room A'}
+                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+
+              <div className="mt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={closeTagLocationModal}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!tagLocationModal.name.trim()}
+                  onClick={closeTagLocationModal}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {tagLocationModal.mode === 'add' ? 'Add' : 'Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
         document.body
       )}
 

@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Plus, ChevronUp, ChevronDown, Calendar, Attachment01, User01, Clock, MarkerPin01, VideoRecorder, Bookmark } from '@untitled-ui/icons-react'
+import { Plus, ChevronUp, ChevronDown, Calendar, Attachment01, User01, Clock, MarkerPin01, VideoRecorder, Bookmark, AlertCircle } from '@untitled-ui/icons-react'
 import { SavedSession } from './sessionTypes'
 
 interface ScheduleGridProps {
@@ -15,6 +15,8 @@ interface ScheduleGridProps {
   showBookmark?: boolean
   eventUuid?: string
   onNavigate?: (path: string) => void
+  showConflictBanner?: boolean
+  onResolveConflict?: (sessions: SavedSession[]) => void
 }
 
 interface SessionContainerProps {
@@ -703,7 +705,7 @@ function getOrderedSessionsForGroup(sessions: SavedSession[], timeKey: string, p
 }
 
 const ScheduleGrid: React.FC<ScheduleGridProps> = ({
-  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, eventUuid, onNavigate
+  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, eventUuid, onNavigate, showConflictBanner = false, onResolveConflict
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
   const [parallelOrder, setParallelOrder] = useState<Record<string, string[]>>({})
@@ -773,16 +775,18 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
         const timeEnd = formatTime(first.endTime, first.endPeriod || 'PM')
 
         return (
-          <div key={groupIndex} className="relative flex items-stretch gap-8">
+          <div key={groupIndex} className={`relative flex items-stretch gap-8 ${parallelCount > 1 && showConflictBanner ? 'rounded-xl bg-orange-50/60 p-3 -mx-3' : ''}`}>
             {/* Time Column Slot */}
             <div className="flex-shrink-0 w-32 self-stretch">
               <div className="h-full min-h-20 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between py-1.5">
                 <div className="text-center font-semibold text-slate-900">{timeStart}</div>
                 <div className="flex justify-center">
                   {parallelCount > 1 && (
-                    <span className="text-[10px]  font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap">
-                      {parallelCount} parallel sessions
-                    </span>
+                    showConflictBanner
+                      ? <AlertCircle className="h-4 w-4 text-orange-500" />
+                      : <span className="text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2 py-0.5 rounded-full whitespace-nowrap">
+                          {parallelCount} parallel sessions
+                        </span>
                   )}
                 </div>
                 <div className="text-center font-semibold text-slate-900">{timeEnd}</div>
@@ -801,6 +805,21 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                 </>
               )}
 
+              {parallelCount > 1 && showConflictBanner && (
+                <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-orange-200 bg-orange-50 px-4 py-2.5">
+                  <div className="flex items-center gap-2 text-sm font-medium text-orange-700">
+                    <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                    <span>{parallelCount} sessions at the same time, choose one to attend</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onResolveConflict?.(group.sessions)}
+                    className="rounded-lg border border-orange-400 px-3 py-1 text-xs font-semibold text-orange-700 hover:bg-orange-100 transition-colors"
+                  >
+                    Resolve
+                  </button>
+                </div>
+              )}
               <div className={`space-y-4 ${parallelCount > 1 ? 'pl-2' : ''}`}>
                 {getOrderedSessionsForGroup(group.sessions, group.timeKey, parallelOrder).map(session => (
                   <SessionContainer
