@@ -6,6 +6,7 @@ import ScheduleGrid from '../../eventhub/schedulesession/ScheduleGrid'
 import { fetchPublicSchedules } from '../../../services/publicScheduleService'
 import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
 import { addBookmark, removeBookmark } from '../../../services/bookmarkService'
+import toast from 'react-hot-toast'
 import { SearchLg, FilterLines, Download01 } from '@untitled-ui/icons-react'
 
 const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-Person', 'Hybrid']
@@ -545,7 +546,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
   const handleBookmark = async (session: SavedSession) => {
     const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
     if (!isAuthenticated) {
-      onNavigate?.(`/events/${eventUuid}/login`)
+      toast.error('Please login to save session')
       return
     }
     const sessionId = String(session.id)
