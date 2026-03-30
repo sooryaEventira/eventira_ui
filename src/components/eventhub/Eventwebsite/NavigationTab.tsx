@@ -208,7 +208,7 @@ const NavigationTab: React.FC<NavigationTabProps> = ({
     return NAV_ICON_KEYS.filter((k) => k.toLowerCase().includes(q))
   })()
 
-  const limitedIconKeys = filteredIconKeys.slice(0, 180)
+  const limitedIconKeys = filteredIconKeys
 
   const moveNavigationTreeItem = (dragId: string, targetId: string | null) => {
     if (!eventUuid || !dragId || dragId === targetId) return

@@ -74,7 +74,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
   const [iconPickerVariant, setIconPickerVariant] = useState<string>('Linear')
-  const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const iconPopoverRef = useRef<HTMLDivElement | null>(null)
   const ensuredWelcomeWebpageForEventRef = useRef<string | null>(null)
   const [navigationOrderIds, setNavigationOrderIds] = useState<string[]>([])
@@ -1166,7 +1166,8 @@ const loadNavigationFromApi = useCallback(async () => {
       return NAV_ICON_KEYS.filter((k) => k.toLowerCase().includes(q))
     })()
 
-    const limitedIconKeys = filteredIconKeys.slice(0, 180)
+    const hasQuery = iconPickerQuery.trim().length > 0
+    const limitedIconKeys = hasQuery ? filteredIconKeys : filteredIconKeys.slice(0, 200)
 
     return (
       <div className="flex flex-col gap-6 min-h-[520px]">
@@ -1328,8 +1329,15 @@ const loadNavigationFromApi = useCallback(async () => {
                               Math.max(rect.left, margin),
                               window.innerWidth - popoverWidth - margin
                             )
-                            const top = Math.min(rect.bottom + 8, window.innerHeight - 420)
-                            setIconPickerAnchor({ top, left, width: popoverWidth })
+                            const spaceBelow = window.innerHeight - rect.bottom - margin
+                            const spaceAbove = rect.top - margin
+                            const useBelow = spaceBelow >= spaceAbove || spaceBelow >= 280
+                            const availableHeight = useBelow ? spaceBelow : spaceAbove
+                            const maxHeight = Math.min(480, Math.max(availableHeight - 8, 280))
+                            const top = useBelow
+                              ? rect.bottom + 8
+                              : rect.top - 8 - maxHeight
+                            setIconPickerAnchor({ top, left, width: popoverWidth, maxHeight })
                             setIconPickerForNavId(item.id)
                             setIconPickerQuery('')
                             setIconPickerVariant(currentIcon ? parseIconKey(currentIcon).variant : 'Linear')
@@ -1381,12 +1389,13 @@ const loadNavigationFromApi = useCallback(async () => {
           >
             <div
               ref={iconPopoverRef}
-              className="fixed rounded-xl border border-slate-200 bg-white p-3 shadow-xl"
+              className="fixed rounded-xl border border-slate-200 bg-white p-3 shadow-xl flex flex-col"
               style={{
                 top: iconPickerAnchor.top,
                 left: iconPickerAnchor.left,
                 width: iconPickerAnchor.width,
-                maxHeight: 460
+                maxHeight: iconPickerAnchor.maxHeight,
+                overflow: 'hidden'
               }}
               role="dialog"
               aria-label="Choose an icon"
@@ -1433,8 +1442,9 @@ const loadNavigationFromApi = useCallback(async () => {
 
               <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
                 <span>
-                  {limitedIconKeys.length} results
-                  {filteredIconKeys.length > limitedIconKeys.length ? ' (refine search)' : ''}
+                  {hasQuery
+                    ? `${limitedIconKeys.length} results`
+                    : `Showing ${limitedIconKeys.length} of ${NAV_ICON_KEYS.length} — search to filter`}
                 </span>
                 <button
                   type="button"
@@ -1448,7 +1458,7 @@ const loadNavigationFromApi = useCallback(async () => {
                 </button>
               </div>
 
-              <div className="mt-2 overflow-auto pr-1" style={{ maxHeight: 300 }}>
+              <div className="mt-2 overflow-auto pr-1 flex-1 min-h-0">
                 <div className="grid grid-cols-4 gap-2">
                   {limitedIconKeys.map((key) => {
                     const compositeKey = buildIconKey(key, iconPickerVariant)
