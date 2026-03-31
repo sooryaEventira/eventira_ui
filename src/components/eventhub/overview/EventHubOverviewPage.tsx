@@ -4,6 +4,7 @@ import { fetchEvent } from '../../../services/eventService'
 import { fetchEventOverview, type EventOverviewPayload } from '../../../services/eventOverviewService'
 import { fetchAttendees } from '../../../services/attendeeService'
 import { showToast } from '../../../utils/toast'
+import EventDetailsSlideout from './EventDetailsSlideout'
 import {
   Link01,
   Calendar,
@@ -104,6 +105,7 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<EventOverviewPayload | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   /** Status from GET event API (source of truth); normalized to 'live' | 'draft' */
   const [eventStatusFromApi, setEventStatusFromApi] = useState<'live' | 'draft' | null>(null)
 
@@ -162,7 +164,8 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
   const handleExportAttendees = async () => {
     if (!eventUuid) return
     try {
-      const attendees = await fetchAttendees(eventUuid)
+      const result = await fetchAttendees(eventUuid)
+      const attendees = result.data
       if (!attendees.length) {
         showToast.error('No attendees to export.')
         return
@@ -279,8 +282,9 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
               <button
                 type="button"
                 className="rounded-lg bg-white/10 p-2 text-white hover:bg-white/15"
-                aria-label="Settings (coming soon)"
-                title="Settings (coming soon)"
+                aria-label="Edit event details"
+                title="Edit event details"
+                onClick={() => setSettingsOpen(true)}
               >
                 <Settings01 className="h-5 w-5" aria-hidden="true" />
               </button>
@@ -350,6 +354,16 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
           <div className="hidden lg:block" />
         </div>
       </div>
+
+      <EventDetailsSlideout
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        eventUuid={eventUuid}
+        onUpdated={() => {
+          // Re-fetch overview to reflect updated data
+          fetchEventOverview(eventUuid).then(setData).catch(() => {})
+        }}
+      />
     </div>
   )
 }

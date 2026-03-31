@@ -19,6 +19,8 @@ interface ScheduleGridProps {
   onNavigate?: (path: string) => void
   showConflictBanner?: boolean
   onResolveConflict?: (sessions: SavedSession[]) => void
+  onSelectionChange?: (ids: string[]) => void
+  clearSelectionTrigger?: number
 }
 
 interface SessionContainerProps {
@@ -52,6 +54,8 @@ interface SessionContainerProps {
   onBookmark?: (session: SavedSession) => void
   eventUuid?: string
   onNavigate?: (path: string) => void
+  selectedSessionIds?: Set<string>
+  onToggleSessionSelected?: (id: string) => void
 }
 
 type SessionSpeaker = { id: string; name: string; role?: string }
@@ -318,7 +322,9 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   bookmarkedSessionIds,
   onBookmark,
   eventUuid,
-  onNavigate
+  onNavigate,
+  selectedSessionIds,
+  onToggleSessionSelected
 }) => {
   const [menuOpenForId, setMenuOpenForId] = useState<string | null>(null)
 
@@ -390,7 +396,10 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                         <div className="flex items-center gap-2 flex-1">
                           <input
                             type="checkbox"
-                            className="h-3 w-3 rounded border-slate-300 text-primary focus:ring-primary/40"
+                            className="h-3 w-3 rounded border-slate-300 text-primary focus:ring-primary/40 accent-primary cursor-pointer"
+                            checked={selectedSessionIds?.has(String(child.id)) ?? false}
+                            onChange={(e) => { e.stopPropagation(); onToggleSessionSelected?.(String(child.id)) }}
+                            onClick={(e) => e.stopPropagation()}
                           />
                           <div className="flex items-center gap-2 flex-1">
                             <div className="cursor-move text-slate-400 hover:text-slate-600">
@@ -538,7 +547,13 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
           <div className="px-3 py-2">
             <div className="flex items-start justify-between mb-1">
               <div className="flex items-center gap-2 flex-1">
-                <input type="checkbox" className="h-3 w-3 rounded border-slate-300 text-primary" />
+                <input
+                  type="checkbox"
+                  className="h-3 w-3 rounded border-slate-300 text-primary accent-primary cursor-pointer"
+                  checked={selectedSessionIds?.has(String(session.id)) ?? false}
+                  onChange={(e) => { e.stopPropagation(); onToggleSessionSelected?.(String(session.id)) }}
+                  onClick={(e) => e.stopPropagation()}
+                />
                 <div className="flex items-center gap-2 flex-1">
                   {showDragHandle && (
                     <div
@@ -730,9 +745,26 @@ function getOrderedSessionsForGroup(sessions: SavedSession[], timeKey: string, p
 }
 
 const ScheduleGrid: React.FC<ScheduleGridProps> = ({
-  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, bookmarkedSessionIds, onBookmark, eventUuid, onNavigate, showConflictBanner = false, onResolveConflict
+  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, bookmarkedSessionIds, onBookmark, eventUuid, onNavigate, showConflictBanner = false, onResolveConflict, onSelectionChange, clearSelectionTrigger
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
+
+  const toggleSession = (id: string) =>
+    setSelectedSessionIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+
+  useEffect(() => {
+    onSelectionChange?.(Array.from(selectedSessionIds))
+  }, [selectedSessionIds.size])
+
+  useEffect(() => {
+    if (clearSelectionTrigger != null) setSelectedSessionIds(new Set())
+  }, [clearSelectionTrigger])
   const [parallelOrder, setParallelOrder] = useState<Record<string, string[]>>({})
   const [draggingParallelSessionId, setDraggingParallelSessionId] = useState<string | null>(null)
   const [dragOverParallelSessionId, setDragOverParallelSessionId] = useState<string | null>(null)
@@ -793,7 +825,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   }
 
   return (
-    <div className="mt-4 space-y-8">
+    <div className="mt-4">
+    <div className="space-y-8">
       {groupedSessions.map((group, groupIndex) => {
         const first = group.sessions[0], parallelCount = group.sessions.length
         const timeStart = formatTime(first.startTime, first.startPeriod || 'AM')
@@ -877,6 +910,8 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
                     onBookmark={onBookmark}
                     eventUuid={eventUuid}
                     onNavigate={onNavigate}
+                    selectedSessionIds={selectedSessionIds}
+                    onToggleSessionSelected={toggleSession}
                   />
                 ))}
               </div>
@@ -884,6 +919,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
           </div>
         )
       })}
+    </div>
     </div>
   )
 }

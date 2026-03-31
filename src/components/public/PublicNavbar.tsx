@@ -42,6 +42,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   homePath: homePathProp,
   exitEventPath = '/',
   onNotificationClick,
+  onProfileClick,
   profileImageUrl,
   yourSchedulePath
 }) => {
@@ -356,14 +357,21 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                     {userEmail && (
                       <span className="block truncate px-4 py-2 text-xs text-slate-400">{userEmail}</span>
                     )}
-                    <a
-                      href="/profile"
+                    <button
+                      type="button"
                       role="menuitem"
                       className="block w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
-                      onClick={() => setProfileMenuOpen(false)}
+                      onClick={() => {
+                        setProfileMenuOpen(false)
+                        if (onProfileClick) {
+                          onProfileClick()
+                        } else {
+                          window.location.href = '/profile'
+                        }
+                      }}
                     >
                       Profile
-                    </a>
+                    </button>
                     <button
                       type="button"
                       role="menuitem"

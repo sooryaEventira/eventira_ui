@@ -625,6 +625,66 @@ export const fetchEvent = async (eventUuid: string): Promise<EventData> => {
   }
 }
 
+export interface UpdateEventRequest {
+  eventName?: string
+  startDate?: string
+  endDate?: string
+  timezoneId?: string
+  location?: string
+  venue?: string
+  attendees?: number
+  eventExperience?: 'in-person' | 'virtual' | 'hybrid'
+}
+
+/**
+ * Update (PATCH) an event by UUID
+ */
+export const updateEvent = async (eventUuid: string, request: UpdateEventRequest): Promise<EventData> => {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const experienceMap: Record<string, string> = {
+    'in-person': 'Offline',
+    'virtual': 'Online',
+    'hybrid': 'Hybrid',
+  }
+
+  const body: Record<string, any> = {}
+  if (request.eventName != null) body.title = request.eventName
+  if (request.startDate != null) body.event_date = request.startDate
+  if (request.endDate != null) body.end_date = request.endDate
+  if (request.timezoneId != null) body.timezone_id = request.timezoneId
+  if (request.location != null) body.location = request.location
+  if (request.venue != null) body.venue = request.venue
+  if (request.attendees != null) body.attendees = request.attendees
+  if (request.eventExperience != null) body.attendance_type = experienceMap[request.eventExperience] ?? request.eventExperience
+
+  const response = await fetch(API_ENDPOINTS.EVENT.UPDATE(eventUuid), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify(body),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    const msg = handleApiError(errData ?? text, response, 'Failed to update event.')
+    throw new Error(msg)
+  }
+
+  const json = await response.json()
+  const raw = json?.data ?? json
+  return normalizeSingleEventResponse(raw)
+}
+
 /**
  * Delete an event by UUID
  * Endpoint: {{admin_url}}event/{{event_uuid}}/

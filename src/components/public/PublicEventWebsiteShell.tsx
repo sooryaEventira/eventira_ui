@@ -28,6 +28,8 @@ type PublicSection =
   | 'session'
   | 'organizations'
   | 'organization'
+  | 'event-profile'
+  | 'event-personal-info'
 
 interface PublicEventWebsiteShellProps {
   eventUuid: string
@@ -97,6 +99,8 @@ const getSectionFromPath = (
   if (rest.startsWith('/attendees')) return { section: 'attendees' }
   if (rest.startsWith('/schedule')) return { section: 'schedule' }
   if (rest === '/sessions' || rest === '/sessions/') return { section: 'sessions' }
+  if (rest === '/profile' || rest === '/profile/') return { section: 'event-profile' }
+  if (rest === '/profile/personal-info' || rest === '/profile/personal-info/') return { section: 'event-personal-info' }
 
   // Default: if no explicit section, treat it as "webpage" and show first available page
   return { section: 'webpage' }
@@ -110,6 +114,8 @@ const AttendeesListPage = React.lazy(() => import('./attendees/AttendeesListPage
 const AttendeeDetailPage = React.lazy(() => import('./attendees/AttendeeDetailPage'))
 const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePage'))
 const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
+const PublicEventProfilePage = React.lazy(() => import('./PublicEventProfilePage'))
+const PublicEventPersonalInfoPage = React.lazy(() => import('./PublicEventPersonalInfoPage'))
 
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
@@ -538,7 +544,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         onNavigate={handleNavigate}
         navbarBackgroundColor={navbarBackgroundColor}
         exitEventPath="/event-list"
-        onProfileClick={() => { window.location.href = '/profile' }}
+        onProfileClick={() => handleNavigate(`/events/${eventUuid}/profile`)}
         yourSchedulePath={`/events/${eventUuid}/your-schedule`}
       />
 
@@ -648,6 +654,14 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         ) : current.section === 'schedule' || current.section === 'sessions' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <PublicSchedulePage eventUuid={eventUuid} onNavigate={handleNavigate} />
+          </React.Suspense>
+        ) : current.section === 'event-profile' ? (
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <PublicEventProfilePage eventUuid={eventUuid} onNavigate={handleNavigate} />
+          </React.Suspense>
+        ) : current.section === 'event-personal-info' ? (
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <PublicEventPersonalInfoPage eventUuid={eventUuid} onNavigate={handleNavigate} />
           </React.Suspense>
         ) : current.section === 'webpage' ? (
           webpageSlug ? (

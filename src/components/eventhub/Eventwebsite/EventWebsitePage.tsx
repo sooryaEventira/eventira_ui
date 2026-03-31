@@ -89,6 +89,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [showUnsavedNavModal, setShowUnsavedNavModal] = useState(false)
   const [pendingNavCallback, setPendingNavCallback] = useState<(() => void) | null>(null)
 
+
   const filteredWebpages = useMemo(() => webpages, [webpages])
 
   const handleAddMenuItem = useCallback(
@@ -905,20 +906,6 @@ const loadNavigationFromApi = useCallback(async () => {
   }
 
   const renderConfigurationTab = () => {
-    const flattenPages = (list: NavigationItem[]): NavigationItem[] => {
-      const out: NavigationItem[] = []
-      for (const it of list) {
-        if (isFolder(it)) {
-          out.push(...flattenPages(it.children || []))
-        } else {
-          out.push(it)
-        }
-      }
-      return out
-    }
-
-    const configPages = flattenPages(navigationFromApi)
-
     return (
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -935,24 +922,21 @@ const loadNavigationFromApi = useCallback(async () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {configPages.length === 0 ? (
+            {webpages.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
-                  No pages in navigation yet.
+                  No pages yet.
                 </td>
               </tr>
             ) : (
-              configPages.map((item) => {
-                const iconKey = (item as any).iconKey as string | undefined
+              webpages.map((item) => {
                 return (
-                  <tr key={item.id} className="hover:bg-slate-50 transition-colors">
+                  <tr key={item.uuid} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900 capitalize whitespace-nowrap">
-                      {item.title}
+                      {item.name}
                     </td>
                     <td className="px-4 py-3 text-slate-500">
-                      {iconKey
-                        ? renderNavIcon(iconKey, 'h-4 w-4')
-                        : <span className="text-xs text-slate-400">Not added</span>}
+                      <span className="text-xs text-slate-400">Not added</span>
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
@@ -962,7 +946,7 @@ const loadNavigationFromApi = useCallback(async () => {
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => handlePageAction((item as any).pageId || item.id, 'settings')}
+                        onClick={() => handlePageAction(item.uuid, 'settings')}
                         className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
                         aria-label="Configure page"
                       >
@@ -1501,7 +1485,7 @@ const loadNavigationFromApi = useCallback(async () => {
                   if (isFolder(item)) {
                     const children = item.children || []
                     return (
-                      <div key={item.id} className="inline-flex flex-col gap-1.5">
+                      <div key={item.uuid} className="inline-flex flex-col gap-1.5">
                         <span className="text-xs font-medium text-slate-500  tracking-wide">
                           {item.title}
                         </span>
@@ -1535,13 +1519,13 @@ const loadNavigationFromApi = useCallback(async () => {
                       </div>
                     )
                   }
-                  const isActive = item.id === activeId
+                  const isActive = item.uuid === activeId
                   const iconKey = isPage(item) ? (item as any).iconKey : undefined
                   return (
                     <button
-                      key={item.id}
+                      key={item.uuid}
                       type="button"
-                      onClick={() => setNavigationPreviewActive(item.id)}
+                      onClick={() => setNavigationPreviewActive(item.uuid)}
                       className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
                         isActive
                           ? 'bg-violet-100 text-violet-700'

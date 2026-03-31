@@ -8,7 +8,9 @@ import ScheduleGrid from './ScheduleGrid'
 import SessionCreationModal from './SessionCreationModal'
 import { SavedSession } from './sessionTypes'
 import sessionTemplate from '../../../assets/excel/Session templates.xlsx?url'
-import { fetchScheduleTags, type ScheduleTag } from '../../../services/scheduleTagService'
+import { fetchScheduleTags, createScheduleTag, deleteScheduleTag, type ScheduleTag } from '../../../services/scheduleTagService'
+import { showToast } from '../../../utils/toast'
+import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-person', 'Hybrid'] as const
 type AttendanceOption = (typeof ATTENDANCE_OPTIONS)[number]
@@ -68,15 +70,17 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
+  const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([])
+  const [clearSelectionTrigger, setClearSelectionTrigger] = useState(0)
   const [tagsLocationOpen, setTagsLocationOpen] = useState(false)
   const [tagsLocationTab, setTagsLocationTab] = useState<'tags' | 'locations'>('tags')
   const [tagSearch, setTagSearch] = useState('')
   const [locationSearch, setLocationSearch] = useState('')
-  const [dummyTags] = useState([
-    { uuid: '1', name: 'Break', sessions: 1 },
-    { uuid: '2', name: 'poster',  sessions: 3 },
-    { uuid: '3', name: 'Keynote',  sessions: 2 },
-  ])
+  const [manageTags, setManageTags] = useState<ScheduleTag[]>([])
+  const [isLoadingManageTags, setIsLoadingManageTags] = useState(false)
+  const [isSavingTag, setIsSavingTag] = useState(false)
+  const [deleteTagCandidate, setDeleteTagCandidate] = useState<ScheduleTag | null>(null)
+  const [isDeletingTag, setIsDeletingTag] = useState(false)
   const [dummyLocations] = useState([
     { uuid: '1', name: 'Room A', sessions: 4 },
     { uuid: '2', name: 'Room B', sessions: 2 },
@@ -297,6 +301,52 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       cancelled = true
     }
   }, [eventUuid])
+
+  // Fetch tags when the manage panel opens
+  useEffect(() => {
+    if (!tagsLocationOpen || !eventUuid) return
+    let cancelled = false
+    setIsLoadingManageTags(true)
+    fetchScheduleTags(eventUuid)
+      .then((tags) => { if (!cancelled) setManageTags(tags) })
+      .catch(() => { if (!cancelled) showToast.error('Failed to load tags.') })
+      .finally(() => { if (!cancelled) setIsLoadingManageTags(false) })
+    return () => { cancelled = true }
+  }, [tagsLocationOpen, eventUuid])
+
+  const handleAddTag = async () => {
+    if (!tagLocationModal || !eventUuid) return
+    const name = tagLocationModal.name.trim()
+    if (!name) return
+    setIsSavingTag(true)
+    try {
+      const created = await createScheduleTag(eventUuid, name)
+      setManageTags((prev) => [...prev, created])
+      setApiTags((prev) => [...prev, created])
+      showToast.success('Tag added.')
+      closeTagLocationModal()
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to add tag.')
+    } finally {
+      setIsSavingTag(false)
+    }
+  }
+
+  const handleDeleteTag = async () => {
+    if (!deleteTagCandidate || !eventUuid) return
+    setIsDeletingTag(true)
+    try {
+      await deleteScheduleTag(deleteTagCandidate.uuid, eventUuid)
+      setManageTags((prev) => prev.filter((t) => t.uuid !== deleteTagCandidate.uuid))
+      setApiTags((prev) => prev.filter((t) => t.uuid !== deleteTagCandidate.uuid))
+      showToast.success('Tag deleted.')
+      setDeleteTagCandidate(null)
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to delete tag.')
+    } finally {
+      setIsDeletingTag(false)
+    }
+  }
 
   // Location options: from prop or unique from sessions; always include "All"
   const locationOptions = useMemo(() => {
@@ -533,6 +583,28 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         />
 
         <div ref={filterDropdownRef} className="relative flex w-full items-center justify-between gap-3">
+          {selectedSessionIds.length > 0 ? (
+            <div className="flex flex-1 items-center justify-end gap-3">
+             
+              <button
+                type="button"
+                onClick={() => { setTagsLocationOpen(true); setClearSelectionTrigger((n) => n + 1) }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-primary/40 hover:text-primary transition-colors"
+              >
+                {/* <Tag01 className="h-4 w-4" /> */}
+                Add tags &amp; location
+              </button>
+              <button
+                type="button"
+                onClick={() => { onDeleteSession?.(null as any); setClearSelectionTrigger((n) => n + 1) }}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm  transition-colors"
+              >
+                <Trash01 className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          ) : (
+            <>
           <div className="flex items-center gap-2">
             <Button
               type="button"
@@ -683,17 +755,21 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                 document.body
               )}
           </div>
+            </>
+          )}
         </div>
 
         {filteredSessions && filteredSessions.length > 0 ? (
-          <ScheduleGrid 
-            sessions={filteredSessions} 
-            selectedDate={selectedDate} 
+          <ScheduleGrid
+            sessions={filteredSessions}
+            selectedDate={selectedDate}
             onAddParallelSession={(parentId) => onAddSession?.(parentId)}
             onEditSession={onEditSession}
             onDeleteSession={onDeleteSession}
             onSessionClick={onSessionClick}
             sessionFormOpen={sessionFormOpen}
+            onSelectionChange={(ids) => setSelectedSessionIds(ids)}
+            clearSelectionTrigger={clearSelectionTrigger}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-center text-base text-slate-500">
@@ -817,35 +893,40 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
 
               {tagsLocationTab === 'tags' ? (
                 <div className="divide-y divide-slate-100">
-                  {dummyTags
-                    .filter((t) => t.name.toLowerCase().includes(tagSearch.toLowerCase()))
-                    .map((tag) => (
-                      <div key={tag.uuid} className="grid grid-cols-[1fr_auto_auto] items-center px-6 py-4">
-                        <span
-                          className="inline-flex w-fit items-center rounded-full  px-2.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50"
-                        >
-                          {tag.name}
-                        </span>
-                        <span className="pr-8 text-sm text-slate-600">{tag.sessions} sessions</span>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal('tag', tag.uuid, tag.name)}
-                            className="rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
-                            aria-label="Edit tag"
-                          >
-                            <Edit02 className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded p-1 text-slate-400 hover:text-red-500 transition-colors"
-                            aria-label="Delete tag"
-                          >
-                            <Trash01 className="h-4 w-4" />
-                          </button>
+                  {isLoadingManageTags ? (
+                    <div className="px-6 py-8 text-center text-sm text-slate-400">Loading tags…</div>
+                  ) : manageTags.filter((t) => t.name.toLowerCase().includes(tagSearch.toLowerCase())).length === 0 ? (
+                    <div className="px-6 py-8 text-center text-sm text-slate-400">No tags found.</div>
+                  ) : (
+                    manageTags
+                      .filter((t) => t.name.toLowerCase().includes(tagSearch.toLowerCase()))
+                      .map((tag) => (
+                        <div key={tag.uuid} className="grid grid-cols-[1fr_auto_auto] items-center px-6 py-4">
+                          <span className="inline-flex w-fit items-center rounded-full px-2.5 py-0.5 text-xs font-medium text-blue-600 bg-blue-50">
+                            {tag.name}
+                          </span>
+                          <span className="pr-8 text-sm text-slate-600">-</span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => openEditModal('tag', tag.uuid, tag.name)}
+                              className="rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                              aria-label="Edit tag"
+                            >
+                              <Edit02 className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTagCandidate(tag)}
+                              className="rounded p-1 text-slate-400 hover:text-red-500 transition-colors"
+                              aria-label="Delete tag"
+                            >
+                              <Trash01 className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                  )}
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
@@ -945,11 +1026,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={!tagLocationModal.name.trim()}
-                  onClick={closeTagLocationModal}
+                  disabled={!tagLocationModal.name.trim() || isSavingTag}
+                  onClick={tagLocationModal.type === 'tag' && tagLocationModal.mode === 'add' ? handleAddTag : closeTagLocationModal}
                   className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {tagLocationModal.mode === 'add' ? 'Add' : 'Save'}
+                  {isSavingTag ? 'Adding…' : tagLocationModal.mode === 'add' ? 'Add' : 'Save'}
                 </button>
               </div>
             </div>
@@ -957,6 +1038,16 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         </div>,
         document.body
       )}
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteTagCandidate}
+        title="Delete tag"
+        description={`Are you sure you want to delete the tag "${deleteTagCandidate?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        isLoading={isDeletingTag}
+        onCancel={() => setDeleteTagCandidate(null)}
+        onConfirm={handleDeleteTag}
+      />
 
       {/* Session Creation Modal */}
       <SessionCreationModal

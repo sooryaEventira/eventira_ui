@@ -97,6 +97,7 @@ export const API_ENDPOINTS = {
     LIST: `${env.AUTH_API_URL}${ADMIN_API_BASE}event/`,
     GET: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
     DELETE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
+    UPDATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
     PUBLISH: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/publish/`,
     /** Event hub overview: GET overview/?event_id={{event_uuid}} */
     OVERVIEW: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}overview/?event_id=${eventUuid}`,
@@ -244,8 +245,9 @@ export const API_ENDPOINTS = {
   },
   // Schedule session tags (creatable multiselect in ScheduleDetailsSlideout)
   SCHEDULE_TAGS: {
-    CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/`,
+    CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}resource-tags/create/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/?event_id=${eventUuid}`,
+    DELETE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/delete/?event_id=${eventUuid}`,
   },
   // Schedule endpoints
   SCHEDULES: {

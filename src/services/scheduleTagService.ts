@@ -11,6 +11,65 @@ export interface ScheduleTag {
 }
 
 /**
+ * Create a new schedule tag for an event
+ */
+export async function createScheduleTag(eventUuid: string, name: string): Promise<ScheduleTag> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) throw new Error('Authentication required.')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.CREATE, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ event_uuid: eventUuid, name }),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    const msg = handleApiError(errData ?? text, response, 'Failed to create tag.')
+    throw new Error(msg)
+  }
+
+  const data = await response.json()
+  return (data?.data ?? data) as ScheduleTag
+}
+
+/**
+ * Delete a schedule tag
+ */
+export async function deleteScheduleTag(tagUuid: string, eventUuid: string): Promise<void> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) throw new Error('Authentication required.')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.DELETE(tagUuid, eventUuid), {
+    method: 'DELETE',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    const msg = handleApiError(errData ?? text, response, 'Failed to delete tag.')
+    throw new Error(msg)
+  }
+}
+
+/**
  * Fetch all schedule tags for an event
  */
 export async function fetchScheduleTags(eventUuid: string): Promise<ScheduleTag[]> {
