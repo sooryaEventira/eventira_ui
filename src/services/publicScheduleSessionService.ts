@@ -47,7 +47,19 @@ export function mapApiSectionsToSavedSections(
       videoUrl: content?.videoUrl ?? content?.video_url ?? '',
       video_url: content?.video_url ?? content?.videoUrl ?? ''
     }
-    if (uiType === 'resources' && Array.isArray(content?.files)) {
+    if (uiType === 'speaker') {
+      const rawSpeakers =
+        Array.isArray(sec?.speakers) ? sec.speakers :
+        Array.isArray(content?.speakers) ? content.speakers :
+        Array.isArray(sec?.data?.speakers) ? sec.data.speakers : []
+      const speakers = rawSpeakers.map((sp: any) => ({
+        id: String(sp?.uuid ?? sp?.id ?? sp?.speaker_uuid ?? ''),
+        name: String(sp?.name ?? [sp?.first_name, sp?.last_name].filter(Boolean).join(' ') ?? sp?.speaker_name ?? 'Speaker'),
+        role: String(sp?.role ?? sp?.designation ?? sp?.title ?? ''),
+        avatarUrl: sp?.image ?? sp?.avatar_url ?? sp?.avatarUrl ?? undefined,
+      }))
+      sectionData = { ...sectionData, speakers }
+    } else if (uiType === 'resources' && Array.isArray(content?.files)) {
       sectionData = { ...sectionData, files: content.files }
     } else if (uiType === 'resources' && (content?.file_url || content?.url)) {
       sectionData = { ...sectionData, files: [{ url: content.file_url ?? content.url, name: content.file_name ?? content.name }] }

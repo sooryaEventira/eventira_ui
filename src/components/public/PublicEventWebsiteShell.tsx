@@ -588,25 +588,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
             />
           </React.Suspense>
         ) : current.section === 'speaker' ? (
-          <React.Suspense
-            fallback={
-              <div className="rounded-xl border border-slate-200 bg-white p-6">
-                <span className="sr-only">Loading speaker</span>
-                <div className="animate-pulse">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="h-32 w-32 rounded-xl bg-slate-100 ring-1 ring-slate-200" />
-                    <div className="mt-6 h-7 w-56 rounded bg-slate-100" />
-                    <div className="mt-2 h-4 w-72 rounded bg-slate-100" />
-                    <div className="mt-6 h-20 w-full max-w-2xl rounded bg-slate-100" />
-                  </div>
-                </div>
-              </div>
-            }
-          >
-            <SpeakerDetailPage
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <SpeakersListPage
               eventUuid={eventUuid}
-              speakerId={current.speakerId || ''}
               onNavigate={handleNavigate}
+              initialSpeakerId={current.speakerId || undefined}
             />
           </React.Suspense>
         ) : current.section === 'attendees' ? (

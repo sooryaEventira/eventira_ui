@@ -121,8 +121,8 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
       await createSpeaker(eventUuid, {
         first_name: payload.firstName,
         last_name: payload.lastName,
-        email: payload.email,
-        organization: payload.organization,
+        user_email: payload.email,
+        organisation: payload.organization,
         designation: payload.role,
         description: payload.bio,
         groups: payload.group ? [payload.group] : undefined,

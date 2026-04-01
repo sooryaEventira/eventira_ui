@@ -1010,7 +1010,7 @@ export const bulkDeleteSpeakers = async (eventUuid: string, speakerUuids: string
 type CreateSpeakerInput = {
   first_name: string
   last_name: string
-  email: string
+  user_email: string
   organization?: string
   designation?: string
   role?: string
@@ -1061,10 +1061,10 @@ export const createSpeaker = async (
 
     if (hasImage) {
       const form = new FormData()
-      form.append('email', input.email)
+      form.append('user_email', input.user_email)
       form.append('first_name', input.first_name)
       form.append('last_name', input.last_name)
-      if (input.organization != null && input.organization !== '') form.append('organization', input.organization)
+      if (input.organisation != null && input.organisation !== '') form.append('organisation', input.organisation)
       if (input.designation != null && input.designation !== '') form.append('designation', input.designation)
       if (input.role != null && input.role !== '') form.append('role', input.role)
       if (input.description != null && input.description !== '') form.append('description', input.description)
@@ -1108,7 +1108,7 @@ export const createSpeaker = async (
 
     // No image: JSON body
     const payload = cleanObject({
-      email: input.email,
+      use_email: input.email,
       first_name: input.first_name,
       last_name: input.last_name,
       organization: input.organization,

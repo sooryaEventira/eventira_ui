@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import { fetchEvent } from '../../../services/eventService'
 import { fetchEventOverview, type EventOverviewPayload } from '../../../services/eventOverviewService'
@@ -106,6 +106,19 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<EventOverviewPayload | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [gearMenuOpen, setGearMenuOpen] = useState(false)
+  const gearMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!gearMenuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (gearMenuRef.current && !gearMenuRef.current.contains(e.target as Node)) {
+        setGearMenuOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [gearMenuOpen])
   /** Status from GET event API (source of truth); normalized to 'live' | 'draft' */
   const [eventStatusFromApi, setEventStatusFromApi] = useState<'live' | 'draft' | null>(null)
 
@@ -279,15 +292,43 @@ const EventHubOverviewPage: React.FC<EventHubOverviewPageProps> = ({ onNavigateS
                   )}
                 </div>
               </div>
-              <button
-                type="button"
-                className="rounded-lg bg-white/10 p-2 text-white hover:bg-white/15"
-                aria-label="Edit event details"
-                title="Edit event details"
-                onClick={() => setSettingsOpen(true)}
-              >
-                <Settings01 className="h-5 w-5" aria-hidden="true" />
-              </button>
+              <div className="relative" ref={gearMenuRef}>
+                <button
+                  type="button"
+                  className="rounded-lg bg-white/10 p-2 text-white hover:bg-white/15"
+                  aria-label="Event options"
+                  title="Event options"
+                  onClick={() => setGearMenuOpen((prev) => !prev)}
+                >
+                  <Settings01 className="h-5 w-5" aria-hidden="true" />
+                </button>
+
+                {gearMenuOpen && (
+                  <div className="absolute right-0 top-full z-50 mt-1 w-40 rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                    <button
+                      type="button"
+                      className="flex w-full items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                      onClick={() => { setGearMenuOpen(false); setSettingsOpen(true) }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                      onClick={() => setGearMenuOpen(false)}
+                    >
+                      Archive
+                    </button>
+                    <button
+                      type="button"
+                      className="flex w-full items-center px-4 py-2 text-sm text-rose-600 hover:bg-rose-50"
+                      onClick={() => setGearMenuOpen(false)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
