@@ -9,13 +9,15 @@ import CreateSpeakerModal from './CreateSpeakerModal'
 import CreateGroupModal from '../attendeemanagement/CreateGroupModal'
 import CreateCustomFieldModal from '../attendeemanagement/CreateCustomFieldModal'
 import UploadModal from '../../ui/UploadModal'
+import { ConfirmDeleteModal } from '../../ui'
 import SpeakerDetailsSlideout from './SpeakerDetailsSlideout'
 import { Speaker, SpeakerTab, Group, CustomField } from './speakerTypes'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import attendeeSpeakerTemplate from '../../../assets/excel/Attendee Speaker template.xlsx?url'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
-import { setTagPublished, setTagUnpublished } from '../../../services/eventTagService'
+import { setTagPublished, setTagUnpublished, deleteTag } from '../../../services/eventTagService'
+import { showToast } from '../../../utils/toast'
 
 interface SpeakerManagementPageProps {
   eventName?: string
@@ -99,6 +101,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   const [activeTab, setActiveTab] = useState<SpeakerTab>('user')
   const [isCreateProfileModalOpen, setIsCreateProfileModalOpen] = useState(false)
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<{ id: string; name: string } | null>(null)
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false)
   const [isCreateCustomFieldModalOpen, setIsCreateCustomFieldModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSpeakerSlideoutOpen, setIsSpeakerSlideoutOpen] = useState(false)
@@ -688,7 +692,9 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
   }
 
   const handleDeleteGroup = (groupId: string) => {
-    setGroups((prev) => prev.filter((g) => g.id !== groupId))
+    const target = groups.find((g) => g.id === groupId)
+    if (!target) return
+    setDeleteGroupTarget({ id: target.id, name: target.name })
   }
 
   const handleToggleBuildPage = async (
@@ -838,6 +844,32 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
         isOpen={isCreateGroupModalOpen}
         onClose={() => setIsCreateGroupModalOpen(false)}
         onConfirm={handleSaveGroup}
+      />
+
+      {/* Delete Group Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteGroupTarget)}
+        title="Delete group"
+        itemName={deleteGroupTarget?.name}
+        isLoading={isDeletingGroup}
+        onCancel={() => {
+          if (isDeletingGroup) return
+          setDeleteGroupTarget(null)
+        }}
+        onConfirm={async () => {
+          if (!deleteGroupTarget || !eventUuid) return
+          setIsDeletingGroup(true)
+          try {
+            await deleteTag(deleteGroupTarget.id, eventUuid)
+            setGroups((prev) => prev.filter((g) => g.id !== deleteGroupTarget.id))
+            showToast.success('Group deleted')
+            setDeleteGroupTarget(null)
+          } catch (e) {
+            showToast.error(e instanceof Error ? e.message : 'Failed to delete group.')
+          } finally {
+            setIsDeletingGroup(false)
+          }
+        }}
       />
 
       {/* Create Custom Field Modal */}

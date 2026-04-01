@@ -51,17 +51,16 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
   const handleCreateOption = useCallback(
     (inputValue: string) => {
       const newOption: CreatableMultiSelectOption = {
-        value: inputValue.toLowerCase().replace(/\s+/g, '-'),
+        value: inputValue,
         label: inputValue
       }
 
       // Add new option to local options list
       setLocalOptions((prev) => {
-        // Check if option already exists
-        const exists = prev.some((opt) => opt.value === newOption.value || opt.label === newOption.label)
-        if (exists) {
-          return prev
-        }
+        const exists = prev.some(
+          (opt) => opt.value === newOption.value || opt.label.toLowerCase() === newOption.label.toLowerCase()
+        )
+        if (exists) return prev
         return [...prev, newOption]
       })
 

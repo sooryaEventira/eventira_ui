@@ -137,6 +137,28 @@ export const fetchPublicEventList = async (): Promise<PublicEventData[]> => {
  * Fetch public events filtered by tag.
  * Endpoint: {{public_url}}events/?tag_id={{tag_uuid}}
  */
+/**
+ * Fetch bookmarked sessions for an event (authenticated).
+ * Endpoint: GET {{public_url}}events/{{event_uuid}}/sessions/bookmarks/
+ */
+export const fetchBookmarkedSessions = async (eventUuid: string): Promise<any[]> => {
+  const accessToken = localStorage.getItem('pub_accessToken')
+  if (!accessToken) return []
+  const url = API_ENDPOINTS.PUBLIC.SESSION_BOOKMARKS.LIST(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+  if (!response.ok) return []
+  let data: any
+  try { data = await response.json() } catch { return [] }
+  const raw = data?.data ?? data?.results ?? data
+  return Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : []
+}
+
 export const fetchPublicEventsByTag = async (tagId: string): Promise<PublicEventData[]> => {
   try {
     if (!tagId) {

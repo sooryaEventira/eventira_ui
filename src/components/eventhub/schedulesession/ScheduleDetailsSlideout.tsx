@@ -57,27 +57,41 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   const [locationOptions, setLocationOptions] = useState<CreatableMultiSelectOption[]>([])
   const [isLoadingTags, setIsLoadingTags] = useState(false)
 
-  // Convert available tags/locations to options format
+  // Merge availableTags/Locations props into options without overwriting better labels.
+  // availableTags may contain UUID strings when the API returns tag UUIDs; loadTags
+  // later replaces those with real names. We must not overwrite real names with UUIDs.
   useEffect(() => {
-    const tagsFromSchedules = availableTags.map(tag => ({
-      value: tag.toLowerCase().replace(/\s+/g, '-'),
-      label: tag
-    }))
-    setTagOptions(tagsFromSchedules)
+    setTagOptions((prev) => {
+      const result = [...prev]
+      for (const tag of availableTags) {
+        const value = tag.toLowerCase().replace(/\s+/g, '-')
+        const existingIdx = result.findIndex((o) => o.value === value)
+        if (existingIdx >= 0) {
+          // Only update if existing label is still a UUID/placeholder (same as the value itself)
+          const existingLabel = result[existingIdx].label
+          if (existingLabel === value || existingLabel === tag) {
+            result[existingIdx] = { value, label: tag }
+          }
+          // else: keep the better label already set by loadTags
+        } else {
+          result.push({ value, label: tag })
+        }
+      }
+      return result
+    })
 
-    const locationsFromSchedules = availableLocations.map(location => ({
+    setLocationOptions(availableLocations.map(location => ({
       value: location.toLowerCase().replace(/\s+/g, '-'),
       label: location
-    }))
-    setLocationOptions(locationsFromSchedules)
+    })))
   }, [availableTags, availableLocations])
 
-  // Fetch tags for this event from API (GET {{admin_url}}tags/?event_uuid={{event_uuid}})
+  // Fetch tags for this schedule from API (GET {{admin_url}}schedules/{{schedule_uuid}}/tags/?event_id={{event_uuid}})
   useEffect(() => {
     const loadTags = async () => {
       if (!isOpen) return
       const eventUuid = createdEvent?.uuid
-      if (!eventUuid) return
+      if (!eventUuid || !editingScheduleId) return
 
       const accessToken = localStorage.getItem('accessToken')
       const organizationUuid = localStorage.getItem('organizationUuid')
@@ -85,7 +99,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
 
       setIsLoadingTags(true)
       try {
-        const url = API_ENDPOINTS.SCHEDULE_TAGS.LIST(eventUuid)
+        const url = API_ENDPOINTS.SCHEDULE_TAGS.LIST(editingScheduleId, eventUuid)
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -117,19 +131,41 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
         }
 
         const items = extractArray(data)
-        const names = items
-          .map((t: any) => t?.name)
-          .filter((n: any) => typeof n === 'string' && n.trim().length > 0) as string[]
+
+        // Build name→UUID map from API response
+        const nameToUuid: Record<string, string> = {}
+        const newOptions: CreatableMultiSelectOption[] = []
+        for (const tag of items) {
+          const name = tag?.name
+          if (typeof name !== 'string' || !name.trim()) continue
+          const value = tag?.uuid || tag?.id || name.toLowerCase().replace(/\s+/g, '-')
+          nameToUuid[name] = value
+          newOptions.push({ value, label: name })
+        }
 
         setTagOptions((prev) => {
           const merged = [...prev]
-          for (const name of names) {
-            const value = name.toLowerCase().replace(/\s+/g, '-')
-            const exists = merged.some((opt) => opt.value === value || opt.label === name)
-            if (!exists) merged.push({ value, label: name })
+          for (const opt of newOptions) {
+            const existingIdx = merged.findIndex((o) => o.value === opt.value)
+            if (existingIdx >= 0) {
+              // Replace so the label is updated from UUID placeholder to real name
+              merged[existingIdx] = opt
+            } else if (!merged.some((o) => o.label.toLowerCase() === opt.label.toLowerCase())) {
+              merged.push(opt)
+            }
           }
           return merged
         })
+
+        // Normalize details.tags: replace any name-based entries with their UUID
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        setDetails((prev) => ({
+          ...prev,
+          tags: prev.tags.map((tag) => {
+            if (UUID_RE.test(tag)) return tag          // already a UUID
+            return nameToUuid[tag] ?? tag               // swap name → UUID
+          })
+        }))
       } catch (e) {
         // keep UI usable even if request fails
       } finally {
@@ -138,7 +174,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
     }
 
     loadTags()
-  }, [isOpen, createdEvent?.uuid])
+  }, [isOpen, createdEvent?.uuid, editingScheduleId])
 
 
   useEffect(() => {
@@ -173,21 +209,26 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
     }))
   }
 
+  // Deduplicate tagOptions by label (case-insensitive) — prevents duplicates from
+  // multiple loadTags runs or availableTags prop + API results overlapping
+  const deduplicatedTagOptions = useMemo(() => {
+    const seen = new Set<string>()
+    return tagOptions.filter((opt) => {
+      const key = opt.label.toLowerCase()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [tagOptions])
+
   // Convert tags from string[] to CreatableMultiSelectOption[]
   const selectedTags = useMemo(() => {
     return details.tags.map(tag => {
-      // Try to find existing option
-      const existingOption = tagOptions.find(opt => opt.value === tag || opt.label === tag)
-      if (existingOption) {
-        return existingOption
-      }
-      // If not found, create new option
-      return {
-        value: tag.toLowerCase().replace(/\s+/g, '-'),
-        label: tag
-      }
+      const existingOption = deduplicatedTagOptions.find(opt => opt.value === tag || opt.label === tag)
+      if (existingOption) return existingOption
+      return { value: tag, label: tag }
     })
-  }, [details.tags, tagOptions])
+  }, [details.tags, deduplicatedTagOptions])
 
   // Convert locations from string[] to CreatableMultiSelectOption[]
   const selectedLocations = useMemo(() => {
@@ -206,7 +247,9 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   }, [details.location, locationOptions])
 
   const handleTagsChange = (newValue: MultiValue<CreatableMultiSelectOption>, _actionMeta: ActionMeta<CreatableMultiSelectOption>) => {
-    const tagValues = Array.from(newValue).map(option => option.label)
+    // Store option.value: UUID for API tags, original name for newly created tags
+    const tagValues = Array.from(newValue).map(option => option.value)
+    console.log('[Slideout] handleTagsChange called, tagValues:', tagValues)
     handleFieldChange('tags', tagValues)
   }
 
@@ -216,8 +259,10 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   }
 
   const handleCreateTag = async (inputValue: string) => {
+    console.log('[Slideout] handleCreateTag called, inputValue:', inputValue, '| current details.tags:', details.tags)
+    // Use the original input as value so it's distinguishable from UUIDs on save
     const newTag: CreatableMultiSelectOption = {
-      value: inputValue.toLowerCase().replace(/\s+/g, '-'),
+      value: inputValue,
       label: inputValue
     }
 
@@ -232,16 +277,16 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
       tags: prev.tags.includes(inputValue) ? prev.tags : [...prev.tags, inputValue]
     }))
 
-    // Persist to API (POST {{admin_url}}tags/)
+    // Persist to API only in edit mode (schedule must exist first)
     const eventUuid = createdEvent?.uuid
     const accessToken = localStorage.getItem('accessToken')
     const organizationUuid = localStorage.getItem('organizationUuid')
-    if (!eventUuid || !accessToken || !organizationUuid) {
+    if (!editingScheduleId || !eventUuid || !accessToken || !organizationUuid) {
       return
     }
 
     try {
-      const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.CREATE, {
+      const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.CREATE(editingScheduleId, eventUuid), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -249,12 +294,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
           'X-Organization': organizationUuid
         },
         credentials: 'include',
-        body: JSON.stringify({
-          event_uuid: eventUuid,
-          name: inputValue.trim(),
-          description: '',
-          is_active: true
-        })
+        body: JSON.stringify({ name: inputValue.trim() })
       })
 
       // If creation fails, keep it locally (still useful for schedule details)
@@ -290,6 +330,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   }
 
   const handleSave = () => {
+    console.log('[Slideout] handleSave called, details.tags:', details.tags)
     if (onSave) {
       onSave(details, editingScheduleId ?? undefined)
     }
@@ -345,7 +386,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
               <CreatableMultiSelect
                 label="Tags"
                 placeholder="Select or create tags"
-                options={tagOptions}
+                options={deduplicatedTagOptions}
                 value={selectedTags}
                 onChange={handleTagsChange}
                 onCreateOption={handleCreateTag}

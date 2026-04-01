@@ -1,5 +1,6 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import PublicAuthTopbar from './PublicAuthTopbar'
+import { API_ENDPOINTS } from '../../config/env'
 import ProfileBackground from '../../assets/images/profile_background.jpg'
 import { Edit01,Camera01,User01,Mail01,Briefcase01,Building03,MarkerPin01,ArrowRight,ChevronRight} from '@untitled-ui/icons-react'
 
@@ -70,9 +71,29 @@ function decodeJwtPayload(token: string): Record<string, any> | null {
   }
 }
 
+function getEventUuid(payload?: Record<string, any> | null): string {
+  const params = new URLSearchParams(window.location.search)
+  const fromUrl = params.get('event') ?? ''
+  if (fromUrl) {
+    localStorage.setItem('pub_currentEventUuid', fromUrl)
+    return fromUrl
+  }
+  const fromStorage = localStorage.getItem('pub_currentEventUuid') ?? ''
+  if (fromStorage) return fromStorage
+  // Fall back to JWT payload claims
+  const fromJwt =
+    payload?.event_uuid ??
+    payload?.event_id ??
+    payload?.event ??
+    payload?.aud ??
+    ''
+  return fromJwt ? String(fromJwt) : ''
+}
+
 const PublicProfilePage: React.FC = () => {
   const token = localStorage.getItem('pub_accessToken') ?? ''
   const payload = token ? decodeJwtPayload(token) : null
+  const eventUuid = getEventUuid(payload)
 
   const [firstName, setFirstName] = useState(() => payload?.first_name ?? payload?.given_name ?? '')
   const [lastName, setLastName] = useState(() => payload?.last_name ?? payload?.family_name ?? '')
@@ -83,6 +104,27 @@ const PublicProfilePage: React.FC = () => {
   const [profilePicture, setProfilePicture] = useState<string>(
     () => localStorage.getItem('pub_profilePicture') ?? payload?.picture ?? payload?.avatar ?? ''
   )
+  const [isDirty, setIsDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!eventUuid || !token) return
+    fetch(API_ENDPOINTS.PUBLIC.PROFILE(eventUuid), {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((res) => {
+        const d = res?.data ?? res
+        if (!d) return
+        if (d.first_name != null) setFirstName(String(d.first_name))
+        if (d.last_name != null) setLastName(String(d.last_name))
+        if (d.email != null) setEmail(String(d.email))
+        if (d.designation != null) setPost(String(d.designation))
+        if (d.organisation != null) setOrganization(String(d.organisation))
+        if (d.image) setProfilePicture(String(d.image))
+      })
+      .catch(() => {/* keep JWT-derived defaults */})
+  }, [])
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -96,11 +138,41 @@ const PublicProfilePage: React.FC = () => {
     reader.readAsDataURL(file)
   }
 
+  const markDirty = () => setIsDirty(true)
+
   const fullName = `${firstName} ${lastName}`.trim() || 'User'
   const title = [post, organization].filter(Boolean).join(' at ') || ''
 
   const handleBack = () => {
     window.history.back()
+  }
+
+  const handleSave = async () => {
+    console.log('[ProfilePage] handleSave — eventUuid:', eventUuid, '| jwtPayload:', payload)
+    if (!eventUuid) {
+      console.error('[ProfilePage] No event UUID found — cannot save profile')
+      return
+    }
+    setSaving(true)
+    try {
+      await fetch(API_ENDPOINTS.PUBLIC.PROFILE(eventUuid), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          designation: post,
+          organisation: organization,
+        }),
+      })
+      setIsDirty(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleLogOut = () => {
@@ -204,7 +276,7 @@ const PublicProfilePage: React.FC = () => {
                   <input
                     type="text"
                     value={firstName}
-                    onChange={(e) => setFirstName(e.target.value)}
+                    onChange={(e) => { setFirstName(e.target.value); markDirty() }}
                     className={`${inputBase} pl-10`}
                     placeholder="First name"
                   />
@@ -213,7 +285,7 @@ const PublicProfilePage: React.FC = () => {
                   <input
                     type="text"
                     value={lastName}
-                    onChange={(e) => setLastName(e.target.value)}
+                    onChange={(e) => { setLastName(e.target.value); markDirty() }}
                     className={inputBase}
                     placeholder="Last name"
                   />
@@ -231,7 +303,7 @@ const PublicProfilePage: React.FC = () => {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); markDirty() }}
                   className={`${inputBase} pl-10`}
                   placeholder="Email"
                 />
@@ -250,7 +322,7 @@ const PublicProfilePage: React.FC = () => {
                 <input
                   type="text"
                   value={post}
-                  onChange={(e) => setPost(e.target.value)}
+                  onChange={(e) => { setPost(e.target.value); markDirty() }}
                   className={`${inputBase} pl-10`}
                   placeholder="Post"
                 />
@@ -265,7 +337,7 @@ const PublicProfilePage: React.FC = () => {
                 <input
                   type="text"
                   value={organization}
-                  onChange={(e) => setOrganization(e.target.value)}
+                  onChange={(e) => { setOrganization(e.target.value); markDirty() }}
                   className={`${inputBase} pl-10 pr-10`}
                   placeholder="Organization"
                 />
@@ -274,7 +346,7 @@ const PublicProfilePage: React.FC = () => {
             </div>
 
             {/* Location */}
-            <div>
+            {/* <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">Location</label>
               <div className="relative">
                 <MapPinIcon className={inputIcon} />
@@ -287,17 +359,27 @@ const PublicProfilePage: React.FC = () => {
                 />
                 <SearchIcon className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
               </div>
-            </div>
+            </div> */}
 
-            {/* Log Out */}
-            <button
-              type="button"
-              onClick={handleLogOut}
-              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#E74C3C] px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-[#d43c2c] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
-            >
-              Log Out
-              <LogOutArrowIcon className="h-5 w-5" />
-            </button>
+            {isDirty ? (
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={saving}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60"
+              >
+                {saving ? 'Saving…' : 'Save Changes'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleLogOut}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#E74C3C] px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-[#d43c2c] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+              >
+                Log Out
+                <LogOutArrowIcon className="h-5 w-5" />
+              </button>
+            )}
           </div>
         </div>
       </main>

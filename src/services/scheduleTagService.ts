@@ -13,13 +13,13 @@ export interface ScheduleTag {
 /**
  * Create a new schedule tag for an event
  */
-export async function createScheduleTag(eventUuid: string, name: string): Promise<ScheduleTag> {
+export async function createScheduleTag(scheduleUuid: string, eventUuid: string, name: string): Promise<ScheduleTag> {
   const accessToken = localStorage.getItem('accessToken')
   if (!accessToken) throw new Error('Authentication required.')
   const organizationUuid = localStorage.getItem('organizationUuid')
   if (!organizationUuid) throw new Error('Organization UUID is missing.')
 
-  const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.CREATE, {
+  const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.CREATE(scheduleUuid, eventUuid), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -27,7 +27,7 @@ export async function createScheduleTag(eventUuid: string, name: string): Promis
       'X-Organization': organizationUuid,
     },
     credentials: 'include',
-    body: JSON.stringify({ event_uuid: eventUuid, name }),
+    body: JSON.stringify({ name }),
   })
 
   if (!response.ok) {
@@ -72,7 +72,7 @@ export async function deleteScheduleTag(tagUuid: string, eventUuid: string): Pro
 /**
  * Fetch all schedule tags for an event
  */
-export async function fetchScheduleTags(eventUuid: string): Promise<ScheduleTag[]> {
+export async function fetchScheduleTags(scheduleUuid: string, eventUuid: string): Promise<ScheduleTag[]> {
   const accessToken = localStorage.getItem('accessToken')
   if (!accessToken) {
     const msg = handleApiError('Authentication required. Please login again.', undefined, 'Authentication required.')
@@ -91,7 +91,7 @@ export async function fetchScheduleTags(eventUuid: string): Promise<ScheduleTag[
   }
 
   try {
-    const url = API_ENDPOINTS.SCHEDULE_TAGS.LIST(eventUuid)
+    const url = API_ENDPOINTS.SCHEDULE_TAGS.LIST(scheduleUuid, eventUuid)
     const response = await fetch(url, {
       method: 'GET',
       headers: {

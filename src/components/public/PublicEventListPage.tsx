@@ -36,7 +36,7 @@ function normalizeEventListPayload(data: unknown): PublicEventListItem[] {
   return []
 }
 
-type TabId = 'all' | 'your' | 'past'
+type TabId = 'all' | 'your' | 'past' | 'bookmarked'
 
 function formatEventDate(item: PublicEventListItem): string {
   const raw =
@@ -84,6 +84,8 @@ const PublicEventListPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabId>('all')
   const [searchQuery, setSearchQuery] = useState('')
+  const [bookmarkedSessions] = useState<any[]>([])
+  const [bookmarksLoading] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -147,10 +149,12 @@ const PublicEventListPage: React.FC = () => {
     return list
   }, [events, searchQuery, activeTab])
 
-  const tabs: { id: TabId; label: string }[] = [
+
+  const tabs: { id: TabId; label: string; authRequired?: boolean }[] = [
     { id: 'all', label: 'All events' },
     { id: 'your', label: 'Your events' },
-    { id: 'past', label: 'Past events' }
+    { id: 'past', label: 'Past events' },
+    ...(isAuthenticated ? [{ id: 'bookmarked' as TabId, label: 'Bookmarked', authRequired: true }] : []),
   ]
 
   return (
@@ -169,7 +173,7 @@ const PublicEventListPage: React.FC = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => {
-                  if (tab.id === 'your' && !isAuthenticated) {
+                  if ((tab.id === 'your' || tab.id === 'bookmarked') && !isAuthenticated) {
                     window.location.href = '/login'
                     return
                   }
@@ -224,6 +228,44 @@ const PublicEventListPage: React.FC = () => {
           </div>
         )}
 
+        {/* Bookmarked tab content */}
+        {!loading && activeTab === 'bookmarked' && isAuthenticated && (
+          bookmarksLoading ? (
+            <div className="flex justify-center py-16">
+              <div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+          ) : bookmarkedSessions.length === 0 ? (
+            <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
+              No bookmarked sessions yet.
+            </div>
+          ) : (
+            <ul className="space-y-4">
+              {bookmarkedSessions.map((session: any, idx: number) => {
+                const title = session?.title ?? session?.name ?? 'Session'
+                const eventName = session?.event_name ?? session?.event?.name ?? ''
+                const startTime = session?.start_time ?? session?.start_at ?? ''
+                return (
+                  <li key={session?.uuid ?? idx}>
+                    <div className="flex gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="min-w-0 flex-1">
+                        <h2 className="font-semibold text-slate-900">{title}</h2>
+                        {eventName && (
+                          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600">
+                            {eventName}
+                          </span>
+                        )}
+                        {startTime && (
+                          <p className="mt-1.5 text-sm text-slate-500">{startTime}</p>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )
+        )}
+
         {!loading && !error && activeTab === 'your' && !isAuthenticated && (
           <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
             <p className="font-semibold text-slate-800">You need to log in to view your events.</p>
@@ -233,13 +275,13 @@ const PublicEventListPage: React.FC = () => {
           </div>
         )}
 
-        {!loading && !error && !(activeTab === 'your' && !isAuthenticated) && filteredEvents.length === 0 && (
+        {!loading && !error && activeTab !== 'bookmarked' && !(activeTab === 'your' && !isAuthenticated) && filteredEvents.length === 0 && (
           <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
             No events match your selection.
           </div>
         )}
 
-        {!loading && !error && !(activeTab === 'your' && !isAuthenticated) && filteredEvents.length > 0 && (
+        {!loading && !error && activeTab !== 'bookmarked' && !(activeTab === 'your' && !isAuthenticated) && filteredEvents.length > 0 && (
           <ul className="space-y-4">
             {filteredEvents.map((event) => {
               const name = getEventName(event)

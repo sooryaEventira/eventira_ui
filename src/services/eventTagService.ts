@@ -16,6 +16,37 @@ export interface SetTagPublishedResponse {
 }
 
 /**
+ * Delete a tag (group) by UUID.
+ * DELETE {{admin_url}}tags/{{tag_uuid}}/delete/?event_id={{event_uuid}}
+ */
+export async function deleteTag(tagUuid: string, eventUuid: string): Promise<void> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) throw new Error('Authentication required.')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const url = API_ENDPOINTS.TAGS.DELETE(tagUuid, eventUuid)
+  console.log('[deleteTag] DELETE', url)
+  const response = await fetch(url, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    console.log('[deleteTag] 404 response body:', text)
+    throw new Error(handleApiError(errData ?? text, response, 'Failed to delete group.'))
+  }
+}
+
+/**
  * Call event-tags set-published API so the group page displays in navigation.
  * Used for both speaker and attendee tags (single endpoint).
  * Response shape: { status, message, data: { uuid, name, is_published [, slug] } }.

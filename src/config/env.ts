@@ -183,6 +183,9 @@ export const API_ENDPOINTS = {
         `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/`,
     },
     SESSION_BOOKMARKS: {
+      /** List all bookmarked sessions for an event. GET .../events/{eventUuid}/sessions/bookmarks/ */
+      LIST: (eventUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/bookmarks/`,
       /** Add a bookmark. POST .../events/{eventUuid}/sessions/{sessionUuid}/bookmarks/add/ */
       ADD: (eventUuid: string, sessionUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/bookmarks/add/`,
@@ -206,6 +209,8 @@ export const API_ENDPOINTS = {
       `${PUBLIC_API_ROOT}events/${eventUuid}/index/`,
     /** Ably token auth. GET {{public_url}}chat/ably-token/ */
     ABLY_TOKEN: `${PUBLIC_API_ROOT}chat/ably-token/`,
+    /** Attendee profile. PATCH {{public_url}}events/{eventUuid}/profile/ */
+    PROFILE: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/profile/`,
   },
   // User Management endpoints
   ATTENDEE_MANAGEMENT: {
@@ -235,6 +240,7 @@ export const API_ENDPOINTS = {
     // Used by Attendee/Speaker/Organization "Groups" creation
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/create/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/?event_id=${eventUuid}`,
+    DELETE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/delete/?event_id=${eventUuid}`,
   },
   // Event tags: publish/unpublish group page (Build page checkbox). Page listing from website index API only.
   EVENT_TAGS: {
@@ -245,8 +251,8 @@ export const API_ENDPOINTS = {
   },
   // Schedule session tags (creatable multiselect in ScheduleDetailsSlideout)
   SCHEDULE_TAGS: {
-    CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}resource-tags/create/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/?event_id=${eventUuid}`,
+    CREATE: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/tags/?event_id=${eventUuid}`,
+    LIST: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/tags/?event_id=${eventUuid}`,
     DELETE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/delete/?event_id=${eventUuid}`,
   },
   // Schedule endpoints

@@ -15,6 +15,7 @@ import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import { API_ENDPOINTS } from '../../../config/env'
 import { showToast } from '../../../utils/toast'
 import { fetchTimezones } from '../../../services/timezoneService'
+import { createSchedule, updateSchedule } from '../../../services/scheduleService'
 import {
   listSessions,
   getSession,
@@ -500,7 +501,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       const mapped: SavedSchedule[] = items.map((s: any) => {
         const id = String(s?.uuid ?? s?.id ?? `schedule-${Math.random().toString(36).slice(2)}`)
         const name = s?.name ?? s?.title ?? 'Schedule'
-        const tags: string[] = Array.isArray(s?.tags) ? s.tags : Array.isArray(s?.availableTags) ? s.availableTags : []
+        const tags: string[] = (Array.isArray(s?.tags) ? s.tags : Array.isArray(s?.availableTags) ? s.availableTags : [])
+          .map((t: any) => typeof t === 'string' ? t : (t?.name ?? '')).filter(Boolean)
         const locations: string[] = Array.isArray(s?.locations) ? s.locations : Array.isArray(s?.availableLocations) ? s.availableLocations : []
         const description = s?.description ?? ''
 
@@ -2431,8 +2433,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     scheduleId?: string
   ) => {
     // Filter out "selectall" and store only the selected tags and locations
-    const selectedTags = (details.tags || []).filter(tag => tag !== 'selectall')
+    const allTags = (details.tags || []).filter(tag => tag !== 'selectall')
     const selectedLocations = (details.location || []).filter(loc => loc !== 'selectall')
+
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const tagUuids = allTags.filter(t => UUID_RE.test(t))
+    const newTagNames = allTags.filter(t => !UUID_RE.test(t))
+    console.log('[ScheduleSave] details.tags:', details.tags, '| allTags:', allTags, '| tagUuids:', tagUuids, '| newTagNames:', newTagNames)
 
     const scheduleTitle = details.title?.trim() || (scheduleId ? 'Schedule' : `Schedule ${savedSchedules.length + 1}`)
 
@@ -2442,53 +2449,20 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
     const isUpdate = Boolean(scheduleId && eventUuid && accessToken && organizationUuid)
 
-    if (isUpdate && scheduleId && eventUuid && organizationUuid) {
+    if (isUpdate && scheduleId && eventUuid) {
       try {
-        const url = API_ENDPOINTS.SCHEDULES.UPDATE(eventUuid, scheduleId)
-        const response = await fetch(url, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-            'X-Organization': organizationUuid
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            event_uuid: eventUuid,
-            name: scheduleTitle,
-            title: scheduleTitle,
-            description: details.description || '',
-            tags: selectedTags,
-            locations: selectedLocations
-          })
+        await updateSchedule(scheduleId, {
+          eventUuid,
+          title: scheduleTitle,
+          description: details.description || '',
+          locations: selectedLocations,
+          tagUuids,
+          tagName: newTagNames[0],
         })
-
-        const rawText = await response.text()
-        let data: any = null
-        try {
-          data = rawText ? JSON.parse(rawText) : null
-        } catch {
-          data = null
-        }
-
-        if (!response.ok) {
-          const backendMessage =
-            (typeof data?.detail === 'string' && data.detail.trim()) ||
-            (typeof data?.message === 'string' && data.message.trim()) ||
-            (typeof data?.error === 'string' && data.error.trim()) ||
-            (typeof rawText === 'string' && rawText.trim()) ||
-            ''
-          showToast.error(
-            backendMessage
-              ? `Failed to update schedule: ${backendMessage}`
-              : 'Failed to update schedule. Please try again.'
-          )
-        } else {
-          showToast.success('Schedule updated successfully')
-          await loadSchedules()
-        }
+        showToast.success('Schedule updated successfully')
+        await loadSchedules()
       } catch (e) {
-        showToast.error('Failed to update schedule. Please try again.')
+        showToast.error(e instanceof Error ? e.message : 'Failed to update schedule. Please try again.')
       }
       setIsScheduleDetailsSlideoutOpen(false)
       setEditingScheduleId(null)
@@ -2501,59 +2475,18 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
     if (eventUuid && accessToken && organizationUuid) {
       try {
-        const url = API_ENDPOINTS.SCHEDULES.CREATE(eventUuid)
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-            'X-Organization': organizationUuid
-          },
-          credentials: 'include',
-          body: JSON.stringify({
-            event_id: eventUuid,
-            event_uuid: eventUuid,
-            name: scheduleTitle,
-            title: scheduleTitle,
-            description: details.description || '',
-            tags: selectedTags,
-            locations: selectedLocations
-          })
+        const result = await createSchedule({
+          eventUuid,
+          title: scheduleTitle,
+          description: details.description || '',
+          locations: selectedLocations,
+          tagUuids,
+          tagName: newTagNames[0],
         })
-
-        const rawText = await response.text()
-        let data: any = null
-        try {
-          data = rawText ? JSON.parse(rawText) : null
-        } catch {
-          data = null
-        }
-
-        if (!response.ok) {
-          const backendMessage =
-            (typeof data?.detail === 'string' && data.detail.trim()) ||
-            (typeof data?.message === 'string' && data.message.trim()) ||
-            (typeof data?.error === 'string' && data.error.trim()) ||
-            (typeof rawText === 'string' && rawText.trim()) ||
-            ''
-          console.log('❌ [Schedules] CREATE failed:', {
-            status: response.status,
-            statusText: response.statusText,
-            rawText,
-            parsed: data
-          })
-          showToast.error(
-            backendMessage
-              ? `Failed to create schedule: ${backendMessage}`
-              : 'Failed to create schedule. Please try again.'
-          )
-        } else {
-          const payload = data?.data ?? data
-          createdScheduleId = payload?.uuid ?? payload?.id ?? null
-          showToast.success('Schedule created successfully')
-        }
+        createdScheduleId = result.uuid
+        showToast.success('Schedule created successfully')
       } catch (e) {
-        showToast.error('Failed to create schedule. Please try again.')
+        showToast.error(e instanceof Error ? e.message : 'Failed to create schedule. Please try again.')
       }
     } else {
       console.warn('Schedule create skipped (missing auth/event context). Creating locally.')
@@ -2569,7 +2502,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           ...defaultSessionDraft,
           title: scheduleTitle,
           location: selectedLocations.length > 0 ? selectedLocations[0] : '',
-          tags: selectedTags,
+          tags: allTags,
           sections: details.description ? [{
             id: `section-${Date.now()}`,
             type: 'text',
@@ -2577,7 +2510,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             description: details.description
           }] : []
         },
-        availableTags: selectedTags,
+        availableTags: allTags,
         availableLocations: selectedLocations
       }
       setSavedSchedules((previous) => [...previous, newSchedule])
@@ -2660,6 +2593,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           <ScheduleContent
             key={`${createdEvent?.uuid ?? 'no-event'}-${rangeStartDate?.getTime() ?? 'no-start'}-${rangeEndDate?.getTime() ?? 'no-end'}`}
             scheduleName={currentScheduleName}
+            scheduleUuid={activeScheduleId ?? undefined}
             eventUuid={createdEvent?.uuid}
             onUpload={handleUpload}
             onUploadFiles={handleUploadSessions}

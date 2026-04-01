@@ -157,9 +157,6 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
     }
   }, [eventUuid])
 
-  useEffect(() => {
-    void loadTags()
-  }, [loadTags])
 
   const organizationGroups = useMemo<OrganizationGroup[]>(() => {
     const norm = (s: string) => s.trim().toLowerCase()

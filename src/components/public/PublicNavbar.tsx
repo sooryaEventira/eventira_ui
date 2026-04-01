@@ -27,8 +27,6 @@ interface PublicNavbarProps {
   onProfileClick?: () => void
   /** Optional profile/avatar image URL for the top bar. */
   profileImageUrl?: string | null
-  /** Path for "Your Schedule" link — shown under schedule nav items when user is authenticated and has bookmarks. */
-  yourSchedulePath?: string
 }
 
 const PublicNavbar: React.FC<PublicNavbarProps> = ({
@@ -44,7 +42,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   onNotificationClick,
   onProfileClick,
   profileImageUrl,
-  yourSchedulePath
 }) => {
   const sidebarStyle = useMemo(
     () => (navbarBackgroundColor ? { backgroundColor: navbarBackgroundColor } : undefined),
@@ -149,8 +146,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   const renderSidebarNode = (node: PublicNavNode) => {
     if (node.type === 'page') {
       const isActive = isActiveForItem(activePath || '', node.path)
-      const isSchedulePage = node.path.includes('/schedule') || node.id.includes('schedule')
-      const showYourSchedule = isSchedulePage && yourSchedulePath && isAuthenticated
       return (
         <div key={node.id}>
           <button
@@ -164,18 +159,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
             {renderNavIcon(node.iconKey, 'h-4 w-4 shrink-0')}
             <span>{node.label}</span>
           </button>
-          {showYourSchedule && (
-            <button
-              type="button"
-              onClick={() => onNavigate(yourSchedulePath!)}
-              className={[
-                'flex w-full items-center gap-2 rounded-lg pl-9 pr-3 py-2 text-left text-sm font-semibold transition-colors',
-                isActiveForItem(activePath || '', yourSchedulePath!) ? 'bg-white/20 text-white' : 'text-white/80 hover:bg-white/10'
-              ].join(' ')}
-            >
-              <span>Your Schedule</span>
-            </button>
-          )}
         </div>
       )
     }
@@ -202,56 +185,37 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
           <ChevronDown className={['h-4 w-4 shrink-0 transition-transform', isOpen ? 'rotate-180' : ''].join(' ')} />
         </button>
 
-        {isOpen && (node.children?.length ?? 0) > 0 ? (() => {
-          const isScheduleFolder = (node.children || []).some(
-            (c) => c.type === 'page' && c.path.includes('/schedule')
-          ) || node.id.includes('schedule')
-          const showYourSchedule = isScheduleFolder && yourSchedulePath && isAuthenticated
-          return (
-            <div className="mt-0.5 overflow-hidden rounded-lg border border-white/20 bg-white/10">
-              <div role="menu" className="py-1">
-                {(node.children || []).map((child) => {
-                  if (child.type === 'page') {
-                    const childActive = isActiveForItem(activePath || '', child.path)
-                    return (
-                      <button
-                        key={child.id}
-                        type="button"
-                        role="menuitem"
-                        onClick={() => { onNavigate(child.path) }}
-                        className={[
-                          'flex w-full items-center gap-2 px-3 py-2 text-left text-base font-semibold transition-colors',
-                          childActive ? 'bg-white/20 text-white' : 'text-white/95 hover:bg-white/15'
-                        ].join(' ')}
-                      >
-                        {renderNavIcon(child.iconKey, 'h-4 w-4 shrink-0')}
-                        <span>{child.label}</span>
-                      </button>
-                    )
-                  }
+        {isOpen && (node.children?.length ?? 0) > 0 ? (
+          <div className="mt-0.5 overflow-hidden rounded-lg border border-white/20 bg-white/10">
+            <div role="menu" className="py-1">
+              {(node.children || []).map((child) => {
+                if (child.type === 'page') {
+                  const childActive = isActiveForItem(activePath || '', child.path)
                   return (
-                    <div key={child.id} className="px-3 py-2 text-sm font-semibold uppercase tracking-wide text-white/70">
-                      {child.label}
-                    </div>
+                    <button
+                      key={child.id}
+                      type="button"
+                      role="menuitem"
+                      onClick={() => { onNavigate(child.path) }}
+                      className={[
+                        'flex w-full items-center gap-2 px-3 py-2 text-left text-base font-semibold transition-colors',
+                        childActive ? 'bg-white/20 text-white' : 'text-white/95 hover:bg-white/15'
+                      ].join(' ')}
+                    >
+                      {renderNavIcon(child.iconKey, 'h-4 w-4 shrink-0')}
+                      <span>{child.label}</span>
+                    </button>
                   )
-                })}
-                {showYourSchedule && (
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => onNavigate(yourSchedulePath!)}
-                    className={[
-                      'flex w-full items-center gap-2 px-3 py-2 text-left text-base font-semibold transition-colors border-t border-white/10 mt-0.5',
-                      isActiveForItem(activePath || '', yourSchedulePath!) ? 'bg-white/20 text-white' : 'text-white/95 hover:bg-white/15'
-                    ].join(' ')}
-                  >
-                    <span>Your Schedule</span>
-                  </button>
-                )}
-              </div>
+                }
+                return (
+                  <div key={child.id} className="px-3 py-2 text-sm font-semibold uppercase tracking-wide text-white/70">
+                    {child.label}
+                  </div>
+                )
+              })}
             </div>
-          )
-        })() : null}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -366,7 +330,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                         if (onProfileClick) {
                           onProfileClick()
                         } else {
-                          window.location.href = '/profile'
+                          window.location.href = eventUuid ? `/profile?event=${eventUuid}` : '/profile'
                         }
                       }}
                     >

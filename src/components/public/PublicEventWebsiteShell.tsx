@@ -30,6 +30,7 @@ type PublicSection =
   | 'organization'
   | 'event-profile'
   | 'event-personal-info'
+  | 'your-schedule'
 
 interface PublicEventWebsiteShellProps {
   eventUuid: string
@@ -101,6 +102,7 @@ const getSectionFromPath = (
   if (rest === '/sessions' || rest === '/sessions/') return { section: 'sessions' }
   if (rest === '/profile' || rest === '/profile/') return { section: 'event-profile' }
   if (rest === '/profile/personal-info' || rest === '/profile/personal-info/') return { section: 'event-personal-info' }
+  if (rest === '/your-schedule' || rest === '/your-schedule/') return { section: 'your-schedule' }
 
   // Default: if no explicit section, treat it as "webpage" and show first available page
   return { section: 'webpage' }
@@ -116,6 +118,7 @@ const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePag
 const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
 const PublicEventProfilePage = React.lazy(() => import('./PublicEventProfilePage'))
 const PublicEventPersonalInfoPage = React.lazy(() => import('./PublicEventPersonalInfoPage'))
+const PublicYourSchedulePage = React.lazy(() => import('./schedule/PublicYourSchedulePage'))
 
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
@@ -147,6 +150,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       setHasScheduleFromApi(Array.isArray(schedules) && schedules.length > 0)
       try {
         localStorage.setItem(`website-index-${eventUuid}`, JSON.stringify(indexData))
+        localStorage.setItem('pub_currentEventUuid', eventUuid)
       } catch {
         // ignore
       }
@@ -545,7 +549,6 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         navbarBackgroundColor={navbarBackgroundColor}
         exitEventPath="/event-list"
         onProfileClick={() => handleNavigate(`/events/${eventUuid}/profile`)}
-        yourSchedulePath={`/events/${eventUuid}/your-schedule`}
       />
 
       <main className={`pt-16 md:pl-72 w-full flex-1 px-4 pb-12 sm:px-6 md:max-w-none ${isAuthSection ? 'flex flex-col' : ''}`}>
@@ -662,6 +665,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         ) : current.section === 'event-personal-info' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <PublicEventPersonalInfoPage eventUuid={eventUuid} onNavigate={handleNavigate} />
+          </React.Suspense>
+        ) : current.section === 'your-schedule' ? (
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <PublicYourSchedulePage eventUuid={eventUuid} onNavigate={handleNavigate} />
           </React.Suspense>
         ) : current.section === 'webpage' ? (
           webpageSlug ? (

@@ -9,13 +9,15 @@ import CreateProfileModal from './CreateProfileModal'
 import CreateGroupModal from './CreateGroupModal'
 import CreateCustomFieldModal from './CreateCustomFieldModal'
 import UploadModal from '../../ui/UploadModal'
+import { ConfirmDeleteModal } from '../../ui'
 import AttendeeDetailsSlideout from './AttendeeDetailsSlideout'
 import { Attendee, AttendeeTab, Group, CustomField } from './attendeeTypes'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import attendeeSpeakerTemplate from '../../../assets/excel/Attendee Speaker template.xlsx?url'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
-import { setTagPublished, setTagUnpublished } from '../../../services/eventTagService'
+import { setTagPublished, setTagUnpublished, deleteTag } from '../../../services/eventTagService'
+import { showToast } from '../../../utils/toast'
 import { fetchPublishedAttendeeTagIds } from '../../../services/webpageService'
 
 interface AttendeeManagementPageProps {
@@ -100,6 +102,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   const [activeTab, setActiveTab] = useState<AttendeeTab>('user')
   const [isCreateProfileModalOpen, setIsCreateProfileModalOpen] = useState(false)
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
+  const [deleteGroupTarget, setDeleteGroupTarget] = useState<{ id: string; name: string } | null>(null)
+  const [isDeletingGroup, setIsDeletingGroup] = useState(false)
   const [isCreateCustomFieldModalOpen, setIsCreateCustomFieldModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isAttendeeSlideoutOpen, setIsAttendeeSlideoutOpen] = useState(false)
@@ -472,7 +476,9 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   }
 
   const handleDeleteGroup = (groupId: string) => {
-    setGroups((prev) => prev.filter((g) => g.id !== groupId))
+    const target = groups.find((g) => g.id === groupId)
+    if (!target) return
+    setDeleteGroupTarget({ id: target.id, name: target.name })
   }
 
   const handleToggleBuildPage = async (
@@ -618,6 +624,32 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
         isOpen={isCreateGroupModalOpen}
         onClose={() => setIsCreateGroupModalOpen(false)}
         onConfirm={handleSaveGroup}
+      />
+
+      {/* Delete Group Confirmation Modal */}
+      <ConfirmDeleteModal
+        isOpen={Boolean(deleteGroupTarget)}
+        title="Delete group"
+        itemName={deleteGroupTarget?.name}
+        isLoading={isDeletingGroup}
+        onCancel={() => {
+          if (isDeletingGroup) return
+          setDeleteGroupTarget(null)
+        }}
+        onConfirm={async () => {
+          if (!deleteGroupTarget || !eventUuid) return
+          setIsDeletingGroup(true)
+          try {
+            await deleteTag(deleteGroupTarget.id, eventUuid)
+            setGroups((prev) => prev.filter((g) => g.id !== deleteGroupTarget.id))
+            showToast.success('Group deleted')
+            setDeleteGroupTarget(null)
+          } catch (e) {
+            showToast.error(e instanceof Error ? e.message : 'Failed to delete group.')
+          } finally {
+            setIsDeletingGroup(false)
+          }
+        }}
       />
 
       {/* Create Custom Field Modal */}

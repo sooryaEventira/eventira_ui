@@ -24,6 +24,7 @@ function sessionTypeToAttendance(sessionType: string): AttendanceOption {
 
 interface ScheduleContentProps {
   scheduleName?: string
+  scheduleUuid?: string
   eventUuid?: string
   onUpload?: () => void
   onUploadFiles?: (files: File[]) => Promise<void> | void
@@ -50,6 +51,7 @@ interface ScheduleContentProps {
 
 const ScheduleContent: React.FC<ScheduleContentProps> = ({
   scheduleName = 'Schedule 1',
+  scheduleUuid,
   eventUuid,
   onUpload,
   onUploadFiles,
@@ -105,6 +107,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   const filterDropdownRef = useRef<HTMLDivElement>(null)
   const filterTriggerRef = useRef<HTMLButtonElement>(null)
   const filterPanelRef = useRef<HTMLDivElement>(null)
+  const [addTagsDropdownOpen, setAddTagsDropdownOpen] = useState(false)
+  const [addTagsDropdownPos, setAddTagsDropdownPos] = useState<{ top: number; left: number } | null>(null)
+  const [addTagsSelected, setAddTagsSelected] = useState<Set<string>>(new Set())
+  const addTagsBtnRef = useRef<HTMLButtonElement>(null)
+  const addTagsDropdownRef = useRef<HTMLDivElement>(null)
   const didNotifyInitialDateRef = useRef(false)
 
   // Parse to local calendar date (year, month-1, day) so weekday selector shows correct day; no UTC shift for YYYY-MM-DD
@@ -283,10 +290,10 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
 
   // Fetch schedule tags from API
   useEffect(() => {
-    if (!eventUuid) return
+    if (!eventUuid || !scheduleUuid) return
     let cancelled = false
 
-    fetchScheduleTags(eventUuid)
+    fetchScheduleTags(scheduleUuid, eventUuid)
       .then((tags) => {
         if (!cancelled) setApiTags(tags)
       })
@@ -300,27 +307,27 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     return () => {
       cancelled = true
     }
-  }, [eventUuid])
+  }, [eventUuid, scheduleUuid])
 
   // Fetch tags when the manage panel opens
   useEffect(() => {
-    if (!tagsLocationOpen || !eventUuid) return
+    if (!tagsLocationOpen || !eventUuid || !scheduleUuid) return
     let cancelled = false
     setIsLoadingManageTags(true)
-    fetchScheduleTags(eventUuid)
+    fetchScheduleTags(scheduleUuid, eventUuid)
       .then((tags) => { if (!cancelled) setManageTags(tags) })
       .catch(() => { if (!cancelled) showToast.error('Failed to load tags.') })
       .finally(() => { if (!cancelled) setIsLoadingManageTags(false) })
     return () => { cancelled = true }
-  }, [tagsLocationOpen, eventUuid])
+  }, [tagsLocationOpen, eventUuid, scheduleUuid])
 
   const handleAddTag = async () => {
-    if (!tagLocationModal || !eventUuid) return
+    if (!tagLocationModal || !eventUuid || !scheduleUuid) return
     const name = tagLocationModal.name.trim()
     if (!name) return
     setIsSavingTag(true)
     try {
-      const created = await createScheduleTag(eventUuid, name)
+      const created = await createScheduleTag(scheduleUuid, eventUuid, name)
       setManageTags((prev) => [...prev, created])
       setApiTags((prev) => [...prev, created])
       showToast.success('Tag added.')
@@ -407,6 +414,31 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     document.addEventListener('mousedown', handleClick)
     return () => document.removeEventListener('mousedown', handleClick)
   }, [filterOpen])
+
+  // Position add-tags dropdown below its trigger button
+  useLayoutEffect(() => {
+    if (!addTagsDropdownOpen || !addTagsBtnRef.current) return
+    const rect = addTagsBtnRef.current.getBoundingClientRect()
+    const panelWidth = 240
+    setAddTagsDropdownPos({
+      top: rect.bottom + 4,
+      left: Math.min(rect.left, (typeof window !== 'undefined' ? window.innerWidth : 800) - panelWidth - 16),
+    })
+  }, [addTagsDropdownOpen])
+
+  // Close add-tags dropdown on outside click
+  useEffect(() => {
+    if (!addTagsDropdownOpen) return
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (!addTagsBtnRef.current?.contains(target) && !addTagsDropdownRef.current?.contains(target)) {
+        setAddTagsDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [addTagsDropdownOpen])
+
 
   const appliedKeyword = filterKeywordApplied.trim().toLowerCase()
   const appliedLocations = filterLocations.size === 0 || filterLocations.has('All') ? null : filterLocations
@@ -585,19 +617,19 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         <div ref={filterDropdownRef} className="relative flex w-full items-center justify-between gap-3">
           {selectedSessionIds.length > 0 ? (
             <div className="flex flex-1 items-center justify-end gap-3">
-             
               <button
+                ref={addTagsBtnRef}
                 type="button"
-                onClick={() => { setTagsLocationOpen(true); setClearSelectionTrigger((n) => n + 1) }}
+                onClick={() => { setAddTagsSelected(new Set()); setAddTagsDropdownOpen((v) => !v) }}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-primary/40 hover:text-primary transition-colors"
               >
-                {/* <Tag01 className="h-4 w-4" /> */}
-                Add tags &amp; location
+                
+                Add tags &amp; Location
               </button>
               <button
                 type="button"
                 onClick={() => { onDeleteSession?.(null as any); setClearSelectionTrigger((n) => n + 1) }}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm  transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors"
               >
                 <Trash01 className="h-4 w-4" />
                 Delete
@@ -1048,6 +1080,63 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         onCancel={() => setDeleteTagCandidate(null)}
         onConfirm={handleDeleteTag}
       />
+
+      {/* Add Tags dropdown portal */}
+      {addTagsDropdownOpen && addTagsDropdownPos && createPortal(
+        <div
+          ref={addTagsDropdownRef}
+          style={{ position: 'fixed', top: addTagsDropdownPos.top, left: addTagsDropdownPos.left, width: 240, zIndex: 9999 }}
+          className="rounded-xl border border-slate-200 bg-white shadow-lg"
+        >
+          <div className="px-3 py-2 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Tags
+          </div>
+          <div className="max-h-56 overflow-y-auto py-1">
+            {apiTags.length === 0 ? (
+              <div className="px-3 py-4 text-center text-sm text-slate-400">No tags found.</div>
+            ) : (
+              apiTags.map((tag) => (
+                <label key={tag.uuid} className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={addTagsSelected.has(tag.name)}
+                    onChange={() => setAddTagsSelected((prev) => {
+                      const next = new Set(prev)
+                      next.has(tag.name) ? next.delete(tag.name) : next.add(tag.name)
+                      return next
+                    })}
+                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                  />
+                  <span className="text-sm text-slate-700">{tag.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+          {apiTags.length > 0 && (
+            <div className="border-t border-slate-100 px-3 py-2">
+              <button
+                type="button"
+                disabled={addTagsSelected.size === 0}
+                onClick={() => {
+                  const selected = Array.from(addTagsSelected)
+                  gridSessions
+                    .filter((s) => selectedSessionIds.includes(String(s.id)))
+                    .forEach((s) => {
+                      const existing: string[] = Array.isArray(s.tags) ? s.tags.map((t: any) => typeof t === 'string' ? t : t?.name ?? '') : []
+                      const merged = Array.from(new Set([...existing, ...selected]))
+                      onEditSession?.({ ...s, tags: merged } as any)
+                    })
+                  setAddTagsDropdownOpen(false)
+                }}
+                className="w-full rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Apply
+              </button>
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
       {/* Session Creation Modal */}
       <SessionCreationModal

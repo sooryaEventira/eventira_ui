@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import ProfileBackground from '../../assets/images/profile_background.jpg'
 import { Edit01, Camera01, User01, ArrowRight, ChevronRight } from '@untitled-ui/icons-react'
+import { fetchBookmarkedSessions } from '../../services/publicEventService'
 
 interface PublicEventProfilePageProps {
   onNavigate: (path: string) => void
@@ -52,6 +53,11 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
   const fullName = `${firstName} ${lastName}`.trim() || 'User'
   const title = [post, organization].filter(Boolean).join(' at ') || ''
 
+  const handleYourScheduleClick = async () => {
+    await fetchBookmarkedSessions(eventUuid)
+    onNavigate(`/events/${eventUuid}/your-schedule`)
+  }
+
   const handleLogOut = () => {
     localStorage.removeItem('pub_accessToken')
     localStorage.removeItem('pub_refreshToken')
@@ -61,8 +67,9 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
     window.location.href = '/login'
   }
 
-  const sections = [
+  const sections: { label: string; path?: string | null; onClick?: () => void }[] = [
     { label: 'Personal Information', path: `/events/${eventUuid}/profile/personal-info` },
+    { label: 'Your Schedule', onClick: handleYourScheduleClick },
     { label: 'Privacy Settings', path: null },
     { label: 'Socials & Links', path: null },
     { label: 'Help & Support', path: null },
@@ -140,7 +147,7 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
             <button
               key={s.label}
               type="button"
-              onClick={() => s.path && onNavigate(s.path)}
+              onClick={() => s.onClick ? s.onClick() : s.path && onNavigate(s.path)}
               className="flex w-full items-center justify-between px-5 py-4 text-left text-sm font-medium text-slate-800 hover:bg-slate-50"
             >
               {s.label}
