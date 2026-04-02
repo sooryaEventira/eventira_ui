@@ -1,6 +1,9 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import ProfileBackground from '../../assets/images/profile_background.jpg'
 import { Camera01, User01, ChevronDown, MarkerPin01, X } from '@untitled-ui/icons-react'
+import { fetchEventProfile, updateEventProfile } from '../../services/publicEventService'
+import { showToast } from '../../utils/toast'
+// ChevronDown kept for the Advanced toggle button
 
 interface PublicEventPersonalInfoPageProps {
   onNavigate: (path: string) => void
@@ -51,12 +54,86 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
   const [specialization, setSpecialization] = useState('')
   const [bio, setBio] = useState('')
   const [groups] = useState<string[]>(['Student', 'Vegetarian', 'Group 3'])
-  const [interests, setInterests] = useState<string[]>(['Interest 1', 'Interest 2', 'Interest 3'])
+  const [interests, setInterests] = useState<string[]>([])
+  const [interestInput, setInterestInput] = useState('')
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [profilePicture] = useState<string>(
+  const [isSaving, setIsSaving] = useState(false)
+  const [profilePicture, setProfilePicture] = useState<string>(
     () => localStorage.getItem('pub_profilePicture') ?? payload?.picture ?? ''
   )
+
+  useEffect(() => {
+    if (!token) return
+    fetchEventProfile(eventUuid)
+      .then((profile) => {
+        const cf = profile.custom_fields ?? {}
+        if (profile.first_name) setFirstName(profile.first_name)
+        if (profile.last_name) setLastName(profile.last_name)
+        const resolvedPost = cf.post ?? profile.post ?? profile.job_title ?? ''
+        if (resolvedPost) setPost(resolvedPost)
+        const resolvedLocation = cf.location ?? profile.location ?? ''
+        if (resolvedLocation) setLocation(resolvedLocation)
+        const resolvedOrg = cf.organization ?? cf.organisation ?? profile.organization ?? profile.organisation ?? ''
+        if (resolvedOrg) setOrganization(resolvedOrg)
+        const resolvedEdu = cf.education ?? profile.education ?? ''
+        if (resolvedEdu) setEducation(resolvedEdu)
+        const resolvedSpec = cf.specialization ?? profile.specialization ?? ''
+        if (resolvedSpec) setSpecialization(resolvedSpec)
+        const resolvedBio = cf.bio ?? profile.bio ?? ''
+        if (resolvedBio) setBio(resolvedBio)
+        const resolvedInterests = cf.interests ?? profile.interests
+        if (Array.isArray(resolvedInterests) && resolvedInterests.length) setInterests(resolvedInterests)
+        const resolvedGoals = cf.networking_goals ?? profile.networking_goals
+        if (Array.isArray(resolvedGoals) && resolvedGoals.length) setNetworkingGoals(resolvedGoals)
+        const resolvedPic = cf.profile_picture ?? profile.profile_picture ?? profile.picture ?? ''
+        if (resolvedPic) {
+          setProfilePicture(resolvedPic)
+          localStorage.setItem('pub_profilePicture', resolvedPic)
+        }
+      })
+      .catch(() => {
+        // silently fall back to JWT payload values
+      })
+  }, [eventUuid])
+
+  const handleSave = async () => {
+    if (!firstName.trim() || !lastName.trim()) {
+      showToast.error('First name and last name are required.')
+      return
+    }
+    // Commit any partially-typed interest before saving
+    const finalInterests = [...interests]
+    const pendingInterest = interestInput.trim()
+    if (pendingInterest && !finalInterests.includes(pendingInterest)) {
+      finalInterests.push(pendingInterest)
+      setInterests(finalInterests)
+      setInterestInput('')
+    }
+    setIsSaving(true)
+    try {
+      await updateEventProfile(eventUuid, {
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        custom_fields: {
+          post: post.trim() || undefined,
+          location: location.trim() || undefined,
+          organization: organization.trim() || undefined,
+          education: education.trim() || undefined,
+          specialization: specialization.trim() || undefined,
+          bio: bio.trim() || undefined,
+          interests: finalInterests,
+          networking_goals: networkingGoals,
+          profile_picture: profilePicture || undefined,
+        },
+      })
+      showToast.success('Profile updated successfully')
+    } catch (err) {
+      showToast.error(err instanceof Error ? err.message : 'Failed to update profile.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   const verifiedDate = payload?.email_verified_at ?? payload?.verified_at ?? null
   const verifiedDisplay = verifiedDate
@@ -116,7 +193,22 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
               aria-label="Change profile picture"
             >
               <Camera01 className="h-4 w-4" />
-              <input type="file" accept="image/*" className="sr-only" />
+              <input
+                type="file"
+                accept="image/*"
+                className="sr-only"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = () => {
+                    const dataUrl = reader.result as string
+                    setProfilePicture(dataUrl)
+                    localStorage.setItem('pub_profilePicture', dataUrl)
+                  }
+                  reader.readAsDataURL(file)
+                }}
+              />
             </label>
           </div>
         </div>
@@ -218,60 +310,37 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
               {/* Organization */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Organization</label>
-                <div className="relative">
-                  <select
-                    value={organization}
-                    onChange={(e) => setOrganization(e.target.value)}
-                    className={`${inputBase} appearance-none pr-8`}
-                  >
-                    <option value="">Select organization</option>
-                    <option value="XYZ University">XYZ University</option>
-                    <option value="MIT">MIT</option>
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                    <ChevronDown className="h-4 w-4" />
-                  </span>
-                </div>
+                <input
+                  type="text"
+                  value={organization}
+                  onChange={(e) => setOrganization(e.target.value)}
+                  placeholder="e.g. XYZ University"
+                  className={inputBase}
+                />
               </div>
 
               {/* Education */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Education</label>
-                <div className="relative">
-                  <select
-                    value={education}
-                    onChange={(e) => setEducation(e.target.value)}
-                    className={`${inputBase} appearance-none pr-8`}
-                  >
-                    <option value="">Select education</option>
-                    <option value="Bachelor of Science">Bachelor of Science</option>
-                    <option value="Master of Science">Master of Science</option>
-                    <option value="PhD">PhD</option>
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                    <ChevronDown className="h-4 w-4" />
-                  </span>
-                </div>
+                <input
+                  type="text"
+                  value={education}
+                  onChange={(e) => setEducation(e.target.value)}
+                  placeholder="e.g. Bachelor of Science"
+                  className={inputBase}
+                />
               </div>
 
               {/* Specialization */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Specialization</label>
-                <div className="relative">
-                  <select
-                    value={specialization}
-                    onChange={(e) => setSpecialization(e.target.value)}
-                    className={`${inputBase} appearance-none pr-8`}
-                  >
-                    <option value="">Select specialization</option>
-                    <option value="Cardiology">Cardiology</option>
-                    <option value="Neurology">Neurology</option>
-                    <option value="Cloud Computing">Cloud Computing</option>
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                    <ChevronDown className="h-4 w-4" />
-                  </span>
-                </div>
+                <input
+                  type="text"
+                  value={specialization}
+                  onChange={(e) => setSpecialization(e.target.value)}
+                  placeholder="e.g. Cardiology"
+                  className={inputBase}
+                />
               </div>
 
               {/* Bio */}
@@ -287,7 +356,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
               </div>
 
               {/* Groups */}
-              <div>
+              {/* <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Groups</label>
                 <div className="flex flex-wrap gap-2">
                   {groups.map((g) => (
@@ -299,40 +368,49 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
                     </span>
                   ))}
                 </div>
-              </div>
+              </div> */}
 
               {/* Interests */}
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-slate-700">Interests</label>
-                <div className="relative mb-2">
-                  <select className={`${inputBase} appearance-none pr-8`} defaultValue="">
-                    <option value="" disabled>Select interest</option>
-                    <option>Technology</option>
-                    <option>Healthcare</option>
-                    <option>Education</option>
-                  </select>
-                  <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-400">
-                    <ChevronDown className="h-4 w-4" />
-                  </span>
+                <div className="mb-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={interestInput}
+                    onChange={(e) => setInterestInput(e.target.value)}
+                    placeholder="Add an interest and press Enter"
+                    className={inputBase}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter') return
+                      e.preventDefault()
+                      const val = interestInput.trim()
+                      if (val && !interests.includes(val)) {
+                        setInterests((prev) => [...prev, val])
+                        setInterestInput('')
+                      }
+                    }}
+                  />
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {interests.map((interest) => (
-                    <span
-                      key={interest}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
-                    >
-                      {interest}
-                      <button
-                        type="button"
-                        onClick={() => removeInterest(interest)}
-                        className="ml-0.5 text-slate-400 hover:text-slate-600"
-                        aria-label={`Remove ${interest}`}
+                {interests.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {interests.map((interest) => (
+                      <span
+                        key={interest}
+                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700"
                       >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
+                        {interest}
+                        <button
+                          type="button"
+                          onClick={() => removeInterest(interest)}
+                          className="ml-0.5 text-slate-400 hover:text-slate-600"
+                          aria-label={`Remove ${interest}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Networking Goals */}
@@ -358,9 +436,11 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
           {/* Save button */}
           <button
             type="button"
-            className="mt-2 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="mt-2 w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            Save changes
+            {isSaving ? 'Saving…' : 'Save changes'}
           </button>
         </div>
       </div>

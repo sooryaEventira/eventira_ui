@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { SearchLg, X, ChevronDown } from '@untitled-ui/icons-react'
 import { fetchTimezones } from '../../../services/timezoneService'
 
@@ -53,8 +54,19 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({ value, onChange, cl
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [detectedTimezoneName, setDetectedTimezoneName] = useState<string | null>(null)
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  // Always reflects the latest value — avoids stale closure in async loadTimezones
+  const valueRef = useRef(value)
+  valueRef.current = value
+
+  useLayoutEffect(() => {
+    if (!isOpen || !buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width })
+  }, [isOpen])
 
   // Fetch timezones from API on mount
   useEffect(() => {
@@ -82,8 +94,9 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({ value, onChange, cl
         setTimezones(options)
         setError(null)
         
-        // Auto-select detected timezone if no value is set
-        if (!value && options.length > 0) {
+        // Auto-select detected timezone only if no value has been set yet
+        // Use ref to get the latest value — avoids race condition with parent async data fetch
+        if (!valueRef.current && options.length > 0) {
           const detected = detectTimezone()
           if (detected) {
             setDetectedTimezoneName(detected)
@@ -109,7 +122,10 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({ value, onChange, cl
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      const target = event.target as Node
+      const clickedButton = buttonRef.current?.contains(target)
+      const clickedDropdown = dropdownRef.current?.contains(target)
+      if (!clickedButton && !clickedDropdown) {
         setIsOpen(false)
         setSearchQuery('')
       }
@@ -153,9 +169,10 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({ value, onChange, cl
   }
 
   return (
-    <div className={`relative ${className}`} ref={dropdownRef}>
+    <div className={`relative ${className}`}>
       {/* Selected value display / trigger */}
       <button
+        ref={buttonRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
@@ -167,9 +184,13 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({ value, onChange, cl
         <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown */}
-      {isOpen && !isLoading && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-80 overflow-hidden flex flex-col">
+      {/* Dropdown — rendered in portal to escape overflow-y-auto containers */}
+      {isOpen && !isLoading && dropdownPos && typeof document !== 'undefined' && createPortal(
+        <div
+          ref={dropdownRef}
+          className="fixed z-[9999] bg-white border border-slate-200 rounded-lg shadow-lg max-h-80 overflow-hidden flex flex-col"
+          style={{ top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width }}
+        >
           {/* Error message */}
           {error && (
             <div className="px-4 py-3 text-sm text-red-600 bg-red-50 border-b border-red-200">
@@ -254,7 +275,8 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({ value, onChange, cl
               )}
             </div>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

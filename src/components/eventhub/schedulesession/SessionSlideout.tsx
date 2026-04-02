@@ -225,7 +225,9 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
                 ? { videoUrl: '' }
                 : section.id === 'speakers'
                   ? { speakers: [] }
-                  : undefined
+                  : section.id === 'comments'
+                    ? { placeholder: 'Session comments' }
+                    : undefined
 
     setDraft((prev) => ({
       ...prev,

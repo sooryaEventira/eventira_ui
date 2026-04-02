@@ -245,7 +245,7 @@ export interface SpeakersPageResult {
 /**
  * Fetch speakers for an event (server-side paginated)
  */
-export const fetchSpeakers = async (eventUuid: string, page = 1, tagId?: string, ordering?: string): Promise<SpeakersPageResult> => {
+export const fetchSpeakers = async (eventUuid: string, page = 1, tagId?: string, ordering?: string, pageSize?: number): Promise<SpeakersPageResult> => {
   try {
     // Get access token from localStorage
     const accessToken = localStorage.getItem('accessToken')
@@ -268,7 +268,7 @@ export const fetchSpeakers = async (eventUuid: string, page = 1, tagId?: string,
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid, page, tagId, ordering)
+    const url = API_ENDPOINTS.SPEAKER_MANAGEMENT.LIST(eventUuid, page, tagId, ordering, pageSize)
     console.log('📡 fetchSpeakers: Fetching from URL:', url)
     
     const response = await fetch(url, {
@@ -1108,10 +1108,10 @@ export const createSpeaker = async (
 
     // No image: JSON body
     const payload = cleanObject({
-      use_email: input.email,
+      user_email: input.user_email,
       first_name: input.first_name,
       last_name: input.last_name,
-      organization: input.organization,
+      organisation: input.organization ?? input.organisation,
       designation: input.designation,
       role: input.role,
       description: input.description,

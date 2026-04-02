@@ -159,6 +159,93 @@ export const fetchBookmarkedSessions = async (eventUuid: string): Promise<any[]>
   return Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : []
 }
 
+export interface EventProfileData {
+  first_name?: string
+  last_name?: string
+  email?: string
+  post?: string
+  job_title?: string
+  location?: string
+  organization?: string
+  organisation?: string
+  bio?: string
+  education?: string
+  specialization?: string
+  interests?: string[]
+  networking_goals?: string[]
+  profile_picture?: string
+  picture?: string
+  custom_fields?: Record<string, any>
+  [key: string]: any
+}
+
+/**
+ * Fetch the authenticated attendee's profile for a specific event.
+ * GET {{public_url}}events/{eventUuid}/profile/
+ */
+export const fetchEventProfile = async (eventUuid: string): Promise<EventProfileData> => {
+  const accessToken = localStorage.getItem('pub_accessToken')
+  if (!accessToken) throw new Error('Authentication required.')
+
+  const url = API_ENDPOINTS.PUBLIC.PROFILE(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    throw new Error(handleApiError(errData ?? text, response, 'Failed to fetch profile.'))
+  }
+
+  const data = await response.json()
+  return (data?.data ?? data) as EventProfileData
+}
+
+/**
+ * Update the authenticated attendee's profile for a specific event.
+ * PATCH {{public_url}}events/{eventUuid}/profile/
+ * Body: { first_name, last_name, custom_fields: { post, location, organization, ... } }
+ */
+export const updateEventProfile = async (
+  eventUuid: string,
+  fields: {
+    first_name?: string
+    last_name?: string
+    custom_fields?: Record<string, any>
+  }
+): Promise<EventProfileData> => {
+  const accessToken = localStorage.getItem('pub_accessToken')
+  if (!accessToken) throw new Error('Authentication required.')
+
+  const url = API_ENDPOINTS.PUBLIC.PROFILE(eventUuid)
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: 'include',
+    body: JSON.stringify(fields),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    throw new Error(handleApiError(errData ?? text, response, 'Failed to update profile.'))
+  }
+
+  const data = await response.json()
+  return (data?.data ?? data) as EventProfileData
+}
+
 export const fetchPublicEventsByTag = async (tagId: string): Promise<PublicEventData[]> => {
   try {
     if (!tagId) {

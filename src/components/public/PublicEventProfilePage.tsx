@@ -1,7 +1,7 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import ProfileBackground from '../../assets/images/profile_background.jpg'
 import { Edit01, Camera01, User01, ArrowRight, ChevronRight } from '@untitled-ui/icons-react'
-import { fetchBookmarkedSessions } from '../../services/publicEventService'
+import { fetchBookmarkedSessions, fetchEventProfile } from '../../services/publicEventService'
 
 interface PublicEventProfilePageProps {
   onNavigate: (path: string) => void
@@ -28,15 +28,34 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
   const token = localStorage.getItem('pub_accessToken') ?? ''
   const payload = token ? decodeJwtPayload(token) : null
 
-  const firstName = payload?.first_name ?? payload?.given_name ?? ''
-  const lastName = payload?.last_name ?? payload?.family_name ?? ''
-  const email = payload?.email ?? localStorage.getItem('pub_userEmail') ?? ''
-  const post = payload?.post ?? payload?.job_title ?? ''
-  const organization = payload?.organization ?? payload?.org ?? ''
+  const [firstName, setFirstName] = useState(payload?.first_name ?? payload?.given_name ?? '')
+  const [lastName, setLastName] = useState(payload?.last_name ?? payload?.family_name ?? '')
+  const [email] = useState(payload?.email ?? localStorage.getItem('pub_userEmail') ?? '')
+  const [post, setPost] = useState(payload?.post ?? payload?.job_title ?? '')
+  const [organization, setOrganization] = useState(payload?.organization ?? payload?.org ?? '')
 
   const [profilePicture, setProfilePicture] = useState<string>(
     () => localStorage.getItem('pub_profilePicture') ?? payload?.picture ?? payload?.avatar ?? ''
   )
+
+  useEffect(() => {
+    if (!token) return
+    fetchEventProfile(eventUuid)
+      .then((profile) => {
+        if (profile.first_name) setFirstName(profile.first_name)
+        if (profile.last_name) setLastName(profile.last_name)
+        if (profile.post ?? profile.job_title) setPost(profile.post ?? profile.job_title ?? '')
+        if (profile.organization ?? profile.organisation) setOrganization(profile.organization ?? profile.organisation ?? '')
+        const pic = profile.profile_picture ?? profile.picture ?? ''
+        if (pic) {
+          setProfilePicture(pic)
+          localStorage.setItem('pub_profilePicture', pic)
+        }
+      })
+      .catch(() => {
+        // silently fall back to JWT payload values
+      })
+  }, [eventUuid])
 
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]

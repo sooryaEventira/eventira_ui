@@ -105,7 +105,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     if (!eventUuid) return
     setIsLoadingSpeakers(true)
     try {
-      const result = await fetchSpeakers(eventUuid)
+      const result = await fetchSpeakers(eventUuid, 1, undefined, undefined, 1000)
       setSpeakersList(Array.isArray(result.data) ? result.data : [])
     } catch {
       setSpeakersList([])
@@ -889,6 +889,39 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
               )}
             </div>
           )}
+        </div>
+      </div>
+    )
+  }
+
+  if (section.type === 'comments') {
+    const placeholder = String(section.data?.placeholder ?? 'Session comments').trim()
+    return (
+      <div className="p-4">
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <span className="text-sm font-semibold text-slate-900">Comments</span>
+          </div>
+          <div className="flex flex-col gap-3 px-4 py-4">
+            <textarea
+              rows={3}
+              value={placeholder}
+              onChange={(e) =>
+                onUpdateSection(section.id, {
+                  data: { ...(section.data || {}), placeholder: e.target.value }
+                })
+              }
+              placeholder="Session comments"
+              className="w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-500 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            <button
+              type="button"
+              disabled
+              className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm"
+            >
+              Comment
+            </button>
+          </div>
         </div>
       </div>
     )

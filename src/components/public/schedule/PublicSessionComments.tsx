@@ -49,18 +49,17 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
     // 1. Load comment history
     loadComments()
 
-    // 2. Initialize Ably with authCallback — we fetch the token ourselves to avoid
-    //    CORS preflight issues that occur when Ably sends an Authorization header via authUrl.
+    // 2. Initialize Ably with authCallback
     const client = new Ably.Realtime({
       disconnectedRetryTimeout: 5000,
       suspendedRetryTimeout: 10000,
-      authCallback: async (_tokenParams, callback) => {
-        try {
-          const token = await fetchAblyToken()
-          callback(null, token)
-        } catch (err) {
-          callback(String((err as Error)?.message ?? err), null as any)
-        }
+      authCallback: (_tokenParams, callback) => {
+        fetchAblyToken()
+          .then((token) => callback(null, token as unknown as Ably.TokenDetails | Ably.TokenRequest | string))
+          .catch((err) => {
+            console.error('[Ably] Auth token fetch failed:', err)
+            callback(String((err as Error)?.message ?? err), null as unknown as string)
+          })
       },
     })
 
@@ -92,8 +91,12 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
 
     // 5. Subscribe to incoming messages
     channel.subscribe((msg: Ably.Message) => {
-      const incoming = msg.data as SessionComment
-      if (!incoming?.uuid) return
+      const raw = msg.data
+      const incoming = (raw?.data ?? raw) as SessionComment
+      if (!incoming?.uuid) {
+        console.warn('[Ably] Received message with no uuid — check backend channel publish format:', raw)
+        return
+      }
       setComments((prev) => {
         // Deduplicate — message may already exist from REST load
         if (prev.some((c) => c.uuid === incoming.uuid)) return prev

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import toast from 'react-hot-toast'
 import PublicAuthTopbar from './PublicAuthTopbar'
 import { API_ENDPOINTS } from '../../config/env'
 import ProfileBackground from '../../assets/images/profile_background.jpg'
@@ -116,8 +117,8 @@ const PublicProfilePage: React.FC = () => {
       .then((res) => {
         const d = res?.data ?? res
         if (!d) return
-        if (d.first_name != null) setFirstName(String(d.first_name))
-        if (d.last_name != null) setLastName(String(d.last_name))
+        if (d.first_name != null) { setFirstName(String(d.first_name)); localStorage.setItem('pub_firstName', String(d.first_name)) }
+        if (d.last_name != null) { setLastName(String(d.last_name)); localStorage.setItem('pub_lastName', String(d.last_name)) }
         if (d.email != null) setEmail(String(d.email))
         if (d.designation != null) setPost(String(d.designation))
         if (d.organisation != null) setOrganization(String(d.organisation))
@@ -155,7 +156,7 @@ const PublicProfilePage: React.FC = () => {
     }
     setSaving(true)
     try {
-      await fetch(API_ENDPOINTS.PUBLIC.PROFILE(eventUuid), {
+      const res = await fetch(API_ENDPOINTS.PUBLIC.PROFILE(eventUuid), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -169,7 +170,11 @@ const PublicProfilePage: React.FC = () => {
           organisation: organization,
         }),
       })
+      if (!res.ok) throw new Error('Failed to save')
       setIsDirty(false)
+      toast.success('Profile updated successfully')
+    } catch {
+      toast.error('Failed to save changes. Please try again.')
     } finally {
       setSaving(false)
     }

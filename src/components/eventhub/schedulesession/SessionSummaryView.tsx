@@ -1,7 +1,8 @@
 import React, { useState } from 'react'
 import { SessionDraft } from './sessionTypes'
 import { sectionOptions } from './sessionConfig'
-import SessionChat, { type CometChatUser } from './SessionChat'
+import { type CometChatUser } from './SessionChat'
+import InlineSessionComments from '../../public/schedule/InlineSessionComments'
 import { env } from '../../../config/env'
 import ImageLightbox from '../../ui/untitled/ImageLightbox'
 
@@ -72,7 +73,9 @@ const formatTime = (time: string, period: 'AM' | 'PM') => {
 
 const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
   session,
-  cometChatUser,
+  sessionId,
+  eventId,
+  cometChatUser: _cometChatUser,
   tagOptions,
   isPublicView = false,
   onLoginClick,
@@ -153,7 +156,26 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 {section.type === 'text' ? 'Description' : (sectionOptions.find(o => o.id === section.type)?.label ?? section.title)}
               </p>
-              {section.type === 'live-chat' ? (
+              {section.type === 'comments' ? (
+                isPublicView && eventId && sessionId ? (
+                  <InlineSessionComments
+                    eventUuid={eventId}
+                    sessionUuid={sessionId}
+                    isPublicView={isPublicView}
+                    onLoginClick={onLoginClick}
+                  />
+                ) : (
+                  /* CMS preview */
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                    <div className="flex flex-col gap-3 px-4 py-4">
+                      <p className="text-center text-sm text-slate-400">Session comments</p>
+                      <button type="button" disabled className="w-full rounded-lg bg-primary px-4 py-3 text-sm font-semibold text-white shadow-sm">
+                        Comment
+                      </button>
+                    </div>
+                  </div>
+                )
+              ) : section.type === 'live-chat' ? (
                 <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                   <div className="flex flex-col items-center gap-4 px-4 py-8 text-center">
                     <p className="text-sm text-slate-500">

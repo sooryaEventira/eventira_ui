@@ -16,6 +16,36 @@ export interface SetTagPublishedResponse {
 }
 
 /**
+ * Update a tag (group) name by UUID.
+ * PATCH {{admin_url}}tags/{{tag_uuid}}/update/?event_id={{event_uuid}}
+ */
+export async function updateTag(tagUuid: string, eventUuid: string, name: string): Promise<void> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) throw new Error('Authentication required.')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const url = API_ENDPOINTS.TAGS.UPDATE(tagUuid, eventUuid)
+  const response = await fetch(url, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ name }),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    throw new Error(handleApiError(errData ?? text, response, 'Failed to update group name.'))
+  }
+}
+
+/**
  * Delete a tag (group) by UUID.
  * DELETE {{admin_url}}tags/{{tag_uuid}}/delete/?event_id={{event_uuid}}
  */

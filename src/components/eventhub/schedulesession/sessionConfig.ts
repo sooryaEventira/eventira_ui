@@ -15,6 +15,7 @@ export const sectionOptions: SectionOption[] = [
   { id: 'resources', label: 'Resources' },
   { id: 'button', label: 'Button' },
   { id: 'live-chat', label: 'Live Chat' },
+  { id: 'comments', label: 'Comments' },
   // { id: 'networking-tools', label: 'Networking tools' }
 ]
 

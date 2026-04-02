@@ -241,6 +241,7 @@ export const API_ENDPOINTS = {
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/create/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/?event_id=${eventUuid}`,
     DELETE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/delete/?event_id=${eventUuid}`,
+    UPDATE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/update/?event_id=${eventUuid}`,
   },
   // Event tags: publish/unpublish group page (Build page checkbox). Page listing from website index API only.
   EVENT_TAGS: {
@@ -326,8 +327,9 @@ export const API_ENDPOINTS = {
   // Speaker Management endpoints
   SPEAKER_MANAGEMENT: {
     UPLOAD_SPEAKER: `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/import/`,
-    LIST: (eventUuid: string, page = 1, tagId?: string, ordering?: string) => {
+    LIST: (eventUuid: string, page = 1, tagId?: string, ordering?: string, pageSize?: number) => {
       let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}speakers/?event_id=${eventUuid}&page=${page}`
+      if (pageSize) url += `&page_size=${pageSize}`
       if (tagId) url += `&tag_id=${tagId}`
       if (ordering) url += `&ordering=${ordering}`
       return url

@@ -10,13 +10,14 @@ import CreateGroupModal from './CreateGroupModal'
 import CreateCustomFieldModal from './CreateCustomFieldModal'
 import UploadModal from '../../ui/UploadModal'
 import { ConfirmDeleteModal } from '../../ui'
+import EditGroupModal from '../../ui/EditGroupModal'
 import AttendeeDetailsSlideout from './AttendeeDetailsSlideout'
 import { Attendee, AttendeeTab, Group, CustomField } from './attendeeTypes'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import attendeeSpeakerTemplate from '../../../assets/excel/Attendee Speaker template.xlsx?url'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
-import { setTagPublished, setTagUnpublished, deleteTag } from '../../../services/eventTagService'
+import { setTagPublished, setTagUnpublished, deleteTag, updateTag } from '../../../services/eventTagService'
 import { showToast } from '../../../utils/toast'
 import { fetchPublishedAttendeeTagIds } from '../../../services/webpageService'
 
@@ -104,6 +105,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false)
   const [deleteGroupTarget, setDeleteGroupTarget] = useState<{ id: string; name: string } | null>(null)
   const [isDeletingGroup, setIsDeletingGroup] = useState(false)
+  const [editGroupTarget, setEditGroupTarget] = useState<{ id: string; name: string } | null>(null)
+  const [isEditingGroup, setIsEditingGroup] = useState(false)
   const [isCreateCustomFieldModalOpen, setIsCreateCustomFieldModalOpen] = useState(false)
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isAttendeeSlideoutOpen, setIsAttendeeSlideoutOpen] = useState(false)
@@ -471,8 +474,9 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   }
 
   const handleEditGroup = (groupId: string) => {
-    console.log('Edit group:', groupId)
-    // TODO: Implement edit group functionality
+    const target = groups.find((g) => g.id === groupId)
+    if (!target) return
+    setEditGroupTarget({ id: target.id, name: target.name })
   }
 
   const handleDeleteGroup = (groupId: string) => {
@@ -624,6 +628,28 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
         isOpen={isCreateGroupModalOpen}
         onClose={() => setIsCreateGroupModalOpen(false)}
         onConfirm={handleSaveGroup}
+      />
+
+      {/* Edit Group Modal */}
+      <EditGroupModal
+        isOpen={Boolean(editGroupTarget)}
+        groupName={editGroupTarget?.name ?? ''}
+        isLoading={isEditingGroup}
+        onCancel={() => { if (!isEditingGroup) setEditGroupTarget(null) }}
+        onConfirm={async (newName) => {
+          if (!editGroupTarget || !eventUuid) return
+          setIsEditingGroup(true)
+          try {
+            await updateTag(editGroupTarget.id, eventUuid, newName)
+            setGroups((prev) => prev.map((g) => g.id === editGroupTarget.id ? { ...g, name: newName } : g))
+            showToast.success('Group name updated')
+            setEditGroupTarget(null)
+          } catch (e) {
+            showToast.error(e instanceof Error ? e.message : 'Failed to update group name.')
+          } finally {
+            setIsEditingGroup(false)
+          }
+        }}
       />
 
       {/* Delete Group Confirmation Modal */}

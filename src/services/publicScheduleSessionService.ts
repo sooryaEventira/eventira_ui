@@ -19,12 +19,10 @@ export function mapApiSectionsToSavedSections(
       sectionType === 'livechat' ||
       sectionType === 'live_chat' ||
       sectionType === 'live-chat' ||
-      sectionType === 'comments' ||
       title === 'live chat' ||
       title === 'live-chat' ||
       title === 'livechat' ||
-      title === 'discussion/chat' ||
-      title === 'discussion/comment'
+      title === 'discussion/chat'
 
     const uiType =
       sectionType === 'poster'
@@ -37,9 +35,11 @@ export function mapApiSectionsToSavedSections(
               ? 'speaker'
               : sectionType === 'resource'
                 ? 'resources'
-                : isLiveChat
-                  ? 'live-chat'
-                  : sectionType
+                : sectionType === 'comments'
+                  ? 'comments'
+                  : isLiveChat
+                    ? 'live-chat'
+                    : sectionType
     let sectionData: Record<string, unknown> = {
       ...content,
       speaker_uuids: content?.speaker_uuids ?? [],
