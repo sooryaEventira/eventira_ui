@@ -89,7 +89,7 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
   const sections: { label: string; path?: string | null; onClick?: () => void }[] = [
     { label: 'Personal Information', path: `/events/${eventUuid}/profile/personal-info` },
     { label: 'My Calendar', onClick: handleYourScheduleClick },
-    { label: 'Privacy Settings', path: null },
+    { label: 'Privacy Settings', path: `/events/${eventUuid}/profile/privacy-settings` },
     { label: 'Socials & Links', path: null },
     { label: 'Help & Support', path: null },
   ]

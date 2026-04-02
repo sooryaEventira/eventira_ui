@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from 'react'
 import { fetchPublicSpeaker } from '../../../services/publicSpeakerService'
 
+type SpeakerSession = {
+  uuid: string
+  title: string
+  start_at?: string
+  end_at?: string
+  location?: string
+  session_type?: string
+  schedule_title?: string
+  schedule_date?: string
+}
+
 type PublicSpeaker = {
   id: string
   name: string
@@ -9,6 +20,7 @@ type PublicSpeaker = {
   avatarUrl?: string
   bio?: string
   tags?: string[]
+  sessions?: SpeakerSession[]
 }
 
 interface SpeakerDetailPageProps {
@@ -44,6 +56,18 @@ const SpeakerDetailPage: React.FC<SpeakerDetailPageProps> = ({ eventUuid, speake
               bio: raw.bio ?? raw.description ?? undefined,
               tags: Array.isArray((raw as any).tags)
                 ? (raw as any).tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '').trim()).filter(Boolean)
+                : [],
+              sessions: Array.isArray((raw as any).sessions)
+                ? (raw as any).sessions.map((s: any) => ({
+                    uuid: s.uuid ?? s.id ?? '',
+                    title: s.title ?? '',
+                    start_at: s.start_at ?? undefined,
+                    end_at: s.end_at ?? undefined,
+                    location: s.location ?? undefined,
+                    session_type: s.session_type ?? undefined,
+                    schedule_title: s.schedule_title ?? undefined,
+                    schedule_date: s.schedule_date ?? undefined,
+                  }))
                 : []
             }
           : null
@@ -176,6 +200,49 @@ const SpeakerDetailPage: React.FC<SpeakerDetailPageProps> = ({ eventUuid, speake
           Book a meeting
         </button>
       </div>
+
+      {speaker.sessions && speaker.sessions.length > 0 && (
+        <div>
+          <h2 className="mb-3 text-base font-semibold text-slate-900">Sessions</h2>
+          <div className="space-y-3">
+            {speaker.sessions.map((session) => {
+              const formatTime = (iso?: string) => {
+                if (!iso) return ''
+                return new Date(iso).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+              }
+              const timeRange = session.start_at
+                ? `${formatTime(session.start_at)}${session.end_at ? ` - ${formatTime(session.end_at)}` : ''}`
+                : ''
+
+              return (
+                <div key={session.uuid} className="rounded-xl border border-slate-200 bg-white p-4">
+                  <div className="text-sm font-semibold text-slate-900">{session.title}</div>
+                  <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                    {timeRange && (
+                      <span className="flex items-center gap-1">
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                        {timeRange}
+                      </span>
+                    )}
+                    {session.location && (
+                      <span className="flex items-center gap-1">
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        {session.location}
+                      </span>
+                    )}
+                    {session.session_type && (
+                      <span className="flex items-center gap-1">
+                        <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        {session.session_type.charAt(0).toUpperCase() + session.session_type.slice(1)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -475,10 +475,12 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                               </span>
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                            <Attachment01 className="h-3 w-3" />
-                            {child.attachment_count || 0}
-                          </span>
+                          {(child.attachment_count || 0) > 0 && (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                              <Attachment01 className="h-3 w-3" />
+                              {child.attachment_count || 0}
+                            </span>
+                          )}
                         </div>
                         {onAddParallelSession && (
                           <button
@@ -642,10 +644,12 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                     </span>
                   </span>
                 )}
-                <span className="inline-flex items-center gap-1.5 px-2  rounded-full border border-slate-200 text-xs font-medium text-slate-700">
-                  <Attachment01 className="h-3 w-3" />
-                  {session.attachment_count || 0}
-                </span>
+                {(session.attachment_count || 0) > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-2  rounded-full border border-slate-200 text-xs font-medium text-slate-700">
+                    <Attachment01 className="h-3 w-3" />
+                    {session.attachment_count || 0}
+                  </span>
+                )}
               </div>
               {showAddButton && (
                 <button

@@ -214,14 +214,19 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => 
                       </span>
                     </div>
 
-                    <div className="mt-2">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                        <Attachment01 className="h-3 w-3" />
-                        {typeof child.attachment_count === 'number'
-                          ? child.attachment_count
-                          : (child.attachments?.length || 0)}
-                      </span>
-                    </div>
+                    {(() => {
+                      const count = typeof child.attachment_count === 'number'
+                        ? child.attachment_count
+                        : (child.attachments?.length || 0)
+                      return count > 0 ? (
+                        <div className="mt-2">
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium  text-slate-700">
+                            <Attachment01 className="h-3 w-3" />
+                            {count}
+                          </span>
+                        </div>
+                      ) : null
+                    })()}
 
                     {(() => {
                       const speakers = getSessionSpeakers(child)
@@ -313,14 +318,19 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => 
                     </span>
                   </div>
 
-                  <div className="mt-3">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                      <Attachment01 className="h-3 w-3" />
-                      {typeof session.attachment_count === 'number'
-                        ? session.attachment_count
-                        : (session.attachments?.length || 0)}
-                    </span>
-                  </div>
+                  {(() => {
+                    const count = typeof session.attachment_count === 'number'
+                      ? session.attachment_count
+                      : (session.attachments?.length || 0)
+                    return count > 0 ? (
+                      <div className="mt-3">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+                          <Attachment01 className="h-3 w-3" />
+                          {count}
+                        </span>
+                      </div>
+                    ) : null
+                  })()}
 
                   {(() => {
                     const speakers = getSessionSpeakers(session)

@@ -30,6 +30,7 @@ type PublicSection =
   | 'organization'
   | 'event-profile'
   | 'event-personal-info'
+  | 'event-privacy-settings'
   | 'your-schedule'
 
 interface PublicEventWebsiteShellProps {
@@ -102,6 +103,7 @@ const getSectionFromPath = (
   if (rest === '/sessions' || rest === '/sessions/') return { section: 'sessions' }
   if (rest === '/profile' || rest === '/profile/') return { section: 'event-profile' }
   if (rest === '/profile/personal-info' || rest === '/profile/personal-info/') return { section: 'event-personal-info' }
+  if (rest === '/profile/privacy-settings' || rest === '/profile/privacy-settings/') return { section: 'event-privacy-settings' }
   if (rest === '/your-schedule' || rest === '/your-schedule/') return { section: 'your-schedule' }
 
   // Default: if no explicit section, treat it as "webpage" and show first available page
@@ -118,6 +120,7 @@ const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePag
 const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
 const PublicEventProfilePage = React.lazy(() => import('./PublicEventProfilePage'))
 const PublicEventPersonalInfoPage = React.lazy(() => import('./PublicEventPersonalInfoPage'))
+const PublicPrivacySettingsPage = React.lazy(() => import('./PublicPrivacySettingsPage'))
 const PublicYourSchedulePage = React.lazy(() => import('./schedule/PublicYourSchedulePage'))
 
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
@@ -651,6 +654,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         ) : current.section === 'event-personal-info' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <PublicEventPersonalInfoPage eventUuid={eventUuid} onNavigate={handleNavigate} />
+          </React.Suspense>
+        ) : current.section === 'event-privacy-settings' ? (
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <PublicPrivacySettingsPage eventUuid={eventUuid} onNavigate={handleNavigate} />
           </React.Suspense>
         ) : current.section === 'your-schedule' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>

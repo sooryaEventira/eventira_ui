@@ -230,8 +230,8 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
 
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
-        <div className="flex items-center gap-2">
-          <div className="flex items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-2 mt-4">
+          <div className="flex items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm ">
             <input
               value={queryInput}
               onChange={(e) => setQueryInput(e.target.value)}

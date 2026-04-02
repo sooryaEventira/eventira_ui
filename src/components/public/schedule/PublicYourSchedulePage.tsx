@@ -104,16 +104,16 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
   return (
     <div className="bg-white">
       {/* Header */}
-      <div className="mb-6 flex items-center gap-3">
+      <div className="mb-6 flex items-center gap-3 mt-6">
         <button
           type="button"
           onClick={() => onNavigate?.(`/events/${eventUuid}/profile`)}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-100"
           aria-label="Back"
         >
           <ArrowLeftIcon className="h-5 w-5" />
         </button>
-        <h1 className="text-xl font-bold text-slate-900">Your Schedule</h1>
+        <h1 className="text-lg font-bold text-slate-600">My Calendar</h1>
       </div>
 
       {loading && (
