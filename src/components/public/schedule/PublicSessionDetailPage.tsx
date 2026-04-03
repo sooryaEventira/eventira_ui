@@ -208,6 +208,7 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
             onLoginClick={() => { window.location.href = '/login' }}
             onChatOpen={() => setChatOpen(true)}
             chatOpen={chatOpen}
+            onSpeakerClick={(speakerUuid) => onNavigate(`/events/${eventUuid}/speakers/${speakerUuid}`)}
           />
         </div>
         {chatOpen && (

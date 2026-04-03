@@ -82,7 +82,10 @@ export const mapRetrieveSessionToDraft = (
             ? (raw.sections as any).results
             : []
   const sections = apiSections.map((sec: any, i: number) => {
-    const content = sec?.content && typeof sec.content === 'object' ? sec.content : {}
+    const rawContent = sec?.content
+    // Backend returns content as a plain string[] for speakers sections
+    const contentIsArray = Array.isArray(rawContent)
+    const content = contentIsArray ? {} : (rawContent && typeof rawContent === 'object' ? rawContent : {})
     const sectionType = (sec?.section_type ?? sec?.type ?? 'text').toString()
     let uiType =
       sectionType === 'poster'
@@ -110,16 +113,29 @@ export const mapRetrieveSessionToDraft = (
         uiType = 'live-chat'
       }
     }
-    const speakerUuids = content?.speaker_uuids ?? []
-    const contentSpeakers = Array.isArray(content?.speakers) ? content.speakers : []
-    const speakersWithRole =
-      contentSpeakers.length > 0
-        ? contentSpeakers.map((sp: any) => ({ id: sp?.id ?? sp?.speaker_uuid ?? '', name: sp?.name ?? '', role: sp?.role ?? '' }))
-        : (Array.isArray(speakerUuids) ? speakerUuids : []).map((id: string) => ({ id, name: '', role: '' }))
+    // Handle all three backend content formats for speakers:
+    //   1. Plain string[] → ["uuid1", "uuid2"]
+    //   2. { speakers: [{ uuid, name, role }] }  ← current backend format
+    //   3. { speaker_uuids: ["uuid1", "uuid2"] }  ← older format
+    let speakerUuids: string[] = []
+    let speakersList: { id: string; name: string; role: string }[] = []
+    if (contentIsArray) {
+      speakerUuids = (rawContent as string[])
+      speakersList = speakerUuids.map((id) => ({ id, name: '', role: '' }))
+    } else if (Array.isArray(content?.speakers) && content.speakers.length > 0) {
+      speakersList = (content.speakers as any[]).map((sp: any) => ({
+        id: sp?.uuid ?? sp?.id ?? sp?.speaker_uuid ?? '',
+        name: sp?.name ?? '',
+        role: sp?.role ?? ''
+      }))
+      speakerUuids = speakersList.map((sp) => sp.id).filter(Boolean)
+    } else if (Array.isArray(content?.speaker_uuids)) {
+      speakerUuids = content.speaker_uuids
+      speakersList = speakerUuids.map((id) => ({ id, name: '', role: '' }))
+    }
     let sectionData: Record<string, unknown> = {
-      ...content,
-      speaker_uuids: Array.isArray(speakerUuids) ? speakerUuids : [],
-      speakers: speakersWithRole,
+      speaker_uuids: speakerUuids,
+      speakers: speakersList,
       url: content?.url ?? content?.video_url ?? ''
     }
     if (uiType === 'resources' && Array.isArray(content?.files)) {
@@ -144,7 +160,7 @@ export const mapRetrieveSessionToDraft = (
       id: `section-${id}-${i}`,
       ...(apiSectionId ? { sectionId: apiSectionId } : {}),
       type: uiType,
-      title: (content?.title ?? sec?.title ?? defaultTitle).toString(),
+      title: (uiType === 'speaker' ? defaultTitle : (content?.title ?? sec?.title ?? defaultTitle)).toString(),
       description: (content?.body ?? content?.body ?? sec?.description ?? '').toString(),
       data: sectionData
     }

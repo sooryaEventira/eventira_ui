@@ -3,12 +3,13 @@ import { handleApiError, handleNetworkError } from '../utils/errorHandler'
 
 /**
  * Fetch a short-lived Ably token for real-time chat.
+ * Pass channelName so the backend can issue a token scoped to that channel.
  * Returns the raw token value — could be a JWT string, TokenRequest, or TokenDetails object.
  * Ably's authCallback accepts all three; we must NOT call String() on an object.
  */
-export async function fetchAblyToken(): Promise<string | object> {
+export async function fetchAblyToken(channelName?: string): Promise<string | object> {
   const pubToken = localStorage.getItem('pub_accessToken')
-  const response = await fetch(API_ENDPOINTS.PUBLIC.ABLY_TOKEN, {
+  const response = await fetch(API_ENDPOINTS.PUBLIC.ABLY_TOKEN(channelName), {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
@@ -18,9 +19,18 @@ export async function fetchAblyToken(): Promise<string | object> {
   if (!response.ok) throw new Error('Failed to fetch Ably token.')
   const data = await response.json()
 
-  // Backend may return { data: { token: "jwt" } }, { data: { keyName, mac, ... } } (TokenRequest),
-  // or the TokenRequest/TokenDetails object at the top level.
-  const token = data?.data?.token ?? data?.token ?? data?.data ?? data
+  // Unwrap up to 3 levels of { status, data } envelope to reach the token object/string.
+  // e.g. { status, data: { status, data: { token: "jwt", client_id, capability } } }
+  let unwrapped = data
+  for (let i = 0; i < 3; i++) {
+    if (unwrapped && typeof unwrapped === 'object' && 'data' in unwrapped) {
+      unwrapped = unwrapped.data
+    } else {
+      break
+    }
+  }
+  // unwrapped is now { token: "jwt", client_id, capability } or the JWT string itself
+  const token = (unwrapped && typeof unwrapped === 'object' ? unwrapped.token ?? unwrapped : unwrapped) ?? data?.token ?? data
   if (!token) throw new Error('Ably token missing in response.')
 
   // Return as-is — do NOT coerce to String. Ably handles JWT strings and TokenRequest objects natively.
@@ -181,7 +191,18 @@ export async function postSessionComment(
       throw new Error(errorMessage)
     }
 
-    const comment = data?.data ?? data
+    // Unwrap up to 3 levels of { status, data } envelope to reach the comment object
+    let comment = data
+    for (let i = 0; i < 3; i++) {
+      if (comment && typeof comment === 'object' && 'data' in comment && comment.data !== null && typeof comment.data === 'object' && ('uuid' in comment.data || 'id' in comment.data || 'content' in comment.data)) {
+        comment = comment.data
+        break
+      } else if (comment && typeof comment === 'object' && 'data' in comment) {
+        comment = comment.data
+      } else {
+        break
+      }
+    }
     return comment
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {

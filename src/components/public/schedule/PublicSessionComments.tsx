@@ -26,35 +26,58 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<Ably.RealtimeChannel | null>(null)
   const ablyClientRef = useRef<Ably.Realtime | null>(null)
+  const connectionStateRef = useRef<ConnectionState>('connecting')
+  const pollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [])
 
   // Load existing comments from REST (history)
-  const loadComments = useCallback(async () => {
+  const loadComments = useCallback(async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const data = await fetchSessionComments(eventUuid, sessionUuid)
-      setComments(data)
-      setTimeout(scrollToBottom, 100)
+      setComments((prev) => {
+        // Merge: keep existing + append any new ones not yet in state (dedup by uuid)
+        const existingUuids = new Set(prev.map((c) => c.uuid))
+        const newItems = data.filter((c) => !existingUuids.has(c.uuid))
+        if (newItems.length === 0) return prev
+        setTimeout(scrollToBottom, 50)
+        return [...prev, ...newItems]
+      })
     } catch {
       // silently ignore
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [eventUuid, sessionUuid, scrollToBottom])
+
+  // Polling fallback: fetch every 5 s so messages appear even when Ably is reconnecting
+  const startPolling = useCallback(() => {
+    if (pollTimerRef.current) return
+    pollTimerRef.current = setInterval(() => {
+      loadComments(true)
+    }, 5000)
+  }, [loadComments])
+
+  const stopPolling = useCallback(() => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current)
+      pollTimerRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     // 1. Load comment history
     loadComments()
 
-    // 2. Initialize Ably with authCallback
+    // 2. Initialize Ably with authCallback — pass channelName so backend issues a scoped token
     const client = new Ably.Realtime({
       disconnectedRetryTimeout: 5000,
       suspendedRetryTimeout: 10000,
       authCallback: (_tokenParams, callback) => {
-        fetchAblyToken()
+        fetchAblyToken(`session-${sessionUuid}`)
           .then((token) => callback(null, token as unknown as Ably.TokenDetails | Ably.TokenRequest | string))
           .catch((err) => {
             console.error('[Ably] Auth token fetch failed:', err)
@@ -70,17 +93,26 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
       switch (stateChange.current) {
         case 'connected':
           setConnectionState('connected')
+          connectionStateRef.current = 'connected'
+          // Reload to catch any messages missed while reconnecting, then stop polling
+          loadComments(true)
+          stopPolling()
           break
         case 'failed':
           setConnectionState('failed')
+          connectionStateRef.current = 'failed'
+          startPolling()
           break
         case 'disconnected':
         case 'suspended':
           setConnectionState('disconnected')
-          // Ably will auto-retry per disconnectedRetryTimeout / suspendedRetryTimeout
+          connectionStateRef.current = 'disconnected'
+          // Start polling so messages still appear while Ably retries
+          startPolling()
           break
         default:
           setConnectionState('connecting')
+          connectionStateRef.current = 'connecting'
       }
     })
 
@@ -91,43 +123,66 @@ const PublicSessionComments: React.FC<PublicSessionCommentsProps> = ({
 
     // 5. Subscribe to incoming messages
     channel.subscribe((msg: Ably.Message) => {
-      const raw = msg.data
-      const incoming = (raw?.data ?? raw) as SessionComment
-      if (!incoming?.uuid) {
-        console.warn('[Ably] Received message with no uuid — check backend channel publish format:', raw)
+      // Unwrap up to 3 levels of { status, data } envelope to reach the comment object
+      let payload = msg.data
+      for (let i = 0; i < 3; i++) {
+        if (payload && typeof payload === 'object' && !Array.isArray(payload) && payload.data !== undefined) {
+          payload = payload.data
+        } else {
+          break
+        }
+      }
+      const incoming = payload as SessionComment
+      // Accept uuid or id as the comment identifier
+      const commentId = incoming?.uuid ?? (incoming as any)?.id
+      if (!commentId) {
+        console.warn('[Ably] Received message with no uuid/id — raw:', msg.data)
         return
       }
+      // Normalise to uuid field so the rest of the component works uniformly
+      const comment: SessionComment = { ...incoming, uuid: String(commentId) }
       setComments((prev) => {
-        // Deduplicate — message may already exist from REST load
-        if (prev.some((c) => c.uuid === incoming.uuid)) return prev
-        const next = [...prev, incoming]
+        // Deduplicate — message may already exist from REST load or prior Ably delivery
+        if (prev.some((c) => c.uuid === comment.uuid)) return prev
+        const next = [...prev, comment]
         setTimeout(scrollToBottom, 50)
         return next
       })
     })
 
-    // 6. Cleanup: unsubscribe and close connection on unmount
+    // Start polling immediately as fallback until Ably connects
+    startPolling()
+
+    // 6. Cleanup: unsubscribe, close connection, stop polling on unmount
     return () => {
+      stopPolling()
       channel.unsubscribe()
       channel.detach()
       client.close()
       channelRef.current = null
       ablyClientRef.current = null
     }
-  }, [eventUuid, sessionUuid, loadComments, scrollToBottom])
+  }, [eventUuid, sessionUuid, loadComments, scrollToBottom, startPolling, stopPolling])
 
-  // 7. Send message via REST — backend persists and publishes to Ably channel.
-  //    We also reload from REST after posting so the sender sees their message
-  //    immediately (fallback until the backend broadcasts via Ably).
+  // 7. Send message via REST, then broadcast via Ably from the frontend so other
+  //    connected clients receive it instantly (works even if the backend never publishes).
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
     const trimmed = message.trim()
     if (!trimmed || sending) return
     try {
       setSending(true)
-      await postSessionComment(eventUuid, sessionUuid, trimmed, null, anonymous)
+      const saved = await postSessionComment(eventUuid, sessionUuid, trimmed, null, anonymous)
       setMessage('')
-      // Reload from REST so the sender sees their message even if Ably doesn't deliver it
+      // Publish to Ably channel so all other subscribers receive the message in real-time
+      if (saved && channelRef.current) {
+        try {
+          await channelRef.current.publish('comment', saved)
+        } catch {
+          // Ably publish failed — receiver will still get it via polling
+        }
+      }
+      // Also merge into sender's own state immediately
       await loadComments()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to send message')

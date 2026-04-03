@@ -99,7 +99,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const ATTENDEE_COLUMN_OPTIONS: { id: string; label: string }[] = [
     // Name column is always visible and cannot be toggled
     { id: 'email', label: 'Email' },
-    { id: 'inviteCode', label: 'Invite Code' },
+    // { id: 'inviteCode', label: 'Invite Code' },
     { id: 'designation', label: 'Designation' },
     { id: 'organization', label: 'Organization' },
     { id: 'groups', label: 'Groups' }

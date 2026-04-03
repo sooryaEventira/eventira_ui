@@ -207,8 +207,9 @@ export const API_ENDPOINTS = {
     /** Website index for published site (no auth). GET webpages + speaker_tags + attendee_tags for nav. */
     INDEX: (eventUuid: string) =>
       `${PUBLIC_API_ROOT}events/${eventUuid}/index/`,
-    /** Ably token auth. GET {{public_url}}chat/ably-token/ */
-    ABLY_TOKEN: `${PUBLIC_API_ROOT}chat/ably-token/`,
+    /** Ably token auth. GET {{public_url}}chat/ably-token/?channel=session-{uuid} */
+    ABLY_TOKEN: (channel?: string) =>
+      `${PUBLIC_API_ROOT}chat/ably-token/${channel ? `?channel=${encodeURIComponent(channel)}` : ''}`,
     /** Attendee profile. PATCH {{public_url}}events/{eventUuid}/profile/ */
     PROFILE: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/profile/`,
   },

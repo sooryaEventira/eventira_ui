@@ -134,20 +134,20 @@ export const useAttendeeTableColumns = ({
           return <span className="text-sm text-slate-600">{attendee.email}</span>
         }
       },
-      {
-        id: 'inviteCode',
-        header: 'Invite code',
-        sortable: true,
-        sortAccessor: ({ attendee }) => attendee?.inviteCode || '',
-        render: ({ attendee }) => {
-          if (!attendee) return null
-          return (
-            <span className="text-sm text-slate-600">
-              {attendee.inviteCode || '-'}
-            </span>
-          )
-        }
-      },
+      // {
+      //   id: 'inviteCode',
+      //   header: 'Invite code',
+      //   sortable: true,
+      //   sortAccessor: ({ attendee }) => attendee?.inviteCode || '',
+      //   render: ({ attendee }) => {
+      //     if (!attendee) return null
+      //     return (
+      //       <span className="text-sm text-slate-600">
+      //         {attendee.inviteCode || '-'}
+      //       </span>
+      //     )
+      //   }
+      // },
       {
         id: 'designation',
         header: 'Designation',

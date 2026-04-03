@@ -33,6 +33,8 @@ interface SessionSummaryViewProps {
   onChatOpen?: () => void
   /** When true, disables the "Open chat" button (chat is already open). */
   chatOpen?: boolean
+  /** Called when a speaker name is clicked — receives the speaker uuid. Only used on public pages. */
+  onSpeakerClick?: (speakerUuid: string) => void
 }
 
 /** Get YouTube embed URL from watch URL, youtu.be, Shorts, or existing embed URL. */
@@ -81,6 +83,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
   onLoginClick,
   onChatOpen,
   chatOpen = false,
+  onSpeakerClick,
 }) => {
   const [lightbox, setLightbox] = useState<{ images: string[]; index: number } | null>(null)
 
@@ -289,7 +292,17 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                 <ul className="space-y-2">
                   {section.data.speakers.map((s: { id: string; name: string; role: string }, i: number) => (
                     <li key={s.id || i} className="text-sm text-slate-600">
-                      <span className="font-medium text-slate-800">{s.name}</span>
+                      {onSpeakerClick && s.id ? (
+                        <button
+                          type="button"
+                          onClick={() => onSpeakerClick(s.id)}
+                          className="font-medium text-primary hover:underline"
+                        >
+                          {s.name}
+                        </button>
+                      ) : (
+                        <span className="font-medium text-slate-800">{s.name}</span>
+                      )}
                       {s.role ? <span className="text-slate-500"> – {s.role}</span> : null}
                     </li>
                   ))}

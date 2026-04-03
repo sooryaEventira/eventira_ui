@@ -169,29 +169,19 @@ export const stripFilesFromPayload = (obj: Record<string, unknown>): Record<stri
 export const buildOneSectionPayload = (
   s: SessionDraft['sections'][number],
   order: number
-): UpdateSessionSectionBody & { section_type: string; order: number; content: Record<string, unknown> } => {
+): UpdateSessionSectionBody & { section_type: string; order: number; content: Record<string, unknown> | string[] } => {
   const sectionType = toApiSectionType((s.type === 'speaker' ? 'speakers' : s.type) || 'text')
-  let content: Record<string, unknown>
+  let content: Record<string, unknown> | string[]
   if (sectionType === 'text') {
     content = { title: s.title || 'Section', body: s.description ?? '' }
   } else if (sectionType === 'speakers') {
-    const speakerUuids = Array.isArray(s.data?.speaker_uuids)
+    const speakerUuids: string[] = Array.isArray(s.data?.speaker_uuids)
       ? s.data.speaker_uuids
       : Array.isArray(s.data?.speakers)
         ? (s.data.speakers as { id: string }[]).map((sp) => sp.id)
         : []
-    const speakersList = Array.isArray(s.data?.speakers)
-      ? (s.data.speakers as { id: string; name: string; role?: string }[]).map((sp) => ({
-          id: sp.id,
-          name: sp.name || '',
-          role: sp.role || ''
-        }))
-      : []
-    content = {
-      title: s.title || 'Speakers',
-      speaker_uuids: speakerUuids,
-      speakers: speakersList.length > 0 ? speakersList : speakerUuids.map((id) => ({ id, name: '', role: '' }))
-    }
+    // Backend expects content to be a plain array of speaker UUIDs
+    content = speakerUuids
   } else if (sectionType === 'video') {
     const videoUrl = s.data?.videoUrl ?? s.data?.video_url ?? ''
     content = { video_url: typeof videoUrl === 'string' ? videoUrl : String(videoUrl || ''), title: s.title || 'Video' }

@@ -41,19 +41,17 @@ export interface SessionSectionContentText {
   body: string
 }
 
-/** Content shape for speakers section. API expects JSON: speaker_uuids and optional speakers (id, name, role). */
+/** Content shape for speakers section. API expects JSON: { speaker_uuids: string[] }. */
 export interface SessionSectionContentSpeakers {
   speaker_uuids: string[]
-  /** Optional list with role per speaker so backend can store/display role (e.g. Chairman, Panelist, Speaker). */
-  speakers?: Array<{ id: string; name?: string; role?: string }>
 }
 
 /** Payload for POST session-sections. Backend requires session_uuid, section_type, order, and content (type-specific). */
 export interface CreateSessionSectionItem {
   section_type: string
   order: number
-  /** Type-specific content: text → { title, body }; speakers → { speaker_uuids }. */
-  content?: Record<string, unknown>
+  /** Type-specific content: text → { title, body }; speakers → string[] (list of speaker UUIDs). */
+  content?: Record<string, unknown> | string[]
 }
 
 export interface CreateSessionSectionsBody {
@@ -66,7 +64,7 @@ export interface UpdateSessionSectionBody {
   session_uuid?: string
   section_type?: string
   order?: number
-  content?: Record<string, unknown>
+  content?: Record<string, unknown> | string[]
 }
 
 /** List sessions for a schedule. GET {{admin_url}}sessions/?event_id=&schedule_uuid= (admin/schedule page only; published website uses event store). */

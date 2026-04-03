@@ -81,7 +81,12 @@ const InlineSessionComments: React.FC<InlineSessionCommentsProps> = ({
   const loadComments = useCallback(async () => {
     try {
       const data = await fetchSessionComments(eventUuid, sessionUuid)
-      setComments(data)
+      setComments((prev) => {
+        const existingUuids = new Set(prev.map((c) => c.uuid))
+        const newItems = data.filter((c) => !existingUuids.has(c.uuid))
+        if (newItems.length === 0) return prev
+        return [...prev, ...newItems]
+      })
     } catch {
       // silently ignore
     } finally {
@@ -92,12 +97,12 @@ const InlineSessionComments: React.FC<InlineSessionCommentsProps> = ({
   useEffect(() => {
     loadComments()
 
-    // Connect to Ably for real-time new comments
+    // Connect to Ably for real-time new comments — pass channel so backend issues a scoped token
     const client = new Ably.Realtime({
       disconnectedRetryTimeout: 5000,
       suspendedRetryTimeout: 10000,
       authCallback: (_tokenParams, callback) => {
-        fetchAblyToken()
+        fetchAblyToken(`session-${sessionUuid}`)
           .then((token) => callback(null, token as unknown as Ably.TokenDetails | Ably.TokenRequest | string))
           .catch((err) => {
             console.error('[Ably] Auth token fetch failed:', err)
@@ -111,12 +116,22 @@ const InlineSessionComments: React.FC<InlineSessionCommentsProps> = ({
     channelRef.current = channel
 
     channel.subscribe((msg: Ably.Message) => {
-      const raw = msg.data
-      const incoming = (raw?.data ?? raw) as SessionComment
-      if (!incoming?.uuid) return
+      // Unwrap up to 3 levels of { status, data } envelope to reach the comment object
+      let payload = msg.data
+      for (let i = 0; i < 3; i++) {
+        if (payload && typeof payload === 'object' && !Array.isArray(payload) && payload.data !== undefined) {
+          payload = payload.data
+        } else {
+          break
+        }
+      }
+      const incoming = payload as SessionComment
+      const commentId = incoming?.uuid ?? (incoming as any)?.id
+      if (!commentId) return
+      const comment: SessionComment = { ...incoming, uuid: String(commentId) }
       setComments((prev) => {
-        if (prev.some((c) => c.uuid === incoming.uuid)) return prev
-        return [...prev, incoming]
+        if (prev.some((c) => c.uuid === comment.uuid)) return prev
+        return [...prev, comment]
       })
     })
 
@@ -145,9 +160,17 @@ const InlineSessionComments: React.FC<InlineSessionCommentsProps> = ({
     if (!trimmed || sending) return
     setSending(true)
     try {
-      await postSessionComment(eventUuid, sessionUuid, trimmed, null, anonymous)
+      const saved = await postSessionComment(eventUuid, sessionUuid, trimmed, null, anonymous)
       setMessage('')
       setShowInput(false)
+      // Publish to Ably channel so all other subscribers receive it in real-time
+      if (saved && channelRef.current) {
+        try {
+          await channelRef.current.publish('comment', saved)
+        } catch {
+          // Ably publish failed — receiver will still get it via polling
+        }
+      }
       await loadComments()
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to post comment')

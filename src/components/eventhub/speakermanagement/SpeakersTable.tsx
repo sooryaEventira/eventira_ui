@@ -89,7 +89,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   // Column visibility for speaker table (only when activeTab === 'user')
   const SPEAKER_COLUMN_OPTIONS: { id: string; label: string }[] = [
     // Name column is always visible and cannot be toggled
-    { id: 'inviteCode', label: 'Invite Code' },
+    // { id: 'inviteCode', label: 'Invite Code' },
     { id: 'email', label: 'Email' },
     { id: 'designation', label: 'Designation' },
     { id: 'organization', label: 'Organization' },

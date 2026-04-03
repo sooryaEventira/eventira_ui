@@ -128,20 +128,20 @@ export const useSpeakerTableColumns = ({
           )
         }
       },
-      {
-        id: 'inviteCode',
-        header: 'Invite code',
-        sortable: true,
-        sortAccessor: ({ speaker }) => speaker?.inviteCode || '',
-        render: ({ speaker }) => {
-          if (!speaker) return null
-          return (
-            <span className="text-sm text-slate-600">
-              {speaker.inviteCode || '-'}
-            </span>
-          )
-        }
-      },
+      // {
+      //   id: 'inviteCode',
+      //   header: 'Invite code',
+      //   sortable: true,
+      //   sortAccessor: ({ speaker }) => speaker?.inviteCode || '',
+      //   render: ({ speaker }) => {
+      //     if (!speaker) return null
+      //     return (
+      //       <span className="text-sm text-slate-600">
+      //         {speaker.inviteCode || '-'}
+      //       </span>
+      //     )
+      //   }
+      // },
       {
         id: 'email',
         header: 'Email',

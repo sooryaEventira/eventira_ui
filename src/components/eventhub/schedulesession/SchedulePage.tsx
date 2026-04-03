@@ -979,14 +979,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           if (Array.isArray(rawSections?.sections?.results)) {
             apiSectionsFromList.push(...rawSections.sections.results)
           }
-          // Some list responses (e.g. templates) put speaker sections under a top-level `speakers` array
-          if (Array.isArray(rawSections?.speakers)) {
-            apiSectionsFromList.push(
-              ...rawSections.speakers.map((sec: any) => ({
-                section_type: sec?.section_type ?? 'speakers',
-                ...sec
-              }))
-            )
+          // List API returns a top-level `speakers` array of speaker objects { uuid, name, role }.
+          // Wrap them into a single synthetic speakers section so the loop below can process them.
+          if (Array.isArray(rawSections?.speakers) && rawSections.speakers.length > 0) {
+            apiSectionsFromList.push({
+              section_type: 'speakers',
+              content: { speakers: rawSections.speakers }
+            })
           }
 
           if (Array.isArray(apiSectionsFromList) && apiSectionsFromList.length > 0) {
@@ -1538,8 +1537,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       const sessionsBySchedule: Record<string, SavedSession[]> = {}
       for (const item of deduped) {
         // Prefer the schedule we requested so sessions attach to the correct schedule (schedule.id)
-        const scheduleUuid =
-          (fallbackScheduleUuid ?? null) ?? item.scheduleUuid ?? null
+        const scheduleUuid = fallbackScheduleUuid ?? item.scheduleUuid ?? null
         if (!scheduleUuid) continue
         const key = String(scheduleUuid)
         if (!sessionsBySchedule[key]) sessionsBySchedule[key] = []
