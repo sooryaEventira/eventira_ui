@@ -16,6 +16,7 @@ import {
   upsertMissingPagesToRoot
 } from '../../utils/navigationTree'
 import { readEventStoreJSON } from '../../utils/eventLocalStore'
+import { API_ENDPOINTS } from '../../config/env'
 
 type PublicSection =
   | 'webpage'
@@ -172,6 +173,21 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventUuid])
+
+  // Fetch attendee UUID on mount so presence indicators work without visiting /profile
+  useEffect(() => {
+    const token = localStorage.getItem('pub_accessToken')
+    if (!token || !eventUuid) return
+    fetch(API_ENDPOINTS.PUBLIC.PROFILE(eventUuid), {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.ok ? r.json() : null)
+      .then((res) => {
+        const d = res?.data ?? res
+        if (d?.uuid) localStorage.setItem('pub_attendeeUuid', String(d.uuid))
+      })
+      .catch(() => { /* non-critical */ })
   }, [eventUuid])
 
   const displayEventName = useMemo(() => {

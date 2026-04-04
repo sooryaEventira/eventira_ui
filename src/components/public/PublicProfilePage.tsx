@@ -117,6 +117,7 @@ const PublicProfilePage: React.FC = () => {
       .then((res) => {
         const d = res?.data ?? res
         if (!d) return
+        if (d.uuid != null) localStorage.setItem('pub_attendeeUuid', String(d.uuid))
         if (d.first_name != null) { setFirstName(String(d.first_name)); localStorage.setItem('pub_firstName', String(d.first_name)) }
         if (d.last_name != null) { setLastName(String(d.last_name)); localStorage.setItem('pub_lastName', String(d.last_name)) }
         if (d.email != null) setEmail(String(d.email))

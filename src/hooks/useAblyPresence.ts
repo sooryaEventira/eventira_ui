@@ -3,6 +3,9 @@ import * as Ably from 'ably'
 import { fetchAblyToken } from '../services/publicSessionCommentServices'
 
 function getUserUuid(): string {
+  // Prefer the attendee UUID stored after profile fetch (matches attendee list IDs)
+  const stored = localStorage.getItem('pub_attendeeUuid')
+  if (stored) return stored
   try {
     const token = localStorage.getItem('pub_accessToken')
     if (!token) return ''
