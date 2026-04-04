@@ -193,6 +193,14 @@ export const API_ENDPOINTS = {
       REMOVE: (eventUuid: string, sessionUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/bookmarks/remove/`,
     },
+    SCHEDULE_BOOKMARKS: {
+      /** List bookmarked schedules for an event. GET .../events/{eventUuid}/schedules/bookmarks/ */
+      LIST: (eventUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/bookmarks/`,
+      /** List bookmarked sessions within a schedule. GET .../events/{eventUuid}/schedules/{scheduleUuid}/sessions/bookmarks/ */
+      SESSIONS: (eventUuid: string, scheduleUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/${scheduleUuid}/sessions/bookmarks/`,
+    },
     SESSION_COMMENTS: {
       /** List comments for a session. GET .../events/{eventUuid}/sessions/{sessionUuid}/comments/ */
       LIST: (eventUuid: string, sessionUuid: string) =>

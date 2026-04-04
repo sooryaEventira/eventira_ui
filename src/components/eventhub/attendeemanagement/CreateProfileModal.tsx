@@ -1,6 +1,8 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { XClose, Upload01, HelpCircle, Plus, Trash03 } from '@untitled-ui/icons-react'
-import { createAttendee } from '../../../services/attendeeService'
+import { createAttendee, fetchTags } from '../../../services/attendeeService'
+import CreatableMultiSelect, { type CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
+import type { MultiValue, ActionMeta } from 'react-select'
 
 interface CreateProfileModalProps {
   isOpen: boolean
@@ -12,7 +14,7 @@ interface CreateProfileModalProps {
     email: string
     organization?: string
     role?: string
-    group?: string
+    groups?: string[]
     description?: string
     avatarUrl?: string
     customFields?: Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
@@ -30,7 +32,8 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   const [email, setEmail] = useState('')
   const [organization, setOrganization] = useState('')
   const [role, setRole] = useState('')
-  const [group, setGroup] = useState('')
+  const [selectedGroups, setSelectedGroups] = useState<CreatableMultiSelectOption[]>([])
+  const [tagOptions, setTagOptions] = useState<CreatableMultiSelectOption[]>([])
   const [description, setDescription] = useState('')
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
@@ -39,6 +42,13 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
   const [customFields, setCustomFields] = useState<
     Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
   >([])
+
+  useEffect(() => {
+    if (!isOpen || !eventUuid) return
+    fetchTags(eventUuid).then((tags) => {
+      setTagOptions(tags.filter((t) => t.is_active !== false).map((t) => ({ value: t.uuid, label: t.name })))
+    }).catch(() => {})
+  }, [isOpen, eventUuid])
 
   if (!isOpen) return null
 
@@ -111,7 +121,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       email: email.trim(),
       organization: organization.trim() || undefined,
       role: role.trim() || undefined,
-      group: group.trim() || undefined,
+      groups: selectedGroups.map((g) => g.value),
       description: description.trim() || undefined,
       avatarUrl: avatarUrl || undefined,
       customFields: cleanedCustomFields.length ? cleanedCustomFields : undefined
@@ -126,7 +136,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
         organization: payload.organization,
         designation: payload.role,
         description: payload.description,
-        groups: payload.group ? [payload.group] : undefined,
+        groups: payload.groups.length ? payload.groups : undefined,
         custom_fields: payload.customFields?.length
           ? Object.fromEntries(payload.customFields.map((f) => [f.label, f.value]))
           : undefined,
@@ -140,7 +150,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       setEmail('')
       setOrganization('')
       setRole('')
-      setGroup('')
+      setSelectedGroups([])
       setDescription('')
       setAvatarUrl(null)
       setCustomFields([])
@@ -160,7 +170,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
     setEmail('')
     setOrganization('')
     setRole('')
-    setGroup('')
+    setSelectedGroups([])
     setDescription('')
     setAvatarUrl(null)
     setCustomFields([])
@@ -300,35 +310,32 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Designation
-              </label>
-              <input
-                type="text"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-                placeholder="Designation"
-                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-               Group
-              </label>
-              <input
-                type="text"
-                value={group}
-                onChange={(e) => setGroup(e.target.value)}
-                placeholder="Group"
-                className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
-              />
-            </div>
-
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Designation
+            </label>
+            <input
+              type="text"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              placeholder="Designation"
+              className="w-full px-3 py-1.5 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+            />
           </div>
 
-
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Group
+            </label>
+            <CreatableMultiSelect
+              options={tagOptions}
+              value={selectedGroups}
+              placeholder="Select or create groups..."
+              onChange={(newValue: MultiValue<CreatableMultiSelectOption>, _actionMeta: ActionMeta<CreatableMultiSelectOption>) =>
+                setSelectedGroups([...newValue])
+              }
+            />
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -458,4 +465,3 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
 }
 
 export default CreateProfileModal
-

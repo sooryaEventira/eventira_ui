@@ -578,7 +578,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     organization?: string
     role?: string
     bio?: string
-    group?: string
+    groups?: string[]
     avatarUrl?: string
     customFields?: Array<{ label: string; value: string; hideFromProfile?: boolean }>
   }) => {
@@ -659,6 +659,13 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     if (!eventUuidForBulk || !speakerIds.length || !groupId) return
     await bulkAddSpeakerTag(eventUuidForBulk, speakerIds, groupId)
     await loadSpeakers()
+  }
+
+  const handleTabChange = (tab: SpeakerTab) => {
+    setActiveTab(tab)
+    if (tab === 'groups') {
+      loadTags()
+    }
   }
 
   const handleCreateGroup = () => {
@@ -800,7 +807,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
             builtGroupIds={builtGroupIds}
             onToggleBuildPage={handleToggleBuildPage}
             onFilter={handleFilter}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             isLoading={isLoadingGroups}
           />
         ) : (
@@ -809,7 +816,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
             customFields={customFields}
             groups={groups}
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             onUpload={handleUpload}
             isLoading={isLoadingSpeakers}
             onCreateProfile={handleCreateProfile}

@@ -4,6 +4,7 @@ import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 
 interface PublicScheduleGridProps {
   sessions: SavedSession[]
+  onSpeakerClick?: (speakerUuid: string) => void
 }
 
 const timeToMinutes = (time: string, period: string) => {
@@ -115,18 +116,41 @@ function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
   return result
 }
 
-function formatSessionSpeakersLabel(speakers: SessionSpeaker[]): string {
-  if (!speakers.length) return ''
-  return speakers
-    .map((s) => {
-      const role = (s.role && String(s.role).trim()) || 'Speaker'
-      const name = s.name || 'Unnamed'
-      return `${role}: ${name}`
-    })
-    .join(', ')
+function renderSpeakers(
+  speakers: SessionSpeaker[],
+  onSpeakerClick?: (uuid: string) => void
+): React.ReactNode {
+  if (!speakers.length) return null
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
+      <User01 className="h-3 w-3 shrink-0 text-slate-400" />
+      {speakers.map((sp, idx) => {
+        const role = (sp.role && String(sp.role).trim()) || 'Speaker'
+        const name = sp.name || 'Unnamed'
+        const isUuid = sp.id && sp.id.includes('-')
+        return (
+          <span key={sp.id} className="flex items-center gap-1">
+            {idx > 0 && <span className="text-slate-300">·</span>}
+            <span className="text-slate-500">{role}:</span>
+            {onSpeakerClick && isUuid ? (
+              <button
+                type="button"
+                onClick={() => onSpeakerClick(sp.id)}
+                className="font-medium text-primary hover:underline focus:outline-none"
+              >
+                {name}
+              </button>
+            ) : (
+              <span className="font-medium">{name}</span>
+            )}
+          </span>
+        )
+      })}
+    </div>
+  )
 }
 
-const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => {
+const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpeakerClick }) => {
   const parents = useMemo(() => sessions.filter((s) => !s.parentId), [sessions])
   const childrenByParent = useMemo(() => {
     const map = new Map<string, SavedSession[]>()
@@ -228,17 +252,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => 
                       ) : null
                     })()}
 
-                    {(() => {
-                      const speakers = getSessionSpeakers(child)
-                      const label = formatSessionSpeakersLabel(speakers)
-                      if (!label) return null
-                      return (
-                        <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
-                          <User01 className="h-3 w-3 text-slate-400" />
-                          <span>{label}</span>
-                        </div>
-                      )
-                    })()}
+                    {renderSpeakers(getSessionSpeakers(child), onSpeakerClick)}
                   </div>
                 </div>
 
@@ -249,7 +263,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => 
         </div>
       )
     },
-    [childrenByParent, isExpanded, toggleExpanded]
+    [childrenByParent, isExpanded, onSpeakerClick, toggleExpanded]
   )
 
   return (
@@ -332,17 +346,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions }) => 
                     ) : null
                   })()}
 
-                  {(() => {
-                    const speakers = getSessionSpeakers(session)
-                    const label = formatSessionSpeakersLabel(speakers)
-                    if (!label) return null
-                    return (
-                      <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-600">
-                        <User01 className="h-3 w-3 text-slate-400" />
-                        <span>{label}</span>
-                      </div>
-                    )
-                  })()}
+                  {renderSpeakers(getSessionSpeakers(session), onSpeakerClick)}
 
                   {hasChildren && open ? renderChildren(session, 1) : null}
                 </div>

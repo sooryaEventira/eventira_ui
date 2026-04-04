@@ -138,6 +138,50 @@ export const fetchPublicEventList = async (): Promise<PublicEventData[]> => {
  * Endpoint: {{public_url}}events/?tag_id={{tag_uuid}}
  */
 /**
+ * Fetch bookmarked schedules for an event (authenticated).
+ * Endpoint: GET {{public_url}}events/{{event_uuid}}/schedules/bookmarks/
+ */
+export const fetchBookmarkedSchedules = async (eventUuid: string): Promise<any[]> => {
+  const accessToken = localStorage.getItem('pub_accessToken')
+  if (!accessToken) return []
+  const url = API_ENDPOINTS.PUBLIC.SCHEDULE_BOOKMARKS.LIST(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+  if (!response.ok) return []
+  let data: any
+  try { data = await response.json() } catch { return [] }
+  const raw = data?.data ?? data?.results ?? data
+  return Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : []
+}
+
+/**
+ * Fetch bookmarked sessions within a schedule (authenticated).
+ * Endpoint: GET {{public_url}}events/{{event_uuid}}/schedules/{{schedule_uuid}}/sessions/bookmarks/
+ */
+export const fetchBookmarkedScheduleSessions = async (eventUuid: string, scheduleUuid: string): Promise<any[]> => {
+  const accessToken = localStorage.getItem('pub_accessToken')
+  if (!accessToken) return []
+  const url = API_ENDPOINTS.PUBLIC.SCHEDULE_BOOKMARKS.SESSIONS(eventUuid, scheduleUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    },
+  })
+  if (!response.ok) return []
+  let data: any
+  try { data = await response.json() } catch { return [] }
+  const raw = data?.data ?? data?.results ?? data
+  return Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : []
+}
+
+/**
  * Fetch bookmarked sessions for an event (authenticated).
  * Endpoint: GET {{public_url}}events/{{event_uuid}}/sessions/bookmarks/
  */

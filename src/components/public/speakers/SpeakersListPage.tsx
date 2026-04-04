@@ -3,6 +3,7 @@ import { SearchLg } from '@untitled-ui/icons-react'
 import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import { fetchPublicSpeakers, fetchPublicSpeaker } from '../../../services/publicSpeakerService'
 import { buildSearchIndex, normalizeSearchText } from '../../../utils/indexedSearch'
+import { useAblyPresence } from '../../../hooks/useAblyPresence'
 
 type PublicSpeaker = {
   id: string
@@ -29,27 +30,32 @@ interface SpeakersListPageProps {
   initialSpeakerId?: string
 }
 
-const SpeakerRow = ({ speaker, isSelected }: { speaker: PublicSpeaker; isSelected: boolean }) => {
+const SpeakerRow = ({ speaker, isSelected, isOnline }: { speaker: PublicSpeaker; isSelected: boolean; isOnline: boolean }) => {
   const subtitle = [speaker.title, speaker.organization].filter(Boolean).join(' • ')
   return (
     <div className={`flex items-center gap-4 rounded-xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'}`}>
-      {speaker.avatarUrl ? (
-        <img
-          src={speaker.avatarUrl}
-          alt={speaker.name}
-          className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
-        />
-      ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200 text-xs font-semibold text-slate-500">
-          {String(speaker.name || 'S')
-            .split(' ')
-            .filter(Boolean)
-            .map((p) => p[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2)}
-        </div>
-      )}
+      <div className="relative shrink-0">
+        {speaker.avatarUrl ? (
+          <img
+            src={speaker.avatarUrl}
+            alt={speaker.name}
+            className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+          />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200 text-xs font-semibold text-slate-500">
+            {String(speaker.name || 'S')
+              .split(' ')
+              .filter(Boolean)
+              .map((p) => p[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 2)}
+          </div>
+        )}
+        {isOnline && (
+          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-400 ring-2 ring-white" />
+        )}
+      </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-slate-900">{speaker.name}</div>
         {subtitle ? <div className="truncate text-xs text-slate-500">{subtitle}</div> : null}
@@ -84,6 +90,7 @@ function getTagIdsFromItem(item: any): string[] {
 }
 
 const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNavigate, tagId, initialSpeakerId }) => {
+  const onlineIds = useAblyPresence(`event-${eventUuid}-presence`)
   const cacheKey = speakersCacheKey(eventUuid, tagId)
   const [queryInput, setQueryInput] = useState('')
   const [apiSpeakers, setApiSpeakers] = useState<PublicSpeaker[] | null>(() =>
@@ -243,21 +250,27 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
 
     const subtitle = [sp.title, sp.organization].filter(Boolean).join(' at ')
 
+    const isOnline = onlineIds.has(sp.id)
     return (
       <div className="flex h-full flex-col overflow-y-auto p-6">
         {/* Avatar */}
         <div className="flex flex-col items-center text-center">
-          {sp.avatarUrl ? (
-            <img
-              src={sp.avatarUrl}
-              alt={sp.name}
-              className="h-24 w-24 rounded-full object-cover ring-2 ring-slate-200"
-            />
-          ) : (
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 ring-2 ring-slate-200 text-lg font-semibold text-slate-500">
-              {String(sp.name || 'S').split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
-            </div>
-          )}
+          <div className="relative">
+            {sp.avatarUrl ? (
+              <img
+                src={sp.avatarUrl}
+                alt={sp.name}
+                className="h-24 w-24 rounded-full object-cover ring-2 ring-slate-200"
+              />
+            ) : (
+              <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 ring-2 ring-slate-200 text-lg font-semibold text-slate-500">
+                {String(sp.name || 'S').split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
+              </div>
+            )}
+            {isOnline && (
+              <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-green-400 ring-2 ring-white" />
+            )}
+          </div>
           <h2 className="mt-4 text-base font-semibold text-slate-900">{sp.name}</h2>
           {subtitle ? <p className="mt-1 text-xs text-slate-500">{subtitle}</p> : null}
           {sp.bio ? <p className="mt-3 text-xs leading-5 text-slate-600">{sp.bio}</p> : null}
@@ -343,7 +356,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
                 className="w-full text-left"
                 onClick={() => setSelectedSpeakerId((prev) => prev === s.id ? null : s.id)}
               >
-                <SpeakerRow speaker={s} isSelected={selectedSpeakerId === s.id} />
+                <SpeakerRow speaker={s} isSelected={selectedSpeakerId === s.id} isOnline={onlineIds.has(s.id)} />
               </button>
             ))
           )}

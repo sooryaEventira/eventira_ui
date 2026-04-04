@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import ProfileBackground from '../../assets/images/profile_background.jpg'
 import { Edit01, Camera01, User01, ArrowRight, ChevronRight } from '@untitled-ui/icons-react'
-import { fetchBookmarkedSessions, fetchEventProfile } from '../../services/publicEventService'
+import { fetchEventProfile } from '../../services/publicEventService'
 
 interface PublicEventProfilePageProps {
   onNavigate: (path: string) => void
@@ -72,8 +72,7 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
   const fullName = `${firstName} ${lastName}`.trim() || 'User'
   const title = [post, organization].filter(Boolean).join(' at ') || ''
 
-  const handleYourScheduleClick = async () => {
-    await fetchBookmarkedSessions(eventUuid)
+  const handleYourScheduleClick = () => {
     onNavigate(`/events/${eventUuid}/your-schedule`)
   }
 

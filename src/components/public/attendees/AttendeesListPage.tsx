@@ -3,6 +3,7 @@ import { SearchLg, FilterLines } from '@untitled-ui/icons-react'
 import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import { fetchPublicAttendees, fetchPublicAttendee } from '../../../services/publicAttendeeService'
 import { buildSearchIndex, normalizeSearchText } from '../../../utils/indexedSearch'
+import { useAblyPresence } from '../../../hooks/useAblyPresence'
 
 type PublicAttendee = {
   id: string
@@ -22,27 +23,32 @@ interface AttendeesListPageProps {
   tagId?: string
 }
 
-const AttendeeRow = ({ attendee, isSelected }: { attendee: PublicAttendee; isSelected: boolean }) => {
+const AttendeeRow = ({ attendee, isSelected, isOnline }: { attendee: PublicAttendee; isSelected: boolean; isOnline: boolean }) => {
   const subtitle = [attendee.post, attendee.organization].filter(Boolean).join(' • ')
   return (
     <div className={`flex items-center gap-4 rounded-xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'}`}>
-      {attendee.avatarUrl ? (
-        <img
-          src={attendee.avatarUrl}
-          alt={attendee.name}
-          className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
-        />
-      ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200 text-xs font-semibold text-slate-500">
-          {(attendee.name || 'A')
-            .split(' ')
-            .filter(Boolean)
-            .map((p) => p[0])
-            .join('')
-            .toUpperCase()
-            .slice(0, 2)}
-        </div>
-      )}
+      <div className="relative shrink-0">
+        {attendee.avatarUrl ? (
+          <img
+            src={attendee.avatarUrl}
+            alt={attendee.name}
+            className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
+          />
+        ) : (
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200 text-xs font-semibold text-slate-500">
+            {(attendee.name || 'A')
+              .split(' ')
+              .filter(Boolean)
+              .map((p) => p[0])
+              .join('')
+              .toUpperCase()
+              .slice(0, 2)}
+          </div>
+        )}
+        {isOnline && (
+          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-400 ring-2 ring-white" />
+        )}
+      </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-slate-900">{attendee.name}</div>
         {subtitle ? <div className="truncate text-xs text-slate-500">{subtitle}</div> : null}
@@ -52,6 +58,7 @@ const AttendeeRow = ({ attendee, isSelected }: { attendee: PublicAttendee; isSel
 }
 
 const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavigate, tagId }) => {
+  const onlineIds = useAblyPresence(`event-${eventUuid}-presence`)
   const [queryInput, setQueryInput] = useState('')
   const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [apiAttendees, setApiAttendees] = useState<PublicAttendee[] | null>(null)
@@ -199,15 +206,21 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
 
     const affiliation = [(a as any).designation ?? a.post, a.organization].filter(Boolean).join(' at ').trim() || undefined
 
+    const isOnline = onlineIds.has(a.id)
     return (
       <div className="flex flex-col items-center p-6">
-        {a.avatarUrl ? (
-          <img src={a.avatarUrl} alt={a.name} className="h-24 w-24 rounded-full object-cover ring-2 ring-slate-200" />
-        ) : (
-          <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 ring-2 ring-slate-200 text-lg font-semibold text-slate-500">
-            {(a.name || 'A').split(' ').filter(Boolean).map((p: string) => p[0]).join('').toUpperCase().slice(0, 2)}
-          </div>
-        )}
+        <div className="relative">
+          {a.avatarUrl ? (
+            <img src={a.avatarUrl} alt={a.name} className="h-24 w-24 rounded-full object-cover ring-2 ring-slate-200" />
+          ) : (
+            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-slate-100 ring-2 ring-slate-200 text-lg font-semibold text-slate-500">
+              {(a.name || 'A').split(' ').filter(Boolean).map((p: string) => p[0]).join('').toUpperCase().slice(0, 2)}
+            </div>
+          )}
+          {isOnline && (
+            <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-green-400 ring-2 ring-white" />
+          )}
+        </div>
         <h2 className="mt-4 text-base font-semibold text-slate-900 text-center">{a.name}</h2>
         {affiliation ? <p className="mt-1 text-xs text-slate-500 text-center">{affiliation}</p> : null}
         {(a as any).description ? <p className="mt-3 text-xs leading-5 text-slate-600 text-center">{(a as any).description}</p> : null}
@@ -216,7 +229,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
         ) : null}
 
         <a
-          href={(a as any).email ? `mailto:${(a as any).email}` : '#'}
+          href=''
           className="mt-5 w-full rounded-lg bg-primary px-4 py-2.5 text-center text-xs font-semibold text-white hover:bg-primary/90"
         >
           Send a Message
@@ -287,7 +300,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
                 className="w-full text-left"
                 onClick={() => setSelectedAttendeeId((prev) => prev === a.id ? null : a.id)}
               >
-                <AttendeeRow attendee={a} isSelected={selectedAttendeeId === a.id} />
+                <AttendeeRow attendee={a} isSelected={selectedAttendeeId === a.id} isOnline={onlineIds.has(a.id)} />
               </button>
             ))
           )}

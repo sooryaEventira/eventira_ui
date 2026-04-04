@@ -374,7 +374,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     email: string
     organization?: string
     role?: string
-    group?: string
+    groups?: string[]
     description?: string
     avatarUrl?: string
     customFields?: Array<{ label: string; value: string }>
@@ -440,6 +440,13 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
     if (!eventUuidForBulk || !attendeeIds.length || !groupId) return
     await bulkAddAttendeeTag(eventUuidForBulk, attendeeIds, groupId)
     await loadAttendees()
+  }
+
+  const handleTabChange = (tab: AttendeeTab) => {
+    setActiveTab(tab)
+    if (tab === 'groups') {
+      loadTags()
+    }
   }
 
   const handleCreateGroup = () => {
@@ -579,7 +586,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             onDeleteGroup={handleDeleteGroup}
             builtGroupIds={builtGroupIds}
             onToggleBuildPage={handleToggleBuildPage}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             isLoading={isLoadingGroups}
           />
         ) : (
@@ -588,7 +595,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
             customFields={customFields}
             groups={groups}
             activeTab={activeTab}
-            onTabChange={setActiveTab}
+            onTabChange={handleTabChange}
             onUpload={handleUpload}
             isLoading={isLoadingAttendees}
             onCreateProfile={handleCreateProfile}
