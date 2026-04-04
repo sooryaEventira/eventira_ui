@@ -278,7 +278,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
           const a = detailAttendee ?? normalizedAttendees.find((x) => x.id === selectedAttendeeId)
           if (chatOpenForId === selectedAttendeeId && a) {
             return (
-              <div className="w-1/2 rounded-xl border border-primary bg-white shadow-sm h-full min-h-[520px] flex flex-col">
+              <div className="w-1/2 rounded-xl border border-primary bg-white shadow-sm min-h-[520px] flex flex-col">
                 <AblyDirectChat
                   peerId={a.id}
                   peerName={a.name}
