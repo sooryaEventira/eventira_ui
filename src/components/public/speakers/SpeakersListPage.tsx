@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import AblyDirectChat from './AblyDirectChat'
 import { SearchLg } from '@untitled-ui/icons-react'
 import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import { fetchPublicSpeakers, fetchPublicSpeaker } from '../../../services/publicSpeakerService'
@@ -91,6 +92,7 @@ function getTagIdsFromItem(item: any): string[] {
 
 const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNavigate, tagId, initialSpeakerId }) => {
   const onlineIds = useAblyPresence(`event-${eventUuid}-presence`)
+  const [chatOpenForId, setChatOpenForId] = useState<string | null>(null)
   const cacheKey = speakersCacheKey(eventUuid, tagId)
   const [queryInput, setQueryInput] = useState('')
   const [apiSpeakers, setApiSpeakers] = useState<PublicSpeaker[] | null>(() =>
@@ -293,6 +295,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
         <div className="mt-5 flex gap-2">
           <button
             type="button"
+            onClick={() => setChatOpenForId(sp.id)}
             className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
           >
             Send a message
@@ -336,7 +339,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
         <span className="font-semibold text-slate-700">{baseByTag.length}</span>
       </div>
 
-      <div className={`flex gap-4 ${selectedSpeakerId ? 'items-start' : ''}`}>
+      <div className={`flex gap-4 ${selectedSpeakerId ? 'items-stretch' : ''}`}>
         {/* Speaker list */}
         <div className={selectedSpeakerId ? 'w-1/2 shrink-0 space-y-3' : 'w-full space-y-3'}>
           {filtered.length === 0 ? (
@@ -354,7 +357,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
                 key={`${s.id}-${idx}`}
                 type="button"
                 className="w-full text-left"
-                onClick={() => setSelectedSpeakerId((prev) => prev === s.id ? null : s.id)}
+                onClick={() => { setChatOpenForId(null); setSelectedSpeakerId((prev) => prev === s.id ? null : s.id) }}
               >
                 <SpeakerRow speaker={s} isSelected={selectedSpeakerId === s.id} isOnline={onlineIds.has(s.id)} />
               </button>
@@ -363,11 +366,27 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
         </div>
 
         {/* Detail panel */}
-        {selectedSpeakerId && (
-          <div className="w-1/2 rounded-xl border border-primary bg-primary/5 shadow-sm">
-            {renderDetail()}
-          </div>
-        )}
+        {selectedSpeakerId && (() => {
+          const sp = detailSpeaker ?? normalizedSpeakers.find((s) => s.id === selectedSpeakerId)
+          if (chatOpenForId === selectedSpeakerId && sp) {
+            return (
+              <div className="w-1/2 rounded-xl border border-primary bg-white shadow-sm h-full min-h-[520px] flex flex-col">
+                <AblyDirectChat
+                  peerId={sp.id}
+                  peerName={sp.name}
+                  peerAvatarUrl={sp.avatarUrl}
+                  isPeerOnline={onlineIds.has(sp.id)}
+                  onClose={() => setChatOpenForId(null)}
+                />
+              </div>
+            )
+          }
+          return (
+            <div className="w-1/2 rounded-xl border-t border-l border-r border-primary bg-primary/5 shadow-sm h-full">
+              {renderDetail()}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

@@ -4,6 +4,7 @@ import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import { fetchPublicAttendees, fetchPublicAttendee } from '../../../services/publicAttendeeService'
 import { buildSearchIndex, normalizeSearchText } from '../../../utils/indexedSearch'
 import { useAblyPresence } from '../../../hooks/useAblyPresence'
+import AblyDirectChat from '../speakers/AblyDirectChat'
 
 type PublicAttendee = {
   id: string
@@ -19,7 +20,6 @@ type PublicAttendee = {
 interface AttendeesListPageProps {
   eventUuid: string
   onNavigate: (path: string) => void
-  /** When set, list attendees by this tag (uses LIST_BY_TAG API). */
   tagId?: string
 }
 
@@ -29,25 +29,13 @@ const AttendeeRow = ({ attendee, isSelected, isOnline }: { attendee: PublicAtten
     <div className={`flex items-center gap-4 rounded-xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'}`}>
       <div className="relative shrink-0">
         {attendee.avatarUrl ? (
-          <img
-            src={attendee.avatarUrl}
-            alt={attendee.name}
-            className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
-          />
+          <img src={attendee.avatarUrl} alt={attendee.name} className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200" />
         ) : (
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200 text-xs font-semibold text-slate-500">
-            {(attendee.name || 'A')
-              .split(' ')
-              .filter(Boolean)
-              .map((p) => p[0])
-              .join('')
-              .toUpperCase()
-              .slice(0, 2)}
+            {(attendee.name || 'A').split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
           </div>
         )}
-        {isOnline && (
-          <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-400 ring-2 ring-white" />
-        )}
+        {isOnline && <span className="absolute bottom-0 right-0 h-3 w-3 rounded-full bg-green-400 ring-2 ring-white" />}
       </div>
       <div className="min-w-0">
         <div className="truncate text-sm font-semibold text-slate-900">{attendee.name}</div>
@@ -66,6 +54,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null)
   const [detailAttendee, setDetailAttendee] = useState<PublicAttendee | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [chatOpenForId, setChatOpenForId] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -76,10 +65,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
         if (cancelled) return
         const mapped: PublicAttendee[] = (Array.isArray(raw) ? raw : []).map((a: any, idx: number) => {
           const id = String(a.uuid ?? a.id ?? `attendee-${idx}`)
-          const name =
-            String(a.name ?? '').trim() ||
-            String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() ||
-            'Unknown'
+          const name = String(a.name ?? '').trim() || String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() || 'Unknown'
           return {
             id,
             name,
@@ -100,14 +86,10 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     return () => { cancelled = true }
   }, [eventUuid, tagId])
 
-  // Fetch detail when selected attendee changes
   useEffect(() => {
     if (!selectedAttendeeId) { setDetailAttendee(null); return }
-
-    // Immediately show list data
     const listMatch = normalizedAttendees.find((a) => a.id === selectedAttendeeId) ?? null
     setDetailAttendee(listMatch)
-
     let cancelled = false
     setDetailLoading(true)
     fetchPublicAttendee(eventUuid, selectedAttendeeId)
@@ -115,10 +97,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
         if (cancelled || !raw) return
         setDetailAttendee({
           id: String(raw.uuid ?? raw.id ?? selectedAttendeeId),
-          name:
-            String(raw.name ?? '').trim() ||
-            String([(raw as any).first_name, (raw as any).last_name].filter(Boolean).join(' ')).trim() ||
-            'Unknown',
+          name: String(raw.name ?? '').trim() || String([(raw as any).first_name, (raw as any).last_name].filter(Boolean).join(' ')).trim() || 'Unknown',
           post: (raw as any).post ?? (raw as any).title ?? undefined,
           designation: (raw as any).designation ?? undefined,
           organization: (raw as any).organization ?? (raw as any).institute ?? (raw as any).company ?? undefined,
@@ -127,7 +106,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
           avatarUrl: (raw as any).avatarUrl ?? (raw as any).avatar_url ?? (raw as any).image ?? undefined,
         })
       })
-      .catch(() => { /* keep list fallback */ })
+      .catch(() => { })
       .finally(() => { if (!cancelled) setDetailLoading(false) })
     return () => { cancelled = true }
   }, [selectedAttendeeId, eventUuid])
@@ -151,10 +130,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
 
   const organizationOptions = useMemo(() => {
     const set = new Set<string>()
-    normalizedAttendees.forEach((a) => {
-      const v = String(a.organization ?? '').trim()
-      if (v) set.add(v)
-    })
+    normalizedAttendees.forEach((a) => { const v = String(a.organization ?? '').trim(); if (v) set.add(v) })
     return Array.from(set).sort((a, b) => a.localeCompare(b))
   }, [normalizedAttendees])
 
@@ -180,18 +156,14 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
       const tags = Array.isArray(data?.attendee_tags) ? data.attendee_tags : []
       const t = tags.find((x: { uuid?: string }) => String(x?.uuid) === String(tagId))
       return t?.name ?? null
-    } catch {
-      return null
-    }
+    } catch { return null }
   }, [eventUuid, tagId])
 
   const pageTitle = tagLabel ?? 'Attendees'
 
   const renderDetail = () => {
     if (!selectedAttendeeId) return null
-
     const a = detailAttendee ?? normalizedAttendees.find((x) => x.id === selectedAttendeeId)
-
     if (!a && detailLoading) {
       return (
         <div className="animate-pulse space-y-4 p-6">
@@ -203,9 +175,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
       )
     }
     if (!a) return null
-
     const affiliation = [(a as any).designation ?? a.post, a.organization].filter(Boolean).join(' at ').trim() || undefined
-
     const isOnline = onlineIds.has(a.id)
     return (
       <div className="flex flex-col items-center p-6">
@@ -217,9 +187,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
               {(a.name || 'A').split(' ').filter(Boolean).map((p: string) => p[0]).join('').toUpperCase().slice(0, 2)}
             </div>
           )}
-          {isOnline && (
-            <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-green-400 ring-2 ring-white" />
-          )}
+          {isOnline && <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-green-400 ring-2 ring-white" />}
         </div>
         <h2 className="mt-4 text-base font-semibold text-slate-900 text-center">{a.name}</h2>
         {affiliation ? <p className="mt-1 text-xs text-slate-500 text-center">{affiliation}</p> : null}
@@ -227,24 +195,23 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
         {(a as any).email ? (
           <a href={`mailto:${(a as any).email}`} className="mt-2 text-xs text-primary hover:underline">{(a as any).email}</a>
         ) : null}
-
-        <a
-          href=''
+        <button
+          type="button"
+          onClick={() => setChatOpenForId(a.id)}
           className="mt-5 w-full rounded-lg bg-primary px-4 py-2.5 text-center text-xs font-semibold text-white hover:bg-primary/90"
         >
           Send a Message
-        </a>
+        </button>
       </div>
     )
   }
 
   return (
     <div className="space-y-4">
-
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
         <div className="flex items-center gap-2 mt-4">
-          <div className="flex items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm ">
+          <div className="flex items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
             <input
               value={queryInput}
               onChange={(e) => setQueryInput(e.target.value)}
@@ -280,7 +247,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
         <span className="font-semibold text-slate-700">{baseAttendees.length}</span>
       </div>
 
-      <div className="flex gap-4 items-start">
+      <div className="flex gap-4 items-stretch">
         {/* Attendee list */}
         <div className={selectedAttendeeId ? 'w-1/2 shrink-0 space-y-3' : 'w-full space-y-3'}>
           {filtered.length === 0 ? (
@@ -298,7 +265,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
                 key={`${a.id}-${idx}`}
                 type="button"
                 className="w-full text-left"
-                onClick={() => setSelectedAttendeeId((prev) => prev === a.id ? null : a.id)}
+                onClick={() => { setChatOpenForId(null); setSelectedAttendeeId((prev) => prev === a.id ? null : a.id) }}
               >
                 <AttendeeRow attendee={a} isSelected={selectedAttendeeId === a.id} isOnline={onlineIds.has(a.id)} />
               </button>
@@ -306,12 +273,28 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
           )}
         </div>
 
-        {/* Detail panel */}
-        {selectedAttendeeId && (
-          <div className="w-1/2 rounded-xl border border-primary bg-primary/5 shadow-sm">
-            {renderDetail()}
-          </div>
-        )}
+        {/* Detail / Chat panel */}
+        {selectedAttendeeId && (() => {
+          const a = detailAttendee ?? normalizedAttendees.find((x) => x.id === selectedAttendeeId)
+          if (chatOpenForId === selectedAttendeeId && a) {
+            return (
+              <div className="w-1/2 rounded-xl border border-primary bg-white shadow-sm h-full min-h-[520px] flex flex-col">
+                <AblyDirectChat
+                  peerId={a.id}
+                  peerName={a.name}
+                  peerAvatarUrl={a.avatarUrl}
+                  isPeerOnline={onlineIds.has(a.id)}
+                  onClose={() => setChatOpenForId(null)}
+                />
+              </div>
+            )
+          }
+          return (
+            <div className="w-1/2 rounded-xl border-t border-l border-r border-primary bg-primary/5 shadow-sm h-full">
+              {renderDetail()}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
