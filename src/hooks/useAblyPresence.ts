@@ -2,9 +2,26 @@ import { useEffect, useState } from 'react'
 import * as Ably from 'ably'
 import { fetchAblyToken } from '../services/publicSessionCommentServices'
 
+function getUserUuid(): string {
+  try {
+    const token = localStorage.getItem('pub_accessToken')
+    if (!token) return ''
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(base64))
+    return String(payload?.uuid ?? payload?.user_uuid ?? payload?.sub ?? payload?.user_id ?? payload?.id ?? '')
+  } catch { return '' }
+}
+
+function extractPresenceId(msg: Ably.PresenceMessage): string | null {
+  // Backend clientId is numeric; attendee IDs are UUIDs.
+  // We enter presence with { uuid } so peers can match by UUID.
+  const data = msg.data as { uuid?: string } | null
+  return data?.uuid || msg.clientId || null
+}
+
 /**
  * Connects to an Ably channel, enters presence as the current user,
- * and returns a Set of clientIds (user UUIDs) that are currently online.
+ * and returns a Set of attendee UUIDs that are currently online.
  * Returns an empty Set if the user is not authenticated.
  */
 export function useAblyPresence(channelName: string): Set<string> {
@@ -23,7 +40,7 @@ export function useAblyPresence(channelName: string): Set<string> {
           disconnectedRetryTimeout: 5000,
           suspendedRetryTimeout: 10000,
           authCallback: (_tokenParams, callback) => {
-            fetchAblyToken(channelName)
+            fetchAblyToken()
               .then((token) => callback(null, token as unknown as Ably.TokenDetails | Ably.TokenRequest | string))
               .catch((err) => callback(String((err as Error)?.message ?? err), null as unknown as string))
           },
@@ -31,8 +48,9 @@ export function useAblyPresence(channelName: string): Set<string> {
 
         const channel = client.channels.get(channelName)
 
-        // Enter presence so others see this user as online
-        await channel.presence.enter()
+        // Enter presence with our UUID as data so others can match by attendee UUID
+        const myUuid = getUserUuid()
+        await channel.presence.enter(myUuid ? { uuid: myUuid } : undefined)
 
         if (cancelled) {
           channel.presence.leave().catch(() => {})
@@ -41,19 +59,20 @@ export function useAblyPresence(channelName: string): Set<string> {
           return
         }
 
-        // Fetch current members
+        // Fetch current members — collect UUIDs from presence data
         const members = await channel.presence.get()
         if (!cancelled) {
-          setOnlineIds(new Set(members.map((m) => m.clientId).filter(Boolean) as string[]))
+          const ids = members.map(extractPresenceId).filter(Boolean) as string[]
+          setOnlineIds(new Set(ids))
         }
 
         // Subscribe to presence changes
         channel.presence.subscribe((msg) => {
           if (cancelled) return
+          const id = extractPresenceId(msg)
+          if (!id) return
           setOnlineIds((prev) => {
             const next = new Set(prev)
-            const id = msg.clientId
-            if (!id) return prev
             if (msg.action === 'enter' || msg.action === 'update' || msg.action === 'present') {
               next.add(id)
             } else if (msg.action === 'leave') {
