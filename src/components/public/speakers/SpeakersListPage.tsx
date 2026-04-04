@@ -370,7 +370,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
           const sp = detailSpeaker ?? normalizedSpeakers.find((s) => s.id === selectedSpeakerId)
           if (chatOpenForId === selectedSpeakerId && sp) {
             return (
-              <div className="w-1/2 rounded-xl border border-primary bg-white shadow-sm h-full min-h-[520px] flex flex-col">
+              <div className="w-1/2 rounded-xl border border-primary bg-white shadow-sm flex flex-col max-h-[420px] sticky top-4">
                 <AblyDirectChat
                   peerId={sp.id}
                   peerName={sp.name}
@@ -382,7 +382,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
             )
           }
           return (
-            <div className="w-1/2 rounded-xl border-t border-l border-r border-primary bg-primary/5 shadow-sm h-full">
+            <div className="w-1/2 rounded-xl border-t border-l border-r border-primary bg-primary/5 shadow-sm max-h-[420px] sticky top-4 overflow-y-auto">
               {renderDetail()}
             </div>
           )

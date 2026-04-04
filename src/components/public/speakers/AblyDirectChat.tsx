@@ -112,7 +112,7 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
   }
 
   return (
-    <div className="flex h-full min-h-[520px] flex-col">
+    <div className="flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
         <div className="relative shrink-0">
