@@ -268,6 +268,16 @@ export const API_ENDPOINTS = {
     LIST: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/tags/?event_id=${eventUuid}`,
     DELETE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/delete/?event_id=${eventUuid}`,
   },
+  SCHEDULE_LOCATIONS: {
+    /** List locations. GET schedules/{{schedule_uuid}}/locations/?event_id={{event_uuid}} */
+    LIST: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/locations/?event_id=${eventUuid}`,
+    /** Create location. POST schedules/{{schedule_uuid}}/locations/?event_id={{event_uuid}} Body: { name } */
+    CREATE: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/locations/?event_id=${eventUuid}`,
+    /** Update location. PATCH schedules/{{schedule_uuid}}/locations/?event_id={{event_uuid}} Body: { name, new_name } */
+    UPDATE: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/locations/?event_id=${eventUuid}`,
+    /** Delete location. DELETE schedules/{{schedule_uuid}}/locations/?event_id={{event_uuid}} Body: { name } */
+    DELETE: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/locations/?event_id=${eventUuid}`,
+  },
   // Schedule endpoints
   SCHEDULES: {
     CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/?event_id=${eventUuid}`,

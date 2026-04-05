@@ -8,7 +8,7 @@ import ScheduleGrid from './ScheduleGrid'
 import SessionCreationModal from './SessionCreationModal'
 import { SavedSession } from './sessionTypes'
 import sessionTemplate from '../../../assets/excel/Session templates.xlsx?url'
-import { fetchScheduleTags, createScheduleTag, deleteScheduleTag, type ScheduleTag } from '../../../services/scheduleTagService'
+import { fetchScheduleTags, createScheduleTag, deleteScheduleTag, createScheduleLocation, fetchScheduleLocations, updateScheduleLocation, deleteScheduleLocation, type ScheduleTag, type ScheduleLocation } from '../../../services/scheduleTagService'
 import { showToast } from '../../../utils/toast'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
@@ -83,17 +83,14 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   const [isSavingTag, setIsSavingTag] = useState(false)
   const [deleteTagCandidate, setDeleteTagCandidate] = useState<ScheduleTag | null>(null)
   const [isDeletingTag, setIsDeletingTag] = useState(false)
-  const [dummyLocations] = useState([
-    { uuid: '1', name: 'Room A', sessions: 4 },
-    { uuid: '2', name: 'Room B', sessions: 2 },
-    { uuid: '3', name: 'Drawing Room', sessions: 3 },
-    { uuid: '4', name: 'Cafeteria', sessions: 1 },
-  ])
-  type TagLocationModalState = { type: 'tag' | 'location'; mode: 'add' | 'edit'; name: string; uuid?: string }
+  const [deleteLocationCandidate, setDeleteLocationCandidate] = useState<ScheduleLocation | null>(null)
+  const [isDeletingLocation, setIsDeletingLocation] = useState(false)
+  const [manageLocations, setManageLocations] = useState<ScheduleLocation[]>([])
+  type TagLocationModalState = { type: 'tag' | 'location'; mode: 'add' | 'edit'; name: string; uuid?: string; originalName?: string }
   const [tagLocationModal, setTagLocationModal] = useState<TagLocationModalState | null>(null)
   const openAddModal = (type: 'tag' | 'location') => setTagLocationModal({ type, mode: 'add', name: '' })
   const openEditModal = (type: 'tag' | 'location', uuid: string, name: string) =>
-    setTagLocationModal({ type, mode: 'edit', name, uuid })
+    setTagLocationModal({ type, mode: 'edit', name, uuid, originalName: name })
   const closeTagLocationModal = () => setTagLocationModal(null)
 
   const [filterOpen, setFilterOpen] = useState(false)
@@ -309,14 +306,22 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     }
   }, [eventUuid, scheduleUuid])
 
-  // Fetch tags when the manage panel opens
+  // Fetch tags and locations when the manage panel opens
   useEffect(() => {
     if (!tagsLocationOpen || !eventUuid || !scheduleUuid) return
     let cancelled = false
     setIsLoadingManageTags(true)
-    fetchScheduleTags(scheduleUuid, eventUuid)
-      .then((tags) => { if (!cancelled) setManageTags(tags) })
-      .catch(() => { if (!cancelled) showToast.error('Failed to load tags.') })
+    Promise.all([
+      fetchScheduleTags(scheduleUuid, eventUuid),
+      fetchScheduleLocations(scheduleUuid, eventUuid),
+    ])
+      .then(([tags, locations]) => {
+        if (!cancelled) {
+          setManageTags(tags)
+          setManageLocations(locations)
+        }
+      })
+      .catch(() => { if (!cancelled) showToast.error('Failed to load tags or locations.') })
       .finally(() => { if (!cancelled) setIsLoadingManageTags(false) })
     return () => { cancelled = true }
   }, [tagsLocationOpen, eventUuid, scheduleUuid])
@@ -336,6 +341,56 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       showToast.error(e instanceof Error ? e.message : 'Failed to add tag.')
     } finally {
       setIsSavingTag(false)
+    }
+  }
+
+  const handleAddLocation = async () => {
+    if (!tagLocationModal || !eventUuid || !scheduleUuid) return
+    const name = tagLocationModal.name.trim()
+    if (!name) return
+    setIsSavingTag(true)
+    try {
+      const created = await createScheduleLocation(scheduleUuid, eventUuid, name)
+      setManageLocations((prev) => [...prev, created])
+      showToast.success('Location added.')
+      closeTagLocationModal()
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to add location.')
+    } finally {
+      setIsSavingTag(false)
+    }
+  }
+
+  const handleEditLocation = async () => {
+    if (!tagLocationModal || !eventUuid || !scheduleUuid) return
+    const newName = tagLocationModal.name.trim()
+    const originalName = tagLocationModal.originalName ?? ''
+    if (!newName || !originalName) return
+    setIsSavingTag(true)
+    try {
+      const updated = await updateScheduleLocation(scheduleUuid, eventUuid, originalName, newName)
+      setManageLocations((prev) => prev.map((l) => l.name === originalName ? { ...l, name: updated.name ?? newName } : l))
+      showToast.success('Location updated.')
+      closeTagLocationModal()
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to update location.')
+    } finally {
+      setIsSavingTag(false)
+    }
+  }
+
+  const handleDeleteLocation = async () => {
+    if (!deleteLocationCandidate || !eventUuid || !scheduleUuid) return
+    setIsDeletingLocation(true)
+    try {
+      await deleteScheduleLocation(scheduleUuid, eventUuid, deleteLocationCandidate.name)
+      setManageLocations((prev) => prev.filter((l) => l.name !== deleteLocationCandidate.name))
+      showToast.success('Location deleted.')
+      setDeleteLocationCandidate(null)
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to delete location.')
+    } finally {
+      setIsDeletingLocation(false)
     }
   }
 
@@ -962,12 +1017,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                 </div>
               ) : (
                 <div className="divide-y divide-slate-100">
-                  {dummyLocations
-                    .filter((l) => l.name.toLowerCase().includes(locationSearch.toLowerCase()))
-                    .map((loc) => (
-                      <div key={loc.uuid} className="grid grid-cols-[1fr_auto_auto] items-center px-6 py-4">
+                  {manageLocations
+                    .filter((l: ScheduleLocation) => l.name.toLowerCase().includes(locationSearch.toLowerCase()))
+                    .map((loc: ScheduleLocation) => (
+                      <div key={loc.uuid} className="grid grid-cols-[1fr_auto] items-center px-6 py-4">
                         <span className="text-sm font-medium text-slate-800">{loc.name}</span>
-                        <span className="pr-8 text-sm text-slate-600">{loc.sessions} sessions</span>
                         <div className="flex items-center gap-1">
                           <button
                             type="button"
@@ -979,6 +1033,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                           </button>
                           <button
                             type="button"
+                            onClick={() => setDeleteLocationCandidate(loc)}
                             className="rounded p-1 text-slate-400 hover:text-red-500 transition-colors"
                             aria-label="Delete location"
                           >
@@ -1059,7 +1114,15 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                 <button
                   type="button"
                   disabled={!tagLocationModal.name.trim() || isSavingTag}
-                  onClick={tagLocationModal.type === 'tag' && tagLocationModal.mode === 'add' ? handleAddTag : closeTagLocationModal}
+                  onClick={
+                    tagLocationModal.mode === 'add'
+                      ? tagLocationModal.type === 'tag'
+                        ? handleAddTag
+                        : handleAddLocation
+                      : tagLocationModal.type === 'location'
+                        ? handleEditLocation
+                        : closeTagLocationModal
+                  }
                   className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   {isSavingTag ? 'Adding…' : tagLocationModal.mode === 'add' ? 'Add' : 'Save'}
@@ -1079,6 +1142,16 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         isLoading={isDeletingTag}
         onCancel={() => setDeleteTagCandidate(null)}
         onConfirm={handleDeleteTag}
+      />
+
+      <ConfirmDeleteModal
+        isOpen={!!deleteLocationCandidate}
+        title="Delete location"
+        description={`Are you sure you want to delete the location "${deleteLocationCandidate?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        isLoading={isDeletingLocation}
+        onCancel={() => setDeleteLocationCandidate(null)}
+        onConfirm={handleDeleteLocation}
       />
 
       {/* Add Tags dropdown portal */}

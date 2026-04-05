@@ -5,6 +5,8 @@ import {
   createDmConnection,
   getDmChannelName,
   publishDirectMessage,
+  loadDmHistory,
+  saveDmMessage,
   type DmConnection,
 } from '../../../services/publicDirectMessageService'
 
@@ -52,7 +54,7 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
   const myName = getCurrentUserName()
   const channelName = getDmChannelName(myId || 'guest', peerId)
 
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(() => loadDmHistory(channelName))
   const [input, setInput] = useState('')
   const [ready, setReady] = useState(false)
   const [sending, setSending] = useState(false)
@@ -71,7 +73,10 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
 
     connRef.current = createDmConnection(
       channelName,
-      (msg) => setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]),
+      (msg) => {
+        saveDmMessage(channelName, msg)
+        setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
+      },
       () => setReady(true)
     )
 
@@ -101,6 +106,7 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
       text,
       timestamp: Date.now(),
     }
+    saveDmMessage(channelName, msg)
     setMessages((prev) => [...prev, msg])
     setInput('')
     try {
@@ -151,10 +157,13 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-2 px-4 py-3">
-        {!ready && (
+        {!ready && messages.length === 0 && (
           <div className="flex justify-center py-4">
             <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           </div>
+        )}
+        {!ready && messages.length > 0 && (
+          <p className="text-center text-xs text-slate-400 pb-1">Connecting…</p>
         )}
         {ready && messages.length === 0 && (
           <p className="text-center text-xs text-slate-400 pt-6">Start the conversation</p>

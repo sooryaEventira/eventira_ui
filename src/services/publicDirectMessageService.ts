@@ -22,6 +22,33 @@ export interface DmConnection {
   destroy: () => void
 }
 
+const DM_HISTORY_MAX = 200
+
+function historyKey(channelName: string): string {
+  return `dm_history_${channelName}`
+}
+
+export function loadDmHistory(channelName: string): DirectMessage[] {
+  try {
+    const raw = localStorage.getItem(historyKey(channelName))
+    if (!raw) return []
+    return JSON.parse(raw) as DirectMessage[]
+  } catch {
+    return []
+  }
+}
+
+export function saveDmMessage(channelName: string, msg: DirectMessage): void {
+  try {
+    const existing = loadDmHistory(channelName)
+    if (existing.some((m) => m.id === msg.id)) return
+    const updated = [...existing, msg].slice(-DM_HISTORY_MAX)
+    localStorage.setItem(historyKey(channelName), JSON.stringify(updated))
+  } catch {
+    // localStorage quota exceeded or unavailable — ignore
+  }
+}
+
 /**
  * Creates an Ably Realtime client, attaches to the DM channel,
  * and subscribes to incoming messages.
