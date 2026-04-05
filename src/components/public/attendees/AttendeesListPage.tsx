@@ -63,9 +63,14 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
       try {
         const raw = await fetchPublicAttendees(eventUuid, tagId)
         if (cancelled) return
+        const currentEmail = localStorage.getItem('pub_userEmail') ?? ''
         const mapped: PublicAttendee[] = (Array.isArray(raw) ? raw : []).map((a: any, idx: number) => {
           const id = String(a.uuid ?? a.id ?? `attendee-${idx}`)
           const name = String(a.name ?? '').trim() || String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() || 'Unknown'
+          // Sync pub_attendeeUuid with the attendees-list UUID so DM channel names match
+          if (currentEmail && String(a.email ?? '').toLowerCase() === currentEmail.toLowerCase()) {
+            localStorage.setItem('pub_attendeeUuid', id)
+          }
           return {
             id,
             name,

@@ -14,7 +14,7 @@ export interface DirectMessage {
  */
 export function getDmChannelName(idA: string, idB: string): string {
   const [a, b] = [idA, idB].sort()
-  return `dm:${a}_${b}`
+  return `dm::${a}_${b}`
 }
 
 export interface DmConnection {

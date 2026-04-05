@@ -218,9 +218,9 @@ export const API_ENDPOINTS = {
     /** Ably token auth. GET {{public_url}}chat/ably-token/?channel=session-{uuid} */
     ABLY_TOKEN: (channel?: string) =>
       `${PUBLIC_API_ROOT}chat/ably-token/${channel ? `?channel=${encodeURIComponent(channel)}` : ''}`,
-    /** Ably token auth for DM rooms. GET {{public_url}}chat/ably-token/?room=dm:<user_a_id>_<user_b_id> */
+    /** Ably token auth for DM rooms. GET {{public_url}}chat/ably-token/?room=dm::<user_a_id>_<user_b_id> */
     ABLY_TOKEN_DM: (room: string) =>
-      `${PUBLIC_API_ROOT}chat/ably-token/?room=${encodeURIComponent(room)}`,
+      `${PUBLIC_API_ROOT}chat/ably-token/?room=${room}`,
     /** Attendee profile. PATCH {{public_url}}events/{eventUuid}/profile/ */
     PROFILE: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/profile/`,
   },

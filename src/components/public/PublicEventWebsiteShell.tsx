@@ -185,7 +185,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       .then((r) => r.ok ? r.json() : null)
       .then((res) => {
         const d = res?.data ?? res
-        if (d?.uuid) localStorage.setItem('pub_attendeeUuid', String(d.uuid))
+        // Only use profile UUID as a fallback — the attendees-list UUID takes priority
+        // because peerId in DM chat comes from the attendees list, not the profile API.
+        if (d?.uuid && !localStorage.getItem('pub_attendeeUuid')) {
+          localStorage.setItem('pub_attendeeUuid', String(d.uuid))
+        }
       })
       .catch(() => { /* non-critical */ })
   }, [eventUuid])
