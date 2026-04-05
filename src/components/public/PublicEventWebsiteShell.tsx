@@ -187,22 +187,36 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       .then(async (res) => {
         const d = res?.data ?? res
         const email = String(d?.email ?? localStorage.getItem('pub_userEmail') ?? '').toLowerCase()
-        if (!email) return
-        // Look up this user in the attendees list to get the UUID peers will see
-        const listRes = await fetch(API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid))
-        if (!listRes.ok) return
-        const listData = await listRes.json()
-        const items: any[] = Array.isArray(listData?.data)
-          ? listData.data
-          : Array.isArray(listData?.results)
-          ? listData.results
-          : Array.isArray(listData)
-          ? listData
-          : []
-        const match = items.find((a: any) => String(a?.email ?? '').toLowerCase() === email)
-        if (match) {
-          const id = String(match.uuid ?? match.id ?? '')
-          if (id) localStorage.setItem('pub_attendeeUuid', id)
+        // profileUuid is the fallback if the user isn't in the attendees list (e.g. speaker-only users)
+        const profileUuid = String(d?.uuid ?? d?.attendee_uuid ?? '').trim()
+
+        let resolvedId = ''
+
+        if (email) {
+          // Look up this user in the attendees list to get the UUID peers will see
+          try {
+            const listRes = await fetch(API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid))
+            if (listRes.ok) {
+              const listData = await listRes.json()
+              const items: any[] = Array.isArray(listData?.data)
+                ? listData.data
+                : Array.isArray(listData?.results)
+                ? listData.results
+                : Array.isArray(listData)
+                ? listData
+                : []
+              const match = items.find((a: any) => String(a?.email ?? '').toLowerCase() === email)
+              if (match) resolvedId = String(match.uuid ?? match.id ?? '').trim()
+            }
+          } catch { /* non-critical */ }
+        }
+
+        // Fall back to profile UUID if not found in attendees list (speaker-only users)
+        if (!resolvedId) resolvedId = profileUuid
+
+        if (resolvedId) {
+          localStorage.setItem('pub_attendeeUuid', resolvedId)
+          window.dispatchEvent(new CustomEvent('pub_attendeeUuid_changed', { detail: resolvedId }))
         }
       })
       .catch(() => { /* non-critical */ })

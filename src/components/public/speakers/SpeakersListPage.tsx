@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { API_ENDPOINTS } from '../../../config/env'
 import AblyDirectChat from './AblyDirectChat'
 import { SearchLg } from '@untitled-ui/icons-react'
 import { readEventStoreJSON } from '../../../utils/eventLocalStore'
@@ -16,6 +17,10 @@ type PublicSpeaker = {
   tags?: string[]
   /** Normalized list of tag/group UUIDs this speaker belongs to (from API: group_ids, tag_uuids, groups, etc.) */
   tagIds?: string[]
+  /** Attendee UUID — used to match presence data which is keyed by attendee UUID, not speaker UUID */
+  attendeeId?: string
+  /** Email — used as fallback for presence matching */
+  email?: string
 }
 
 const speakersCacheKey = (eventUuid: string, tagId?: string) =>
@@ -91,8 +96,40 @@ function getTagIdsFromItem(item: any): string[] {
 }
 
 const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNavigate, tagId, initialSpeakerId }) => {
-  const [myId] = useState(() => localStorage.getItem('pub_attendeeUuid') ?? '')
+  const [myId, setMyId] = useState(() => localStorage.getItem('pub_attendeeUuid') ?? '')
   const onlineIds = useAblyPresence(`event-${eventUuid}-presence`, myId || undefined)
+
+  // Keep myId in sync — the shell resolves the correct UUID async after mount
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail
+      if (id) setMyId(id)
+    }
+    window.addEventListener('pub_attendeeUuid_changed', onChanged)
+    return () => window.removeEventListener('pub_attendeeUuid_changed', onChanged)
+  }, [])
+  // Map from email (lowercase) → attendee UUID, built from the attendees list.
+  // Speakers enter presence with attendee UUIDs, so we need this to check online status.
+  const [emailToAttendeeId, setEmailToAttendeeId] = useState<Map<string, string>>(new Map())
+
+  useEffect(() => {
+    fetch(`${API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid)}`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        const items: any[] = Array.isArray(data?.data) ? data.data
+          : Array.isArray(data?.results) ? data.results
+          : Array.isArray(data) ? data : []
+        const map = new Map<string, string>()
+        items.forEach((a: any) => {
+          const email = String(a?.email ?? '').toLowerCase().trim()
+          const id = String(a?.uuid ?? a?.id ?? '').trim()
+          if (email && id) map.set(email, id)
+        })
+        setEmailToAttendeeId(map)
+      })
+      .catch(() => {})
+  }, [eventUuid])
+
   const [chatOpenForId, setChatOpenForId] = useState<string | null>(null)
   const cacheKey = speakersCacheKey(eventUuid, tagId)
   const [queryInput, setQueryInput] = useState('')
@@ -124,11 +161,23 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
             organization: s.organisation ?? s.organization ?? s.company ?? undefined,
             avatarUrl: s.avatarUrl ?? s.avatar_url ?? s.image ?? undefined,
             bio: s.bio ?? s.description ?? undefined,
-            tagIds: getTagIdsFromItem(s)
+            tagIds: getTagIdsFromItem(s),
+            attendeeId: String(s.attendee_uuid ?? s.attendee_id ?? '').trim() || undefined,
+            email: String(s.email ?? '').trim() || undefined,
           }
         })
         speakersListCache.set(cacheKey, mapped)
         setApiSpeakers(mapped)
+        // Also add speakers into the email→id map using their own UUID as fallback presence ID
+        setEmailToAttendeeId((prev) => {
+          const next = new Map(prev)
+          mapped.forEach((sp) => {
+            if (sp.email && sp.id && !next.has(sp.email.toLowerCase())) {
+              next.set(sp.email.toLowerCase(), sp.attendeeId ?? sp.id)
+            }
+          })
+          return next
+        })
         if (mapped.length > 0) setSelectedSpeakerId((prev) => prev ?? mapped[0].id)
       } catch {
         if (!cancelled) {
@@ -234,6 +283,26 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
   const pageTitle = tagLabel ?? 'Speakers'
 
   // Speaker detail panel content
+  const isSpeakerOnline = (sp: PublicSpeaker) => {
+    // 1. Direct attendee UUID match
+    if (sp.attendeeId && onlineIds.has(sp.attendeeId)) return true
+    // 2. Email → attendee UUID via attendees list map
+    if (sp.email) {
+      const aid = emailToAttendeeId.get(sp.email.toLowerCase())
+      if (aid && onlineIds.has(aid)) return true
+    }
+    // 3. Speaker UUID directly in presence (speaker-only users use profileUuid as presence UUID)
+    if (onlineIds.has(sp.id)) return true
+    // 4. Check if any onlineId maps back to this speaker's email via reverse lookup
+    if (sp.email) {
+      const spEmail = sp.email.toLowerCase()
+      for (const [email, aid] of emailToAttendeeId.entries()) {
+        if (email === spEmail && onlineIds.has(aid)) return true
+      }
+    }
+    return false
+  }
+
   const renderDetail = () => {
     if (!selectedSpeakerId) return null
 
@@ -253,7 +322,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
 
     const subtitle = [sp.title, sp.organization].filter(Boolean).join(' at ')
 
-    const isOnline = onlineIds.has(sp.id)
+    const isOnline = isSpeakerOnline(sp)
     return (
       <div className="flex h-full flex-col overflow-y-auto p-6">
         {/* Avatar */}
@@ -360,7 +429,7 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
                 className="w-full text-left"
                 onClick={() => { setChatOpenForId(null); setSelectedSpeakerId((prev) => prev === s.id ? null : s.id) }}
               >
-                <SpeakerRow speaker={s} isSelected={selectedSpeakerId === s.id} isOnline={onlineIds.has(s.id)} />
+                <SpeakerRow speaker={s} isSelected={selectedSpeakerId === s.id} isOnline={isSpeakerOnline(s)} />
               </button>
             ))
           )}
@@ -376,14 +445,14 @@ const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNaviga
                   peerId={sp.id}
                   peerName={sp.name}
                   peerAvatarUrl={sp.avatarUrl}
-                  isPeerOnline={onlineIds.has(sp.id)}
+                  isPeerOnline={isSpeakerOnline(sp)}
                   onClose={() => setChatOpenForId(null)}
                 />
               </div>
             )
           }
           return (
-            <div className="w-1/2 rounded-xl border-t border-l border-r border-primary bg-primary/5 shadow-sm max-h-[420px] sticky top-4 overflow-y-auto">
+            <div className="w-1/2 rounded-xl  border border-primary bg-primary/5 shadow-sm max-h-[420px] sticky top-4 overflow-y-auto">
               {renderDetail()}
             </div>
           )

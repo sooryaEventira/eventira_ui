@@ -48,6 +48,16 @@ const AttendeeRow = ({ attendee, isSelected, isOnline }: { attendee: PublicAtten
 const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavigate, tagId }) => {
   const [myId, setMyId] = useState(() => localStorage.getItem('pub_attendeeUuid') ?? '')
   const onlineIds = useAblyPresence(`event-${eventUuid}-presence`, myId || undefined)
+
+  // Keep myId in sync — the shell resolves the correct UUID async after mount
+  useEffect(() => {
+    const onChanged = (e: Event) => {
+      const id = (e as CustomEvent<string>).detail
+      if (id) setMyId(id)
+    }
+    window.addEventListener('pub_attendeeUuid_changed', onChanged)
+    return () => window.removeEventListener('pub_attendeeUuid_changed', onChanged)
+  }, [])
   const [queryInput, setQueryInput] = useState('')
   const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [apiAttendees, setApiAttendees] = useState<PublicAttendee[] | null>(null)
@@ -302,7 +312,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             )
           }
           return (
-            <div className="w-1/2 rounded-xl border-t border-l border-r border-primary bg-primary/5 shadow-sm max-h-[420px] sticky top-4 overflow-y-auto">
+            <div className="w-1/2 rounded-xl  border border-primary bg-primary/5 shadow-sm max-h-[420px] sticky top-4 overflow-y-auto">
               {renderDetail()}
             </div>
           )
