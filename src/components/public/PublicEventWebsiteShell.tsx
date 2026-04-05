@@ -175,7 +175,8 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventUuid])
 
-  // Fetch attendee UUID on mount so presence indicators work without visiting /profile
+  // Fetch the attendee UUID that matches what the attendees list uses, so presence and DM channels align.
+  // Strategy: get the current user's email from the profile API, then look up their UUID in the attendees list.
   useEffect(() => {
     const token = localStorage.getItem('pub_accessToken')
     if (!token || !eventUuid) return
@@ -183,12 +184,25 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((r) => r.ok ? r.json() : null)
-      .then((res) => {
+      .then(async (res) => {
         const d = res?.data ?? res
-        // Only use profile UUID as a fallback — the attendees-list UUID takes priority
-        // because peerId in DM chat comes from the attendees list, not the profile API.
-        if (d?.uuid && !localStorage.getItem('pub_attendeeUuid')) {
-          localStorage.setItem('pub_attendeeUuid', String(d.uuid))
+        const email = String(d?.email ?? localStorage.getItem('pub_userEmail') ?? '').toLowerCase()
+        if (!email) return
+        // Look up this user in the attendees list to get the UUID peers will see
+        const listRes = await fetch(API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid))
+        if (!listRes.ok) return
+        const listData = await listRes.json()
+        const items: any[] = Array.isArray(listData?.data)
+          ? listData.data
+          : Array.isArray(listData?.results)
+          ? listData.results
+          : Array.isArray(listData)
+          ? listData
+          : []
+        const match = items.find((a: any) => String(a?.email ?? '').toLowerCase() === email)
+        if (match) {
+          const id = String(match.uuid ?? match.id ?? '')
+          if (id) localStorage.setItem('pub_attendeeUuid', id)
         }
       })
       .catch(() => { /* non-critical */ })

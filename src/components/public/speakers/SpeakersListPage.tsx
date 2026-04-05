@@ -91,7 +91,8 @@ function getTagIdsFromItem(item: any): string[] {
 }
 
 const SpeakersListPage: React.FC<SpeakersListPageProps> = ({ eventUuid, onNavigate, tagId, initialSpeakerId }) => {
-  const onlineIds = useAblyPresence(`event-${eventUuid}-presence`)
+  const [myId] = useState(() => localStorage.getItem('pub_attendeeUuid') ?? '')
+  const onlineIds = useAblyPresence(`event-${eventUuid}-presence`, myId || undefined)
   const [chatOpenForId, setChatOpenForId] = useState<string | null>(null)
   const cacheKey = speakersCacheKey(eventUuid, tagId)
   const [queryInput, setQueryInput] = useState('')

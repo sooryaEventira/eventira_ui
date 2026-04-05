@@ -46,7 +46,8 @@ const AttendeeRow = ({ attendee, isSelected, isOnline }: { attendee: PublicAtten
 }
 
 const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavigate, tagId }) => {
-  const onlineIds = useAblyPresence(`event-${eventUuid}-presence`)
+  const [myId, setMyId] = useState(() => localStorage.getItem('pub_attendeeUuid') ?? '')
+  const onlineIds = useAblyPresence(`event-${eventUuid}-presence`, myId || undefined)
   const [queryInput, setQueryInput] = useState('')
   const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [apiAttendees, setApiAttendees] = useState<PublicAttendee[] | null>(null)
@@ -64,12 +65,17 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
         const raw = await fetchPublicAttendees(eventUuid, tagId)
         if (cancelled) return
         const currentEmail = localStorage.getItem('pub_userEmail') ?? ''
+        console.log('[AttendeesListPage] currentEmail:', currentEmail, '| raw[0]:', (raw as any[])[0])
+        let selfFound = false
         const mapped: PublicAttendee[] = (Array.isArray(raw) ? raw : []).map((a: any, idx: number) => {
           const id = String(a.uuid ?? a.id ?? `attendee-${idx}`)
           const name = String(a.name ?? '').trim() || String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() || 'Unknown'
           // Sync pub_attendeeUuid with the attendees-list UUID so DM channel names match
           if (currentEmail && String(a.email ?? '').toLowerCase() === currentEmail.toLowerCase()) {
+            console.log('[AttendeesListPage] matched self — id:', id)
             localStorage.setItem('pub_attendeeUuid', id)
+            setMyId(id)
+            selfFound = true
           }
           return {
             id,
@@ -79,6 +85,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? a.image ?? undefined,
           }
         })
+        if (!selfFound) console.warn('[AttendeesListPage] self not found by email — presence will not work')
         setApiAttendees(mapped)
         if (mapped.length > 0) setSelectedAttendeeId((prev) => prev ?? mapped[0].id)
       } catch {

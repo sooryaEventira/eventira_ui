@@ -2,33 +2,44 @@ import { useEffect, useRef, useState } from 'react'
 import * as Ably from 'ably'
 import { fetchAblyToken } from '../services/publicSessionCommentServices'
 
-function getUserUuid(): string {
-  // Prefer the attendee UUID stored after profile fetch (matches attendee list IDs)
-  const stored = localStorage.getItem('pub_attendeeUuid')
-  if (stored) return stored
-  try {
-    const token = localStorage.getItem('pub_accessToken')
-    if (!token) return ''
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-    const payload = JSON.parse(atob(base64))
-    return String(payload?.uuid ?? payload?.user_uuid ?? payload?.sub ?? payload?.user_id ?? payload?.id ?? '')
-  } catch { return '' }
-}
-
 function extractPresenceId(msg: Ably.PresenceMessage): string | null {
   const data = msg.data as { uuid?: string } | null
   return data?.uuid || msg.clientId || null
 }
 
-export function useAblyPresence(channelName: string): Set<string> {
+function destroyClient(client: Ably.Realtime, channelName: string) {
+  try {
+    const channel = client.channels.get(channelName)
+    channel.presence.leave().catch(() => {})
+    channel.presence.unsubscribe()
+  } catch { /* ignore */ }
+  client.close()
+}
+
+export function useAblyPresence(channelName: string, myId?: string): Set<string> {
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set())
   const clientRef = useRef<Ably.Realtime | null>(null)
+  const myIdRef = useRef<string | undefined>(undefined)
 
-  // Init effect — guarded by clientRef to prevent StrictMode double-invoke
   useEffect(() => {
     const accessToken = localStorage.getItem('pub_accessToken')
     if (!accessToken || !channelName) return
-    if (clientRef.current) return
+
+    // clientId is locked at instantiation — if myId changed, destroy and recreate
+    if (clientRef.current && myIdRef.current === myId) return
+    if (clientRef.current) {
+      destroyClient(clientRef.current, channelName)
+      clientRef.current = null
+    }
+
+    // Don't connect without a known identity
+    if (!myId) {
+      console.log('[useAblyPresence] skipping — myId is empty')
+      return
+    }
+
+    console.log('[useAblyPresence] connecting with clientId:', myId)
+    myIdRef.current = myId
 
     const client = new Ably.Realtime({
       disconnectedRetryTimeout: 5000,
@@ -42,9 +53,8 @@ export function useAblyPresence(channelName: string): Set<string> {
     clientRef.current = client
 
     const channel = client.channels.get(channelName)
-    const myUuid = getUserUuid()
 
-    channel.presence.enter(myUuid ? { uuid: myUuid } : undefined)
+    channel.presence.enter({ uuid: myId })
       .then(() => channel.presence.get())
       .then((members) => {
         const ids = members.map(extractPresenceId).filter(Boolean) as string[]
@@ -67,18 +77,13 @@ export function useAblyPresence(channelName: string): Set<string> {
     })
 
     return () => {}
-  }, [channelName])
+  }, [channelName, myId])
 
   // True cleanup — only on full unmount
   useEffect(() => {
     return () => {
       if (clientRef.current) {
-        try {
-          const channel = clientRef.current.channels.get(channelName)
-          channel.presence.leave().catch(() => {})
-          channel.presence.unsubscribe()
-        } catch { /* ignore */ }
-        clientRef.current.close()  // automatically detaches all channels
+        destroyClient(clientRef.current, channelName)
         clientRef.current = null
       }
       setOnlineIds(new Set())
