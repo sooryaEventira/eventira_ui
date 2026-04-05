@@ -599,9 +599,8 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
     options?: { profileImageFile?: File }
   ) => {
     const designation = updatedSpeaker.role || updatedSpeaker.title || ''
-    const isNewGroupId = (id: string) => /^\d+-\d+$/.test(String(id))
     const groupValues = (updatedSpeaker.groups || [])
-      .map((g) => (isNewGroupId(String(g.id)) ? (g.name || g.id) : (g.id || g.name)))
+      .map((g) => g.name || g.id)
       .filter(Boolean)
 
     const response = await updateSpeaker(updatedSpeaker.id, {
@@ -936,6 +935,7 @@ const SpeakerManagementPage: React.FC<SpeakerManagementPageProps> = ({
         }}
         speaker={selectedSpeaker}
         onSave={handleSaveSpeaker}
+        eventUuid={eventUuid}
       />
     </div>
   )

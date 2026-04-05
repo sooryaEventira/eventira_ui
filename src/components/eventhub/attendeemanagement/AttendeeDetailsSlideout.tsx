@@ -3,6 +3,9 @@ import { XClose, Camera01, Eye, CheckCircle, Plus, Trash03 } from '@untitled-ui/
 import { Attendee, AttendeeGroup } from './attendeeTypes'
 import { Badge, Slideout } from '../../ui/untitled'
 import profileBackground from '../../../assets/images/profile_background.jpg'
+import CreatableMultiSelect, { type CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
+import type { MultiValue, ActionMeta } from 'react-select'
+import { fetchTags } from '../../../services/attendeeService'
 
 interface AttendeeDetailsSlideoutProps {
   isOpen: boolean
@@ -10,6 +13,7 @@ interface AttendeeDetailsSlideoutProps {
   attendee: Attendee | null
   onSave?: (attendee: Attendee) => void | Promise<void>
   topOffset?: number
+  eventUuid?: string
 }
 
 const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
@@ -17,7 +21,8 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
   onClose,
   attendee,
   onSave,
-  topOffset = 64
+  topOffset = 64,
+  eventUuid
 }) => {
   const [editedAttendee, setEditedAttendee] = useState<Attendee | null>(null)
   const [firstName, setFirstName] = useState('')
@@ -26,14 +31,21 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
   const [organization, setOrganization] = useState('')
   const [post, setPost] = useState('')
   const [description, setDescription] = useState('')
-  const [selectedGroups, setSelectedGroups] = useState<AttendeeGroup[]>([])
-  const [groupsText, setGroupsText] = useState('')
+  const [selectedGroups, setSelectedGroups] = useState<CreatableMultiSelectOption[]>([])
+  const [tagOptions, setTagOptions] = useState<CreatableMultiSelectOption[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [customFields, setCustomFields] = useState<
     Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
   >([])
+
+  useEffect(() => {
+    if (!isOpen || !eventUuid) return
+    fetchTags(eventUuid).then((tags) => {
+      setTagOptions(tags.filter((t) => t.is_active !== false).map((t) => ({ value: t.uuid, label: t.name })))
+    }).catch(() => {})
+  }, [isOpen, eventUuid])
 
   useEffect(() => {
     if (attendee && isOpen) {
@@ -45,8 +57,7 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
       setOrganization(attendee.organization || '')
       setPost(attendee.post || '')
       setDescription(attendee.description || (attendee as any).bio || '')
-      setSelectedGroups([...attendee.groups])
-      setGroupsText((attendee.groups || []).map((g) => g.name).filter(Boolean).join(', '))
+      setSelectedGroups((attendee.groups || []).map((g) => ({ value: g.id, label: g.name })))
       setAvatarUrl(attendee.avatarUrl || null)
       const nextCustomFields =
         (attendee.customFields || []).map((field, idx) => ({
@@ -72,43 +83,15 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
     e.target.value = ''
   }
 
-  const parseGroupsFromText = (text: string, prev: AttendeeGroup[]): AttendeeGroup[] => {
-    const parts = String(text || '')
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean)
-
-    const seen = new Set<string>()
-    const unique = parts.filter((name) => {
-      const key = name.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-
-    return unique.map((name, idx) => {
-      const existing = prev.find((g) => String(g.name || '').toLowerCase() === name.toLowerCase())
-      if (existing) return existing
-      return {
-        id: `${Date.now()}-${idx}`,
-        name,
-        variant: 'primary' as const
-      }
-    })
-  }
-
-  const commitGroups = (text = groupsText) => {
-    const next = parseGroupsFromText(text, selectedGroups)
-    setSelectedGroups(next)
-    setGroupsText(next.map((g) => g.name).join(', '))
-    return next
-  }
-
   const handleSave = async () => {
     if (!editedAttendee) return
     if (isSaving) return
     setIsSaving(true)
-    const nextGroups = commitGroups(groupsText)
+    const nextGroups: AttendeeGroup[] = selectedGroups.map((g) => ({
+      id: g.value,
+      name: g.label,
+      variant: 'primary' as const,
+    }))
 
     const cleanedCustomFields = customFields
       .map((f) => ({
@@ -349,38 +332,31 @@ const AttendeeDetailsSlideout: React.FC<AttendeeDetailsSlideoutProps> = ({
           />
         </div>
 
-        {/* Designation + Group (same row) */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Designation
-            </label>
-            <input
-              type="text"
-              value={post}
-              onChange={(e) => setPost(e.target.value)}
-              placeholder="Designation"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Group
-            </label>
-            <input
-              type="text"
-              value={groupsText}
-              onChange={(e) => setGroupsText(e.target.value)}
-              onBlur={() => commitGroups()}
-              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary bg-white"
-              placeholder="e.g. VIP, Attendee"
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter') return
-                e.preventDefault()
-                commitGroups()
-              }}
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Designation
+          </label>
+          <input
+            type="text"
+            value={post}
+            onChange={(e) => setPost(e.target.value)}
+            placeholder="Designation"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Group
+          </label>
+          <CreatableMultiSelect
+            options={tagOptions}
+            value={selectedGroups}
+            placeholder="Select or create groups..."
+            onChange={(newValue: MultiValue<CreatableMultiSelectOption>, _actionMeta: ActionMeta<CreatableMultiSelectOption>) =>
+              setSelectedGroups([...newValue])
+            }
+          />
         </div>
 
         {/* Description */}

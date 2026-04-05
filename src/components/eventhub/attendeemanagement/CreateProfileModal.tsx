@@ -121,7 +121,7 @@ const CreateProfileModal: React.FC<CreateProfileModalProps> = ({
       email: email.trim(),
       organization: organization.trim() || undefined,
       role: role.trim() || undefined,
-      groups: selectedGroups.map((g) => g.value),
+      groups: selectedGroups.map((g) => g.label),
       description: description.trim() || undefined,
       avatarUrl: avatarUrl || undefined,
       customFields: cleanedCustomFields.length ? cleanedCustomFields : undefined

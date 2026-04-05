@@ -3,6 +3,9 @@ import { XClose, Camera01, Eye, Plus, Trash03 } from '@untitled-ui/icons-react'
 import { Speaker, SpeakerGroup } from './speakerTypes'
 import { Badge, Slideout } from '../../ui/untitled'
 import profileBackground from '../../../assets/images/profile_background.jpg'
+import CreatableMultiSelect, { type CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
+import type { MultiValue, ActionMeta } from 'react-select'
+import { fetchSpeakerTags } from '../../../services/speakerService'
 
 export interface SpeakerSaveOptions {
   profileImageFile?: File
@@ -14,6 +17,7 @@ interface SpeakerDetailsSlideoutProps {
   speaker: Speaker | null
   onSave?: (speaker: Speaker, options?: SpeakerSaveOptions) => void | Promise<void>
   topOffset?: number
+  eventUuid?: string
 }
 
 const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
@@ -21,7 +25,8 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
   onClose,
   speaker,
   onSave,
-  topOffset = 64
+  topOffset = 64,
+  eventUuid
 }) => {
   const [editedSpeaker, setEditedSpeaker] = useState<Speaker | null>(null)
   const [firstName, setFirstName] = useState('')
@@ -30,8 +35,8 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
   const [organization, setOrganization] = useState('')
   const [title, setTitle] = useState('')
   const [bio, setBio] = useState('')
-  const [selectedGroups, setSelectedGroups] = useState<SpeakerGroup[]>([])
-  const [groupsText, setGroupsText] = useState('')
+  const [selectedGroups, setSelectedGroups] = useState<CreatableMultiSelectOption[]>([])
+  const [tagOptions, setTagOptions] = useState<CreatableMultiSelectOption[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [profileImageFile, setProfileImageFile] = useState<File | null>(null)
   const [profilePreviewUrl, setProfilePreviewUrl] = useState<string | null>(null)
@@ -39,6 +44,13 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
   const [customFields, setCustomFields] = useState<
     Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
   >([])
+
+  useEffect(() => {
+    if (!isOpen || !eventUuid) return
+    fetchSpeakerTags(eventUuid).then((tags) => {
+      setTagOptions(tags.filter((t) => t.is_active !== false).map((t) => ({ value: t.uuid, label: t.name })))
+    }).catch(() => {})
+  }, [isOpen, eventUuid])
 
   useEffect(() => {
     if (speaker && isOpen) {
@@ -51,8 +63,7 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
       // Treat "Designation" as speaker.role (fallback to title for backwards compatibility)
       setTitle(speaker.role || speaker.title || '')
       setBio(speaker.bio || '')
-      setSelectedGroups([...speaker.groups])
-      setGroupsText((speaker.groups || []).map((g) => g.name).filter(Boolean).join(', '))
+      setSelectedGroups((speaker.groups || []).map((g) => ({ value: g.id, label: g.name })))
       setProfileImageFile(null)
       setProfilePreviewUrl((prev) => {
         if (prev) URL.revokeObjectURL(prev)
@@ -69,43 +80,15 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
     }
   }, [speaker, isOpen])
 
-  const parseGroupsFromText = (text: string, prev: SpeakerGroup[]): SpeakerGroup[] => {
-    const parts = String(text || '')
-      .split(',')
-      .map((p) => p.trim())
-      .filter(Boolean)
-
-    const seen = new Set<string>()
-    const unique = parts.filter((name) => {
-      const key = name.toLowerCase()
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-
-    return unique.map((name, idx) => {
-      const existing = prev.find((g) => String(g.name || '').toLowerCase() === name.toLowerCase())
-      if (existing) return existing
-      return {
-        id: `${Date.now()}-${idx}`,
-        name,
-        variant: 'primary' as const
-      }
-    })
-  }
-
-  const commitGroups = (text = groupsText) => {
-    const next = parseGroupsFromText(text, selectedGroups)
-    setSelectedGroups(next)
-    setGroupsText(next.map((g) => g.name).join(', '))
-    return next
-  }
-
   const handleSave = async () => {
     if (!editedSpeaker) return
     if (isSaving) return
     setIsSaving(true)
-    const nextGroups = commitGroups(groupsText)
+    const nextGroups: SpeakerGroup[] = selectedGroups.map((g) => ({
+      id: g.value,
+      name: g.label,
+      variant: 'primary' as const,
+    }))
 
     const cleanedCustomFields = customFields
       .map((f) => ({
@@ -321,39 +304,31 @@ const SpeakerDetailsSlideout: React.FC<SpeakerDetailsSlideoutProps> = ({
           />
         </div>
 
-        {/* Designation + Groups (same row) */}
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Designation
-            </label>
-            <input
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Designation"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Designation
+          </label>
+          <input
+            type="text"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Designation"
+            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+        </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-2">
-              Group
-            </label>
-            <input
-              type="text"
-              value={groupsText}
-              onChange={(e) => setGroupsText(e.target.value)}
-              onBlur={() => commitGroups()}
-              placeholder="e.g. VIP, Panelist"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              onKeyDown={(e) => {
-                if (e.key !== 'Enter') return
-                e.preventDefault()
-                commitGroups()
-              }}
-            />
-          </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Group
+          </label>
+          <CreatableMultiSelect
+            options={tagOptions}
+            value={selectedGroups}
+            placeholder="Select or create groups..."
+            onChange={(newValue: MultiValue<CreatableMultiSelectOption>, _actionMeta: ActionMeta<CreatableMultiSelectOption>) =>
+              setSelectedGroups([...newValue])
+            }
+          />
         </div>
 
         {/* Bio */}

@@ -392,10 +392,8 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
   }
 
   const handleSaveAttendee = async (updatedAttendee: Attendee) => {
-    // Send name for new groups (client-generated id like "1770128330053-1") so backend creates tag with correct name; send id for existing tags
-    const isNewGroupId = (id: string) => /^\d+-\d+$/.test(String(id))
     const groupValues = (updatedAttendee.groups || [])
-      .map((g) => (isNewGroupId(String(g.id)) ? (g.name || g.id) : (g.id || g.name)))
+      .map((g) => g.name || g.id)
       .filter(Boolean)
 
     await updateAttendee(updatedAttendee.id, {
@@ -715,6 +713,7 @@ const AttendeeManagementPage: React.FC<AttendeeManagementPageProps> = ({
         }}
         attendee={selectedAttendee}
         onSave={handleSaveAttendee}
+        eventUuid={eventUuid}
       />
     </div>
   )

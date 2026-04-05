@@ -122,7 +122,7 @@ const CreateSpeakerModal: React.FC<CreateSpeakerModalProps> = ({
       organization: organization.trim() || undefined,
       role: role.trim() || undefined,
       bio: bio.trim() || undefined,
-      groups: selectedGroups.map((g) => g.value),
+      groups: selectedGroups.map((g) => g.label),
       avatarUrl: avatarUrl || undefined,
       customFields: cleanedCustomFields.length ? cleanedCustomFields : undefined
     }

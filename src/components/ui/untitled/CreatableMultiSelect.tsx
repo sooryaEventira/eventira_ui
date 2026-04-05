@@ -191,6 +191,10 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
       color: '#64748b',
       fontSize: '14px',
       padding: '12px'
+    }),
+    menuPortal: (base) => ({
+      ...base,
+      zIndex: 9999
     })
   }
 
@@ -212,6 +216,8 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
           createOptionPosition="first"
           styles={customStyles}
           classNamePrefix="creatable-select"
+          menuPortalTarget={document.body}
+          menuPosition="fixed"
         />
       </div>
       {description && !error && <span className="text-xs text-slate-400">{description}</span>}
