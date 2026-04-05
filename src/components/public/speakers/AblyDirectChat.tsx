@@ -17,12 +17,18 @@ interface AblyDirectChatProps {
 }
 
 function getCurrentUserId(): string {
+  // Prefer the attendee UUID stored after profile fetch — this matches the IDs
+  // used in the attendees/speakers list (a.uuid ?? a.id from the API response).
+  // Using a different ID here would cause channel name mismatches so both parties
+  // end up on different Ably channels and can't see each other's messages.
+  const stored = localStorage.getItem('pub_attendeeUuid')
+  if (stored) return stored
   try {
     const token = localStorage.getItem('pub_accessToken')
     if (!token) return ''
     const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
     const payload = JSON.parse(atob(base64))
-    return String(payload?.user_id ?? payload?.sub ?? payload?.uuid ?? payload?.id ?? '')
+    return String(payload?.uuid ?? payload?.user_uuid ?? payload?.sub ?? payload?.user_id ?? payload?.id ?? '')
   } catch { return '' }
 }
 

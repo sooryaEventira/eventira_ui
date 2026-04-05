@@ -1,5 +1,5 @@
 import * as Ably from 'ably'
-import { fetchAblyToken } from './publicSessionCommentServices'
+import { API_ENDPOINTS } from '../config/env'
 
 export interface DirectMessage {
   id: string
@@ -9,10 +9,12 @@ export interface DirectMessage {
   timestamp: number
 }
 
-/** Returns a stable DM channel name — identical for both participants regardless of who opens first. */
+/** Returns a stable DM room name — identical for both participants regardless of who opens first.
+ *  Format matches the backend capability: dm:<lower_id>_<higher_id>
+ */
 export function getDmChannelName(idA: string, idB: string): string {
   const [a, b] = [idA, idB].sort()
-  return `dm-${a}-${b}`
+  return `dm:${a}_${b}`
 }
 
 export interface DmConnection {
@@ -38,8 +40,27 @@ export function createDmConnection(
     disconnectedRetryTimeout: 5000,
     suspendedRetryTimeout: 10000,
     authCallback: (_tokenParams, callback) => {
-      fetchAblyToken()
-        .then((token) => callback(null, token as unknown as Ably.TokenDetails))
+      const pubToken = localStorage.getItem('pub_accessToken')
+      fetch(API_ENDPOINTS.PUBLIC.ABLY_TOKEN_DM(channelName), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(pubToken ? { Authorization: `Bearer ${pubToken}` } : {}),
+        },
+      })
+        .then(async (res) => {
+          if (!res.ok) throw new Error('Failed to fetch DM Ably token.')
+          let data = await res.json()
+          // Unwrap up to 3 levels of { status, data } envelope
+          for (let i = 0; i < 3; i++) {
+            if (data && typeof data === 'object' && 'data' in data) data = data.data
+            else break
+          }
+          // Extract the JWT string — do NOT pass the full object (Ably won't recognise snake_case fields)
+          const token = (data && typeof data === 'object' ? data.token ?? data : data) ?? null
+          if (!token) throw new Error('Ably DM token missing in response.')
+          callback(null, token as unknown as Ably.TokenDetails)
+        })
         .catch((err: Error) => callback(String(err?.message ?? err), null as unknown as string))
     },
   })
@@ -56,11 +77,12 @@ export function createDmConnection(
   })
 
   channel.once('attached', async () => {
-    // Also fetch explicit history (works if persisted history is enabled in Ably dashboard)
-    // untilAttach: true ensures no overlap with live messages
+    // Fetch explicit history for persisted channels.
+    // Must use direction: 'backwards' with untilAttach (Ably requirement), then reverse for chronological order.
     try {
-      const page = await channel.history({ limit: 100, direction: 'forwards', untilAttach: true })
-      page.items.forEach((msg) => {
+      const page = await channel.history({ limit: 100, direction: 'backwards', untilAttach: true })
+      const historical = [...page.items].reverse()
+      historical.forEach((msg) => {
         const data = msg.data as DirectMessage
         if (data?.id) onMessage(data)
       })
@@ -70,12 +92,11 @@ export function createDmConnection(
     onReady()
   })
 
-  channel.attach()
+  channel.attach().catch(() => {})
 
   const destroy = () => {
     channel.unsubscribe()
-    channel.detach().catch(() => {})
-    client.close()
+    client.close()  // closing the client automatically detaches all channels
   }
 
   return { channel, destroy }

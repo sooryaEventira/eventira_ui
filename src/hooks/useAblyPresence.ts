@@ -34,7 +34,7 @@ export function useAblyPresence(channelName: string): Set<string> {
       disconnectedRetryTimeout: 5000,
       suspendedRetryTimeout: 10000,
       authCallback: (_tokenParams, callback) => {
-        fetchAblyToken()
+        fetchAblyToken(channelName)
           .then((token) => callback(null, token as unknown as Ably.TokenDetails | Ably.TokenRequest | string))
           .catch((err) => callback(String((err as Error)?.message ?? err), null as unknown as string))
       },
@@ -77,9 +77,8 @@ export function useAblyPresence(channelName: string): Set<string> {
           const channel = clientRef.current.channels.get(channelName)
           channel.presence.leave().catch(() => {})
           channel.presence.unsubscribe()
-          channel.detach().catch(() => {})
         } catch { /* ignore */ }
-        clientRef.current.close()
+        clientRef.current.close()  // automatically detaches all channels
         clientRef.current = null
       }
       setOnlineIds(new Set())
