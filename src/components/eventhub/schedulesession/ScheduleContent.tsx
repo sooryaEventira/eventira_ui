@@ -713,6 +713,24 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               Tags &amp; location
             </Button>
           </div>
+          <div className="flex items-center gap-2">
+            <div className="flex h-10  items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/20">
+              <input
+                type="text"
+                value={filterKeyword}
+                onChange={(e) => { setFilterKeyword(e.target.value); setFilterKeywordApplied(e.target.value.trim()); }}
+                onKeyDown={(e) => e.key === 'Escape' && (setFilterKeyword(''), setFilterKeywordApplied(''))}
+                placeholder="Search sessions…"
+                className="h-full w-72 bg-transparent px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setFilterKeywordApplied(filterKeyword.trim())}
+                className="flex h-full items-center justify-center bg-primary px-3 text-white transition hover:bg-primary/90"
+              >
+                <SearchLg className="h-4 w-4" />
+              </button>
+            </div>
           <div className="relative">
             <button
               ref={filterTriggerRef}
@@ -723,7 +741,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               aria-expanded={filterOpen}
             >
               <FilterLines className="h-4 w-4 text-slate-500" strokeWidth={2} />
-              Filter
+             
             </button>
             {filterOpen &&
               filterPanelPosition &&
@@ -841,6 +859,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                 </div>,
                 document.body
               )}
+          </div>
           </div>
             </>
           )}

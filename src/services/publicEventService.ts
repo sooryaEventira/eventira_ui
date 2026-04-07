@@ -262,6 +262,7 @@ export const updateEventProfile = async (
   fields: {
     first_name?: string
     last_name?: string
+    image?: File
     custom_fields?: Record<string, any>
   }
 ): Promise<EventProfileData> => {
@@ -269,14 +270,29 @@ export const updateEventProfile = async (
   if (!accessToken) throw new Error('Authentication required.')
 
   const url = API_ENDPOINTS.PUBLIC.PROFILE(eventUuid)
+
+  let body: BodyInit
+  const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` }
+
+  if (fields.image instanceof File) {
+    const form = new FormData()
+    if (fields.first_name !== undefined) form.append('first_name', fields.first_name)
+    if (fields.last_name !== undefined) form.append('last_name', fields.last_name)
+    form.append('image', fields.image)
+    if (fields.custom_fields) form.append('custom_fields', JSON.stringify(fields.custom_fields))
+    body = form
+    // Let browser set Content-Type with boundary for multipart
+  } else {
+    const { image: _image, ...rest } = fields
+    body = JSON.stringify(rest)
+    headers['Content-Type'] = 'application/json'
+  }
+
   const response = await fetch(url, {
     method: 'PATCH',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers,
     credentials: 'include',
-    body: JSON.stringify(fields),
+    body,
   })
 
   if (!response.ok) {

@@ -62,6 +62,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
   const [profilePicture, setProfilePicture] = useState<string>(
     () => localStorage.getItem('pub_profilePicture') ?? payload?.picture ?? ''
   )
+  const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null)
 
   useEffect(() => {
     if (!token) return
@@ -86,7 +87,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
         if (Array.isArray(resolvedInterests) && resolvedInterests.length) setInterests(resolvedInterests)
         const resolvedGoals = cf.networking_goals ?? profile.networking_goals
         if (Array.isArray(resolvedGoals) && resolvedGoals.length) setNetworkingGoals(resolvedGoals)
-        const resolvedPic = cf.profile_picture ?? profile.profile_picture ?? profile.picture ?? ''
+        const resolvedPic = profile.image ?? profile.profile_picture ?? profile.picture ?? ''
         if (resolvedPic) {
           setProfilePicture(resolvedPic)
           localStorage.setItem('pub_profilePicture', resolvedPic)
@@ -115,6 +116,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
       await updateEventProfile(eventUuid, {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
+        image: profilePictureFile ?? undefined,
         custom_fields: {
           post: post.trim() || undefined,
           location: location.trim() || undefined,
@@ -124,7 +126,6 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
           bio: bio.trim() || undefined,
           interests: finalInterests,
           networking_goals: networkingGoals,
-          profile_picture: profilePicture || undefined,
         },
       })
       showToast.success('Profile updated successfully')
@@ -200,6 +201,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
                 onChange={(e) => {
                   const file = e.target.files?.[0]
                   if (!file) return
+                  setProfilePictureFile(file)
                   const reader = new FileReader()
                   reader.onload = () => {
                     const dataUrl = reader.result as string

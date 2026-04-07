@@ -46,7 +46,7 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
         if (profile.last_name) setLastName(profile.last_name)
         if (profile.post ?? profile.job_title) setPost(profile.post ?? profile.job_title ?? '')
         if (profile.organization ?? profile.organisation) setOrganization(profile.organization ?? profile.organisation ?? '')
-        const pic = profile.profile_picture ?? profile.picture ?? ''
+        const pic = profile.image ?? profile.profile_picture ?? profile.picture ?? ''
         if (pic) {
           setProfilePicture(pic)
           localStorage.setItem('pub_profilePicture', pic)
