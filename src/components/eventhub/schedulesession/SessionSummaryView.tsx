@@ -209,9 +209,9 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                     )}
                   </div>
                 </div>
-              ) : section.type === 'video' && (section.data?.videoUrl || section.data?.video_url) ? (
+              ) : section.type === 'video' && (section.data?.videoUrl || section.data?.video_url || section.data?.video_uri) ? (
                 (() => {
-                  const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? '').trim()
+                  const videoUrl = String(section.data?.videoUrl ?? section.data?.video_url ?? section.data?.video_uri ?? '').trim()
                   const ytEmbed = getYouTubeEmbedUrl(videoUrl)
                   if (ytEmbed) {
                     return (
@@ -284,28 +284,41 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-sm leading-6 text-slate-600">
+                  <p className="text-sm leading-6 text-slate-600 whitespace-pre-line">
                     {section.description || 'No files added yet.'}
                   </p>
                 )
               })() : (section.type === 'speakers' || section.type === 'speaker') && Array.isArray(section.data?.speakers) && section.data.speakers.length > 0 ? (
-                <ul className="space-y-2">
-                  {section.data.speakers.map((s: { id: string; name: string; role: string }, i: number) => (
-                    <li key={s.id || i} className="text-sm text-slate-600">
-                      {onSpeakerClick && s.id ? (
-                        <button
-                          type="button"
-                          onClick={() => onSpeakerClick(s.id)}
-                          className="font-medium text-primary hover:underline"
-                        >
-                          {s.name}
-                        </button>
-                      ) : (
-                        <span className="font-medium text-slate-800">{s.name}</span>
-                      )}
-                      {s.role ? <span className="text-slate-500"> – {s.role}</span> : null}
-                    </li>
-                  ))}
+                <ul className="space-y-3">
+                  {section.data.speakers.map((s: { id: string; name: string; role: string; avatarUrl?: string; image?: string }, i: number) => {
+                    const avatar = toAbsoluteMediaUrl(s.avatarUrl ?? s.image ?? '')
+                    const initials = s.name ? s.name.split(' ').map((w: string) => w[0]).slice(0, 2).join('').toUpperCase() : '?'
+                    return (
+                      <li key={s.id || i} className="flex items-center gap-3">
+                        <div className="h-9 w-9 shrink-0 overflow-hidden rounded-full bg-slate-200 flex items-center justify-center text-xs font-semibold text-slate-500">
+                          {avatar ? (
+                            <img src={avatar} alt={s.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <span>{initials}</span>
+                          )}
+                        </div>
+                        <div className="text-sm">
+                          {onSpeakerClick && s.id ? (
+                            <button
+                              type="button"
+                              onClick={() => onSpeakerClick(s.id)}
+                              className="font-medium text-primary hover:underline"
+                            >
+                              {s.name}
+                            </button>
+                          ) : (
+                            <span className="font-medium text-slate-800">{s.name}</span>
+                          )}
+                          {s.role ? <span className="text-slate-500"> – {s.role}</span> : null}
+                        </div>
+                      </li>
+                    )
+                  })}
                 </ul>
               ) : section.type === 'hyperlink' && Array.isArray(section.data?.hyperlinks) && section.data.hyperlinks.length > 0 ? (
                 <ul className="space-y-1">
@@ -410,12 +423,12 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <p className="text-sm leading-6 text-slate-600">
+                  <p className="text-sm leading-6 text-slate-600 whitespace-pre-line">
                     {section.description || 'No map added yet.'}
                   </p>
                 )
               })() : (
-                <p className="text-sm leading-6 text-slate-600">
+                <p className="text-sm leading-6 text-slate-600 whitespace-pre-line">
                   {section.description || 'No additional details for this section yet.'}
                 </p>
               )}

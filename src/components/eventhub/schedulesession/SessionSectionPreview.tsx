@@ -598,9 +598,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     return (
       <div className="p-4">
         <div className="space-y-3">
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-700">Title</label>
-          </div>
+
           <div>
             <label className="mb-1 block text-xs font-semibold text-slate-700">Content</label>
             <textarea

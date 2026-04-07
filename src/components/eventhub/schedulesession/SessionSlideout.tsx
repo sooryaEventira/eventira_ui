@@ -761,6 +761,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
                 <SessionSectionPreview section={section} handlers={sectionPreviewHandlers} />
               )}
               onRemoveSection={handleRemoveSection}
+              onReorderSections={(sections) => setDraft((prev) => ({ ...prev, sections }))}
               onCreateTagOption={handleCreateTagOption}
             />
           ) : (

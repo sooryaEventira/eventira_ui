@@ -37,8 +37,8 @@ interface SpeakersTableProps {
   isLoading?: boolean
   externalSearchQuery?: string
   onExternalSearchChange?: (query: string) => void
-  // Bulk delete handler (multi-select delete)
-  onBulkDeleteSpeakers?: (speakerIds: string[]) => void | Promise<void>
+  // Bulk delete handler (multi-select delete). selectAll=true means delete all records server-side.
+  onBulkDeleteSpeakers?: (speakerIds: string[], selectAll?: boolean) => void | Promise<void>
   // Server-side pagination for the speaker list
   serverSidePagination?: {
     totalCount: number
@@ -76,6 +76,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSpeakerIds, setSelectedSpeakerIds] = useState<Set<string>>(new Set())
   const [selectedCustomFieldIds, setSelectedCustomFieldIds] = useState<Set<string>>(new Set())
+  const [allPagesSelected, setAllPagesSelected] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
@@ -247,14 +248,16 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     if (isDeleting) return
     setIsDeleting(true)
     try {
+      const isSelectAll = bulkDeleteIds[0] === '__all__'
       if (onBulkDeleteSpeakers) {
-        await Promise.resolve(onBulkDeleteSpeakers(bulkDeleteIds) as any)
-      } else if (onDeleteSpeakerProp) {
+        await Promise.resolve(onBulkDeleteSpeakers(isSelectAll ? [] : bulkDeleteIds, isSelectAll) as any)
+      } else if (onDeleteSpeakerProp && !isSelectAll) {
         for (const id of bulkDeleteIds) {
           await Promise.resolve(onDeleteSpeakerProp(id) as any)
         }
       }
       setSelectedSpeakerIds(new Set())
+      setAllPagesSelected(false)
       setBulkDeleteIds(null)
     } finally {
       setIsDeleting(false)
@@ -312,6 +315,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
     return {
       visibleIds: visibleSpeakerIdsOnPage,
       onToggleAll: (checked: boolean) => {
+        if (!checked) setAllPagesSelected(false)
         setSelectedSpeakerIds((prev) => {
           const next = new Set(prev)
           visibleSpeakerIdsOnPage.forEach((id) => (checked ? next.add(id) : next.delete(id)))
@@ -453,7 +457,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
               variant="primary"
               size="sm"
               className="!bg-red-600 hover:!bg-red-700 focus:visible:ring-red-500/40"
-              onClick={() => setBulkDeleteIds(Array.from(selectedSpeakerIds))}
+              onClick={() => setBulkDeleteIds(allPagesSelected ? ['__all__'] : Array.from(selectedSpeakerIds))}
             >
               Delete
             </Button>
@@ -682,6 +686,36 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
       <DividerLineTable
         headerLeading={tableHeader.leading}
         headerActions={tableHeader.actions}
+        subheader={activeTab === 'user' && selectedSpeakerIds.size > 0 ? (
+          <div className="flex items-center justify-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-sm text-slate-700">
+            <span>
+              All{' '}
+              <span className="font-semibold text-primary">
+                {allPagesSelected ? (serverSidePagination?.totalCount ?? speakers.length) : selectedSpeakerIds.size}
+              </span>{' '}
+              {allPagesSelected ? 'speakers' : 'rows'} selected
+            </span>
+            {!allPagesSelected && serverSidePagination && serverSidePagination.totalCount > selectedSpeakerIds.size && (
+              <button
+                type="button"
+                onClick={() => {
+                setAllPagesSelected(true)
+                setSelectedSpeakerIds(new Set(visibleSpeakerIdsOnPage))
+              }}
+                className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                Select all {serverSidePagination.totalCount}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setAllPagesSelected(false); setSelectedSpeakerIds(new Set()) }}
+              className="font-medium text-slate-500 underline underline-offset-2 hover:text-slate-700"
+            >
+              Clear selection
+            </button>
+          </div>
+        ) : undefined}
         data={tableData.data}
         columns={tableData.columns}
         getRowKey={tableData.getRowKey}
@@ -722,7 +756,7 @@ const SpeakersTable: React.FC<SpeakersTableProps> = ({
       <ConfirmDeleteModal
         isOpen={!!bulkDeleteIds?.length}
         title="Delete speakers?"
-        itemName={bulkDeleteIds ? `${bulkDeleteIds.length} speakers` : undefined}
+        itemName={bulkDeleteIds ? (bulkDeleteIds[0] === '__all__' ? `all ${serverSidePagination?.totalCount ?? speakers.length} speakers` : `${bulkDeleteIds.length} speakers`) : undefined}
         isLoading={isDeleting}
         onCancel={() => {
           if (isDeleting) return

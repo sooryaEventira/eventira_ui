@@ -266,7 +266,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {logoUrl ? (
-            <img src={logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover ring-1 ring-slate-200" />
+            <img src={logoUrl} alt="" className="h-10 w-12 shrink-0 rounded-md object-cover" />
           ) : (
             <div className="h-9 w-9 shrink-0 rounded-md bg-slate-100 ring-1 ring-slate-200" />
           )}

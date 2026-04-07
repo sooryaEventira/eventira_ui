@@ -118,7 +118,7 @@ export const mapRetrieveSessionToDraft = (
     //   2. { speakers: [{ uuid, name, role }] }  ← current backend format
     //   3. { speaker_uuids: ["uuid1", "uuid2"] }  ← older format
     let speakerUuids: string[] = []
-    let speakersList: { id: string; name: string; role: string }[] = []
+    let speakersList: { id: string; name: string; role: string; avatarUrl?: string }[] = []
     if (contentIsArray) {
       speakerUuids = (rawContent as string[])
       speakersList = speakerUuids.map((id) => ({ id, name: '', role: '' }))
@@ -126,17 +126,20 @@ export const mapRetrieveSessionToDraft = (
       speakersList = (content.speakers as any[]).map((sp: any) => ({
         id: sp?.uuid ?? sp?.id ?? sp?.speaker_uuid ?? '',
         name: sp?.name ?? '',
-        role: sp?.role ?? ''
+        role: sp?.role ?? '',
+        avatarUrl: sp?.image ?? sp?.avatar_url ?? sp?.avatarUrl ?? sp?.profile_picture ?? undefined
       }))
       speakerUuids = speakersList.map((sp) => sp.id).filter(Boolean)
     } else if (Array.isArray(content?.speaker_uuids)) {
       speakerUuids = content.speaker_uuids
       speakersList = speakerUuids.map((id) => ({ id, name: '', role: '' }))
     }
+    const resolvedVideoUrl = (content?.video_uri ?? content?.video_url ?? content?.videoUrl ?? content?.url ?? '').toString().trim()
     let sectionData: Record<string, unknown> = {
       speaker_uuids: speakerUuids,
       speakers: speakersList,
-      url: content?.url ?? content?.video_url ?? ''
+      url: resolvedVideoUrl,
+      ...(uiType === 'video' ? { videoUrl: resolvedVideoUrl, video_url: resolvedVideoUrl } : {})
     }
     if (uiType === 'resources' && Array.isArray(content?.files)) {
       sectionData = { ...sectionData, files: content.files }

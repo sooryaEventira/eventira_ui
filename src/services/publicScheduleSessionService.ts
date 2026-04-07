@@ -64,11 +64,17 @@ export function mapApiSectionsToSavedSections(
     } else if (uiType === 'resources' && (content?.file_url || content?.url)) {
       sectionData = { ...sectionData, files: [{ url: content.file_url ?? content.url, name: content.file_name ?? content.name }] }
     }
+    const defaultTitle =
+      uiType === 'speaker' ? 'Speakers'
+      : uiType === 'video' ? 'Video'
+      : uiType === 'resources' ? 'Resources'
+      : uiType === 'live-chat' ? 'Live Chat'
+      : 'Section'
     return {
       id: `section-${sessionId}-${i}`,
       type: uiType,
-      title: (content?.title ?? sec?.title ?? 'Section').toString(),
-      description: (content?.body ?? content?.body ?? sec?.description ?? '').toString(),
+      title: (content?.title ?? sec?.title ?? defaultTitle).toString(),
+      description: (content?.body ?? sec?.description ?? '').toString(),
       data: sectionData
     }
   })

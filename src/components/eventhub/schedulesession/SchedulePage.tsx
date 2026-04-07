@@ -1003,6 +1003,29 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
                         ? 'resources'
                         : sectionType
 
+              // Handle video sections
+              if (sectionType === 'video') {
+                const videoUrl = (content?.video_uri ?? content?.video_url ?? content?.videoUrl ?? content?.url ?? '').toString().trim()
+                if (videoUrl) {
+                  const videoSection = sections.find((sec: any) => sec.type === 'video')
+                  if (videoSection) {
+                    sections = sections.map((sec: any) =>
+                      sec.type === 'video' ? { ...sec, data: { ...(sec.data || {}), videoUrl, video_url: videoUrl } } : sec
+                    )
+                  } else {
+                    sections = [...sections, {
+                      id: `section-${id}-video-${idx}`,
+                      type: 'video',
+                      title: (content?.title ?? 'Video').toString(),
+                      description: '',
+                      sectionId: sec?.uuid ?? sec?.id ?? undefined,
+                      data: { videoUrl, video_url: videoUrl }
+                    }]
+                  }
+                }
+                return
+              }
+
               // For now we only care about Speakers sections for the grid
               if (uiType !== 'speaker' && sectionType !== 'speakers') return
 

@@ -183,7 +183,7 @@ export const buildOneSectionPayload = (
     // Backend expects content to be a plain array of speaker UUIDs
     content = speakerUuids
   } else if (sectionType === 'video') {
-    const videoUrl = s.data?.videoUrl ?? s.data?.video_url ?? ''
+    const videoUrl = s.data?.videoUrl ?? s.data?.video_url ?? s.data?.video_uri ?? ''
     content = { video_url: typeof videoUrl === 'string' ? videoUrl : String(videoUrl || ''), title: s.title || 'Video' }
   } else if (sectionType === 'image' || sectionType === 'poster') {
     content = (s.data && typeof s.data === 'object' ? { ...s.data } : {}) as Record<string, unknown>

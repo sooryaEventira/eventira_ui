@@ -37,7 +37,7 @@ interface AttendeesTableProps {
   externalSearchQuery?: string
   onExternalSearchChange?: (query: string) => void
   // Bulk delete handler (used for multi-select delete button)
-  onBulkDeleteAttendees?: (attendeeIds: string[]) => void | Promise<void>
+  onBulkDeleteAttendees?: (attendeeIds: string[], selectAll?: boolean) => void | Promise<void>
   // Server-side pagination for the attendee list
   serverSidePagination?: {
     totalCount: number
@@ -75,6 +75,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedAttendeeIds, setSelectedAttendeeIds] = useState<Set<string>>(new Set())
   const [selectedCustomFieldIds, setSelectedCustomFieldIds] = useState<Set<string>>(new Set())
+  const [allPagesSelected, setAllPagesSelected] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 10
 
@@ -239,14 +240,16 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     if (isDeleting) return
     setIsDeleting(true)
     try {
+      const isSelectAll = bulkDeleteIds[0] === '__all__'
       if (onBulkDeleteAttendees) {
-        await Promise.resolve(onBulkDeleteAttendees(bulkDeleteIds) as any)
-      } else if (onDeleteAttendeeProp) {
+        await Promise.resolve(onBulkDeleteAttendees(isSelectAll ? [] : bulkDeleteIds, isSelectAll) as any)
+      } else if (onDeleteAttendeeProp && !isSelectAll) {
         for (const id of bulkDeleteIds) {
           await Promise.resolve(onDeleteAttendeeProp(id) as any)
         }
       }
       setSelectedAttendeeIds(new Set())
+      setAllPagesSelected(false)
       setBulkDeleteIds(null)
     } finally {
       setIsDeleting(false)
@@ -304,6 +307,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
     return {
       visibleIds: visibleAttendeeIdsOnPage,
       onToggleAll: (checked: boolean) => {
+        if (!checked) setAllPagesSelected(false)
         setSelectedAttendeeIds((prev) => {
           const next = new Set(prev)
           visibleAttendeeIdsOnPage.forEach((id) => (checked ? next.add(id) : next.delete(id)))
@@ -444,7 +448,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
               variant="primary"
               size="sm"
               className="!bg-red-600 hover:!bg-red-700 focus:visible:ring-red-500/40"
-              onClick={() => setBulkDeleteIds(Array.from(selectedAttendeeIds))}
+              onClick={() => setBulkDeleteIds(allPagesSelected ? ['__all__'] : Array.from(selectedAttendeeIds))}
             >
               Delete
             </Button>
@@ -675,6 +679,36 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
       <DividerLineTable
         headerLeading={tableHeader.leading}
         headerActions={tableHeader.actions}
+        subheader={activeTab === 'user' && selectedAttendeeIds.size > 0 ? (
+          <div className="flex items-center justify-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-sm text-slate-700">
+            <span>
+              All{' '}
+              <span className="font-semibold text-primary">
+                {allPagesSelected ? (serverSidePagination?.totalCount ?? attendees.length) : selectedAttendeeIds.size}
+              </span>{' '}
+              {allPagesSelected ? 'attendees' : 'rows'} selected
+            </span>
+            {!allPagesSelected && serverSidePagination && serverSidePagination.totalCount > selectedAttendeeIds.size && (
+              <button
+                type="button"
+                onClick={() => {
+                setAllPagesSelected(true)
+                setSelectedAttendeeIds(new Set(visibleAttendeeIdsOnPage))
+              }}
+                className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+              >
+                Select all {serverSidePagination.totalCount}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setAllPagesSelected(false); setSelectedAttendeeIds(new Set()) }}
+              className="font-medium text-slate-500 underline underline-offset-2 hover:text-slate-700"
+            >
+              Clear selection
+            </button>
+          </div>
+        ) : undefined}
         data={tableData.data}
         columns={tableData.columns}
         getRowKey={tableData.getRowKey}
@@ -715,7 +749,7 @@ const AttendeesTable: React.FC<AttendeesTableProps> = ({
       <ConfirmDeleteModal
         isOpen={!!bulkDeleteIds?.length}
         title="Delete attendees?"
-        itemName={bulkDeleteIds ? `${bulkDeleteIds.length} attendees` : undefined}
+        itemName={bulkDeleteIds ? (bulkDeleteIds[0] === '__all__' ? `all ${serverSidePagination?.totalCount ?? attendees.length} attendees` : `${bulkDeleteIds.length} attendees`) : undefined}
         isLoading={isDeleting}
         onCancel={() => {
           if (isDeleting) return

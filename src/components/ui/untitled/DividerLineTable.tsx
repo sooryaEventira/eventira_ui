@@ -38,6 +38,7 @@ export interface DividerLineTableProps<TData> {
   getRowKey: (item: TData, index: number) => string
   headerLeading?: React.ReactNode
   headerActions?: React.ReactNode
+  subheader?: React.ReactNode
   emptyState?: React.ReactNode
   footer?: React.ReactNode
   bodyClassName?: string
@@ -141,6 +142,7 @@ export function DividerLineTable<TData>({
   getRowKey,
   headerLeading,
   headerActions,
+  subheader,
   emptyState,
   footer,
   bodyClassName,
@@ -221,6 +223,7 @@ export function DividerLineTable<TData>({
         </TableCardHeader>
       )}
 
+      {subheader}
       <TableCardBody className={twMerge(
         sortedData.length === 0 ? '' : 'border border-slate-200',
         bodyClassName

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
 import { Eye, Pencil01, Trash01 } from '@untitled-ui/icons-react'
 import { Input, Select, Button } from '../../ui/untitled'
 import CreatableMultiSelect, { type CreatableMultiSelectOption } from '../../ui/untitled/CreatableMultiSelect'
@@ -24,6 +24,7 @@ interface SessionDetailsFormProps {
   availableLocations?: string[]
   renderSectionPreview?: (section: SessionSection) => React.ReactNode
   onRemoveSection?: (sectionId: string) => void
+  onReorderSections?: (sections: SessionSection[]) => void
   /** Called when user creates a new tag — should persist via API and update draft.tags with real UUID. */
   onCreateTagOption?: (inputValue: string) => void
 }
@@ -39,8 +40,11 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   availableLocations = [],
   renderSectionPreview,
   onRemoveSection,
+  onReorderSections,
   onCreateTagOption
 }) => {
+  const dragIndexRef = useRef<number | null>(null)
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
 
   // Tag and location option mappings (same as ScheduleDetailsSlideout)
   const tagOptionsMap: Record<string, string> = {
@@ -273,16 +277,42 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
               </Button>
             </div>
             <ul className="space-y-3">
-              {draft.sections.map((section) => (
+              {draft.sections.map((section, index) => (
                 <li
                   key={section.id}
-                  className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50 shadow-sm"
+                  draggable
+                  onDragStart={() => { dragIndexRef.current = index }}
+                  onDragOver={(e) => { e.preventDefault(); setDragOverIndex(index) }}
+                  onDragLeave={() => setDragOverIndex(null)}
+                  onDrop={() => {
+                    const from = dragIndexRef.current
+                    if (from == null || from === index) { setDragOverIndex(null); return }
+                    const reordered = [...draft.sections]
+                    const [moved] = reordered.splice(from, 1)
+                    reordered.splice(index, 0, moved)
+                    onReorderSections?.(reordered)
+                    dragIndexRef.current = null
+                    setDragOverIndex(null)
+                  }}
+                  onDragEnd={() => { dragIndexRef.current = null; setDragOverIndex(null) }}
+                  className={`overflow-hidden rounded-xl border bg-slate-50 shadow-sm transition-colors ${dragOverIndex === index ? 'border-primary/50 bg-primary/5' : 'border-slate-200'}`}
                 >
                   <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3">
                     {(() => {
                       const displayTitle = sectionOptions.find(o => o.id === section.type)?.label ?? section.title
                       return (
                         <div className="flex items-center gap-3">
+                          {/* Drag handle */}
+                          <span
+                            className="cursor-grab touch-none text-slate-300 hover:text-slate-500 active:cursor-grabbing"
+                            title="Drag to reorder"
+                          >
+                            <svg width="14" height="20" viewBox="0 0 14 20" fill="currentColor" aria-hidden>
+                              <circle cx="4" cy="4" r="1.5"/><circle cx="10" cy="4" r="1.5"/>
+                              <circle cx="4" cy="10" r="1.5"/><circle cx="10" cy="10" r="1.5"/>
+                              <circle cx="4" cy="16" r="1.5"/><circle cx="10" cy="16" r="1.5"/>
+                            </svg>
+                          </span>
                           <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-primary/10 text-sm font-semibold uppercase text-primary">
                             {displayTitle.slice(0, 1)}
                           </span>
