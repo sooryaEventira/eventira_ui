@@ -71,17 +71,17 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
         const cf = profile.custom_fields ?? {}
         if (profile.first_name) setFirstName(profile.first_name)
         if (profile.last_name) setLastName(profile.last_name)
-        const resolvedPost = cf.post ?? profile.post ?? profile.job_title ?? ''
+        const resolvedPost = profile.designation ?? cf.post ?? profile.post ?? profile.job_title ?? ''
         if (resolvedPost) setPost(resolvedPost)
         const resolvedLocation = cf.location ?? profile.location ?? ''
         if (resolvedLocation) setLocation(resolvedLocation)
-        const resolvedOrg = cf.organization ?? cf.organisation ?? profile.organization ?? profile.organisation ?? ''
+        const resolvedOrg = profile.organization ?? profile.organisation ?? cf.organization ?? cf.organisation ?? ''
         if (resolvedOrg) setOrganization(resolvedOrg)
         const resolvedEdu = cf.education ?? profile.education ?? ''
         if (resolvedEdu) setEducation(resolvedEdu)
         const resolvedSpec = cf.specialization ?? profile.specialization ?? ''
         if (resolvedSpec) setSpecialization(resolvedSpec)
-        const resolvedBio = cf.bio ?? profile.bio ?? ''
+        const resolvedBio = profile.description ?? cf.bio ?? profile.bio ?? ''
         if (resolvedBio) setBio(resolvedBio)
         const resolvedInterests = cf.interests ?? profile.interests
         if (Array.isArray(resolvedInterests) && resolvedInterests.length) setInterests(resolvedInterests)
@@ -116,16 +116,16 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
       await updateEventProfile(eventUuid, {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
+        organization: organization.trim() || undefined,
+        designation: post.trim() || undefined,
+        description: bio.trim() || undefined,
         image: profilePictureFile ?? undefined,
         custom_fields: {
-          post: post.trim() || undefined,
           location: location.trim() || undefined,
-          organization: organization.trim() || undefined,
           education: education.trim() || undefined,
           specialization: specialization.trim() || undefined,
-          bio: bio.trim() || undefined,
-          interests: finalInterests,
-          networking_goals: networkingGoals,
+          interests: finalInterests.length ? finalInterests : undefined,
+          networking_goals: networkingGoals.length ? networkingGoals : undefined,
         },
       })
       showToast.success('Profile updated successfully')

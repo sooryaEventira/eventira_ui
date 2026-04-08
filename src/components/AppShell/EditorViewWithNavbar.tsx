@@ -42,12 +42,14 @@ export const EditorViewWithNavbar: React.FC<EditorViewWithNavbarProps> = (props)
   const displayEventName =
     createdEvent?.eventName || eventData?.eventName || 'Highly important conference of 2025'
   const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
+  const eventLogoUrl = createdEvent?.logo ?? undefined
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <EventHubNavbar
         key={createdEvent?.uuid || 'no-event'}
         eventName={displayEventName}
+        eventLogoUrl={eventLogoUrl}
         isDraft={true}
         eventStatus={eventStatus}
         onBackClick={props.handleBackToDashboard}

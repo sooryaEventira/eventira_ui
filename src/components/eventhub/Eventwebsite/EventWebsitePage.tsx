@@ -73,7 +73,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [_navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
-  const [iconPickerVariant, setIconPickerVariant] = useState<string>('Linear')
+  const [iconPickerVariant, setIconPickerVariant] = useState<string>('Outline')
   const [iconPickerAnchor, setIconPickerAnchor] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const iconPopoverRef = useRef<HTMLDivElement | null>(null)
   const ensuredWelcomeWebpageForEventRef = useRef<string | null>(null)
@@ -1407,7 +1407,7 @@ const loadNavigationFromApi = useCallback(async () => {
 
               {/* Variant tabs */}
               <div className="mt-2 flex flex-wrap gap-1">
-                {ICONSAX_VARIANTS.map((v) => (
+                {ICONSAX_VARIANTS.filter((v) => v === 'Outline' || v === 'Bold').map((v) => (
                   <button
                     key={v}
                     type="button"

@@ -255,13 +255,17 @@ export const fetchEventProfile = async (eventUuid: string): Promise<EventProfile
 /**
  * Update the authenticated attendee's profile for a specific event.
  * PATCH {{public_url}}events/{eventUuid}/profile/
- * Body: { first_name, last_name, custom_fields: { post, location, organization, ... } }
+ * Body: { first_name, last_name, organization, designation, role, description, custom_fields: { ... } }
  */
 export const updateEventProfile = async (
   eventUuid: string,
   fields: {
     first_name?: string
     last_name?: string
+    organization?: string
+    designation?: string
+    role?: string
+    description?: string
     image?: File
     custom_fields?: Record<string, any>
   }
@@ -278,6 +282,10 @@ export const updateEventProfile = async (
     const form = new FormData()
     if (fields.first_name !== undefined) form.append('first_name', fields.first_name)
     if (fields.last_name !== undefined) form.append('last_name', fields.last_name)
+    if (fields.organization !== undefined) form.append('organization', fields.organization)
+    if (fields.designation !== undefined) form.append('designation', fields.designation)
+    if (fields.role !== undefined) form.append('role', fields.role)
+    if (fields.description !== undefined) form.append('description', fields.description)
     form.append('image', fields.image)
     if (fields.custom_fields) form.append('custom_fields', JSON.stringify(fields.custom_fields))
     body = form

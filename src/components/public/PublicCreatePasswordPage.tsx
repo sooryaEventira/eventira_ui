@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import PublicAuthTopbar from './PublicAuthTopbar'
-import { setPassword } from '../../services/publicAuthService'
+import { setPassword, publicLogin } from '../../services/publicAuthService'
 
 const EyeIcon = ({ className }: { className?: string }) => (
   <svg
@@ -55,7 +55,11 @@ const PublicCreatePasswordPage: React.FC = () => {
       await setPassword(email, otp, password)
       sessionStorage.removeItem('register_email')
       sessionStorage.removeItem('register_otp')
-      window.location.href = '/login'
+      const { access, refresh } = await publicLogin(email, password)
+      if (access) localStorage.setItem('pub_accessToken', access)
+      if (refresh) localStorage.setItem('pub_refreshToken', refresh)
+      localStorage.setItem('pub_userEmail', email.trim())
+      window.location.href = '/event-list'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to set password. Please try again.')
     } finally {

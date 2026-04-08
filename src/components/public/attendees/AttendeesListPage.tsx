@@ -24,7 +24,7 @@ interface AttendeesListPageProps {
 }
 
 const AttendeeRow = ({ attendee, isSelected, isOnline }: { attendee: PublicAttendee; isSelected: boolean; isOnline: boolean }) => {
-  const subtitle = [attendee.post, attendee.organization].filter(Boolean).join(' • ')
+  const subtitle = [attendee.designation ?? attendee.post, attendee.organization].filter(Boolean).join(' • ')
   return (
     <div className={`flex items-center gap-4 rounded-xl border p-4 shadow-sm transition-colors ${isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white'}`}>
       <div className="relative shrink-0">
@@ -91,6 +91,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             id,
             name,
             post: a.post ?? a.title ?? undefined,
+            designation: a.designation ?? undefined,
             organization: a.organization ?? a.institute ?? a.company ?? undefined,
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? a.image ?? undefined,
           }

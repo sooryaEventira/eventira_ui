@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react'
-import { ChevronDown, ChevronUp, Attachment01, Calendar, User01 } from '@untitled-ui/icons-react'
+import { createPortal } from 'react-dom'
+import { ChevronDown, ChevronUp, Attachment01, Calendar, User01, AlertCircle, XClose } from '@untitled-ui/icons-react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 
 interface PublicScheduleGridProps {
@@ -18,7 +19,6 @@ const timeToMinutes = (time: string, period: string) => {
 }
 
 const formatTime = (time: string, period: string) => {
-  // Display 24h time only (no AM/PM)
   const minutes = timeToMinutes(time, period)
   const hh24 = Math.floor(minutes / 60) % 24
   const mm = minutes % 60
@@ -26,6 +26,9 @@ const formatTime = (time: string, period: string) => {
 }
 
 const getLocationLabel = (location: string) => location
+
+const timeSlotKey = (s: SavedSession) =>
+  `${timeToMinutes(s.startTime, s.startPeriod || 'AM')}_${timeToMinutes(s.endTime, s.endPeriod || 'AM')}`
 
 type SessionSpeaker = { id: string; name: string; role?: string }
 
@@ -43,24 +46,9 @@ function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
       const firstName = (sp?.first_name ?? sp?.firstName ?? '').toString().trim()
       const lastName = (sp?.last_name ?? sp?.lastName ?? '').toString().trim()
       const fullName = [firstName, lastName].filter(Boolean).join(' ')
-      const explicitName =
-        (sp?.name ??
-          sp?.full_name ??
-          sp?.fullName ??
-          sp?.speaker_name ??
-          sp?.speakerName ??
-          '') as string
+      const explicitName = (sp?.name ?? sp?.full_name ?? sp?.fullName ?? sp?.speaker_name ?? sp?.speakerName ?? '') as string
       const name = (explicitName || fullName || 'Speaker').toString().trim()
-      const rawRole =
-        (sp?.role ??
-          sp?.role_name ??
-          sp?.roleName ??
-          sp?.designation ??
-          sp?.title ??
-          sp?.post ??
-          sp?.position ??
-          sp?.type ??
-          '') as string
+      const rawRole = (sp?.role ?? sp?.role_name ?? sp?.roleName ?? sp?.designation ?? sp?.title ?? sp?.post ?? sp?.position ?? sp?.type ?? '') as string
       const role = rawRole.toString().trim() || undefined
       if (!id && !name) return
       const key = id || name
@@ -70,8 +58,6 @@ function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
     })
   })
 
-  // If section-derived speakers are effectively empty (only default "Speaker"),
-  // fall back to speakers attached directly on the session (used by some APIs).
   const hasRealSectionSpeakers = result.some((s) => {
     const name = (s.name || '').trim().toLowerCase()
     const role = (s.role || '').trim().toLowerCase()
@@ -86,24 +72,9 @@ function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
       const firstName = (sp?.first_name ?? sp?.firstName ?? '').toString().trim()
       const lastName = (sp?.last_name ?? sp?.lastName ?? '').toString().trim()
       const fullName = [firstName, lastName].filter(Boolean).join(' ')
-      const explicitName =
-        (sp?.name ??
-          sp?.full_name ??
-          sp?.fullName ??
-          sp?.speaker_name ??
-          sp?.speakerName ??
-          '') as string
+      const explicitName = (sp?.name ?? sp?.full_name ?? sp?.fullName ?? sp?.speaker_name ?? sp?.speakerName ?? '') as string
       const name = (explicitName || fullName || 'Speaker').toString().trim()
-      const rawRole =
-        (sp?.role ??
-          sp?.role_name ??
-          sp?.roleName ??
-          sp?.designation ??
-          sp?.title ??
-          sp?.post ??
-          sp?.position ??
-          sp?.type ??
-          '') as string
+      const rawRole = (sp?.role ?? sp?.role_name ?? sp?.roleName ?? sp?.designation ?? sp?.title ?? sp?.post ?? sp?.position ?? sp?.type ?? '') as string
       const role = rawRole.toString().trim() || undefined
       const id = String(rawId || name || `speaker-${index}`).trim()
       const key = id || name
@@ -116,10 +87,7 @@ function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
   return result
 }
 
-function renderSpeakers(
-  speakers: SessionSpeaker[],
-  onSpeakerClick?: (uuid: string) => void
-): React.ReactNode {
+function renderSpeakers(speakers: SessionSpeaker[], onSpeakerClick?: (uuid: string) => void): React.ReactNode {
   if (!speakers.length) return null
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
@@ -150,8 +118,181 @@ function renderSpeakers(
   )
 }
 
+interface SessionCardProps {
+  session: SavedSession
+  children?: React.ReactNode
+  onSpeakerClick?: (uuid: string) => void
+  hasChildren: boolean
+  open: boolean
+  onToggle: () => void
+}
+
+const SessionCard: React.FC<SessionCardProps> = ({ session, children, onSpeakerClick, hasChildren, open, onToggle }) => {
+  const attachmentCount = typeof session.attachment_count === 'number'
+    ? session.attachment_count
+    : (session.attachments?.length || 0)
+
+  return (
+    <div className="border border-slate-200 rounded-lg bg-white shadow-sm">
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="font-semibold text-slate-900 text-base truncate">{session.title}</div>
+          </div>
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              className="p-1 text-slate-500 hover:text-slate-700 rounded"
+              aria-label={open ? 'Collapse' : 'Expand'}
+            >
+              {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          ) : null}
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+            <Calendar className="h-3 w-3" />
+            {formatTime(session.startTime, session.startPeriod || 'AM')} – {formatTime(session.endTime, session.endPeriod || 'AM')}
+          </span>
+
+          {session.location ? (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+              {getLocationLabel(session.location)}
+            </span>
+          ) : null}
+
+          {session.sessionType ? (
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+              {session.sessionType}
+            </span>
+          ) : null}
+
+          {Array.isArray(session.tags) && session.tags.map((tag: any) => {
+            const label = String(tag?.name ?? tag ?? '').trim()
+            return label ? (
+              <span key={label} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700">
+                {label}
+              </span>
+            ) : null
+          })}
+        </div>
+
+        {attachmentCount > 0 ? (
+          <div className="mt-3">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
+              <Attachment01 className="h-3 w-3" />
+              {attachmentCount}
+            </span>
+          </div>
+        ) : null}
+
+        {renderSpeakers(getSessionSpeakers(session), onSpeakerClick)}
+
+        {hasChildren && open ? children : null}
+      </div>
+    </div>
+  )
+}
+
+const formatTime12h = (time: string, period: string) => {
+  const minutes = timeToMinutes(time, period)
+  const h24 = Math.floor(minutes / 60) % 24
+  const mm = minutes % 60
+  const p = h24 >= 12 ? 'PM' : 'AM'
+  const h12 = h24 % 12 || 12
+  return `${String(h12).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${p}`
+}
+
+interface ResolveModalProps {
+  groups: SavedSession[][]
+  selected: Record<string, string>
+  onSelect: (slotKey: string, sessionId: string) => void
+  onConfirm: () => void
+  onClose: () => void
+}
+
+const ResolveModal: React.FC<ResolveModalProps> = ({ groups, selected, onSelect, onConfirm, onClose }) => {
+  const isAll = groups.length > 1
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-2xl bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Resolve conflicts</h2>
+            <p className="mt-0.5 text-sm text-slate-500">Choose one session to attend for each time slot</p>
+          </div>
+          <button type="button" onClick={onClose} className="ml-4 shrink-0 rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
+            <XClose className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="max-h-[60vh] overflow-y-auto px-6 py-4 space-y-6">
+          {groups.map((group) => {
+            const rep = group[0]
+            const slotKey = timeSlotKey(rep)
+            const timeLabel = `${formatTime12h(rep.startTime, rep.startPeriod || 'AM')} - ${formatTime12h(rep.endTime, rep.endPeriod || 'AM')}`
+            return (
+              <div key={slotKey}>
+                <p className="mb-3 text-sm font-semibold text-slate-500">{timeLabel}</p>
+                <div className="space-y-2">
+                  {group.map((session) => {
+                    const isSelected = selected[slotKey] === session.id
+                    return (
+                      <button
+                        key={session.id}
+                        type="button"
+                        onClick={() => onSelect(slotKey, session.id)}
+                        className={[
+                          'w-full rounded-xl border-2 px-4 py-3 text-left transition-colors',
+                          isSelected ? 'border-primary bg-primary/5' : 'border-slate-200 bg-white hover:border-slate-300'
+                        ].join(' ')}
+                      >
+                        <div className="font-semibold text-slate-900 text-sm">{session.title}</div>
+                        {session.location ? (
+                          <div className="mt-0.5 text-xs text-slate-500">{session.location}</div>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-3 border-t border-slate-100 px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:opacity-90 transition-opacity"
+          >
+            {isAll ? 'Confirm all' : 'Confirm'}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpeakerClick }) => {
   const parents = useMemo(() => sessions.filter((s) => !s.parentId), [sessions])
+
   const childrenByParent = useMemo(() => {
     const map = new Map<string, SavedSession[]>()
     sessions.forEach((s) => {
@@ -160,7 +301,6 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
       arr.push(s)
       map.set(s.parentId, arr)
     })
-    // keep child ordering consistent with existing session sort if possible
     map.forEach((arr) => {
       arr.sort((a, b) => {
         const aStart = timeToMinutes(a.startTime, a.startPeriod || 'AM')
@@ -172,11 +312,64 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
     return map
   }, [sessions])
 
+  // Group parent sessions by time slot — parallel sessions share the same slot
+  const groups = useMemo(() => {
+    const map = new Map<string, SavedSession[]>()
+    parents.forEach((s) => {
+      const key = timeSlotKey(s)
+      const arr = map.get(key) ?? []
+      arr.push(s)
+      map.set(key, arr)
+    })
+    return Array.from(map.entries())
+      .sort(([keyA], [keyB]) => {
+        const startA = Number(keyA.split('_')[0])
+        const startB = Number(keyB.split('_')[0])
+        return startA - startB
+      })
+      .map(([, group]) => group)
+  }, [parents])
+
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const isExpanded = useCallback((id: string) => expanded[id] !== false, [expanded])
   const toggleExpanded = useCallback((id: string) => {
     setExpanded((prev) => ({ ...prev, [id]: !(prev[id] !== false) }))
   }, [])
+
+  // Resolve modal state
+  const [modalGroups, setModalGroups] = useState<SavedSession[][] | null>(null)
+  const [modalSelected, setModalSelected] = useState<Record<string, string>>({})
+  // resolved: slotKey → winning sessionId (non-winners are hidden)
+  const [resolved, setResolved] = useState<Record<string, string>>({})
+
+  const openResolveModal = useCallback((groupsToShow: SavedSession[][]) => {
+    const initial: Record<string, string> = {}
+    groupsToShow.forEach((g) => { initial[timeSlotKey(g[0])] = g[0].id })
+    setModalSelected(initial)
+    setModalGroups(groupsToShow)
+  }, [])
+
+  const handleModalSelect = useCallback((slotKey: string, sessionId: string) => {
+    setModalSelected((prev) => ({ ...prev, [slotKey]: sessionId }))
+  }, [])
+
+  const handleModalConfirm = useCallback(() => {
+    setResolved((prev) => ({ ...prev, ...modalSelected }))
+    setModalGroups(null)
+  }, [modalSelected])
+
+  // Apply resolved selections — collapse parallel groups to the winning session
+  const displayGroups = useMemo(() => {
+    return groups.map((group) => {
+      if (group.length <= 1) return group
+      const slotKey = timeSlotKey(group[0])
+      const winner = resolved[slotKey]
+      if (!winner) return group
+      return group.filter((s) => s.id === winner)
+    })
+  }, [groups, resolved])
+
+  const conflictGroups = useMemo(() => displayGroups.filter((g) => g.length > 1), [displayGroups])
 
   const renderChildren = useCallback(
     (parent: SavedSession, depth: number) => {
@@ -189,14 +382,16 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
           {children.map((child) => {
             const hasMore = (childrenByParent.get(child.id) ?? []).length > 0
             const childExpanded = isExpanded(child.id)
+            const attachmentCount = typeof child.attachment_count === 'number'
+              ? child.attachment_count
+              : (child.attachments?.length || 0)
+
             return (
               <div key={child.id} className="relative">
-                {/* guideline */}
                 <div
                   className="absolute top-0 bottom-0 w-0.5 bg-slate-300"
                   style={{ left: `${16 + (depth - 1) * 20}px` }}
                 />
-
                 <div
                   className="border border-slate-200 rounded-lg bg-white shadow-sm"
                   style={{ marginLeft: `${24 + (depth - 1) * 20}px` }}
@@ -206,7 +401,6 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
                       <div className="min-w-0">
                         <div className="font-semibold text-slate-900 text-sm truncate">{child.title}</div>
                       </div>
-
                       {hasMore ? (
                         <button
                           type="button"
@@ -220,37 +414,30 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
                     </div>
 
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
-                      {!child.parentId ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                          <Calendar className="h-3 w-3" />
-                          {formatTime(child.startTime, child.startPeriod || 'AM')} – {formatTime(child.endTime, child.endPeriod || 'AM')}
-                        </span>
-                      ) : null}
-
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                        <Calendar className="h-3 w-3" />
+                        {formatTime(child.startTime, child.startPeriod || 'AM')} – {formatTime(child.endTime, child.endPeriod || 'AM')}
+                      </span>
                       {child.location ? (
                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                           {getLocationLabel(child.location)}
                         </span>
                       ) : null}
-
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                        child
-                      </span>
+                      {child.sessionType ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                          {child.sessionType}
+                        </span>
+                      ) : null}
                     </div>
 
-                    {(() => {
-                      const count = typeof child.attachment_count === 'number'
-                        ? child.attachment_count
-                        : (child.attachments?.length || 0)
-                      return count > 0 ? (
-                        <div className="mt-2">
-                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium  text-slate-700">
-                            <Attachment01 className="h-3 w-3" />
-                            {count}
-                          </span>
-                        </div>
-                      ) : null
-                    })()}
+                    {attachmentCount > 0 ? (
+                      <div className="mt-2">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium text-slate-700">
+                          <Attachment01 className="h-3 w-3" />
+                          {attachmentCount}
+                        </span>
+                      </div>
+                    ) : null}
 
                     {renderSpeakers(getSessionSpeakers(child), onSpeakerClick)}
                   </div>
@@ -267,97 +454,124 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
   )
 
   return (
-    <div className="space-y-4">
-      {parents.map((session) => {
-        const kids = childrenByParent.get(session.id) ?? []
-        const hasChildren = kids.length > 0
-        const open = isExpanded(session.id)
+    <>
+      <div className="space-y-4">
+        {conflictGroups.length > 0 && (
+          <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
+            <div className="flex items-center gap-2 text-sm font-medium text-red-600">
+              <AlertCircle className="h-4 w-4 shrink-0" />
+              {conflictGroups.length} {conflictGroups.length === 1 ? 'conflict' : 'conflicts'} to resolve
+            </div>
+            <button
+              type="button"
+              onClick={() => openResolveModal(conflictGroups)}
+              className="text-sm font-semibold text-red-600 hover:text-red-700 transition-colors"
+            >
+              Resolve all
+            </button>
+          </div>
+        )}
 
-        return (
-          <div key={session.id} className="flex items-stretch gap-6">
-            {/* Time column */}
-            <div className="flex-shrink-0 w-24 self-stretch">
-              <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
-                <div className="text-center pt-3 flex-shrink-0">
-                  <div className="text-sm font-semibold text-slate-900">
-                    {formatTime(session.startTime, session.startPeriod || 'AM')}
+        {displayGroups.map((group) => {
+          const representative = group[0]
+          const isParallel = group.length > 1
+
+          return (
+            <div key={timeSlotKey(representative)} className="flex items-stretch gap-6">
+              {/* Time column */}
+              <div className="flex-shrink-0 w-24 self-stretch">
+                <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
+                  <div className="text-center pt-3 flex-shrink-0">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {formatTime(representative.startTime, representative.startPeriod || 'AM')}
+                    </div>
                   </div>
-                </div>
-                <div className="flex-1 flex items-center justify-center min-h-0">
-                  <div className="w-px h-full bg-slate-200" />
-                </div>
-                <div className="text-center pb-3 flex-shrink-0">
-                  <div className="text-sm font-semibold text-slate-900">
-                    {formatTime(session.endTime, session.endPeriod || 'AM')}
+                  <div className="flex-1 flex items-center justify-center min-h-0">
+                    <div className="w-px h-full bg-slate-200" />
+                  </div>
+                  <div className="text-center pb-3 flex-shrink-0">
+                    <div className="text-sm font-semibold text-slate-900">
+                      {formatTime(representative.endTime, representative.endPeriod || 'AM')}
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Session card */}
-            <div className="flex-1">
-              <div className="border border-slate-200 rounded-lg bg-white shadow-sm">
-                <div className="p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-slate-900 text-base truncate">{session.title}</div>
-                    </div>
-
-                    {hasChildren ? (
+              {/* Session content */}
+              <div className="flex-1">
+                {isParallel ? (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5">
+                      <div className="flex items-center gap-2 text-amber-800 text-sm font-medium">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-amber-500" />
+                        {group.length} sessions at the same time, choose one to attend
+                      </div>
                       <button
                         type="button"
-                        onClick={() => toggleExpanded(session.id)}
-                        className="p-1 text-slate-500 hover:text-slate-700 rounded"
-                        aria-label={open ? 'Collapse' : 'Expand'}
+                        onClick={() => openResolveModal([group])}
+                        className="shrink-0 rounded-md border border-amber-500 bg-white px-3 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-50 transition-colors"
                       >
-                        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        Resolve
                       </button>
-                    ) : null}
+                    </div>
+
+                    <div className="space-y-2 px-3 pb-3">
+                      {group.map((session) => {
+                        const kids = childrenByParent.get(session.id) ?? []
+                        const hasChildren = kids.length > 0
+                        const open = isExpanded(session.id)
+                        return (
+                          <SessionCard
+                            key={session.id}
+                            session={session}
+                            hasChildren={hasChildren}
+                            open={open}
+                            onToggle={() => toggleExpanded(session.id)}
+                            onSpeakerClick={onSpeakerClick}
+                          >
+                            {renderChildren(session, 1)}
+                          </SessionCard>
+                        )
+                      })}
+                    </div>
                   </div>
-
-                  <div className="mt-3 flex items-center gap-2 flex-wrap">
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                      <Calendar className="h-3 w-3" />
-                      {formatTime(session.startTime, session.startPeriod || 'AM')} – {formatTime(session.endTime, session.endPeriod || 'AM')}
-                    </span>
-
-                    {session.location ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                        {getLocationLabel(session.location)}
-                      </span>
-                    ) : null}
-
-                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                      parent
-                    </span>
-                  </div>
-
-                  {(() => {
-                    const count = typeof session.attachment_count === 'number'
-                      ? session.attachment_count
-                      : (session.attachments?.length || 0)
-                    return count > 0 ? (
-                      <div className="mt-3">
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                          <Attachment01 className="h-3 w-3" />
-                          {count}
-                        </span>
-                      </div>
-                    ) : null
-                  })()}
-
-                  {renderSpeakers(getSessionSpeakers(session), onSpeakerClick)}
-
-                  {hasChildren && open ? renderChildren(session, 1) : null}
-                </div>
+                ) : (
+                  (() => {
+                    const session = group[0]
+                    const kids = childrenByParent.get(session.id) ?? []
+                    const hasChildren = kids.length > 0
+                    const open = isExpanded(session.id)
+                    return (
+                      <SessionCard
+                        key={session.id}
+                        session={session}
+                        hasChildren={hasChildren}
+                        open={open}
+                        onToggle={() => toggleExpanded(session.id)}
+                        onSpeakerClick={onSpeakerClick}
+                      >
+                        {renderChildren(session, 1)}
+                      </SessionCard>
+                    )
+                  })()
+                )}
               </div>
             </div>
-          </div>
-        )
-      })}
-    </div>
+          )
+        })}
+      </div>
+
+      {modalGroups && (
+        <ResolveModal
+          groups={modalGroups}
+          selected={modalSelected}
+          onSelect={handleModalSelect}
+          onConfirm={handleModalConfirm}
+          onClose={() => setModalGroups(null)}
+        />
+      )}
+    </>
   )
 }
 
 export default PublicScheduleGrid
-

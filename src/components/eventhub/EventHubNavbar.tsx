@@ -5,6 +5,7 @@ export type EventStatusDisplay = 'Live' | 'Draft' | 'Published'
 
 interface EventHubNavbarProps {
   eventName?: string
+  eventLogoUrl?: string
   /** @deprecated Prefer eventStatus for actual API status */
   isDraft?: boolean
   /** Actual event status from API (e.g. 'Live' | 'Draft' | 'Published' or lowercase). When set, overrides isDraft for the badge. */
@@ -25,6 +26,7 @@ function normalizeStatus(raw: string | undefined): EventStatusDisplay {
 
 const EventHubNavbar: React.FC<EventHubNavbarProps> = ({
   eventName = 'Highly important conference of 2025',
+  eventLogoUrl,
   isDraft = true,
   eventStatus,
   onBackClick,
@@ -52,6 +54,14 @@ const EventHubNavbar: React.FC<EventHubNavbarProps> = ({
         </button>
 
         <div className="hidden h-7 w-px bg-white/30 sm:block" aria-hidden="true" />
+
+        {eventLogoUrl && (
+          <img
+            src={eventLogoUrl}
+            alt="Event logo"
+            className="hidden h-6 w-6 shrink-0 rounded-md object-cover sm:block"
+          />
+        )}
 
         <span className="truncate text-sm font-medium text-white sm:text-base">
           {eventName}

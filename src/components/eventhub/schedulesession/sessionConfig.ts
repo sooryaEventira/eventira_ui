@@ -12,7 +12,7 @@ export const sectionOptions: SectionOption[] = [
   // { id: 'feedback', label: 'Feedback' },
   { id: 'hyperlink', label: 'Hyperlink' },
   { id: 'photo-gallery', label: 'Photo Gallery' },
-  { id: 'resources', label: 'Resources' },
+  { id: 'resources', label: 'Documents/Presentation' },
   { id: 'button', label: 'Button' },
   { id: 'live-chat', label: 'Live Chat' },
   { id: 'comments', label: 'Comments' },
