@@ -10,6 +10,7 @@ type ArticleLink = {
   label: string
   url: string
   openInNewTab: boolean
+  openInMobileApp: boolean
 }
 
 type ArticleSection = {
@@ -117,7 +118,7 @@ const ArticleSectionsField: React.FC<ArticleSectionsFieldProps> = ({ value = [],
           linkColor: '#3b82f6',
           buttonColor: '#3b82f6',
           buttonTextColor: '#ffffff',
-          links: [{ id: makeId('link'), label: 'Learn more', url: '#', openInNewTab: false }],
+          links: [{ id: makeId('link'), label: 'Learn more', url: '#', openInNewTab: false, openInMobileApp: false }],
         }
         break
     }
@@ -790,6 +791,17 @@ function renderSectionEditor(args: {
                       />
                       Open in new tab
                     </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#374151' }}>
+                      <input
+                        type="checkbox"
+                        checked={!!link.openInMobileApp}
+                        onChange={(e) => {
+                          const nextLinks = (section.links || []).map((l, i) => (i === linkIndex ? { ...l, openInMobileApp: e.target.checked } : l))
+                          patchSection(index, { links: nextLinks })
+                        }}
+                      />
+                      Open in mobile app
+                    </label>
                   </div>
                 </div>
               ))}
@@ -797,7 +809,7 @@ function renderSectionEditor(args: {
               <button
                 type="button"
                 onClick={() => {
-                  const nextLinks = [...(section.links || []), { id: makeId('link'), label: 'New link', url: '#', openInNewTab: false }]
+                  const nextLinks = [...(section.links || []), { id: makeId('link'), label: 'New link', url: '#', openInNewTab: false, openInMobileApp: false }]
                   patchSection(index, { links: nextLinks })
                 }}
                 style={btnStyle}

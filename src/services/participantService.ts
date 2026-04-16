@@ -285,7 +285,7 @@ export const bulkAddParticipantTag = async (
     method: 'POST',
     headers,
     credentials: 'include',
-    body: JSON.stringify({ participant_ids: participantIds, tag_id: tagId }),
+    body: JSON.stringify({ uuids: participantIds, tag_uuid: tagId }),
   })
   await handleResponse(response, 'Failed to add participants to group.')
   showToast.success('Participants added to group')
@@ -294,15 +294,14 @@ export const bulkAddParticipantTag = async (
 /** Bulk delete participants */
 export const bulkDeleteParticipants = async (
   eventUuid: string,
-  participantIds: string[],
-  selectAll?: boolean
+  participantIds: string[]
 ): Promise<void> => {
   const headers = getAuthHeaders()
   const response = await fetch(API_ENDPOINTS.PARTICIPANT_MANAGEMENT.BULK_DELETE(eventUuid), {
     method: 'POST',
     headers,
     credentials: 'include',
-    body: JSON.stringify({ participant_ids: participantIds, select_all: selectAll ?? false }),
+    body: JSON.stringify({ uuids: participantIds }),
   })
   await handleResponse(response, 'Failed to delete participants.')
   showToast.success('Participants deleted successfully')

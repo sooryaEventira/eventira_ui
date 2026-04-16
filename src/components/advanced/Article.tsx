@@ -5,6 +5,7 @@ export interface ArticleLink {
   label: string
   url: string
   openInNewTab: boolean
+  openInMobileApp?: boolean
 }
 
 export interface ArticleSection {
@@ -162,6 +163,12 @@ const Article: React.FC<ArticleProps> = ({
   const handleLinkClick = (e: React.MouseEvent, link: ArticleLink) => {
     if (!link.url || link.url === '#') {
       e.preventDefault()
+      return
+    }
+    if (link.openInMobileApp) {
+      e.preventDefault()
+      // Attempt to open in mobile app via deep link; fall back to normal navigation if not installed
+      window.location.href = `eventira://open?url=${encodeURIComponent(link.url)}`
       return
     }
     if (link.openInNewTab) {
