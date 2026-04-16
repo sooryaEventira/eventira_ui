@@ -194,9 +194,9 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     try {
       const tagsData = await fetchParticipantTags(eventUuid)
       const mapped: Group[] = tagsData
-        .filter((t: any) => t.is_active !== false)
         .map((t: any) => {
           const count =
+            typeof t.user_count === 'number' ? t.user_count :
             typeof t.participant_count === 'number' ? t.participant_count :
             typeof t.attendee_count === 'number' ? t.attendee_count : 0
           return { id: t.uuid, name: t.name, attendee_count: count, attendeeCount: count }

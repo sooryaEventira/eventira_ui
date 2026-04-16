@@ -440,7 +440,10 @@ const loadNavigationFromApi = useCallback(async () => {
 
       const title = String(raw?.title ?? raw?.name ?? '').trim() || 'Untitled'
 
-      // Treat speaker_group / attendee_group / schedule_group / organization_group as special "group" folders
+      // ref_uuid is the actual resource UUID (webpage/tag/schedule); uuid is the nav-item UUID
+      const refUuid = String(raw?.ref_uuid ?? raw?.webpage_uuid ?? '').trim() || uuid
+
+      // Treat folder, participant, schedule, and *_group items accordingly
       if (itemType === 'folder' || itemType.endsWith('_group')) {
         const children = mapItems(raw?.items || [])
         const folderIconKey = raw?.icon ? String(raw.icon) : undefined
@@ -455,12 +458,26 @@ const loadNavigationFromApi = useCallback(async () => {
         continue
       }
 
-      // Default: map to a page item (slug may be missing in API response; fallback to slugify(title))
+      if (itemType === 'participant' || itemType === 'schedule') {
+        const iconKey = raw?.icon ? String(raw.icon) : undefined
+        out.push({
+          id: refUuid,
+          type: 'page',
+          title,
+          slug: refUuid,
+          pageId: refUuid,
+          webpageUuid: refUuid,
+          itemType: itemType as 'participant' | 'schedule',
+          iconKey,
+        } as any)
+        continue
+      }
+
+      // Default: page item
       const iconKey = raw?.icon ? String(raw.icon) : undefined
       const slugFromApi = raw?.slug != null && String(raw.slug).trim() !== '' ? String(raw.slug).trim() : ''
       const slug = slugFromApi || slugify(title)
-      const webpageUuid = String(raw?.webpage_uuid ?? '').trim() || uuid
-      out.push({ id: uuid, type: 'page', title, slug, pageId: webpageUuid, iconKey, webpageUuid })
+      out.push({ id: refUuid, type: 'page', title, slug, pageId: refUuid, iconKey, webpageUuid: refUuid })
     }
 
     return out

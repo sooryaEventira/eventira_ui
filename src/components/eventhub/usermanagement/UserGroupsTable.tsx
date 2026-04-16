@@ -6,7 +6,7 @@ import {
 import { Group } from './participantTypes'
 import type { GroupTableRowData } from './participantTypes'
 import { TablePagination, useTableHeader } from '../../ui'
-import { useGroupTableColumns } from '../attendeemanagement/GroupTableColumns'
+import { useGroupTableColumns } from './GroupTableColumns'
 
 interface UserGroupsTableProps {
   groups: Group[]
@@ -40,22 +40,9 @@ const UserGroupsTable: React.FC<UserGroupsTableProps> = ({
   })
 
   const filteredGroups = useMemo(() => {
-    const validGroups = groups.filter((group) => {
-      const hasCount = 'attendee_count' in group || 'attendeeCount' in group
-      return (
-        group &&
-        typeof group === 'object' &&
-        'id' in group &&
-        'name' in group &&
-        hasCount &&
-        !('email' in group) &&
-        !('inviteCode' in group) &&
-        !('status' in group)
-      )
-    })
     const query = searchQuery.trim().toLowerCase()
-    if (!query) return validGroups
-    return validGroups.filter((g) => g.name.toLowerCase().includes(query))
+    if (!query) return groups
+    return groups.filter((g) => g.name.toLowerCase().includes(query))
   }, [searchQuery, groups])
 
   const paginatedGroups = useMemo(() => {

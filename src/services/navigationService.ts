@@ -4,8 +4,9 @@ import type { ApiResponse } from './authService'
 import type { NavigationItem } from '../types/navigation'
 
 export interface NavigationApiItem {
-  item_type: 'page' | 'folder'
+  item_type: 'page' | 'folder' | 'participant' | 'schedule'
   uuid: string
+  ref_uuid?: string
   webpage_uuid?: string
   title?: string
   slug?: string | null

@@ -185,13 +185,28 @@ export const searchParticipants = async (
   return { data: items, count, next: null, previous: null }
 }
 
-/** Fetch participant tags/groups */
+/** Fetch all participant tags/groups (paginates using page param until exhausted) */
 export const fetchParticipantTags = async (eventUuid: string): Promise<any[]> => {
   const headers = getAuthHeaders()
-  const url = API_ENDPOINTS.TAGS.LIST(eventUuid)
-  const response = await fetch(url, { method: 'GET', headers, credentials: 'include' })
-  const data = await handleResponse(response, 'Failed to load participant groups.')
-  return Array.isArray(data) ? data : data?.data ?? data?.results ?? []
+  const allItems: any[] = []
+  let page = 1
+  let hasMore = true
+
+  while (hasMore) {
+    const url = `${API_ENDPOINTS.TAGS.LIST(eventUuid)}&page=${page}`
+    const response = await fetch(url, { method: 'GET', headers, credentials: 'include' })
+    const parsed = await handleResponse(response, 'Failed to load participant groups.')
+    const items: any[] = Array.isArray(parsed)
+      ? parsed
+      : Array.isArray(parsed?.data)
+        ? parsed.data
+        : parsed?.results ?? []
+    allItems.push(...items)
+    hasMore = !!parsed?.next
+    page++
+  }
+
+  return allItems
 }
 
 /** Create a new participant */

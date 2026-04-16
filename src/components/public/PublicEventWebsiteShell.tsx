@@ -20,10 +20,7 @@ import { API_ENDPOINTS } from '../../config/env'
 
 type PublicSection =
   | 'webpage'
-  | 'speakers'
-  | 'speaker'
   | 'attendees'
-  | 'attendee'
   | 'schedule'
   | 'sessions'
   | 'session'
@@ -38,7 +35,7 @@ interface PublicEventWebsiteShellProps {
   eventUuid: string
 }
 
-/** Path result includes optional tagId for grouped speaker/attendee list pages. */
+/** Path result includes optional tagId for grouped attendee/participant list pages. */
 const getSectionFromPath = (
   eventUuid: string,
   pathname: string
@@ -46,9 +43,6 @@ const getSectionFromPath = (
   section: PublicSection
   webpageSlug?: string
   organizationId?: string
-  speakerId?: string
-  attendeeId?: string
-  speakerTagId?: string
   attendeeTagId?: string
   sessionId?: string
 } => {
@@ -60,26 +54,10 @@ const getSectionFromPath = (
     return { section: 'webpage', webpageSlug: webpageMatch[1] }
   }
 
-  // Grouped speaker list: /speakers/tag/:tagUuid (must be before /speakers/:id detail)
-  const speakerTagMatch = rest.match(/^\/speakers\/tag\/([^/]+)\/?$/)
-  if (speakerTagMatch) {
-    return { section: 'speakers', speakerTagId: speakerTagMatch[1] }
-  }
-
-  const speakerDetailMatch = rest.match(/^\/speakers\/([^/]+)\/?$/)
-  if (speakerDetailMatch) {
-    return { section: 'speaker', speakerId: speakerDetailMatch[1] }
-  }
-
-  // Grouped attendee list: /attendees/tag/:tagUuid
+  // Grouped attendee/participant list: /attendees/tag/:tagUuid
   const attendeeTagMatch = rest.match(/^\/attendees\/tag\/([^/]+)\/?$/)
   if (attendeeTagMatch) {
     return { section: 'attendees', attendeeTagId: attendeeTagMatch[1] }
-  }
-
-  const attendeeDetailMatch = rest.match(/^\/attendees\/([^/]+)\/?$/)
-  if (attendeeDetailMatch) {
-    return { section: 'attendee', attendeeId: attendeeDetailMatch[1] }
   }
 
   const orgDetailMatch = rest.match(/^\/organizations\/([^/]+)\/?$/)
@@ -98,7 +76,6 @@ const getSectionFromPath = (
   }
 
   if (rest.startsWith('/organizations')) return { section: 'organizations' }
-  if (rest.startsWith('/speakers')) return { section: 'speakers' }
   if (rest.startsWith('/attendees')) return { section: 'attendees' }
   if (rest.startsWith('/schedule')) return { section: 'schedule' }
   if (rest === '/sessions' || rest === '/sessions/') return { section: 'sessions' }
@@ -113,10 +90,7 @@ const getSectionFromPath = (
 
 const OrganizationsListPage = React.lazy(() => import('./organizations/OrganizationsListPage'))
 const OrganizationDetailPage = React.lazy(() => import('./organizations/OrganizationDetailPage'))
-const SpeakersListPage = React.lazy(() => import('./speakers/SpeakersListPage'))
-const SpeakerDetailPage = React.lazy(() => import('./speakers/SpeakerDetailPage'))
 const AttendeesListPage = React.lazy(() => import('./attendees/AttendeesListPage'))
-const AttendeeDetailPage = React.lazy(() => import('./attendees/AttendeeDetailPage'))
 const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePage'))
 const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
 const PublicEventProfilePage = React.lazy(() => import('./PublicEventProfilePage'))
@@ -250,8 +224,6 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
 
     // Only include system pages when there's real data for them.
     // This mirrors the editor/demo navbar behavior.
-    const speakers = readEventStoreJSON<any[]>(eventUuid, 'speakers', [])
-    const attendees = readEventStoreJSON<any[]>(eventUuid, 'attendees', [])
     const organizations = readEventStoreJSON<any[]>(eventUuid, 'organizations', [])
     const sessionsMap = readEventStoreJSON<Record<string, any[]>>(eventUuid, 'sessions', {})
     const sessionsCount = Object.values(sessionsMap || {}).reduce(
@@ -268,21 +240,15 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     }
 
     const hasOrganizations = hasNamedItem(organizations, ['name', 'title', 'company', 'organization', 'organisation'])
-    const hasSpeakers = hasNamedItem(speakers, ['name', 'email'])
-    const hasAttendees = hasNamedItem(attendees, ['name', 'email'])
     const hasSchedule = sessionsCount > 0 || hasScheduleFromApi || hasScheduleFromStorage
 
     const SYSTEM_PAGES: Array<{ id: string; label: string; path: string }> = []
     if (hasOrganizations) SYSTEM_PAGES.push({ id: 'system:organizations', label: 'Organizations', path: `/events/${eventUuid}/organizations` })
-    if (hasSpeakers) SYSTEM_PAGES.push({ id: 'system:speakers', label: 'Speakers', path: `/events/${eventUuid}/speakers` })
-    if (hasAttendees) SYSTEM_PAGES.push({ id: 'system:attendees', label: 'Attendees', path: `/events/${eventUuid}/attendees` })
     if (hasSchedule) SYSTEM_PAGES.push({ id: 'system:schedule', label: 'Schedule', path: `/events/${eventUuid}/schedule` })
 
     // Use website index from public API ({{public_url}}events/{{event_uuid}}/index/) or fallback to localStorage.
     let orderedWebpages = webpages
     let hasIndexData = false
-    const indexSpeakerTags: Array<{ uuid: string; name: string }> = []
-    const indexAttendeeTags: Array<{ uuid: string; name: string }> = []
     const indexData = websiteIndex ?? (() => {
       const indexRaw = typeof window !== 'undefined' ? localStorage.getItem(`website-index-${eventUuid}`) : null
       return indexRaw ? (() => { try { return JSON.parse(indexRaw) } catch { return null } })() : null
@@ -291,14 +257,6 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     if (indexData) {
       const indexWebpages = Array.isArray(indexData.webpages) ? indexData.webpages : []
       if (indexWebpages.length > 0) hasIndexData = true
-      const rawSpeakerTags = Array.isArray(indexData.speaker_tags) ? indexData.speaker_tags : []
-      const rawAttendeeTags = Array.isArray(indexData.attendee_tags) ? indexData.attendee_tags : []
-      rawSpeakerTags.forEach((t: { uuid?: string; name?: string }) => {
-        if (t?.uuid) indexSpeakerTags.push({ uuid: String(t.uuid), name: String(t?.name ?? '').trim() || 'Speakers' })
-      })
-      rawAttendeeTags.forEach((t: { uuid?: string; name?: string }) => {
-        if (t?.uuid) indexAttendeeTags.push({ uuid: String(t.uuid), name: String(t?.name ?? '').trim() || 'Attendees' })
-      })
       if (indexWebpages.length > 0) {
         const orderByUuid = new Map<string, number>()
         indexWebpages.forEach((p: { uuid?: string; id?: string }, i: number) => {
@@ -321,20 +279,8 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       path: `/events/${eventUuid}/webpages/${p.slug ?? p.uuid}`
     }))
 
-    // Tag pages for grouped speaker/attendee lists (paths used when nav has Speaker / Attendees folders from website index)
-    const speakerTagEntries = indexSpeakerTags.map((t) => [
-      `speaker-tag:${t.uuid}`,
-      { label: t.name, path: `/events/${eventUuid}/speakers/tag/${t.uuid}` }
-    ] as const)
-    const attendeeTagEntries = indexAttendeeTags.map((t) => [
-      `attendee-tag:${t.uuid}`,
-      { label: t.name, path: `/events/${eventUuid}/attendees/tag/${t.uuid}` }
-    ] as const)
-
     const pagePathById = new Map<string, { label: string; path: string }>([
       ...SYSTEM_PAGES.map((i) => [i.id, { label: i.label, path: i.path }] as const),
-      ...speakerTagEntries,
-      ...attendeeTagEntries,
       ...dynamicPages.map((i) => [i.id, { label: i.label, path: i.path }] as const)
     ])
 
@@ -355,44 +301,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       }))
     ]
 
-    const speakerFolder: NavigationItem | null =
-      indexSpeakerTags.length > 0
-        ? {
-            id: 'folder:speaker',
-            type: 'folder',
-            title: 'Speaker',
-            children: indexSpeakerTags.map((t) => ({
-              id: `speaker-tag:${t.uuid}`,
-              type: 'page' as const,
-              title: t.name,
-              slug: String(t.name).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-              pageId: `speaker-tag:${t.uuid}`
-            }))
-          }
-        : null
-
-    const attendeeFolder: NavigationItem | null =
-      indexAttendeeTags.length > 0
-        ? {
-            id: 'folder:attendees',
-            type: 'folder',
-            title: 'Attendees',
-            children: indexAttendeeTags.map((t) => ({
-              id: `attendee-tag:${t.uuid}`,
-              type: 'page' as const,
-              title: t.name,
-              slug: String(t.name).toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-              pageId: `attendee-tag:${t.uuid}`
-            }))
-          }
-        : null
-
-    const defaultFlat: NavigationItem[] = [
-      ...systemAndWebpageItems.slice(0, SYSTEM_PAGES.length),
-      ...(speakerFolder ? [speakerFolder] : []),
-      ...(attendeeFolder ? [attendeeFolder] : []),
-      ...systemAndWebpageItems.slice(SYSTEM_PAGES.length)
-    ]
+    const defaultFlat: NavigationItem[] = [...systemAndWebpageItems]
     const allowedSystemIds = new Set(SYSTEM_PAGES.map((p) => p.id))
 
     const pruneUnavailableSystemPages = (items: NavigationItem[]): NavigationItem[] => {
@@ -449,6 +358,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         } else if (parentItemType === 'schedule_group') {
           pageId = `schedule-tag:${uuid}`
           pathOverride = `/events/${eventUuid}/schedule/tag/${uuid}`
+        } else if (itemType === 'participant') {
+          // Direct participant item: ref_uuid is the participant group/tag UUID used to filter the list
+          const tagId = String(raw?.ref_uuid ?? uuid).trim()
+          pageId = `attendee-tag:${tagId}`
+          pathOverride = `/events/${eventUuid}/attendees/tag/${tagId}`
         }
 
         const slug = String(raw?.slug ?? '').trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
@@ -630,49 +544,12 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
               onNavigate={handleNavigate}
             />
           </React.Suspense>
-        ) : current.section === 'speakers' ? (
-          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <SpeakersListPage
-              eventUuid={eventUuid}
-              onNavigate={handleNavigate}
-              tagId={current.speakerTagId}
-            />
-          </React.Suspense>
-        ) : current.section === 'speaker' ? (
-          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <SpeakersListPage
-              eventUuid={eventUuid}
-              onNavigate={handleNavigate}
-              initialSpeakerId={current.speakerId || undefined}
-            />
-          </React.Suspense>
         ) : current.section === 'attendees' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <AttendeesListPage
               eventUuid={eventUuid}
               onNavigate={handleNavigate}
               tagId={current.attendeeTagId}
-            />
-          </React.Suspense>
-        ) : current.section === 'attendee' ? (
-          <React.Suspense
-            fallback={
-              <div className="rounded-xl border border-slate-200 bg-white p-6">
-                <span className="sr-only">Loading attendee</span>
-                <div className="animate-pulse">
-                  <div className="flex flex-col items-center text-center">
-                    <div className="h-32 w-32 rounded-xl bg-slate-100 ring-1 ring-slate-200" />
-                    <div className="mt-6 h-7 w-56 rounded bg-slate-100" />
-                    <div className="mt-2 h-4 w-72 rounded bg-slate-100" />
-                  </div>
-                </div>
-              </div>
-            }
-          >
-            <AttendeeDetailPage
-              eventUuid={eventUuid}
-              attendeeId={current.attendeeId || ''}
-              onNavigate={handleNavigate}
             />
           </React.Suspense>
         ) : current.section === 'organization' ? (

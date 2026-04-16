@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { SearchLg, FilterLines } from '@untitled-ui/icons-react'
-import { readEventStoreJSON } from '../../../utils/eventLocalStore'
 import { fetchPublicParticipants, fetchPublicParticipant } from '../../../services/publicParticipantService'
 import { buildSearchIndex, normalizeSearchText } from '../../../utils/indexedSearch'
 import { useAblyPresence } from '../../../hooks/useAblyPresence'
 import AblyDirectChat from '../speakers/AblyDirectChat'
+import { TablePagination } from '../../ui'
 
 type PublicAttendee = {
   id: string
@@ -60,32 +60,35 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
   }, [])
   const [queryInput, setQueryInput] = useState('')
   const [organizationFilter, setOrganizationFilter] = useState<string>('all')
-  const [apiAttendees, setApiAttendees] = useState<PublicAttendee[] | null>(null)
+  const [apiAttendees, setApiAttendees] = useState<PublicAttendee[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [selectedAttendeeId, setSelectedAttendeeId] = useState<string | null>(null)
   const [detailAttendee, setDetailAttendee] = useState<PublicAttendee | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [chatOpenForId, setChatOpenForId] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const PAGE_SIZE = 10
+
+  // Reset to page 1 only when the tag (navigation item) changes — triggers a server re-fetch.
+  // Search and org filter are client-side and must NOT reset the page or cause re-fetches.
+  useEffect(() => { setCurrentPage(1) }, [tagId])
 
   useEffect(() => {
     let cancelled = false
     const run = async () => {
       setIsLoading(true)
       try {
-        const raw = await fetchPublicParticipants(eventUuid, tagId)
+        const result = await fetchPublicParticipants(eventUuid, tagId, currentPage, PAGE_SIZE)
         if (cancelled) return
         const currentEmail = localStorage.getItem('pub_userEmail') ?? ''
-        console.log('[AttendeesListPage] currentEmail:', currentEmail, '| raw[0]:', (raw as any[])[0])
-        let selfFound = false
-        const mapped: PublicAttendee[] = (Array.isArray(raw) ? raw : []).map((a: any, idx: number) => {
+        const mapped: PublicAttendee[] = result.items.map((a: any, idx: number) => {
           const id = String(a.uuid ?? a.id ?? `attendee-${idx}`)
           const name = String(a.name ?? '').trim() || String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() || 'Unknown'
-          // Sync pub_attendeeUuid with the attendees-list UUID so DM channel names match
           if (currentEmail && String(a.email ?? '').toLowerCase() === currentEmail.toLowerCase()) {
-            console.log('[AttendeesListPage] matched self — id:', id)
             localStorage.setItem('pub_attendeeUuid', id)
             setMyId(id)
-            selfFound = true
           }
           return {
             id,
@@ -96,18 +99,19 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? a.image ?? undefined,
           }
         })
-        if (!selfFound) console.warn('[AttendeesListPage] self not found by email — presence will not work')
         setApiAttendees(mapped)
+        setTotalPages(result.totalPages)
+        setTotalCount(result.count)
         if (mapped.length > 0) setSelectedAttendeeId((prev) => prev ?? mapped[0].id)
       } catch {
-        if (!cancelled) setApiAttendees(null)
+        if (!cancelled) setApiAttendees([])
       } finally {
         if (!cancelled) setIsLoading(false)
       }
     }
     run()
     return () => { cancelled = true }
-  }, [eventUuid, tagId])
+  }, [eventUuid, tagId, currentPage])
 
   useEffect(() => {
     if (!selectedAttendeeId) { setDetailAttendee(null); return }
@@ -134,10 +138,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     return () => { cancelled = true }
   }, [selectedAttendeeId, eventUuid])
 
-  const attendees = useMemo(() => {
-    const raw = apiAttendees ?? readEventStoreJSON<any>(eventUuid, 'attendees', [])
-    return Array.isArray(raw) ? raw : []
-  }, [apiAttendees, eventUuid])
+  const attendees = useMemo(() => apiAttendees, [apiAttendees])
 
   const normalizedAttendees = useMemo(() => {
     const seen = new Set<string>()
@@ -176,9 +177,20 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     try {
       const raw = localStorage.getItem(`website-index-${eventUuid}`)
       const data = raw ? JSON.parse(raw) : null
-      const tags = Array.isArray(data?.attendee_tags) ? data.attendee_tags : []
-      const t = tags.find((x: { uuid?: string }) => String(x?.uuid) === String(tagId))
-      return t?.name ?? null
+
+      // Search navigation items for a participant entry whose ref_uuid matches tagId
+      const findInNav = (items: any[]): string | null => {
+        for (const item of Array.isArray(items) ? items : []) {
+          if (item?.item_type === 'participant' && String(item?.ref_uuid ?? '') === String(tagId)) {
+            return String(item?.name ?? item?.title ?? '').trim() || null
+          }
+          const found = findInNav(Array.isArray(item?.items) ? item.items : [])
+          if (found) return found
+        }
+        return null
+      }
+
+      return findInNav(Array.isArray(data?.navigation) ? data.navigation : []) ?? null
     } catch { return null }
   }, [eventUuid, tagId])
 
@@ -266,8 +278,12 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
       </div>
 
       <div className="text-xs text-slate-500">
-        Showing <span className="font-semibold text-slate-700">{filtered.length}</span> of{' '}
-        <span className="font-semibold text-slate-700">{baseAttendees.length}</span>
+        Showing{' '}
+        <span className="font-semibold text-slate-700">{Math.min((currentPage - 1) * PAGE_SIZE + 1, totalCount)}</span>
+        {' '}to{' '}
+        <span className="font-semibold text-slate-700">{Math.min(currentPage * PAGE_SIZE, totalCount)}</span>
+        {' '}of{' '}
+        <span className="font-semibold text-slate-700">{totalCount}</span>
       </div>
 
       <div className="flex gap-4 items-stretch">
@@ -293,6 +309,15 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
                 <AttendeeRow attendee={a} isSelected={selectedAttendeeId === a.id} isOnline={onlineIds.has(a.id)} />
               </button>
             ))
+          )}
+          {totalPages > 1 && (
+            <div className="pt-2">
+              <TablePagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </div>
           )}
         </div>
 

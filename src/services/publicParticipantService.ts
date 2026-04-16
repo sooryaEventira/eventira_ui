@@ -35,17 +35,28 @@ const handleFetchError = async (response: Response, fallback: string): Promise<n
   throw new Error(handleApiError(errorData, response, fallback))
 }
 
-/** Fetch all public participants for an event */
+export interface PublicParticipantsPage {
+  items: PublicParticipantData[]
+  count: number
+  totalPages: number
+}
+
+/** Fetch a page of public participants for an event */
 export const fetchPublicParticipants = async (
   eventUuid: string,
-  tagId?: string
-): Promise<PublicParticipantData[]> => {
+  tagId?: string,
+  page = 1,
+  pageSize = 10
+): Promise<PublicParticipantsPage> => {
   try {
     if (!eventUuid) throw new Error('Event UUID is required.')
 
-    const url = tagId
+    const base = tagId
       ? API_ENDPOINTS.PUBLIC.PARTICIPANTS.LIST_BY_TAG(eventUuid, tagId)
       : API_ENDPOINTS.PUBLIC.PARTICIPANTS.LIST(eventUuid)
+
+    const separator = base.includes('?') ? '&' : '?'
+    const url = `${base}${separator}page=${page}&page_size=${pageSize}`
 
     const response = await fetch(url, {
       method: 'GET',
@@ -61,7 +72,10 @@ export const fetchPublicParticipants = async (
 
     if (data?.status === 'error') throw new Error(handleApiError(data, undefined, 'Failed to fetch participants.'))
 
-    return parseListResponse(data)
+    const items = parseListResponse(data)
+    const count: number = typeof data?.count === 'number' ? data.count : items.length
+    const totalPages = Math.max(1, Math.ceil(count / pageSize))
+    return { items, count, totalPages }
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
       if (!error.message.includes('Cannot connect')) handleNetworkError(error)

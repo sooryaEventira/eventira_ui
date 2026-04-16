@@ -177,9 +177,9 @@ export const API_ENDPOINTS = {
       /** List participants filtered by tag: .../events/{event_uuid}/participants/?tag_id= */
       LIST_BY_TAG: (eventUuid: string, tagUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/participants/?tag_id=${tagUuid}`,
-      /** Get single participant detail (uses admin endpoint with event_id param) */
+      /** Get single participant detail */
       GET: (participantUuid: string, eventUuid: string) =>
-        `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/${participantUuid}/?event_id=${eventUuid}`,
+        `${PUBLIC_API_ROOT}events/${eventUuid}/participants/${participantUuid}/`,
     },
     SCHEDULES: {
       LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/`,

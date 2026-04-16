@@ -88,25 +88,25 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     try {
       const newTag = await createSessionTag(eventUuid, inputValue)
       if (newTag) {
-        // Add to localSessionTagOptions FIRST so the UUID resolves to a name before draft.tags is updated
+        // Add to localSessionTagOptions and update draft.tags in the same batch so the
+        // UUID always resolves to a name on the next render. No server refresh needed —
+        // overwriting localSessionTagOptions after a successful create would race against
+        // draft.tags and could show the UUID as a label before the list is updated.
         setLocalSessionTagOptions((prev) => {
           if (prev.some((t) => t.uuid === newTag.uuid)) return prev
           return [...prev, newTag]
         })
-        // Then replace the temp label in draft.tags with the real UUID from backend
         setDraft((prev) => ({
           ...prev,
           tags: prev.tags.map((t) =>
             t === inputValue || t === inputValue.toLowerCase().replace(/\s+/g, '-') ? newTag.uuid : t
           )
         }))
-      }
-      // Always refresh the tag list after creation (even if response parsing failed)
-      const refreshed = await fetchSessionTags(eventUuid)
-      if (refreshed.length > 0) {
-        setLocalSessionTagOptions(refreshed)
-        // If we couldn't parse uuid from create response, find the new tag by name in the refreshed list
-        if (!newTag) {
+      } else {
+        // Create response couldn't be parsed — refresh the list and find the tag by name
+        const refreshed = await fetchSessionTags(eventUuid)
+        if (refreshed.length > 0) {
+          setLocalSessionTagOptions(refreshed)
           const found = refreshed.find((t) => t.name.toLowerCase() === inputValue.toLowerCase())
           if (found) {
             setDraft((prev) => ({
@@ -117,8 +117,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
             }))
           }
         }
-      } else if (newTag) {
-        setLocalSessionTagOptions((prev) => [...prev, newTag])
       }
     } catch {
       // Tag creation failed — label remains in draft.tags, will fall into tag_names on save
