@@ -261,7 +261,7 @@ export const API_ENDPOINTS = {
   TAGS: {
     // Used by Attendee/Speaker/Organization "Groups" creation
     CREATE: `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/create/`,
-    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/?event_id=${eventUuid}`,
+    LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}user-tags/?event_uuid=${eventUuid}`,
     DELETE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/delete/?event_id=${eventUuid}`,
     UPDATE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/update/?event_id=${eventUuid}`,
   },

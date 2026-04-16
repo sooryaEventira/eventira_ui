@@ -41,14 +41,22 @@ export interface AvailableNavigationSchedule {
   is_added: boolean
 }
 
+export interface AvailableNavigationParticipant {
+  uuid: string
+  name: string
+  is_added: boolean
+}
+
 export interface NavigationAvailableResponseData {
   pages: AvailableNavigationPage[]
   schedules: AvailableNavigationSchedule[]
+  participants: AvailableNavigationParticipant[]
 }
 
 export interface AvailableNavigationItems {
   pages: AvailableNavigationPage[]
   schedules: AvailableNavigationSchedule[]
+  participants: AvailableNavigationParticipant[]
 }
 
 export async function fetchEventNavigation(eventUuid: string): Promise<NavigationResponseData> {
@@ -249,9 +257,35 @@ export async function fetchAvailableNavigationPages(eventUuid: string): Promise<
     }
 
     const data = (parsed as any)?.data ?? parsed
-    const pages = Array.isArray((data as any)?.pages) ? (data as any).pages : []
-    const schedules = Array.isArray((data as any)?.schedules) ? (data as any).schedules : []
-    return { pages: pages as AvailableNavigationPage[], schedules: schedules as AvailableNavigationSchedule[] }
+
+    // Response shape: { data: { items: [...] } }
+    // Each item has item_type: "page" | "participant" | "schedule"
+    const rawItems: any[] = Array.isArray((data as any)?.items) ? (data as any).items : []
+
+    // Fallback: if server still sends separate keys
+    const rawPages: any[] = Array.isArray((data as any)?.pages) ? (data as any).pages : []
+    const rawSchedules: any[] = Array.isArray((data as any)?.schedules) ? (data as any).schedules : []
+    const rawParticipants: any[] = Array.isArray((data as any)?.participants) ? (data as any).participants : []
+
+    const pages: AvailableNavigationPage[] = rawItems.length
+      ? rawItems
+          .filter((i: any) => i.item_type === 'page')
+          .map((i: any) => ({ uuid: i.ref_uuid ?? i.uuid ?? '', name: i.name ?? i.title ?? '', slug: i.slug ?? '', is_added: !!i.is_added }))
+      : rawPages.map((i: any) => ({ uuid: i.uuid ?? '', name: i.name ?? '', slug: i.slug ?? '', is_added: !!i.is_added }))
+
+    const schedules: AvailableNavigationSchedule[] = rawItems.length
+      ? rawItems
+          .filter((i: any) => i.item_type === 'schedule')
+          .map((i: any) => ({ uuid: i.ref_uuid ?? i.uuid ?? '', title: i.name ?? i.title ?? '', is_added: !!i.is_added }))
+      : rawSchedules.map((i: any) => ({ uuid: i.uuid ?? '', title: i.title ?? '', is_added: !!i.is_added }))
+
+    const participants: AvailableNavigationParticipant[] = rawItems.length
+      ? rawItems
+          .filter((i: any) => i.item_type === 'participant')
+          .map((i: any) => ({ uuid: i.ref_uuid ?? i.uuid ?? '', name: i.name ?? i.title ?? '', is_added: !!i.is_added }))
+      : rawParticipants.map((i: any) => ({ uuid: i.uuid ?? '', name: i.name ?? '', is_added: !!i.is_added }))
+
+    return { pages, schedules, participants }
   } catch (e: any) {
     const msg = e?.message ? String(e.message) : 'Failed to fetch available navigation pages.'
     throw new Error(msg)
@@ -263,25 +297,21 @@ export async function fetchAvailableNavigationPages(eventUuid: string): Promise<
  * POST {{admin_url}}navigation/save/?event_id={{event_uuid}}
  * Body: { items: [...] }
  */
+function resolveItemType(item: NavigationItem): 'page' | 'participant' | 'schedule' {
+  if (item.type === 'page') {
+    return (item as any).itemType ?? 'page'
+  }
+  // folder with originalItemType
+  const original = (item as any).originalItemType as string | undefined
+  if (original === 'schedule_group' || original === 'schedule') return 'schedule'
+  if (original === 'attendee_group' || original === 'speaker_group' || original === 'participant') return 'participant'
+  return 'page'
+}
+
 function buildNavItems(items: NavigationItem[]): object[] {
   return items.map((item, index) => {
-    if (item.type === 'folder') {
-      const originalType = (item as any).originalItemType as string | undefined
-      const isGroup = originalType && originalType !== 'folder'
-      const itemType = originalType ?? 'folder'
-
-      if (isGroup) {
-        // Group items (speaker_group, attendee_group, schedule_group) — no uuid at group level
-        return {
-          item_type: itemType,
-          name: item.title,
-          order: index + 1,
-          icon: (item as any).iconKey ?? '',
-          items: (item.children || []).map((child, ci) => ({ uuid: child.id, order: ci + 1, icon: (child as any).iconKey ?? '' })),
-        }
-      }
-
-      // Regular user-created folder — no uuid at folder level, children are full page items
+    if (item.type === 'folder' && ((item as any).originalItemType ?? 'folder') === 'folder') {
+      // Regular user-created folder
       return {
         item_type: 'folder',
         name: item.title,
@@ -290,9 +320,16 @@ function buildNavItems(items: NavigationItem[]): object[] {
         items: buildNavItems(item.children || []),
       }
     }
+
+    // Leaf item — page, participant, or schedule
+    const apiItemType = resolveItemType(item)
+    const refUuid = item.type === 'page'
+      ? ((item as any).webpageUuid ?? item.id)
+      : item.id
+
     return {
-      item_type: 'page',
-      webpage_uuid: (item as any).webpageUuid ?? item.id,
+      item_type: apiItemType,
+      ref_uuid: refUuid,
       order: index + 1,
       icon: (item as any).iconKey ?? '',
     }

@@ -188,7 +188,7 @@ export const searchParticipants = async (
 /** Fetch participant tags/groups */
 export const fetchParticipantTags = async (eventUuid: string): Promise<any[]> => {
   const headers = getAuthHeaders()
-  const url = API_ENDPOINTS.PARTICIPANT_MANAGEMENT.TAGS(eventUuid)
+  const url = API_ENDPOINTS.TAGS.LIST(eventUuid)
   const response = await fetch(url, { method: 'GET', headers, credentials: 'include' })
   const data = await handleResponse(response, 'Failed to load participant groups.')
   return Array.isArray(data) ? data : data?.data ?? data?.results ?? []

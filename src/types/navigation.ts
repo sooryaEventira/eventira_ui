@@ -10,10 +10,12 @@ export type NavigationItem = NavigationPageItem | NavigationFolderItem
 export interface NavigationPageItem {
   id: string
   type: 'page'
+  /** API item_type: "page" | "participant" | "schedule". Defaults to "page". */
+  itemType?: 'page' | 'participant' | 'schedule'
   title: string
   slug: string
   pageId: string
-  /** The actual webpage UUID to be sent in the save navigation API payload */
+  /** The ref_uuid sent in the save navigation API payload */
   webpageUuid?: string
   /**
    * Optional icon identifier to render alongside the label in navbars.

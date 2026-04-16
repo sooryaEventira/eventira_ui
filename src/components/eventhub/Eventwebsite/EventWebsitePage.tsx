@@ -70,6 +70,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set())
   const [availableNavPages, setAvailableNavPages] = useState<{ uuid: string; name: string; slug: string; is_added: boolean }[]>([])
   const [availableNavSchedules, setAvailableNavSchedules] = useState<{ uuid: string; title: string; is_added: boolean }[]>([])
+  const [availableNavParticipants, setAvailableNavParticipants] = useState<{ uuid: string; name: string; is_added: boolean }[]>([])
   const [_navigationPreviewActive, setNavigationPreviewActive] = useState<string | null>(null)
   const [iconPickerForNavId, setIconPickerForNavId] = useState<string | null>(null)
   const [iconPickerQuery, setIconPickerQuery] = useState('')
@@ -151,7 +152,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
         title: schedule.title,
         slug: schedule.uuid,
         pageId: schedule.uuid,
-        webpageUuid: schedule.uuid
+        webpageUuid: schedule.uuid,
+        itemType: 'schedule',
       }
 
       setNavigationFromApi((prev) => {
@@ -165,6 +167,34 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
       )
     },
     [availableNavSchedules]
+  )
+
+  const handleAddParticipant = useCallback(
+    (participantUuid: string) => {
+      const participant = availableNavParticipants.find((p) => p.uuid === participantUuid)
+      if (!participant || participant.is_added) return
+
+      const newItem: NavigationItem = {
+        id: participant.uuid,
+        type: 'page',
+        title: participant.name,
+        slug: participant.uuid,
+        pageId: participant.uuid,
+        webpageUuid: participant.uuid,
+        itemType: 'participant',
+      }
+
+      setNavigationFromApi((prev) => {
+        const exists = prev.some((it) => it.id === participant.uuid)
+        if (exists) return prev
+        return [...prev, newItem]
+      })
+
+      setAvailableNavParticipants((prev) =>
+        prev.map((p) => (p.uuid === participant.uuid ? { ...p, is_added: true } : p))
+      )
+    },
+    [availableNavParticipants]
   )
 
   const closeIconPicker = useCallback(() => {
@@ -487,24 +517,26 @@ const loadNavigationFromApi = useCallback(async () => {
   // Load available pages for Add Menu Item modal
   useEffect(() => {
     if (!showAddMenuItemModal) return
-    if (activeSubItem !== 'website-header') return
     const eventUuid = createdEvent?.uuid
     if (!eventUuid) {
       setAvailableNavPages([])
       setAvailableNavSchedules([])
+      setAvailableNavParticipants([])
       return
     }
     fetchAvailableNavigationPages(eventUuid)
-      .then(({ pages, schedules }) => {
+      .then(({ pages, schedules, participants }) => {
         setAvailableNavPages(pages || [])
         setAvailableNavSchedules(schedules || [])
+        setAvailableNavParticipants(participants || [])
       })
       .catch((e) => {
         console.error('❌ [EventWebsitePage] Error fetching available navigation pages:', e)
         setAvailableNavPages([])
         setAvailableNavSchedules([])
+        setAvailableNavParticipants([])
       })
-  }, [showAddMenuItemModal, activeSubItem, createdEvent?.uuid])
+  }, [showAddMenuItemModal, createdEvent?.uuid])
 
   useEffect(() => {
     if (activeSubItem !== 'website-header') return
@@ -1907,8 +1939,14 @@ const loadNavigationFromApi = useCallback(async () => {
             title: s.title,
             isAdded: !!s.is_added
           }))}
+          participants={availableNavParticipants.map((p) => ({
+            id: p.uuid,
+            name: p.name,
+            isAdded: !!p.is_added
+          }))}
           onAddPage={handleAddMenuItem}
           onAddSchedule={handleAddSchedule}
+          onAddParticipant={handleAddParticipant}
         />
 
         <ConfirmDeleteModal

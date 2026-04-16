@@ -14,16 +14,24 @@ interface AddMenuItemModalSchedule {
   isAdded: boolean
 }
 
+interface AddMenuItemModalParticipant {
+  id: string
+  name: string
+  isAdded: boolean
+}
+
 interface AddMenuItemModalProps {
   isVisible: boolean
   onClose: () => void
   pages: AddMenuItemModalPage[]
   schedules?: AddMenuItemModalSchedule[]
+  participants?: AddMenuItemModalParticipant[]
   onAddPage?: (id: string) => void
   onAddSchedule?: (id: string) => void
+  onAddParticipant?: (id: string) => void
 }
 
-const AddMenuItemModal: React.FC<AddMenuItemModalProps> = ({ isVisible, onClose, pages, schedules = [], onAddPage, onAddSchedule }) => {
+const AddMenuItemModal: React.FC<AddMenuItemModalProps> = ({ isVisible, onClose, pages, schedules = [], participants = [], onAddPage, onAddSchedule, onAddParticipant }) => {
   if (!isVisible) return null
 
   return (
@@ -89,6 +97,33 @@ const AddMenuItemModal: React.FC<AddMenuItemModalProps> = ({ isVisible, onClose,
                       type="button"
                       className="text-xs font-medium text-primary hover:text-primary-dark"
                       onClick={() => onAddSchedule?.(schedule.id)}
+                    >
+                      + Add
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {participants.length > 0 && (
+          <div>
+            <div className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Participants</div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50/80 overflow-hidden">
+              {participants.map((participant) => (
+                <div
+                  key={participant.id}
+                  className="flex items-center justify-between px-4 py-3 text-sm border-b last:border-b-0 border-slate-100 bg-white hover:bg-slate-50"
+                >
+                  <span className="text-slate-900">{participant.name}</span>
+                  {participant.isAdded ? (
+                    <span className="text-xs font-medium text-slate-400">Added</span>
+                  ) : (
+                    <button
+                      type="button"
+                      className="text-xs font-medium text-primary hover:text-primary-dark"
+                      onClick={() => onAddParticipant?.(participant.id)}
                     >
                       + Add
                     </button>
