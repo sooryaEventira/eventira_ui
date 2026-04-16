@@ -171,6 +171,16 @@ export const API_ENDPOINTS = {
       LIST_BY_TAG: (eventUuid: string, tagUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/attendees/?tag_id=${tagUuid}`,
     },
+    PARTICIPANTS: {
+      /** List all participants (speakers + attendees): .../events/{event_uuid}/participants/ */
+      LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/participants/`,
+      /** List participants filtered by tag: .../events/{event_uuid}/participants/?tag_id= */
+      LIST_BY_TAG: (eventUuid: string, tagUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/participants/?tag_id=${tagUuid}`,
+      /** Get single participant detail (uses admin endpoint with event_id param) */
+      GET: (participantUuid: string, eventUuid: string) =>
+        `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/${participantUuid}/?event_id=${eventUuid}`,
+    },
     SCHEDULES: {
       LIST: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/`,
     },
@@ -345,6 +355,36 @@ export const API_ENDPOINTS = {
   COMMUNICATION: {
     SEND: `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_uuid=${eventUuid}`,
+  },
+  // Unified User/Participant Management endpoints (combines speakers + attendees)
+  PARTICIPANT_MANAGEMENT: {
+    UPLOAD: `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/upload-excel/`,
+    LIST: (eventUuid: string, page = 1, tagId?: string, ordering?: string, pageSize?: number, role?: string) => {
+      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/?event_id=${eventUuid}&page=${page}`
+      if (pageSize) url += `&page_size=${pageSize}`
+      if (tagId) url += `&tag_id=${tagId}`
+      if (ordering) url += `&ordering=${ordering}`
+      if (role) url += `&role=${role}`
+      return url
+    },
+    TAGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/tags/?event_id=${eventUuid}`,
+    CREATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/?event_id=${eventUuid}`,
+    GET: (participantUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/${participantUuid}/?event_id=${eventUuid}`,
+    UPDATE: (participantUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/${participantUuid}/?event_id=${eventUuid}`,
+    DELETE: (participantUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/${participantUuid}/?event_id=${eventUuid}`,
+    BULK_ADD_TAG: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/bulk-add-tag/?event_id=${eventUuid}`,
+    BULK_DELETE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/bulk-delete/?event_id=${eventUuid}`,
+    SEARCH: (eventUuid: string, query: string, tagId?: string, role?: string) => {
+      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/search/?event_id=${eventUuid}&q=${encodeURIComponent(query)}`
+      if (tagId) url += `&tag_id=${tagId}`
+      if (role) url += `&role=${role}`
+      return url
+    },
   },
   // Speaker Management endpoints
   SPEAKER_MANAGEMENT: {

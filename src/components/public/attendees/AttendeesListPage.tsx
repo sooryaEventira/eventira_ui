@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { SearchLg, FilterLines } from '@untitled-ui/icons-react'
 import { readEventStoreJSON } from '../../../utils/eventLocalStore'
-import { fetchPublicAttendees, fetchPublicAttendee } from '../../../services/publicAttendeeService'
+import { fetchPublicParticipants, fetchPublicParticipant } from '../../../services/publicParticipantService'
 import { buildSearchIndex, normalizeSearchText } from '../../../utils/indexedSearch'
 import { useAblyPresence } from '../../../hooks/useAblyPresence'
 import AblyDirectChat from '../speakers/AblyDirectChat'
@@ -72,7 +72,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     const run = async () => {
       setIsLoading(true)
       try {
-        const raw = await fetchPublicAttendees(eventUuid, tagId)
+        const raw = await fetchPublicParticipants(eventUuid, tagId)
         if (cancelled) return
         const currentEmail = localStorage.getItem('pub_userEmail') ?? ''
         console.log('[AttendeesListPage] currentEmail:', currentEmail, '| raw[0]:', (raw as any[])[0])
@@ -115,7 +115,7 @@ const AttendeesListPage: React.FC<AttendeesListPageProps> = ({ eventUuid, onNavi
     setDetailAttendee(listMatch)
     let cancelled = false
     setDetailLoading(true)
-    fetchPublicAttendee(eventUuid, selectedAttendeeId)
+    fetchPublicParticipant(eventUuid, selectedAttendeeId)
       .then((raw) => {
         if (cancelled || !raw) return
         setDetailAttendee({

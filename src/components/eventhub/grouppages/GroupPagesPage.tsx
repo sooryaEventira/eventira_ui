@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react'
-import { ExternalLink01, Trash03, RefreshCw01 } from '@untitled-ui/icons-react'
+import { LinkExternal01, Trash03, RefreshCw01 } from '@untitled-ui/icons-react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import {
   loadGroupDirectoryPages,
@@ -98,7 +98,7 @@ const GroupPagesPage: React.FC<GroupPagesPageProps> = ({ hideNavbarAndSidebar = 
                   className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                   aria-label="Open public page"
                 >
-                  <ExternalLink01 className="h-4 w-4" />
+                  <LinkExternal01 className="h-4 w-4" />
                 </button>
                 <button
                   type="button"

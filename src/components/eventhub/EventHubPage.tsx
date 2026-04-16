@@ -10,8 +10,7 @@ const CommunicationPage = lazy(() => import('./communication/CommunicationPage')
 const ResourceManagementPage = lazy(() => import('./resourcemanagement/ResourceManagementPage').then((m) => ({ default: m.default })))
 const SchedulePage = lazy(() => import('./schedulesession/SchedulePage').then((m) => ({ default: m.default })))
 const EventWebsitePage = lazy(() => import('./Eventwebsite/EventWebsitePage').then((m) => ({ default: m.default })))
-const AttendeeManagementPage = lazy(() => import('./attendeemanagement/AttendeeManagementPage').then((m) => ({ default: m.default })))
-const SpeakerManagementPage = lazy(() => import('./speakermanagement/SpeakerManagementPage').then((m) => ({ default: m.default })))
+const UserManagementPage = lazy(() => import('./usermanagement/UserManagementPage').then((m) => ({ default: m.default })))
 const OrganizationManagementPage = lazy(() => import('./organizationmanagement/OrganizationManagementPage').then((m) => ({ default: m.default })))
 const WebsiteSettingsPage = lazy(() => import('./websitesettings/WebsiteSettingsPage').then((m) => ({ default: m.default })))
 const EventHubOverviewPage = lazy(() => import('./overview/EventHubOverviewPage').then((m) => ({ default: m.default })))
@@ -170,19 +169,9 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
             hideNavbarAndSidebar={true}
           />
         )
-      case 'attendee-management':
+      case 'user-management':
         return (
-          <AttendeeManagementPage
-            eventName={eventName}
-            isDraft={isDraft}
-            onBackClick={onBackClick}
-            userAvatarUrl={userAvatarUrl}
-            hideNavbarAndSidebar={true}
-          />
-        )
-      case 'speaker-management':
-        return (
-          <SpeakerManagementPage
+          <UserManagementPage
             eventName={eventName}
             isDraft={isDraft}
             onBackClick={onBackClick}
