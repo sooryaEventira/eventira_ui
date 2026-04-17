@@ -239,7 +239,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
 
       {participantGroups.length > 0 && (
         <>
-          <SectionHeader label=" Groups" />
+          <SectionHeader label="User Groups" />
           {participantGroups.map((group) => (
             <ContentRow key={group.uuid} uuid={group.uuid} title={group.title} enableRowClickEdit={enableRowClickEdit} openDropdownId={openDropdownId} setOpenDropdownId={setOpenDropdownId} onAction={onAction} />
           ))}
@@ -248,7 +248,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
 
       {schedules.length > 0 && (
         <>
-          <SectionHeader label="Schedules" />
+          <SectionHeader label="Schedules Pages" />
           {schedules.map((schedule) => (
             <ContentRow key={schedule.uuid} uuid={schedule.uuid} title={schedule.title} enableRowClickEdit={enableRowClickEdit} openDropdownId={openDropdownId} setOpenDropdownId={setOpenDropdownId} onAction={onAction} />
           ))}

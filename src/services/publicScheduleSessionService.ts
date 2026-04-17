@@ -236,80 +236,65 @@ export interface PublicScheduleSessionData {
   [key: string]: any
 }
 
+const extractPageData = (data: any): { results: PublicScheduleSessionData[]; next: string | null } => {
+  if (data?.status === 'error') {
+    const errorMessage = handleApiError(data, undefined, 'Failed to fetch sessions. Please try again.')
+    throw new Error(errorMessage)
+  }
+  const next: string | null = data?.next ?? null
+  const responseData = data?.data ?? data?.results ?? data
+  if (Array.isArray(responseData)) return { results: responseData as PublicScheduleSessionData[], next }
+  if (responseData && typeof responseData === 'object') {
+    if (Array.isArray(responseData.results)) return { results: responseData.results as PublicScheduleSessionData[], next: responseData.next ?? next }
+    if (Array.isArray(responseData.sessions)) return { results: responseData.sessions as PublicScheduleSessionData[], next }
+  }
+  return { results: [], next }
+}
+
 export const fetchPublicScheduleSessions = async (
   eventUuid: string,
   scheduleUuid: string
 ): Promise<PublicScheduleSessionData[]> => {
   try {
     if (!eventUuid) {
-      const errorMessage = handleApiError('Event UUID is required.', undefined, 'Event UUID is required.')
-      throw new Error(errorMessage)
+      throw new Error(handleApiError('Event UUID is required.', undefined, 'Event UUID is required.'))
     }
     if (!scheduleUuid) {
-      const errorMessage = handleApiError('Schedule UUID is required.', undefined, 'Schedule UUID is required.')
-      throw new Error(errorMessage)
+      throw new Error(handleApiError('Schedule UUID is required.', undefined, 'Schedule UUID is required.'))
     }
 
-    const url = API_ENDPOINTS.PUBLIC.SESSIONS.LIST(eventUuid, scheduleUuid)
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    })
+    const all: PublicScheduleSessionData[] = []
+    let nextUrl: string | null = API_ENDPOINTS.PUBLIC.SESSIONS.LIST(eventUuid, scheduleUuid)
 
-    if (!response || !response.ok) {
-      if (!response) {
-        const errorMessage = handleNetworkError(null)
-        throw new Error(errorMessage)
-      }
-      try {
-        const responseText = await response.text()
+    while (nextUrl) {
+      const response = await fetch(nextUrl, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response || !response.ok) {
+        if (!response) throw new Error(handleNetworkError(null))
         let errorData: any = null
-        try {
-          errorData = responseText ? JSON.parse(responseText) : null
-        } catch {
-          if (responseText && responseText.trim()) {
-            const errorMessage = handleApiError(responseText.trim(), response, 'An error occurred. Please try again.')
-            throw new Error(errorMessage)
-          }
-        }
-        if (errorData) {
-          const errorMessage = handleApiError(errorData, response, 'An error occurred. Please try again.')
-          throw new Error(errorMessage)
-        }
-        const errorMessage = handleApiError(null, response, 'An error occurred. Please try again.')
-        throw new Error(errorMessage)
-      } catch (parseError) {
-        if (parseError instanceof Error) throw parseError
-        const errorMessage = handleApiError(null, response, 'An error occurred. Please try again.')
-        throw new Error(errorMessage)
+        try { errorData = await response.json() } catch { /* ignore */ }
+        throw new Error(handleApiError(errorData, response, 'An error occurred. Please try again.'))
       }
+
+      let data: any
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error(handleParseError('Invalid response from server. Please try again.'))
+      }
+
+      const { results, next } = extractPageData(data)
+      all.push(...results)
+      nextUrl = next
     }
 
-    let data: any
-    try {
-      data = await response.json()
-    } catch {
-      const errorMessage = handleParseError('Invalid response from server. Please try again.')
-      throw new Error(errorMessage)
-    }
-
-    if (data?.status === 'error') {
-      const errorMessage = handleApiError(data, undefined, 'Failed to fetch sessions. Please try again.')
-      throw new Error(errorMessage)
-    }
-
-    const responseData = data?.data ?? data?.results ?? data
-    if (Array.isArray(responseData)) return responseData as PublicScheduleSessionData[]
-    if (responseData && typeof responseData === 'object') {
-      if (Array.isArray(responseData.results)) return responseData.results as PublicScheduleSessionData[]
-      if (Array.isArray(responseData.sessions)) return responseData.sessions as PublicScheduleSessionData[]
-    }
-    return []
+    return all
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
-      if (!error.message.includes('Cannot connect')) {
-        handleNetworkError(error)
-      }
+      if (!error.message.includes('Cannot connect')) handleNetworkError(error)
       throw new Error(error.message || 'Network error occurred')
     }
     throw error instanceof Error ? error : new Error('Failed to fetch sessions. Please try again.')

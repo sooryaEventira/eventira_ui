@@ -457,6 +457,7 @@ const loadNavigationFromApi = useCallback(async () => {
           children,
           originalItemType: itemType,
           iconKey: folderIconKey,
+          webpageUuid: refUuid || uuid,
         } as any)
         continue
       }
@@ -518,11 +519,45 @@ const loadNavigationFromApi = useCallback(async () => {
     })
   }
 
+  // Fix items that were previously saved as item_type:'page' but are actually schedules/participants,
+  // and remove stale items whose UUID no longer exists in any valid set (deleted pages/participants/schedules).
+  const sanitizeNavTree = (
+    items: NavigationItem[],
+    allValidUuids: Set<string>,
+    scheduleUuids: Set<string>,
+    participantUuids: Set<string>,
+  ): NavigationItem[] => {
+    return items
+      .filter((item) => {
+        if (isFolder(item)) return true
+        const uuid = (item as any).webpageUuid ?? item.id
+        return allValidUuids.has(uuid)
+      })
+      .map((item) => {
+        if (isFolder(item)) {
+          return { ...item, children: sanitizeNavTree(item.children || [], allValidUuids, scheduleUuids, participantUuids) }
+        }
+        if (item.type === 'page' && !(item as any).itemType) {
+          if (scheduleUuids.has(item.id)) return { ...item, itemType: 'schedule' } as any
+          if (participantUuids.has(item.id)) return { ...item, itemType: 'participant' } as any
+        }
+        return item
+      })
+  }
+
   setIsLoadingNavigation(true)
   try {
-    const data = await fetchEventNavigation(eventUuid)
+    const [data, available] = await Promise.all([
+      fetchEventNavigation(eventUuid),
+      fetchAvailableNavigationPages(eventUuid).catch(() => ({ pages: [], schedules: [], participants: [] })),
+    ])
+    const pageUuids = new Set<string>(available.pages.map((p) => p.uuid))
+    const scheduleUuids = new Set<string>(available.schedules.map((s) => s.uuid))
+    const participantUuids = new Set<string>(available.participants.map((p) => p.uuid))
+    const allValidUuids = new Set<string>([...pageUuids, ...scheduleUuids, ...participantUuids])
     const rawTree = mapItems(data.navigation || [])
-    const nextTree = normalizeNavigationTree(rawTree)
+    const fixedTree = sanitizeNavTree(rawTree, allValidUuids, scheduleUuids, participantUuids)
+    const nextTree = normalizeNavigationTree(fixedTree)
     setNavigationFromApi(nextTree)
     setNavSavedJson(JSON.stringify(nextTree))
     setExpandedFolderIds(new Set())

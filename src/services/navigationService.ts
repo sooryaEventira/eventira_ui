@@ -305,28 +305,38 @@ function resolveItemType(item: NavigationItem): 'page' | 'participant' | 'schedu
   // folder with originalItemType
   const original = (item as any).originalItemType as string | undefined
   if (original === 'schedule_group' || original === 'schedule') return 'schedule'
-  if (original === 'attendee_group' || original === 'speaker_group' || original === 'participant') return 'participant'
+  if (original === 'attendee_group' || original === 'speaker_group' || original === 'participant' || original === 'participant_group') return 'participant'
   return 'page'
 }
 
 function buildNavItems(items: NavigationItem[]): object[] {
   return items.map((item, index) => {
-    if (item.type === 'folder' && ((item as any).originalItemType ?? 'folder') === 'folder') {
-      // Regular user-created folder
+    if (item.type === 'folder') {
+      const originalItemType = (item as any).originalItemType ?? 'folder'
+      if (originalItemType === 'folder') {
+        // Regular user-created folder
+        return {
+          item_type: 'folder',
+          name: item.title,
+          order: index + 1,
+          icon: (item as any).iconKey ?? '',
+          items: buildNavItems(item.children || []),
+        }
+      }
+      // Auto-generated group folder → save as a leaf item (participant or schedule), no children array
+      const isScheduleGroup = originalItemType === 'schedule_group'
+      const groupItemType = isScheduleGroup ? 'schedule' : 'participant'
       return {
-        item_type: 'folder',
-        name: item.title,
+        item_type: groupItemType,
+        ref_uuid: (item as any).webpageUuid ?? item.id,
         order: index + 1,
         icon: (item as any).iconKey ?? '',
-        items: buildNavItems(item.children || []),
       }
     }
 
     // Leaf item — page, participant, or schedule
     const apiItemType = resolveItemType(item)
-    const refUuid = item.type === 'page'
-      ? ((item as any).webpageUuid ?? item.id)
-      : item.id
+    const refUuid = (item as any).webpageUuid ?? item.id
 
     return {
       item_type: apiItemType,

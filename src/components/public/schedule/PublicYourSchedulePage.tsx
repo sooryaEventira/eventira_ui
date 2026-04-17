@@ -562,6 +562,7 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
             <PublicScheduleGrid
               sessions={filteredSessions}
               onSpeakerClick={(uuid) => onNavigate?.(`/events/${eventUuid}/speakers/${uuid}`)}
+              showConflicts
             />
           )}
 

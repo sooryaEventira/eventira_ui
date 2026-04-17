@@ -22,6 +22,7 @@ type PublicSection =
   | 'webpage'
   | 'attendees'
   | 'schedule'
+  | 'schedule-sessions'
   | 'sessions'
   | 'session'
   | 'organizations'
@@ -45,6 +46,7 @@ const getSectionFromPath = (
   organizationId?: string
   attendeeTagId?: string
   sessionId?: string
+  scheduleUuid?: string
 } => {
   const base = `/events/${eventUuid}`
   const rest = pathname.startsWith(base) ? pathname.slice(base.length) : pathname
@@ -75,6 +77,12 @@ const getSectionFromPath = (
     return { section: 'session', sessionId: sessionDetailMatch[1] }
   }
 
+  // Schedule-specific sessions page: /schedule/:scheduleUuid/sessions
+  const scheduleSessionsMatch = rest.match(/^\/schedule\/([^/]+)\/sessions\/?$/)
+  if (scheduleSessionsMatch) {
+    return { section: 'schedule-sessions', scheduleUuid: scheduleSessionsMatch[1] }
+  }
+
   if (rest.startsWith('/organizations')) return { section: 'organizations' }
   if (rest.startsWith('/attendees')) return { section: 'attendees' }
   if (rest.startsWith('/schedule')) return { section: 'schedule' }
@@ -97,6 +105,7 @@ const PublicEventProfilePage = React.lazy(() => import('./PublicEventProfilePage
 const PublicEventPersonalInfoPage = React.lazy(() => import('./PublicEventPersonalInfoPage'))
 const PublicPrivacySettingsPage = React.lazy(() => import('./PublicPrivacySettingsPage'))
 const PublicYourSchedulePage = React.lazy(() => import('./schedule/PublicYourSchedulePage'))
+const PublicScheduleSessionsPage = React.lazy(() => import('./schedule/PublicScheduleSessionsPage'))
 
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
@@ -363,6 +372,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           const tagId = String(raw?.ref_uuid ?? uuid).trim()
           pageId = `attendee-tag:${tagId}`
           pathOverride = `/events/${eventUuid}/attendees/tag/${tagId}`
+        } else if (itemType === 'schedule') {
+          // Direct schedule item: ref_uuid is the schedule UUID → sessions list for that schedule
+          const scheduleId = String(raw?.ref_uuid ?? uuid).trim()
+          pageId = `schedule:${scheduleId}`
+          pathOverride = `/events/${eventUuid}/schedule/${scheduleId}/sessions`
         }
 
         const slug = String(raw?.slug ?? '').trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
@@ -565,6 +579,14 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
             <PublicSessionDetailPage
               eventUuid={eventUuid}
               sessionId={current.sessionId || ''}
+              onNavigate={handleNavigate}
+            />
+          </React.Suspense>
+        ) : current.section === 'schedule-sessions' ? (
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <PublicScheduleSessionsPage
+              eventUuid={eventUuid}
+              scheduleUuid={current.scheduleUuid || ''}
               onNavigate={handleNavigate}
             />
           </React.Suspense>

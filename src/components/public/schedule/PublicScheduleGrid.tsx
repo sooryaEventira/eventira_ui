@@ -6,6 +6,7 @@ import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 interface PublicScheduleGridProps {
   sessions: SavedSession[]
   onSpeakerClick?: (speakerUuid: string) => void
+  showConflicts?: boolean
 }
 
 const timeToMinutes = (time: string, period: string) => {
@@ -290,7 +291,7 @@ const ResolveModal: React.FC<ResolveModalProps> = ({ groups, selected, onSelect,
   )
 }
 
-const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpeakerClick }) => {
+const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpeakerClick, showConflicts = false }) => {
   const parents = useMemo(() => sessions.filter((s) => !s.parentId), [sessions])
 
   const childrenByParent = useMemo(() => {
@@ -336,7 +337,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
     setExpanded((prev) => ({ ...prev, [id]: !(prev[id] !== false) }))
   }, [])
 
-  // Resolve modal state
+  // Resolve modal state (only used when showConflicts=true)
   const [modalGroups, setModalGroups] = useState<SavedSession[][] | null>(null)
   const [modalSelected, setModalSelected] = useState<Record<string, string>>({})
   // resolved: slotKey → winning sessionId (non-winners are hidden)
@@ -360,6 +361,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
 
   // Apply resolved selections — collapse parallel groups to the winning session
   const displayGroups = useMemo(() => {
+    if (!showConflicts) return groups
     return groups.map((group) => {
       if (group.length <= 1) return group
       const slotKey = timeSlotKey(group[0])
@@ -367,9 +369,12 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
       if (!winner) return group
       return group.filter((s) => s.id === winner)
     })
-  }, [groups, resolved])
+  }, [groups, resolved, showConflicts])
 
-  const conflictGroups = useMemo(() => displayGroups.filter((g) => g.length > 1), [displayGroups])
+  const conflictGroups = useMemo(() => {
+    if (!showConflicts) return []
+    return displayGroups.filter((g) => g.length > 1)
+  }, [displayGroups, showConflicts])
 
   const renderChildren = useCallback(
     (parent: SavedSession, depth: number) => {
@@ -456,7 +461,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
   return (
     <>
       <div className="space-y-4">
-        {conflictGroups.length > 0 && (
+        {showConflicts && conflictGroups.length > 0 && (
           <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
             <div className="flex items-center gap-2 text-sm font-medium text-red-600">
               <AlertCircle className="h-4 w-4 shrink-0" />
@@ -499,7 +504,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
 
               {/* Session content */}
               <div className="flex-1">
-                {isParallel ? (
+                {showConflicts && isParallel ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5">
                       <div className="flex items-center gap-2 text-amber-800 text-sm font-medium">
@@ -561,7 +566,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
         })}
       </div>
 
-      {modalGroups && (
+      {showConflicts && modalGroups && (
         <ResolveModal
           groups={modalGroups}
           selected={modalSelected}
