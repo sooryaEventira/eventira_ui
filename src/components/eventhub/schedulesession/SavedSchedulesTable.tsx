@@ -19,6 +19,8 @@ type TableRowData = {
 
 interface SavedSchedulesTableProps {
   schedules: SavedSchedule[]
+  builtScheduleIds?: Set<string>
+  onToggleBuildPage?: (schedule: { id: string; name: string }, checked: boolean) => void
   onCreateSchedule: () => void
   onUploadSessions?: (files: File[], scheduleId: string) => Promise<void> | void
   onEditSchedule?: (scheduleId: string) => void
@@ -28,6 +30,8 @@ interface SavedSchedulesTableProps {
 
 const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
   schedules,
+  builtScheduleIds,
+  onToggleBuildPage,
   onCreateSchedule,
   onUploadSessions,
   onEditSchedule,
@@ -150,6 +154,42 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
         )
       },
       {
+        id: 'buildPage',
+        header: 'Build page',
+        align: 'center',
+        sortable: false,
+        render: ({ schedule }) => {
+          const isBuilt = Boolean(builtScheduleIds?.has(schedule.id))
+          return (
+            <button
+              type="button"
+              role="checkbox"
+              aria-checked={isBuilt}
+              aria-label={`Build page for ${schedule.name}`}
+              tabIndex={0}
+              className="inline-flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border border-slate-300 bg-white text-primary transition focus:outline-none focus:ring-2 focus:ring-primary/40 focus:ring-offset-0"
+              onKeyDown={(e) => {
+                if (e.key !== 'Enter' && e.key !== ' ') return
+                e.preventDefault()
+                e.stopPropagation()
+                onToggleBuildPage?.({ id: schedule.id, name: schedule.name }, !isBuilt)
+              }}
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onToggleBuildPage?.({ id: schedule.id, name: schedule.name }, !isBuilt)
+              }}
+            >
+              {isBuilt ? (
+                <svg className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor" aria-hidden>
+                  <path d="M10.28 2.28L3.989 8.575 1.695 6.28A1 1 0 00.28 7.695l3 3a1 1 0 001.414 0l7-7A1 1 0 0010.28 2.28z" />
+                </svg>
+              ) : null}
+            </button>
+          )
+        }
+      },
+      {
         id: 'actions',
         header: 'Actions',
         align: 'right',
@@ -178,6 +218,8 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
   }, [
     formatScheduleName,
     handleToggleRow,
+    builtScheduleIds,
+    onToggleBuildPage,
     onEditSchedule,
     onDeleteSchedule,
     onManageSession,

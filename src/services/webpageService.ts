@@ -49,6 +49,18 @@ export interface WebpageData {
   updated_date: string
 }
 
+export interface NavContentItem {
+  uuid: string
+  title: string
+  slug?: string
+}
+
+export interface NavigationContentData {
+  pages: NavContentItem[]
+  participant_groups: NavContentItem[]
+  schedules: NavContentItem[]
+}
+
 export interface WebsiteIndexTag {
   uuid: string
   name: string
@@ -217,7 +229,7 @@ export const fetchWebpages = async (eventUuid: string): Promise<WebpageData[]> =
       throw new Error(errorMessage)
     }
 
-    const url = API_ENDPOINTS.WEBPAGE.LIST(eventUuid)
+    const url = API_ENDPOINTS.WEBSITE.NAVIGATION_CONTENT(eventUuid)
     
     const response = await fetch(url, {
       method: 'GET',
@@ -290,39 +302,43 @@ export const fetchWebpages = async (eventUuid: string): Promise<WebpageData[]> =
 
     // Extract data from various possible response structures
     let responseData: any = null
-    
-    // Case 1: ApiResponse format with data field
-    if (data.status === 'success' && data.data) {
-      responseData = data.data
+
+    // navigation/content response: { status: 'success', data: { pages: [...], ... } }
+    if (data.status === 'success' && data.data?.pages && Array.isArray(data.data.pages)) {
+      responseData = data.data.pages
     }
-    // Case 2: Direct array response
+    // Direct array response
     else if (Array.isArray(data)) {
       responseData = data
     }
-    // Case 3: Object with data field (no status)
+    // { data: [...] }
     else if (data.data && Array.isArray(data.data)) {
       responseData = data.data
     }
-    // Case 4: Object with results field
+    // { status: 'success', data: [...] }
+    else if (data.status === 'success' && Array.isArray(data.data)) {
+      responseData = data.data
+    }
+    // { results: [...] }
     else if (data.results && Array.isArray(data.results)) {
       responseData = data.results
     }
-    // Case 5: Direct data field (no status, might be object)
-    else if (data.data) {
-      responseData = data.data
-    }
-    // Case 6: Empty or null
     else {
       return []
     }
 
-    // Ensure responseData is an array
-    let webpages: WebpageData[]
-    if (Array.isArray(responseData)) {
-      webpages = responseData
-    } else {
-      return []
-    }
+    // Normalise: API returns `title` instead of `name` for navigation/content pages
+    const webpages: WebpageData[] = (responseData as any[]).map((p: any) => ({
+      uuid: p.uuid ?? p.id ?? '',
+      event: p.event ?? '',
+      name: p.name ?? p.title ?? '',
+      slug: p.slug ?? '',
+      content: p.content ?? null,
+      created_by: p.created_by ?? 0,
+      updated_by: p.updated_by ?? 0,
+      created_date: p.created_date ?? '',
+      updated_date: p.updated_date ?? '',
+    }))
 
     return webpages
   } catch (error) {
@@ -347,6 +363,33 @@ export const fetchWebpages = async (eventUuid: string): Promise<WebpageData[]> =
     const errorMessage = error instanceof Error ? error.message : 'Failed to fetch webpages. Please try again.'
     handleApiError(errorMessage, undefined, 'Failed to fetch webpages. Please try again.')
     throw new Error(errorMessage)
+  }
+}
+
+export const fetchNavigationContent = async (eventUuid: string): Promise<NavigationContentData> => {
+  const empty: NavigationContentData = { pages: [], participant_groups: [], schedules: [] }
+  if (!eventUuid) return empty
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) return empty
+
+  const url = API_ENDPOINTS.WEBSITE.NAVIGATION_CONTENT(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, 'X-Organization': organizationUuid },
+    credentials: 'include',
+  })
+  if (!response.ok) return empty
+  try {
+    const data = await response.json()
+    const d = data?.data ?? data
+    return {
+      pages: Array.isArray(d?.pages) ? d.pages : [],
+      participant_groups: Array.isArray(d?.participant_groups) ? d.participant_groups : [],
+      schedules: Array.isArray(d?.schedules) ? d.schedules : [],
+    }
+  } catch {
+    return empty
   }
 }
 

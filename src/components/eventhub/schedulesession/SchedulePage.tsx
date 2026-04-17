@@ -15,7 +15,7 @@ import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import { API_ENDPOINTS } from '../../../config/env'
 import { showToast } from '../../../utils/toast'
 import { fetchTimezones } from '../../../services/timezoneService'
-import { createSchedule, updateSchedule } from '../../../services/scheduleService'
+import { createSchedule, updateSchedule, publishSchedule, unpublishSchedule } from '../../../services/scheduleService'
 import {
   listSessions,
   getSession,
@@ -194,6 +194,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   }
 
   const [savedSchedules, setSavedSchedules] = React.useState<SavedSchedule[]>([])
+  const [builtScheduleIds, setBuiltScheduleIds] = React.useState<Set<string>>(new Set())
   const [currentScheduleName, setCurrentScheduleName] = React.useState(scheduleName || 'Schedule 1')
   const [isSessionSlideoutOpen, setIsSessionSlideoutOpen] = React.useState(false)
   const [isTemplateSessionSlideoutOpen, setIsTemplateSessionSlideoutOpen] = React.useState(false)
@@ -494,10 +495,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       }
 
       const items = extractArray(data)
-      console.log('📦 [Schedules] LIST extracted items:', {
-        count: items.length,
-        sample: items[0]
-      })
+      const publishedIds = new Set<string>(
+        items.filter((s: any) => s?.is_published === true || s?.is_published === 'true').map((s: any) => String(s?.uuid ?? s?.id ?? ''))
+      )
+      setBuiltScheduleIds(publishedIds)
+
       const mapped: SavedSchedule[] = items.map((s: any) => {
         const id = String(s?.uuid ?? s?.id ?? `schedule-${Math.random().toString(36).slice(2)}`)
         const name = s?.name ?? s?.title ?? 'Schedule'
@@ -2552,6 +2554,31 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     loadSessions(scheduleId)
   }
 
+  const handleToggleBuildPage = async (schedule: { id: string; name: string }, checked: boolean) => {
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) return
+    if (checked) {
+      setBuiltScheduleIds((prev) => { const n = new Set(prev); n.add(schedule.id); return n })
+      try {
+        await publishSchedule(schedule.id, eventUuid)
+        showToast.success(`Page built for "${schedule.name}"`)
+      } catch {
+        setBuiltScheduleIds((prev) => { const n = new Set(prev); n.delete(schedule.id); return n })
+        showToast.error(`Failed to build page for "${schedule.name}"`)
+      }
+    } else {
+      setBuiltScheduleIds((prev) => { const n = new Set(prev); n.delete(schedule.id); return n })
+      try {
+        await unpublishSchedule(schedule.id, eventUuid)
+        showToast.success(`Page removed for "${schedule.name}"`)
+      } catch {
+        setBuiltScheduleIds((prev) => { const n = new Set(prev); n.add(schedule.id); return n })
+        showToast.error(`Failed to remove page for "${schedule.name}"`)
+      }
+    }
+  }
+
+
   const handleBackToTable = () => {
     setCurrentView('table')
     setActiveScheduleId(null)
@@ -2587,6 +2614,8 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         {currentView === 'table' ? (
           <SavedSchedulesTable
             schedules={savedSchedules}
+            builtScheduleIds={builtScheduleIds}
+            onToggleBuildPage={handleToggleBuildPage}
             onCreateSchedule={handleCreateScheduleFromList}
             onUploadSessions={handleUploadSessionsForSchedule}
             onManageSession={handleManageSession}

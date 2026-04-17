@@ -14,5 +14,6 @@ export function isPublicRoute(): boolean {
   if (pathname === '/register/verify' || pathname === '/register/verify/') return true
   if (pathname === '/register/password' || pathname === '/register/password/') return true
   if (pathname === '/profile' || pathname === '/profile/') return true
+  if (pathname === '/messages' || pathname === '/messages/') return true
   return false
 }

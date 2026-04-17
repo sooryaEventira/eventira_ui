@@ -132,6 +132,9 @@ export const API_ENDPOINTS = {
     /** Save navigation items (publish nav changes). POST {{admin_url}}navigation/save/?event_id={{event_uuid}} */
     NAVIGATION_SAVE: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/save/?event_id=${eventUuid}`,
+    /** List all pages with navigation content. GET {{admin_url}}navigation/content/?event_id={{event_uuid}} */
+    NAVIGATION_CONTENT: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/content/?event_id=${eventUuid}`,
     /** Website settings (branding, domain, visibility). PUT/PATCH with body. */
     SETTINGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website-settings/?event_id=${eventUuid}`,
   },
@@ -231,6 +234,12 @@ export const API_ENDPOINTS = {
     /** Ably token auth for DM rooms. GET {{public_url}}chat/ably-token/?room=dm::<user_a_id>_<user_b_id> */
     ABLY_TOKEN_DM: (room: string) =>
       `${PUBLIC_API_ROOT}chat/ably-token/?room=${room}`,
+    /** List chat rooms (connections). GET {{public_url}}chat/rooms/ */
+    CHAT_ROOMS: `${PUBLIC_API_ROOT}chat/rooms/`,
+    /** List messages in a room. GET {{public_url}}chat/rooms/{room_uuid}/messages/ */
+    CHAT_MESSAGES: (roomUuid: string) => `${PUBLIC_API_ROOT}chat/rooms/${roomUuid}/messages/`,
+    /** Send a message. POST {{public_url}}chat/rooms/{room_uuid}/messages/ */
+    CHAT_SEND: (roomUuid: string) => `${PUBLIC_API_ROOT}chat/rooms/${roomUuid}/messages/`,
     /** Attendee profile. PATCH {{public_url}}events/{eventUuid}/profile/ */
     PROFILE: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/profile/`,
   },
@@ -297,6 +306,9 @@ export const API_ENDPOINTS = {
     /** Delete schedule: DELETE .../schedules/{{schedule_uuid}}/?event_id={{event_uuid}} */
     DELETE: (scheduleUuid: string, eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/?event_id=${eventUuid}`,
+    /** Publish/unpublish schedule: POST .../schedules/{{schedule_uuid}}/publish/?event_id={{event_uuid}} */
+    PUBLISH: (scheduleUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/publish/?event_id=${eventUuid}`,
   },
   // Sessions endpoints (schedule grid, create, delete, retrieve, bulk import)
   SESSIONS: {

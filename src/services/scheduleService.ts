@@ -98,3 +98,37 @@ export async function updateSchedule(scheduleUuid: string, payload: SchedulePayl
     throw new Error(msg)
   }
 }
+
+export async function publishSchedule(scheduleUuid: string, eventUuid: string): Promise<void> {
+  const headers = getAuthHeaders()
+  const response = await fetch(API_ENDPOINTS.SCHEDULES.PUBLISH(scheduleUuid, eventUuid), {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({ is_published: 'true' }),
+  })
+  if (!response.ok) {
+    const rawText = await response.text().catch(() => '')
+    let data: any = null
+    try { data = rawText ? JSON.parse(rawText) : null } catch { /* ignore */ }
+    const msg = handleApiError(data ?? rawText, response, 'Failed to publish schedule.')
+    throw new Error(msg)
+  }
+}
+
+export async function unpublishSchedule(scheduleUuid: string, eventUuid: string): Promise<void> {
+  const headers = getAuthHeaders()
+  const response = await fetch(API_ENDPOINTS.SCHEDULES.PUBLISH(scheduleUuid, eventUuid), {
+    method: 'POST',
+    headers,
+    credentials: 'include',
+    body: JSON.stringify({ is_published: 'false' }),
+  })
+  if (!response.ok) {
+    const rawText = await response.text().catch(() => '')
+    let data: any = null
+    try { data = rawText ? JSON.parse(rawText) : null } catch { /* ignore */ }
+    const msg = handleApiError(data ?? rawText, response, 'Failed to unpublish schedule.')
+    throw new Error(msg)
+  }
+}

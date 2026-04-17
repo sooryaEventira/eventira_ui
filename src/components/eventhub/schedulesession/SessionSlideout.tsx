@@ -573,7 +573,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
       const sec = draft.sections.find((s) => s.id === sectionId)
       if (!sec) return
       const current = (sec.data?.speakers as Array<{ id: string; name: string; role?: string }>) ?? []
-      updateSection(sectionId, { data: { ...(sec.data || {}), speakers: [...current, speaker] } })
+      const next = [...current, speaker]
+      updateSection(sectionId, { data: { ...(sec.data || {}), speakers: next, speaker_uuids: next.map((sp) => sp.id) } })
     }
   }
 

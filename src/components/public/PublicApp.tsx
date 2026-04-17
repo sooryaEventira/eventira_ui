@@ -7,6 +7,7 @@ const PublicRegisterPage = lazy(() => import('./PublicRegisterPage'))
 const PublicRegisterVerifyPage = lazy(() => import('./PublicRegisterVerifyPage'))
 const PublicCreatePasswordPage = lazy(() => import('./PublicCreatePasswordPage'))
 const PublicProfilePage = lazy(() => import('./PublicProfilePage'))
+const PublicMessagesPage = lazy(() => import('./PublicMessagesPage'))
 
 const LoadingFallback = () => (
   <div className="flex min-h-screen items-center justify-center">
@@ -73,6 +74,14 @@ const PublicApp: React.FC = () => {
     return (
       <Suspense fallback={<LoadingFallback />}>
         <PublicProfilePage />
+      </Suspense>
+    )
+  }
+
+  if (pathname === '/messages' || pathname === '/messages/') {
+    return (
+      <Suspense fallback={<LoadingFallback />}>
+        <PublicMessagesPage />
       </Suspense>
     )
   }

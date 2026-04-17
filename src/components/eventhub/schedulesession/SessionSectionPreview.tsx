@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom'
 import { Upload01, XClose, Plus, SearchLg, Folder, Send01 } from '@untitled-ui/icons-react'
 import type { SessionSection } from './sessionTypes'
-import { fetchSpeakers, type SpeakerData } from '../../../services/speakerService'
+import { fetchParticipants, type ParticipantData } from '../../../services/participantService'
 import { env } from '../../../config/env'
 
 /** Resolve relative/media paths to absolute URL so the video element can load them (avoids "No video with supported format" when backend returns e.g. /media/...). */
@@ -65,11 +65,11 @@ export interface SessionSectionPreviewProps {
   handlers: SessionSectionPreviewHandlers
 }
 
-function getSpeakerDisplayName(s: SpeakerData): string {
+function getSpeakerDisplayName(s: ParticipantData): string {
   if (s.name && String(s.name).trim()) return String(s.name).trim()
   const first = s.first_name ? String(s.first_name).trim() : ''
   const last = s.last_name ? String(s.last_name).trim() : ''
-  return [first, last].filter(Boolean).join(' ') || 'Speaker'
+  return [first, last].filter(Boolean).join(' ') || 'Participant'
 }
 
 
@@ -95,7 +95,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   const [speakerSearchSectionId, setSpeakerSearchSectionId] = useState<string | null>(null)
   const [speakerSearchQuery, setSpeakerSearchQuery] = useState('')
   const [speakerSearchRole, setSpeakerSearchRole] = useState<'Chairman' | 'Panelist' | 'Speaker'>('Chairman')
-  const [speakersList, setSpeakersList] = useState<SpeakerData[]>([])
+  const [speakersList, setSpeakersList] = useState<ParticipantData[]>([])
   const [isLoadingSpeakers, setIsLoadingSpeakers] = useState(false)
   const [speakerSearchPosition, setSpeakerSearchPosition] = useState<{ top: number; left: number; openUpward?: boolean } | null>(null)
   const speakerSearchAnchorRef = useRef<HTMLButtonElement | null>(null)
@@ -105,7 +105,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     if (!eventUuid) return
     setIsLoadingSpeakers(true)
     try {
-      const result = await fetchSpeakers(eventUuid, 1, undefined, undefined, 1000)
+      const result = await fetchParticipants(eventUuid, 1, undefined, undefined, 1000)
       setSpeakersList(Array.isArray(result.data) ? result.data : [])
     } catch {
       setSpeakersList([])
@@ -159,10 +159,10 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     setSpeakerSearchPosition(null)
   }
 
-  const handleAddSpeakerFromSearch = (speaker: SpeakerData) => {
+  const handleAddSpeakerFromSearch = (speaker: ParticipantData) => {
     const sectionId = speakerSearchSectionId
     if (!sectionId || !onAddSpeakerToSection) return
-    const id = String(speaker.uuid ?? speaker.id ?? `speaker-${Date.now()}`)
+    const id = String(speaker.uuid ?? speaker.id ?? `participant-${Date.now()}`)
     const name = getSpeakerDisplayName(speaker)
     onAddSpeakerToSection(sectionId, { id, name, role: speakerSearchRole })
     closeSpeakerSearch()
@@ -624,7 +624,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     const speakerUuids = Array.isArray(section.data?.speaker_uuids) ? section.data.speaker_uuids as string[] : []
     const resolveName = (uuid: string): string => {
       const found = speakersList.find((s) => String(s.uuid ?? s.id) === String(uuid))
-      return found ? getSpeakerDisplayName(found) : 'Speaker'
+      return found ? getSpeakerDisplayName(found) : 'Participant'
     }
     const speakers = speakersRaw && speakersRaw.length > 0
       ? speakersRaw
@@ -667,12 +667,12 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
                     <button
                       type="button"
                       onClick={() =>
-                        onUpdateSection(section.id, {
-                          data: {
-                            ...(section.data || {}),
-                            speakers: ((section.data?.speakers || []) as Array<{ id: string; name: string; role?: string }>).filter((sp) => sp.id !== s.id)
-                          }
-                        })
+                        (() => {
+                          const next = ((section.data?.speakers || []) as Array<{ id: string; name: string; role?: string }>).filter((sp) => sp.id !== s.id)
+                          onUpdateSection(section.id, {
+                            data: { ...(section.data || {}), speakers: next, speaker_uuids: next.map((sp) => sp.id) }
+                          })
+                        })()
                       }
                       className="shrink-0 text-slate-400 transition-colors hover:text-slate-600"
                       aria-label={`Remove ${s.name}`}
@@ -754,13 +754,13 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
                         <div className="max-h-[min(320px,50vh)] overflow-y-auto p-2 min-h-0">
                           {isLoadingSpeakers ? (
                             <div className="py-6 text-center text-sm text-slate-500">
-                              Loading speakers...
+                              Loading participants...
                             </div>
                           ) : filteredSpeakers.length === 0 ? (
                             <div className="py-6 text-center text-sm text-slate-500">
                               {speakerSearchQuery.trim()
-                                ? 'No matching speakers'
-                                : 'No speakers in this event'}
+                                ? 'No matching participants'
+                                : 'No participants in this event'}
                             </div>
                           ) : (
                             filteredSpeakers.map((s) => {
@@ -788,7 +788,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
           </div>
           ) : (
             <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 py-6 text-center">
-              <p className="mb-3 text-sm text-slate-500">No speakers added yet.</p>
+              <p className="mb-3 text-sm text-slate-500">No participants added yet.</p>
               {canAddSpeaker && (
                 <div className="relative inline-block">
                   <button
@@ -854,13 +854,13 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
                           <div className="max-h-[min(320px,50vh)] overflow-y-auto p-2 min-h-0">
                             {isLoadingSpeakers ? (
                               <div className="py-6 text-center text-sm text-slate-500">
-                                Loading speakers...
+                                Loading participants...
                               </div>
                             ) : filteredSpeakers.length === 0 ? (
                               <div className="py-6 text-center text-sm text-slate-500">
                                 {speakerSearchQuery.trim()
-                                  ? 'No matching speakers'
-                                  : 'No speakers in this event'}
+                                  ? 'No matching participants'
+                                  : 'No participants in this event'}
                               </div>
                             ) : (
                               filteredSpeakers.map((s) => {

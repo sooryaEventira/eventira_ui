@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import Logo from '../../assets/images/Logo_text.png'
+import { MessageTextCircle01 } from '@untitled-ui/icons-react'
 
 const BellIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
@@ -62,6 +63,15 @@ const PublicAuthTopbar: React.FC<PublicAuthTopbarProps> = ({
       </a>
 
       <div className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => { window.location.href = '/messages' }}
+          className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 hover:bg-white/10 hover:text-white"
+          aria-label="Messages"
+        >
+          <MessageTextCircle01 className="h-5 w-5" />
+        </button>
+
         <button
           type="button"
           className="flex h-10 w-10 items-center justify-center rounded-full text-white/90 hover:bg-white/10 hover:text-white"

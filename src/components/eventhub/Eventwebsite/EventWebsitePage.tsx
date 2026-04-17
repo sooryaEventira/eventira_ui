@@ -10,10 +10,12 @@ import {
   createWebpage,
   fetchWebpages,
   fetchWebsiteIndex,
+  fetchNavigationContent,
   deleteWebpage,
   type CreateWebpageRequest,
   type WebpageData,
-  type WebsiteIndexTag
+  type WebsiteIndexTag,
+  type NavigationContentData,
 } from '../../../services/webpageService'
 import { createNavigationFolder as createNavigationFolderApi, deleteNavigationFolder as deleteNavigationFolderApi, fetchAvailableNavigationPages, fetchEventNavigation, updateNavigationItemIcon, saveNavigation } from '../../../services/navigationService'
 import { publishEvent } from '../../../services/eventService'
@@ -61,6 +63,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<{ id: string; name: string } | null>(null)
   const [webpages, setWebpages] = useState<WebpageData[]>([])
   const [isLoadingWebpages, setIsLoadingWebpages] = useState(false)
+  const [navContent, setNavContent] = useState<NavigationContentData>({ pages: [], participant_groups: [], schedules: [] })
   const [indexWebpages, setIndexWebpages] = useState<WebpageData[]>([])
   const [indexSpeakerTags, setIndexSpeakerTags] = useState<WebsiteIndexTag[]>([])
   const [indexAttendeeTags, setIndexAttendeeTags] = useState<WebsiteIndexTag[]>([])
@@ -652,6 +655,7 @@ const loadNavigationFromApi = useCallback(async () => {
       }
 
       setWebpages(serverWebpages)
+      fetchNavigationContent(createdEvent.uuid).then(setNavContent).catch(() => {})
     } catch (error) {
       console.error('? [EventWebsitePage] Error fetching website index:', error)
       // Error is handled by errorHandler
@@ -663,6 +667,12 @@ const loadNavigationFromApi = useCallback(async () => {
   useEffect(() => {
     loadWebpages()
   }, [loadWebpages])
+
+  useEffect(() => {
+    if (activeSubItem === 'website-pages') {
+      loadWebpages()
+    }
+  }, [activeSubItem])
 
   // Listen for webpage-saved events to refresh the list and navigation (e.g. after Build page checkbox)
   useEffect(() => {
@@ -1916,6 +1926,7 @@ const loadNavigationFromApi = useCallback(async () => {
               <div className="space-y-0 border border-slate-200 rounded-lg bg-white overflow-visible">
                 <WebsitePagesList
                   webpages={sortedWebpagesForListing}
+                  navContent={navContent}
                   isLoading={isLoadingWebpages}
                   onAction={handlePageAction}
                   openDropdownId={openDropdownId}

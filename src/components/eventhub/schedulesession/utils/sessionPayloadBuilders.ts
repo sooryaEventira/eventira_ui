@@ -175,10 +175,11 @@ export const buildOneSectionPayload = (
   if (sectionType === 'text') {
     content = { title: s.title || 'Section', body: s.description ?? '' }
   } else if (sectionType === 'speakers') {
-    const speakerUuids: string[] = Array.isArray(s.data?.speaker_uuids)
-      ? s.data.speaker_uuids
-      : Array.isArray(s.data?.speakers)
-        ? (s.data.speakers as { id: string }[]).map((sp) => sp.id)
+    // Always derive from `speakers` array (UI source of truth); fall back to speaker_uuids only if speakers isn't an array
+    const speakerUuids: string[] = Array.isArray(s.data?.speakers)
+      ? (s.data.speakers as { id: string }[]).map((sp) => sp.id).filter(Boolean)
+      : Array.isArray(s.data?.speaker_uuids)
+        ? s.data.speaker_uuids
         : []
     // Backend expects content to be a plain array of speaker UUIDs
     content = speakerUuids

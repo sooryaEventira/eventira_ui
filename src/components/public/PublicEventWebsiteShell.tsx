@@ -90,7 +90,7 @@ const getSectionFromPath = (
 
 const OrganizationsListPage = React.lazy(() => import('./organizations/OrganizationsListPage'))
 const OrganizationDetailPage = React.lazy(() => import('./organizations/OrganizationDetailPage'))
-const AttendeesListPage = React.lazy(() => import('./attendees/AttendeesListPage'))
+const ParticipantsListPage = React.lazy(() => import('./participants/ParticipantsListPage'))
 const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePage'))
 const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
 const PublicEventProfilePage = React.lazy(() => import('./PublicEventProfilePage'))
@@ -546,7 +546,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           </React.Suspense>
         ) : current.section === 'attendees' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <AttendeesListPage
+            <ParticipantsListPage
               eventUuid={eventUuid}
               onNavigate={handleNavigate}
               tagId={current.attendeeTagId}
