@@ -3,9 +3,9 @@ import {
   DividerLineTable,
   type DividerLineTableSortDescriptor
 } from '../../ui/untitled'
-import type { GroupTableRowData } from '../attendeemanagement/attendeeTypes'
+import type { GroupTableRowData } from '../usermanagement/participantTypes'
 import { TablePagination, useTableHeader } from '../../ui'
-import { useGroupTableColumns } from '../attendeemanagement/GroupTableColumns'
+import { useGroupTableColumns } from '../usermanagement/GroupTableColumns'
 
 export type OrganizationManagementTab = 'organizations' | 'groups'
 
