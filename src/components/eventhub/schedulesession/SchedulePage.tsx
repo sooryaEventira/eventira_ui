@@ -230,13 +230,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       const year = parseInt(match[1], 10)
       const month = parseInt(match[2], 10) - 1
       const day = parseInt(match[3], 10)
-      const d = new Date(year, month, day)
+      const d = new Date(Date.UTC(year, month, day))
       if (Number.isNaN(d.getTime())) return null
       return d
     }
     const d = new Date(r as string)
     if (Number.isNaN(d.getTime())) return null
-    d.setHours(0, 0, 0, 0)
+    d.setUTCHours(0, 0, 0, 0)
     return d
   }, [])
   
@@ -363,7 +363,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     const eventStart = parseEventStartDate()
     if (eventStart) return eventStart
     const date = new Date()
-    date.setHours(0, 0, 0, 0)
+    date.setUTCHours(0, 0, 0, 0)
     return date
   })
   const [parentSessionId, setParentSessionId] = React.useState<string | undefined>(undefined)
@@ -394,7 +394,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       if (!s?.date) continue
       const d = new Date(s.date as any)
       if (Number.isNaN(d.getTime())) continue
-      d.setHours(0, 0, 0, 0)
+      d.setUTCHours(0, 0, 0, 0)
       // Only include session dates that fall within the event range (ignore schedule-created or wrong dates)
       if (eventStart && eventEnd) {
         const t = d.getTime()
@@ -406,7 +406,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     dates.sort((a, b) => a.getTime() - b.getTime())
 
     const normalizedSelected = new Date(selectedDate)
-    normalizedSelected.setHours(0, 0, 0, 0)
+    normalizedSelected.setUTCHours(0, 0, 0, 0)
     const hasSelected = dates.some((d) => d.getTime() === normalizedSelected.getTime())
 
     // Only auto-sync once after data loads; after that, let the user freely pick empty days.
@@ -500,42 +500,51 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       )
       setBuiltScheduleIds(publishedIds)
 
-      const mapped: SavedSchedule[] = items.map((s: any) => {
-        const id = String(s?.uuid ?? s?.id ?? `schedule-${Math.random().toString(36).slice(2)}`)
-        const name = s?.name ?? s?.title ?? 'Schedule'
-        const tags: string[] = (Array.isArray(s?.tags) ? s.tags : Array.isArray(s?.availableTags) ? s.availableTags : [])
-          .map((t: any) => typeof t === 'string' ? t : (t?.name ?? '')).filter(Boolean)
-        const locations: string[] = Array.isArray(s?.locations) ? s.locations : Array.isArray(s?.availableLocations) ? s.availableLocations : []
-        const description = s?.description ?? ''
-
-        return {
-          id,
-          name,
-          // Keep backward compatible session shape for existing UI filtering/search
-          session: {
-            ...defaultSessionDraft,
-            title: name,
-            tags,
-            location: locations[0] ?? '',
-            sections: description
-              ? [
-                  {
-                    id: `section-${id}`,
-                    type: 'text',
-                    title: 'Description',
-                    description
-                  }
-                ]
-              : []
-          },
-          availableTags: tags,
-          availableLocations: locations,
-          // sessions list is managed locally in this UI for now
-          sessions: []
+      setSavedSchedules((previous) => {
+        const preservedSessions = new Map<string, SavedSession[]>()
+        for (const p of previous) {
+          const sid = String(p.id)
+          if (Array.isArray(p.sessions) && p.sessions.length > 0) {
+            preservedSessions.set(sid, p.sessions)
+          }
         }
-      })
 
-      setSavedSchedules(mapped)
+        const mapped: SavedSchedule[] = items.map((s: any) => {
+          const id = String(s?.uuid ?? s?.id ?? `schedule-${Math.random().toString(36).slice(2)}`)
+          const name = s?.name ?? s?.title ?? 'Schedule'
+          const tags: string[] = (Array.isArray(s?.tags) ? s.tags : Array.isArray(s?.availableTags) ? s.availableTags : [])
+            .map((t: any) => typeof t === 'string' ? t : (t?.name ?? '')).filter(Boolean)
+          const locations: string[] = Array.isArray(s?.locations) ? s.locations : Array.isArray(s?.availableLocations) ? s.availableLocations : []
+          const description = s?.description ?? ''
+
+          return {
+            id,
+            name,
+            // Keep backward compatible session shape for existing UI filtering/search
+            session: {
+              ...defaultSessionDraft,
+              title: name,
+              tags,
+              location: locations[0] ?? '',
+              sections: description
+                ? [
+                    {
+                      id: `section-${id}`,
+                      type: 'text',
+                      title: 'Description',
+                      description
+                    }
+                  ]
+                : []
+            },
+            availableTags: tags,
+            availableLocations: locations,
+            sessions: preservedSessions.get(id) ?? []
+          }
+        })
+
+        return mapped
+      })
     } catch {
       // keep current UI state on failure
     }
@@ -1143,11 +1152,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         })
         .filter((x: any) => x?.session)
 
-      // Dedupe exact duplicates from repeated imports (same title/time/location/type/day)
+      // Dedupe: prefer stable session id (each API row is unique). Signature-only dedupe is a fallback
+      // when id is missing, so parallel sessions with same slot metadata are not dropped.
       const deduped: typeof mappedSessions = []
       const seen = new Set<string>()
       const dedupedParentUuidMap = new Map<string, string>() // duplicateParentUuid -> keptParentUuid
       for (const item of mappedSessions) {
+        const stableId = String(item.session?.id ?? '').trim()
         const dateKey = item.session?.date ? (item.session.date as Date).toISOString().slice(0, 10) : 'unknown-day'
         const sig = buildSessionSignature({
           dateKey,
@@ -1159,7 +1170,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           endPeriod: item.session.endPeriod || 'AM'
         })
         const t = String(item.session.sessionType ?? '').toLowerCase()
-        const unique = `${item.scheduleUuid ?? ''}::${sig}::${t}`
+        const unique = stableId
+          ? `${item.scheduleUuid ?? ''}::id::${stableId}`
+          : `${item.scheduleUuid ?? ''}::${sig}::${t}`
         if (seen.has(unique)) {
           // If we are deduping duplicate parents, remember which UUID we kept so children can be remapped.
           if (t === 'parent') {
@@ -1559,12 +1572,18 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         sample: mappedSessions[0]
       })
 
+      // Always bucket under the schedule we requested (or active tab). API rows often omit schedule_uuid;
+      // using only item.scheduleUuid caused sessions to be skipped or attached to the wrong key.
+      const bucketScheduleId = String(
+        fallbackScheduleUuid ?? activeScheduleId ?? ''
+      ).trim()
+
       const sessionsBySchedule: Record<string, SavedSession[]> = {}
       for (const item of deduped) {
-        // Prefer the schedule we requested so sessions attach to the correct schedule (schedule.id)
-        const scheduleUuid = fallbackScheduleUuid ?? item.scheduleUuid ?? null
-        if (!scheduleUuid) continue
-        const key = String(scheduleUuid)
+        const key =
+          bucketScheduleId ||
+          String(item.scheduleUuid ?? '').trim()
+        if (!key) continue
         if (!sessionsBySchedule[key]) sessionsBySchedule[key] = []
         sessionsBySchedule[key].push(item.session)
       }
@@ -2484,6 +2503,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         })
         showToast.success('Schedule updated successfully')
         await loadSchedules()
+        if (activeScheduleId) {
+          await loadSessions(activeScheduleId)
+        }
       } catch (e) {
         showToast.error(e instanceof Error ? e.message : 'Failed to update schedule. Please try again.')
       }
@@ -2716,7 +2738,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             }}
             onDateChange={(date) => {
               const normalizedDate = new Date(date)
-              normalizedDate.setHours(0, 0, 0, 0)
+              normalizedDate.setUTCHours(0, 0, 0, 0)
               setSelectedDate(normalizedDate)
             }}
             onEditSession={async (session) => {

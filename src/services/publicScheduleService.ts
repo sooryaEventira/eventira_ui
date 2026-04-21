@@ -1,6 +1,11 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 
+const pubAuthHeaders = (): Record<string, string> => {
+  const t = localStorage.getItem('pub_accessToken')
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 export interface PublicScheduleData {
   id?: string | number
   uuid?: string
@@ -19,7 +24,7 @@ export const fetchPublicSchedules = async (eventUuid: string): Promise<PublicSch
     const url = API_ENDPOINTS.PUBLIC.SCHEDULES.LIST(eventUuid)
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     })
 
     if (!response || !response.ok) {

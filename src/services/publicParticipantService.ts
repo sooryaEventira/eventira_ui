@@ -1,6 +1,11 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 
+const pubAuthHeaders = (): Record<string, string> => {
+  const t = localStorage.getItem('pub_accessToken')
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 export interface PublicParticipantData {
   id?: string | number
   uuid?: string
@@ -60,7 +65,7 @@ export const fetchPublicParticipants = async (
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     })
 
     if (!response.ok) await handleFetchError(response, 'Failed to fetch participants.')
@@ -98,7 +103,7 @@ export const fetchPublicParticipant = async (
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     })
 
     if (!response.ok) await handleFetchError(response, 'Failed to fetch participant.')

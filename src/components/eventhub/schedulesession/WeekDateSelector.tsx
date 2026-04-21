@@ -21,7 +21,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
 }) => {
   const normalizeDay = useCallback((d: Date) => {
     const nd = new Date(d)
-    nd.setHours(0, 0, 0, 0)
+    nd.setUTCHours(0, 0, 0, 0)
     return nd
   }, [])
 
@@ -38,15 +38,15 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
   // Generate week dates
   const getWeekDates = (date: Date) => {
     const startOfWeek = normalizeDay(date)
-    const day = startOfWeek.getDay()
-    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1) // Monday as start
-    startOfWeek.setDate(diff)
-    startOfWeek.setHours(0, 0, 0, 0)
+    const day = startOfWeek.getUTCDay()
+    const diff = startOfWeek.getUTCDate() - day + (day === 0 ? -6 : 1) // Monday as start
+    startOfWeek.setUTCDate(diff)
+    startOfWeek.setUTCHours(0, 0, 0, 0)
 
     return Array.from({ length: 7 }, (_, i) => {
       const date = new Date(startOfWeek)
-      date.setDate(startOfWeek.getDate() + i)
-      date.setHours(0, 0, 0, 0)
+      date.setUTCDate(startOfWeek.getUTCDate() + i)
+      date.setUTCHours(0, 0, 0, 0)
       return date
     })
   }
@@ -54,12 +54,12 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
   // Get day name abbreviation
   const getDayName = (date: Date) => {
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-    return dayNames[date.getDay()]
+    return dayNames[date.getUTCDay()]
   }
 
   const getMonthName = (date: Date) => {
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    return monthNames[date.getMonth()]
+    return monthNames[date.getUTCMonth()]
   }
 
   const getCardTopLabel = (date: Date) => {
@@ -100,10 +100,12 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
 
   // Calendar utilities
   const getMonthDays = (referenceMonth: Date) => {
-    const startOfMonth = new Date(referenceMonth.getFullYear(), referenceMonth.getMonth(), 1)
-    const endOfMonth = new Date(referenceMonth.getFullYear(), referenceMonth.getMonth() + 1, 0)
-    const startDayOfWeek = startOfMonth.getDay()
-    const daysInMonth = endOfMonth.getDate()
+    const year = referenceMonth.getUTCFullYear()
+    const month = referenceMonth.getUTCMonth()
+    const startOfMonth = new Date(Date.UTC(year, month, 1))
+    const endOfMonth = new Date(Date.UTC(year, month + 1, 0))
+    const startDayOfWeek = startOfMonth.getUTCDay()
+    const daysInMonth = endOfMonth.getUTCDate()
     const days: Array<Date | null> = []
 
     // Adjust to start from Monday (0 = Monday, 6 = Sunday)
@@ -114,7 +116,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
     }
 
     for (let day = 1; day <= daysInMonth; day += 1) {
-      days.push(new Date(referenceMonth.getFullYear(), referenceMonth.getMonth(), day))
+      days.push(new Date(Date.UTC(year, month, day)))
     }
 
     while (days.length % 7 !== 0) {
@@ -127,9 +129,9 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
   const isSameDay = (dateA: Date | null, dateB: Date | null) => {
     if (!dateA || !dateB) return false
     return (
-      dateA.getFullYear() === dateB.getFullYear() &&
-      dateA.getMonth() === dateB.getMonth() &&
-      dateA.getDate() === dateB.getDate()
+      dateA.getUTCFullYear() === dateB.getUTCFullYear() &&
+      dateA.getUTCMonth() === dateB.getUTCMonth() &&
+      dateA.getUTCDate() === dateB.getUTCDate()
     )
   }
 
@@ -198,7 +200,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
 
   // Initialize first month based on current date
   useEffect(() => {
-    setFirstMonth(new Date(currentDate.getFullYear(), currentDate.getMonth(), 1))
+    setFirstMonth(new Date(Date.UTC(currentDate.getUTCFullYear(), currentDate.getUTCMonth(), 1)))
   }, [currentDate])
 
   // Keep internal state in sync if initialDate prop changes (ex: on refresh or schedule switch)
@@ -234,15 +236,15 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
 
   const formatDate = (date: Date | null) => {
     if (!date) return ''
-    const month = new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date)
-    const day = date.getDate().toString().padStart(2, '0')
-    const year = date.getFullYear()
+    const month = new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' }).format(date)
+    const day = date.getUTCDate().toString().padStart(2, '0')
+    const year = date.getUTCFullYear()
     return `${month} ${day}, ${year}`
   }
 
   const firstMonthDays = useMemo(() => getMonthDays(firstMonth), [firstMonth])
   const secondMonth = useMemo(() => {
-    return new Date(firstMonth.getFullYear(), firstMonth.getMonth() + 1, 1)
+    return new Date(Date.UTC(firstMonth.getUTCFullYear(), firstMonth.getUTCMonth() + 1, 1))
   }, [firstMonth])
   const secondMonthDays = useMemo(() => getMonthDays(secondMonth), [secondMonth])
 
@@ -256,16 +258,16 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
     const first = displayDates[0]
     const last = displayDates[displayDates.length - 1]
 
-    const fmtMonthShort = (d: Date) => new Intl.DateTimeFormat('en-US', { month: 'short' }).format(d)
-    const fmtMonthLong = (d: Date) => new Intl.DateTimeFormat('en-US', { month: 'long' }).format(d)
+    const fmtMonthShort = (d: Date) => new Intl.DateTimeFormat('en-US', { month: 'short', timeZone: 'UTC' }).format(d)
+    const fmtMonthLong = (d: Date) => new Intl.DateTimeFormat('en-US', { month: 'long', timeZone: 'UTC' }).format(d)
 
-    const sameMonth = first.getMonth() === last.getMonth() && first.getFullYear() === last.getFullYear()
+    const sameMonth = first.getUTCMonth() === last.getUTCMonth() && first.getUTCFullYear() === last.getUTCFullYear()
     if (sameMonth) {
-      return `${fmtMonthLong(first)} ${first.getFullYear()}`
+      return `${fmtMonthLong(first)} ${first.getUTCFullYear()}`
     }
 
-    const firstLabel = `${fmtMonthShort(first)} ${first.getFullYear()}`
-    const lastLabel = `${fmtMonthShort(last)} ${last.getFullYear()}`
+    const firstLabel = `${fmtMonthShort(first)} ${first.getUTCFullYear()}`
+    const lastLabel = `${fmtMonthShort(last)} ${last.getUTCFullYear()}`
     return `${firstLabel} / ${lastLabel}`
   }, [displayDates])
 
@@ -340,7 +342,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                     {getCardTopLabel(date)}
                   </div>
                   <div className={numberClass} style={{ fontFamily: 'Inter' }}>
-                    {date.getDate()}                  </div>
+                    {date.getUTCDate()}                  </div>
                 </button>
               </div>
             )
@@ -391,14 +393,14 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
               <div className="flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => setFirstMonth(new Date(firstMonth.getFullYear(), firstMonth.getMonth() - 1, 1))}
+                  onClick={() => setFirstMonth(new Date(Date.UTC(firstMonth.getUTCFullYear(), firstMonth.getUTCMonth() - 1, 1)))}
                   className="flex h-8 w-8 items-center justify-center rounded-md p-1.5"
                   aria-label="Previous month"
                 >
                   <ChevronLeft className="h-5 w-5 text-[#A4A7AE]" />
                 </button>
                 <div className="text-center text-sm font-semibold text-[#414651]" style={{ fontFamily: 'Inter', lineHeight: '20px' }}>
-                  {monthNames[firstMonth.getMonth()]} {firstMonth.getFullYear()}
+                  {monthNames[firstMonth.getUTCMonth()]} {firstMonth.getUTCFullYear()}
                 </div>
                 <div className="h-8 w-8" /> {/* Spacer for alignment */}
               </div>
@@ -421,17 +423,18 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                     return <div key={`empty-1-${index}`} className="h-10 w-10" style={{ margin: 0 }} />
                   }
                   
-                  const isCurrentMonth = day.getMonth() === firstMonth.getMonth()
+                  const isCurrentMonth = day.getUTCMonth() === firstMonth.getUTCMonth()
                   const isSelectedStart = tempStartDate && isSameDay(day, tempStartDate)
                   const isSelectedEnd = tempEndDate && isSameDay(day, tempEndDate)
                   const isInRange = tempStartDate && tempEndDate && isDateInRange(day, tempStartDate, tempEndDate) && !isSelectedStart && !isSelectedEnd
-                  const isToday = isSameDay(day, new Date())
+                  const todayUTC = new Date(); todayUTC.setUTCHours(0,0,0,0)
+                  const isToday = isSameDay(day, todayUTC)
                   const isDisabled = !isCurrentMonth
-                  
+
                   // Determine connector states
                   const hasLeftConnector = isInRange || (isSelectedEnd && tempStartDate && day > tempStartDate)
                   const hasRightConnector = isInRange || (isSelectedStart && tempEndDate && day < tempEndDate)
-                  
+
                   return (
                     <div key={day.toISOString()} className="relative" style={{ width: '40px', height: '40px', margin: 0 }}>
                       {/* Range connectors */}
@@ -441,7 +444,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                       {hasRightConnector && (
                         <div className="absolute right-0 top-0 h-10 w-5 bg-[#6938EF]" />
                       )}
-                      
+
                       <button
                         type="button"
                         onClick={() => !isDisabled && handleDateClick(day)}
@@ -457,7 +460,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                         }`}
                         style={{ fontFamily: 'Inter', lineHeight: '20px', width: '40px', height: '40px', margin: 0, padding: 0 }}
                       >
-                        {day.getDate()}
+                        {day.getUTCDate()}
                         {/* Dot indicator for today */}
                         {isToday && !isSelectedStart && !isSelectedEnd && (
                           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#6938EF] rounded-full" />
@@ -475,18 +478,18 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
               <div className="flex items-center justify-between">
                 <button
                   type="button"
-                  onClick={() => setFirstMonth(new Date(secondMonth.getFullYear(), secondMonth.getMonth() - 1, 1))}
+                  onClick={() => setFirstMonth(new Date(Date.UTC(secondMonth.getUTCFullYear(), secondMonth.getUTCMonth() - 1, 1)))}
                   className="flex h-8 w-8 items-center justify-center rounded-md p-1.5"
                   aria-label="Previous month"
                 >
                   <ChevronLeft className="h-5 w-5 text-[#A4A7AE]" />
                 </button>
                 <div className="text-center text-sm font-semibold text-[#414651]" style={{ fontFamily: 'Inter', lineHeight: '20px' }}>
-                  {monthNames[secondMonth.getMonth()]} {secondMonth.getFullYear()}
+                  {monthNames[secondMonth.getUTCMonth()]} {secondMonth.getUTCFullYear()}
                 </div>
                 <button
                   type="button"
-                  onClick={() => setFirstMonth(new Date(secondMonth.getFullYear(), secondMonth.getMonth() + 1, 1))}
+                  onClick={() => setFirstMonth(new Date(Date.UTC(secondMonth.getUTCFullYear(), secondMonth.getUTCMonth() + 1, 1)))}
                   className="flex h-8 w-8 items-center justify-center rounded-md p-1.5"
                   aria-label="Next month"
                 >
@@ -512,17 +515,18 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                     return <div key={`empty-2-${index}`} className="h-10 w-10" style={{ margin: 0 }} />
                   }
                   
-                  const isCurrentMonth = day.getMonth() === secondMonth.getMonth()
+                  const isCurrentMonth = day.getUTCMonth() === secondMonth.getUTCMonth()
                   const isSelectedStart = tempStartDate && isSameDay(day, tempStartDate)
                   const isSelectedEnd = tempEndDate && isSameDay(day, tempEndDate)
                   const isInRange = tempStartDate && tempEndDate && isDateInRange(day, tempStartDate, tempEndDate) && !isSelectedStart && !isSelectedEnd
-                  const isToday = isSameDay(day, new Date())
+                  const todayUTC2 = new Date(); todayUTC2.setUTCHours(0,0,0,0)
+                  const isToday = isSameDay(day, todayUTC2)
                   const isDisabled = !isCurrentMonth
-                  
+
                   // Determine connector states
                   const hasLeftConnector = isInRange || (isSelectedEnd && tempStartDate && day > tempStartDate)
                   const hasRightConnector = isInRange || (isSelectedStart && tempEndDate && day < tempEndDate)
-                  
+
                   return (
                     <div key={day.toISOString()} className="relative" style={{ width: '40px', height: '40px', margin: 0 }}>
                       {/* Range connectors */}
@@ -532,7 +536,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                       {hasRightConnector && (
                         <div className="absolute right-0 top-0 h-10 w-5 bg-[#6938EF]" />
                       )}
-                      
+
                       <button
                         type="button"
                         onClick={() => !isDisabled && handleDateClick(day)}
@@ -548,7 +552,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                         }`}
                         style={{ fontFamily: 'Inter', lineHeight: '20px', width: '40px', height: '40px', margin: 0, padding: 0 }}
                       >
-                        {day.getDate()}
+                        {day.getUTCDate()}
                         {/* Dot indicator for today */}
                         {isToday && !isSelectedStart && !isSelectedEnd && (
                           <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 bg-[#6938EF] rounded-full" />

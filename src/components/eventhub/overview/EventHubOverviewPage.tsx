@@ -55,8 +55,8 @@ function formatDateRange(startISO: string, endISO: string): string {
   const end = endISO ? new Date(endISO) : null
   if (!start || Number.isNaN(start.getTime())) return '—'
 
-  const df = new Intl.DateTimeFormat(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
-  const tf = new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit' })
+  const df = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
+  const tf = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' })
 
   const startDate = df.format(start)
   const startTime = tf.format(start)

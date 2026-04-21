@@ -1,6 +1,8 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState, useCallback } from 'react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
+import { addBookmark, removeBookmark } from '../../../services/bookmarkService'
+import { showToast } from '../../../utils/toast'
 import PublicScheduleGrid from './PublicScheduleGrid'
 
 interface PublicScheduleSessionsPageProps {
@@ -112,10 +114,12 @@ function mapRawToSavedSession(x: any, idx: number): SavedSession {
     speakers: speakersArr,
     date: date ?? undefined,
     parentId: parentIdRaw ? String(parentIdRaw) : undefined,
+    is_bookmarked: Boolean(x.is_bookmarked ?? x.isBookmarked ?? false),
     __dateKey: date ? date.toISOString().slice(0, 10) : undefined,
     __numericId: x.uuid != null && x.id != null ? x.id : undefined,
   } as any
 }
+
 
 const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
   eventUuid,
@@ -124,6 +128,7 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
 }) => {
   const [sessions, setSessions] = useState<SavedSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [bookmarkedSessionIds, setBookmarkedSessionIds] = useState<Set<string>>(new Set())
 
   // Resolve schedule title from website index in localStorage
   const scheduleTitle = useMemo(() => {
@@ -154,20 +159,126 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
     fetchPublicScheduleSessions(eventUuid, scheduleUuid)
       .then((raw) => {
         if (cancelled) return
-        setSessions((Array.isArray(raw) ? raw : []).map(mapRawToSavedSession))
+        const mapped = (Array.isArray(raw) ? raw : []).map(mapRawToSavedSession)
+        setSessions(mapped)
+        const ids = new Set<string>()
+        mapped.forEach((s: any) => { if (s.is_bookmarked) ids.add(String(s.id)) })
+        setBookmarkedSessionIds(ids)
       })
       .catch(() => { if (!cancelled) setSessions([]) })
       .finally(() => { if (!cancelled) setIsLoading(false) })
     return () => { cancelled = true }
   }, [eventUuid, scheduleUuid])
 
+  const startOfDayKey = useCallback((d: Date) => {
+    const dt = new Date(d); dt.setHours(0, 0, 0, 0); return dt.getTime()
+  }, [])
+
+  const dayKeys = useMemo(() => {
+    const map = new Map<number, Date>()
+    sessions.forEach((s) => {
+      const d = s.date ? new Date(s.date) : null
+      if (!d || Number.isNaN(d.getTime())) return
+      const key = startOfDayKey(d)
+      if (!map.has(key)) map.set(key, d)
+    })
+    return Array.from(map.entries()).sort((a, b) => a[0] - b[0]).map(([, d]) => d)
+  }, [sessions, startOfDayKey])
+
+  const [activeDayIndex, setActiveDayIndex] = useState(0)
+  useEffect(() => { setActiveDayIndex(0) }, [scheduleUuid])
+
+  const rangeLabel = useMemo(() => {
+    if (dayKeys.length === 0) return ''
+    const fmt = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' })
+    const start = dayKeys[0], end = dayKeys[dayKeys.length - 1]
+    if (startOfDayKey(start) === startOfDayKey(end)) {
+      return new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric' }).format(start)
+    }
+    if (start.getFullYear() === end.getFullYear()) {
+      if (start.getMonth() === end.getMonth())
+        return `${new Intl.DateTimeFormat('en-US', { month: 'long' }).format(start)} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
+      return `${fmt.format(start)} – ${fmt.format(end)}, ${start.getFullYear()}`
+    }
+    return `${fmt.format(start)}, ${start.getFullYear()} – ${fmt.format(end)}, ${end.getFullYear()}`
+  }, [dayKeys, startOfDayKey])
+
+  const sessionsForDay = useMemo(() => {
+    if (dayKeys.length === 0) return sessions
+    const activeKey = startOfDayKey(dayKeys[activeDayIndex] ?? dayKeys[0])
+    return sessions.filter((s) => {
+      if (!s.date) return false
+      const d = new Date(s.date)
+      return !Number.isNaN(d.getTime()) && startOfDayKey(d) === activeKey
+    })
+  }, [sessions, dayKeys, activeDayIndex, startOfDayKey])
+
   const handleSpeakerClick = (speakerUuid: string) => {
-    onNavigate(`/events/${eventUuid}/speakers/${speakerUuid}`)
+    onNavigate(`/events/${eventUuid}/attendees/${speakerUuid}`)
+  }
+
+  const handleSessionClick = (sessionId: string) => {
+    onNavigate(`/events/${eventUuid}/sessions/${sessionId}`)
+  }
+
+  const handleBookmarkToggle = async (session: SavedSession) => {
+    const sessionId = String(session.id)
+    if (!sessionId || !eventUuid) return
+    const alreadyBookmarked = bookmarkedSessionIds.has(sessionId)
+
+    // Optimistic update for snappy UI
+    setBookmarkedSessionIds((prev) => {
+      const next = new Set(prev)
+      if (alreadyBookmarked) next.delete(sessionId)
+      else next.add(sessionId)
+      return next
+    })
+
+    try {
+      if (alreadyBookmarked) await removeBookmark(eventUuid, sessionId)
+      else await addBookmark(eventUuid, sessionId)
+      showToast.success(alreadyBookmarked ? 'Bookmark removed' : 'Session bookmarked')
+    } catch {
+      // Revert optimistic update if API fails
+      setBookmarkedSessionIds((prev) => {
+        const next = new Set(prev)
+        if (alreadyBookmarked) next.add(sessionId)
+        else next.delete(sessionId)
+        return next
+      })
+      showToast.error(alreadyBookmarked ? 'Failed to remove bookmark' : 'Failed to bookmark session')
+    }
   }
 
   return (
     <div className="space-y-4">
       <h1 className="text-xl font-semibold text-slate-900">{scheduleTitle ?? 'Sessions'}</h1>
+
+      {rangeLabel && (
+        <div className="text-sm font-semibold text-slate-700">{rangeLabel}</div>
+      )}
+
+      {dayKeys.length > 1 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {dayKeys.map((d, idx) => {
+            const isActive = idx === activeDayIndex
+            const dateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d)
+            return (
+              <button
+                key={startOfDayKey(d)}
+                type="button"
+                onClick={() => setActiveDayIndex(idx)}
+                className={[
+                  'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                  isActive ? 'bg-primary text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                ].join(' ')}
+              >
+                Day {idx + 1} <span className="ml-2 text-xs font-medium opacity-90">{dateLabel}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-3">
@@ -175,13 +286,20 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
             <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4 h-20" />
           ))}
         </div>
-      ) : sessions.length === 0 ? (
+      ) : sessionsForDay.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="text-base font-semibold text-slate-900">No sessions found</div>
-          <div className="mt-1 text-sm text-slate-500">No sessions have been added to this schedule yet.</div>
+          <div className="mt-1 text-sm text-slate-500">No sessions available for this day.</div>
         </div>
       ) : (
-        <PublicScheduleGrid sessions={sessions} onSpeakerClick={handleSpeakerClick} />
+        <PublicScheduleGrid
+          sessions={sessionsForDay}
+          onSpeakerClick={handleSpeakerClick}
+          onSessionClick={handleSessionClick}
+          showBookmark
+          bookmarkedSessionIds={bookmarkedSessionIds}
+          onToggleBookmark={handleBookmarkToggle}
+        />
       )}
     </div>
   )

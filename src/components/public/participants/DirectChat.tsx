@@ -1,16 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
+import * as Ably from 'ably'
 import { Send01 } from '@untitled-ui/icons-react'
-import {
-  type DirectMessage as ChatMessage,
-  createDmConnection,
-  getDmChannelName,
-  publishDirectMessage,
-  loadDmHistory,
-  saveDmMessage,
-  type DmConnection,
-} from '../../../services/publicDirectMessageService'
+import { API_ENDPOINTS } from '../../../config/env'
+import { type DirectMessage, publishDirectMessage, saveDmMessage, loadDmHistory } from '../../../services/publicDirectMessageService'
 
-interface AblyDirectChatProps {
+interface DirectChatProps {
   peerId: string
   peerName: string
   peerAvatarUrl?: string
@@ -18,49 +12,35 @@ interface AblyDirectChatProps {
   onClose: () => void
 }
 
-function getCurrentUserId(): string {
-  // Prefer the attendee UUID stored after profile fetch — this matches the IDs
-  // used in the attendees/speakers list (a.uuid ?? a.id from the API response).
-  // Using a different ID here would cause channel name mismatches so both parties
-  // end up on different Ably channels and can't see each other's messages.
-  const stored = localStorage.getItem('pub_attendeeUuid')
-  if (stored) return stored
-  try {
-    const token = localStorage.getItem('pub_accessToken')
-    if (!token) return ''
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-    const payload = JSON.parse(atob(base64))
-    return String(payload?.uuid ?? payload?.user_uuid ?? payload?.sub ?? payload?.user_id ?? payload?.id ?? '')
-  } catch { return '' }
+function getMyId(): string {
+  return localStorage.getItem('pub_attendeeUuid') ?? ''
 }
 
-function getCurrentUserName(): string {
+function getMyName(): string {
   const first = localStorage.getItem('pub_firstName') ?? ''
   const last = localStorage.getItem('pub_lastName') ?? ''
-  if (first || last) return [first, last].filter(Boolean).join(' ')
-  try {
-    const token = localStorage.getItem('pub_accessToken')
-    if (!token) return 'Me'
-    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
-    const payload = JSON.parse(atob(base64))
-    const jFirst = payload?.first_name ?? payload?.given_name ?? ''
-    const jLast = payload?.last_name ?? payload?.family_name ?? ''
-    return [jFirst, jLast].filter(Boolean).join(' ') || 'Me'
-  } catch { return 'Me' }
+  return [first, last].filter(Boolean).join(' ') || 'Me'
 }
 
-const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerAvatarUrl, isPeerOnline, onClose }) => {
-  const myId = getCurrentUserId()
-  const myName = getCurrentUserName()
-  const channelName = getDmChannelName(myId || 'guest', peerId)
+function authHeaders(): Record<string, string> {
+  const token = localStorage.getItem('pub_accessToken') ?? ''
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  if (token) headers['Authorization'] = `Bearer ${token}`
+  return headers
+}
 
-  const [messages, setMessages] = useState<ChatMessage[]>(() => loadDmHistory(channelName))
+const DirectChat: React.FC<DirectChatProps> = ({ peerId, peerName, peerAvatarUrl, isPeerOnline, onClose }) => {
+  const myId = getMyId()
+  const myName = getMyName()
+
+  const [messages, setMessages] = useState<DirectMessage[]>([])
   const [input, setInput] = useState('')
   const [ready, setReady] = useState(false)
   const [sending, setSending] = useState(false)
 
-  // Keep the connection for the full lifetime — never recreate it on re-renders
-  const connRef = useRef<DmConnection | null>(null)
+  const channelRef = useRef<Ably.RealtimeChannel | null>(null)
+  const clientRef = useRef<Ably.Realtime | null>(null)
+  const channelNameRef = useRef<string>('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -68,49 +48,86 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
   }, [messages])
 
   useEffect(() => {
-    // Only create once per channelName — skip if already connected
-    if (connRef.current) return
+    let cancelled = false
 
-    connRef.current = createDmConnection(
-      channelName,
-      (msg) => {
-        saveDmMessage(channelName, msg)
-        setMessages((prev) => prev.some((m) => m.id === msg.id) ? prev : [...prev, msg])
-      },
-      () => setReady(true)
-    )
+    const init = async () => {
+      try {
+        const r = await fetch(API_ENDPOINTS.PUBLIC.CHAT_ROOMS, {
+          method: 'POST',
+          headers: authHeaders(),
+          body: JSON.stringify({ participant_uuid: peerId }),
+        })
+        if (!r.ok || cancelled) return
+        const json = await r.json()
+        const d = json?.data ?? json
+        const channelName = String(d?.channel_name ?? '')
+        const ablyToken = d?.ably_token ?? null
 
-    // Only destroy on true unmount (component removed), not StrictMode double-invoke
-    return () => {
-      // intentionally empty — destroy happens in the component's full unmount below
+        if (!channelName || !ablyToken || cancelled) return
+
+        channelNameRef.current = channelName
+        const history = loadDmHistory(channelName)
+        if (!cancelled) setMessages(history)
+
+        const client = new Ably.Realtime({ token: ablyToken })
+        clientRef.current = client
+
+        const channel = client.channels.get(channelName, { params: { rewind: '100' } })
+        channelRef.current = channel
+
+        channel.subscribe((msg: Ably.Message) => {
+          const data = msg.data as DirectMessage
+          if (!data?.id) return
+          saveDmMessage(channelName, data)
+          setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data])
+        })
+
+        channel.once('attached', async () => {
+          try {
+            const page = await channel.history({ limit: 100, direction: 'backwards', untilAttach: true })
+            const historical = [...page.items].reverse()
+            historical.forEach((msg) => {
+              const data = msg.data as DirectMessage
+              if (data?.id) {
+                saveDmMessage(channelName, data)
+                setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data])
+              }
+            })
+          } catch { /* history unavailable */ }
+          if (!cancelled) setReady(true)
+        })
+
+        channel.attach().catch(() => {})
+      } catch { /* ignore */ }
     }
-  }, [channelName])
 
-  // True cleanup only when component is fully removed
-  useEffect(() => {
+    init()
+
     return () => {
-      connRef.current?.destroy()
-      connRef.current = null
-      setReady(false)
+      cancelled = true
+      channelRef.current?.unsubscribe()
+      clientRef.current?.close()
+      channelRef.current = null
+      clientRef.current = null
     }
-  }, [])
+  }, [peerId])
 
   const handleSend = async () => {
     const text = input.trim()
-    if (!text || sending || !connRef.current) return
+    if (!text || sending || !channelRef.current) return
     setSending(true)
-    const msg: ChatMessage = {
+    const msg: DirectMessage = {
       id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
       senderId: myId,
       senderName: myName,
       text,
       timestamp: Date.now(),
     }
-    saveDmMessage(channelName, msg)
+    saveDmMessage(channelNameRef.current, msg)
     setMessages((prev) => [...prev, msg])
     setInput('')
     try {
-      await publishDirectMessage(connRef.current.channel, msg)
+      await publishDirectMessage(channelRef.current, msg)
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== msg.id))
       setInput(text)
@@ -132,7 +149,7 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
             <img src={peerAvatarUrl} alt={peerName} className="h-9 w-9 rounded-full object-cover ring-1 ring-slate-200" />
           ) : (
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 ring-1 ring-slate-200 text-xs font-semibold text-slate-500">
-              {String(peerName || 'S').split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
+              {String(peerName || 'P').split(' ').filter(Boolean).map((p) => p[0]).join('').toUpperCase().slice(0, 2)}
             </div>
           )}
           {isPeerOnline && (
@@ -197,9 +214,9 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
         <button
           type="button"
           onClick={handleSend}
-          disabled={!input.trim() || sending}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-40"
-          aria-label="Send message"
+          disabled={sending || !input.trim() || !ready}
+          className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-40 transition-opacity"
+          aria-label="Send"
         >
           <Send01 className="h-4 w-4" />
         </button>
@@ -208,4 +225,4 @@ const AblyDirectChat: React.FC<AblyDirectChatProps> = ({ peerId, peerName, peerA
   )
 }
 
-export default AblyDirectChat
+export default DirectChat

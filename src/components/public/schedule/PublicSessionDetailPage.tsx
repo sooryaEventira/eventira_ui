@@ -77,6 +77,36 @@ const mapApiSessionToSaved = (x: any, idx: number): SavedSession => {
   const apiSections = Array.isArray(x.sections) ? x.sections : Array.isArray(x.session_sections) ? x.session_sections : []
   const apiResources = Array.isArray(x.session_resources) ? x.session_resources : Array.isArray(x.resources) ? x.resources : Array.isArray(x.resource_files) ? x.resource_files : []
   const sections = mapApiSectionsToSavedSections(apiSections, apiResources, id, description)
+  const rawSpeakers = Array.isArray(x.speakers) ? x.speakers : Array.isArray(x.session_speakers) ? x.session_speakers : []
+  const speakersArr: any[] = []
+  rawSpeakers.forEach((item: any) => {
+    if (item?.content?.speakers && Array.isArray(item.content.speakers)) speakersArr.push(...item.content.speakers)
+    else if (item?.name || item?.first_name || item?.last_name || item?.uuid) speakersArr.push(item)
+  })
+
+  // Build a uuid → speaker lookup from top-level speakers for enriching section data
+  const speakerLookup = new Map<string, any>()
+  speakersArr.forEach((sp: any) => {
+    const uuid = String(sp?.uuid ?? sp?.id ?? '').trim()
+    if (uuid) speakerLookup.set(uuid, sp)
+  })
+
+  // Enrich speaker sections with name/image from top-level speakers lookup
+  sections.forEach((sec) => {
+    if ((sec.type === 'speaker' || sec.type === 'speakers') && Array.isArray(sec.data?.speakers)) {
+      sec.data.speakers = (sec.data.speakers as any[]).map((sp: any) => {
+        const match = speakerLookup.get(String(sp?.id ?? sp?.uuid ?? ''))
+        if (!match) return sp
+        return {
+          ...sp,
+          name: (sp.name && sp.name !== 'Speaker') ? sp.name : (match.name || [match.first_name, match.last_name].filter(Boolean).join(' ') || sp.name),
+          avatarUrl: sp.avatarUrl || match.image || match.avatar_url || match.avatarUrl,
+          role: sp.role || match.role || '',
+        }
+      })
+    }
+  })
+
   return {
     id,
     title,
@@ -91,8 +121,9 @@ const mapApiSessionToSaved = (x: any, idx: number): SavedSession => {
       : [],
     sections,
     attachments,
+    speakers: speakersArr,
     date: date ?? undefined,
-    parentId: x.parent_uuid ?? x.parentId ? String(x.parent_uuid ?? x.parentId) : undefined,
+    parentId: (x.parent_uuid ?? x.parentId) ? String(x.parent_uuid ?? x.parentId) : undefined,
   }
 }
 

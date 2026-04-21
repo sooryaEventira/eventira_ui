@@ -169,20 +169,20 @@ export const stripFilesFromPayload = (obj: Record<string, unknown>): Record<stri
 export const buildOneSectionPayload = (
   s: SessionDraft['sections'][number],
   order: number
-): UpdateSessionSectionBody & { section_type: string; order: number; content: Record<string, unknown> | string[] } => {
+): UpdateSessionSectionBody & { section_type: string; order: number; content: Record<string, unknown> | string[] | { uuid: string; role: string }[] } => {
   const sectionType = toApiSectionType((s.type === 'speaker' ? 'speakers' : s.type) || 'text')
   let content: Record<string, unknown> | string[]
   if (sectionType === 'text') {
     content = { title: s.title || 'Section', body: s.description ?? '' }
   } else if (sectionType === 'speakers') {
-    // Always derive from `speakers` array (UI source of truth); fall back to speaker_uuids only if speakers isn't an array
-    const speakerUuids: string[] = Array.isArray(s.data?.speakers)
-      ? (s.data.speakers as { id: string }[]).map((sp) => sp.id).filter(Boolean)
-      : Array.isArray(s.data?.speaker_uuids)
-        ? s.data.speaker_uuids
-        : []
-    // Backend expects content to be a plain array of speaker UUIDs
-    content = speakerUuids
+    if (Array.isArray(s.data?.speakers)) {
+      content = (s.data.speakers as { id: string; role?: string }[])
+        .filter((sp) => sp.id)
+        .map((sp) => ({ uuid: sp.id, role: sp.role ?? '' }))
+    } else {
+      const fallbackUuids: string[] = Array.isArray(s.data?.speaker_uuids) ? s.data.speaker_uuids : []
+      content = fallbackUuids.map((uuid) => ({ uuid, role: '' }))
+    }
   } else if (sectionType === 'video') {
     const videoUrl = s.data?.videoUrl ?? s.data?.video_url ?? s.data?.video_uri ?? ''
     content = { video_url: typeof videoUrl === 'string' ? videoUrl : String(videoUrl || ''), title: s.title || 'Video' }

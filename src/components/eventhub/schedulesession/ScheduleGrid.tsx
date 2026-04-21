@@ -6,6 +6,12 @@ import { SavedSession } from './sessionTypes'
 interface ScheduleGridProps {
   sessions: SavedSession[]
   selectedDate: Date
+  /**
+   * When true (default), nested/parallel child sessions under a parent start expanded so the grid
+   * shows the full schedule without requiring a click per row. Toggle still collapses.
+   * Set false for compact views (e.g. public embed) where only top-level rows should show until expanded.
+   */
+  defaultExpandNestedChildren?: boolean
   onAddParallelSession?: (parentSessionId?: string) => void
   onEditSession?: (session: SavedSession) => void
   onDeleteSession?: (session: SavedSession) => void
@@ -297,8 +303,8 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   parallelSessions,
   isExpanded,
   onToggleExpand,
-  timeRangeStart,
-  timeRangeEnd,
+  timeRangeStart: _timeRangeStart,
+  timeRangeEnd: _timeRangeEnd,
   getNestedParallelSessions,
   isSessionExpanded,
   onToggleSessionExpand,
@@ -307,7 +313,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   formatTimeRange,
   getLocationLabel,
   getSessionTypeLabel,
-  isTimeValid,
+  isTimeValid: _isTimeValid,
   onEditSession,
   onDeleteSession,
   onSessionClick,
@@ -350,6 +356,10 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
   const hasParallelSessions = parallelSessions.length > 0
   const showAddButton = Boolean(onAddParallelSession)
 
+  const [draggingNestedId, setDraggingNestedId] = useState<string | null>(null)
+  const [dragOverNestedId, setDragOverNestedId] = useState<string | null>(null)
+  const [nestedOrderMap, setNestedOrderMap] = useState<Record<string, string[]>>({})
+
   const getChildren = React.useCallback(
     (parentId: string) => {
       return getNestedParallelSessions?.(parentId) ?? []
@@ -357,37 +367,66 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
     [getNestedParallelSessions]
   )
 
+  const getOrderedChildren = React.useCallback((parentId: string, children: SavedSession[]) => {
+    const order = nestedOrderMap[parentId]
+    if (!order?.length) return children
+    const byId = new Map(children.map(s => [String(s.id), s]))
+    const result: SavedSession[] = []
+    for (const id of order) { const s = byId.get(id); if (s) result.push(s) }
+    children.forEach(s => { if (!order.includes(String(s.id))) result.push(s) })
+    return result
+  }, [nestedOrderMap])
+
   const renderNestedSessions = React.useCallback(
     (parent: SavedSession, depth: number) => {
-      const children = getChildren(parent.id)
-      if (children.length === 0) return null
+      const rawChildren = getChildren(parent.id)
+      if (rawChildren.length === 0) return null
 
       const expanded = (isSessionExpanded ? isSessionExpanded(parent.id) : true) || depth === 1
       if (!expanded) return null
 
+      const children = getOrderedChildren(parent.id, rawChildren)
+
       return (
         <div className="mt-3 relative">
           {/* Vertical Spine for Elbow Connectors */}
-          <div 
-            className="absolute left-3 top-0 bottom-6 w-0.5 bg-slate-200 rounded-full" 
-            aria-hidden="true"
-          />
+          <div className="absolute left-3 top-0 bottom-6 w-0.5 bg-slate-200 rounded-full" aria-hidden="true" />
 
           <div className="space-y-3">
             {children.map((child) => {
               const hasMore = getChildren(child.id).length > 0
               const childExpanded = isSessionExpanded ? isSessionExpanded(child.id) : true
+              const isDraggingThis = draggingNestedId === String(child.id)
+              const isDragOverThis = dragOverNestedId === String(child.id) && draggingNestedId !== String(child.id)
 
               return (
-                <div key={child.id} className="relative pl-8">
+                <div
+                  key={child.id}
+                  className={`relative pl-8 transition-opacity ${isDraggingThis ? 'opacity-40' : ''} ${isDragOverThis ? 'ring-2 ring-primary ring-offset-1 rounded-xl' : ''}`}
+                  draggable
+                  onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.effectAllowed = 'move'; setDraggingNestedId(String(child.id)) }}
+                  onDragEnd={(e) => { e.stopPropagation(); setDraggingNestedId(null); setDragOverNestedId(null) }}
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverNestedId(String(child.id)) }}
+                  onDrop={(e) => {
+                    e.stopPropagation()
+                    if (!draggingNestedId || draggingNestedId === String(child.id)) return
+                    const ids = children.map(s => String(s.id))
+                    const fromIdx = ids.indexOf(draggingNestedId)
+                    const toIdx = ids.indexOf(String(child.id))
+                    if (fromIdx === -1 || toIdx === -1) return
+                    const reordered = [...ids]
+                    reordered.splice(fromIdx, 1)
+                    reordered.splice(toIdx, 0, draggingNestedId)
+                    setNestedOrderMap(prev => ({ ...prev, [parent.id]: reordered }))
+                    setDraggingNestedId(null)
+                    setDragOverNestedId(null)
+                  }}
+                >
                   {/* The Horizontal Elbow Branch */}
-                  <div 
-                    className="absolute left-3 top-0 w-5 h-8 border-l-2 border-b-2 border-slate-200 rounded-bl-xl" 
-                    aria-hidden="true"
-                  />
+                  <div className="absolute left-3 top-0 w-5 h-8 border-l-2 border-b-2 border-slate-200 rounded-bl-xl" aria-hidden="true" />
 
                   <div
-                    className="border border-slate-200 rounded-lg bg-slate-50 shadow-sm hover:shadow-md transition-shadow relative child-session-card"
+                    className={`border rounded-lg bg-slate-50 shadow-sm hover:shadow-md transition-shadow relative child-session-card ${isDragOverThis ? 'border-primary' : 'border-slate-200'}`}
                     onClick={(e) => e.stopPropagation()}
                     onMouseDown={(e) => e.stopPropagation()}
                   >
@@ -402,7 +441,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                             onClick={(e) => e.stopPropagation()}
                           />
                           <div className="flex items-center gap-2 flex-1">
-                            <div className="cursor-move text-slate-400 hover:text-slate-600">
+                            <div className={`cursor-move flex-shrink-0 ${isDraggingThis ? 'text-violet-500' : 'text-slate-400 hover:text-slate-600'}`}>
                               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
                               </svg>
@@ -534,7 +573,7 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
         </div>
       )
     },
-    [getChildren, isSessionExpanded, onAddParallelSession, onToggleSessionExpand, onSessionClick, formatTimeRange, getLocationLabel, menuOpenForId, onEditSession, onDeleteSession]
+    [getChildren, getOrderedChildren, isSessionExpanded, onAddParallelSession, onToggleSessionExpand, onSessionClick, formatTimeRange, getLocationLabel, menuOpenForId, onEditSession, onDeleteSession, draggingNestedId, dragOverNestedId]
   )
 
   const cardColumn = (
@@ -557,18 +596,16 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                   onClick={(e) => e.stopPropagation()}
                 />
                 <div className="flex items-center gap-2 flex-1">
-                  {showDragHandle && (
-                    <div
-                      className={`cursor-move flex-shrink-0 touch-none ${isDragging ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'}`}
-                      draggable={!!onParallelDragStart}
-                      onDragStart={onParallelDragStart}
-                      onDragEnd={onParallelDragEnd}
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
-                      </svg>
-                    </div>
-                  )}
+                  <div
+                    className={`cursor-move flex-shrink-0 touch-none ${isDragging ? 'text-violet-600' : 'text-slate-400 hover:text-slate-600'}`}
+                    draggable={!!onParallelDragStart}
+                    onDragStart={onParallelDragStart}
+                    onDragEnd={onParallelDragEnd}
+                  >
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M7 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM7 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 2a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 8a2 2 0 1 1 0 4 2 2 0 0 1 0-4zM13 14a2 2 0 1 1 0 4 2 2 0 0 1 0-4z" />
+                    </svg>
+                  </div>
                   {onSessionClick ? (
                     <button type="button" onClick={(e) => { e.stopPropagation(); onSessionClick(session) }} className="font-semibold text-slate-900 text-base text-left hover:text-primary hover:underline">
                       {session.title}
@@ -748,10 +785,35 @@ function getOrderedSessionsForGroup(sessions: SavedSession[], timeKey: string, p
   return ordered
 }
 
+const localCalendarDayKey = (d: Date) => {
+  const x = new Date(d)
+  if (Number.isNaN(x.getTime())) return ''
+  return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`
+}
+
 const ScheduleGrid: React.FC<ScheduleGridProps> = ({
-  sessions, selectedDate, onAddParallelSession, onEditSession, onDeleteSession, onSessionClick, sessionFormOpen = false, onReorderParallelSessions, showBookmark = false, bookmarkedSessionIds, onBookmark, eventUuid, onNavigate, showConflictBanner = false, onResolveConflict, onSelectionChange, clearSelectionTrigger
+  sessions,
+  selectedDate,
+  defaultExpandNestedChildren = false,
+  onAddParallelSession,
+  onEditSession,
+  onDeleteSession,
+  onSessionClick,
+  sessionFormOpen = false,
+  onReorderParallelSessions,
+  showBookmark = false,
+  bookmarkedSessionIds,
+  onBookmark,
+  eventUuid,
+  onNavigate,
+  showConflictBanner = false,
+  onResolveConflict,
+  onSelectionChange,
+  clearSelectionTrigger
 }) => {
   const [expandedSessions, setExpandedSessions] = useState<Set<string>>(new Set())
+  /** When defaultExpandNestedChildren: IDs explicitly collapsed; empty set = all expanded */
+  const [collapsedNestedIds, setCollapsedNestedIds] = useState<Set<string>>(new Set())
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set())
 
   const toggleSession = (id: string) =>
@@ -774,12 +836,38 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
   const [dragOverParallelSessionId, setDragOverParallelSessionId] = useState<string | null>(null)
 
   const filteredSessions = useMemo(() => {
-    return sessions.filter(session => {
+    const selKey = localCalendarDayKey(new Date(selectedDate))
+    return sessions.filter((session) => {
       if (!session.date) return true
-      const s = new Date(session.date), sel = new Date(selectedDate)
-      return s.getFullYear() === sel.getFullYear() && s.getMonth() === sel.getMonth() && s.getDate() === sel.getDate()
+      const sKey = localCalendarDayKey(new Date(session.date as any))
+      if (!sKey || !selKey) return true
+      return sKey === selKey
     })
   }, [sessions, selectedDate])
+
+  const isNestedExpanded = (id: string) => {
+    if (defaultExpandNestedChildren) return !collapsedNestedIds.has(String(id))
+    return expandedSessions.has(String(id))
+  }
+
+  const toggleNestedExpand = (id: string) => {
+    const sid = String(id)
+    if (defaultExpandNestedChildren) {
+      setCollapsedNestedIds((prev) => {
+        const n = new Set(prev)
+        if (n.has(sid)) n.delete(sid)
+        else n.add(sid)
+        return n
+      })
+    } else {
+      setExpandedSessions((p) => {
+        const n = new Set(p)
+        if (n.has(sid)) n.delete(sid)
+        else n.add(sid)
+        return n
+      })
+    }
+  }
 
   const { parentSessions, parallelSessionsMap } = useMemo(() => {
     const parents: SavedSession[] = [], map: Record<string, SavedSession[]> = {}
@@ -858,13 +946,18 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
             {/* Parallel Bracket Connector */}
             <div className="relative flex-1">
               {parallelCount > 1 && (
-                <>
-                  <div 
-                    className="absolute -left-6 top-6 bottom-6 w-4 border-l-2 border-t-2 border-b-2 border-slate-200 rounded-l-xl" 
-                    aria-hidden="true"
-                  />
-                  <div className="absolute -left-8 top-1/2 w-2 h-0.5 bg-slate-200" aria-hidden="true" />
-                </>
+                <svg
+                  className="absolute pointer-events-none"
+                  style={{ left: -10, top: 0, bottom: 0, width: 14, height: '100%' }}
+                  preserveAspectRatio="none"
+                  viewBox="0 0 14 100"
+                  aria-hidden="true"
+                >
+                  <line x1="3" y1="6" x2="3" y2="94" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                  <path d="M3,6 Q3,3 6,3 L14,3" fill="none" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                  <path d="M3,94 Q3,97 6,97 L14,97" fill="none" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                  <line x1="0" y1="50" x2="3" y2="50" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                </svg>
               )}
 
               {parallelCount > 1 && showConflictBanner && (
@@ -884,39 +977,60 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
               )}
               <div className={`space-y-4 ${parallelCount > 1 ? 'pl-2' : ''}`}>
                 {getOrderedSessionsForGroup(group.sessions, group.timeKey, parallelOrder).map(session => (
-                  <SessionContainer
+                  <div
                     key={session.id}
-                    session={session}
-                    parallelSessions={parallelSessionsMap[String(session.id)] || []}
-                    isExpanded={expandedSessions.has(String(session.id))}
-                    onToggleExpand={() => setExpandedSessions(p => { 
-                      const n = new Set(p); 
-                      n.has(String(session.id)) ? n.delete(String(session.id)) : n.add(String(session.id)); 
-                      return n 
-                    })}
-                    getNestedParallelSessions={id => (parallelSessionsMap[id] || []).sort((a,b) => timeToMinutes(a.startTime, (a.startPeriod||'AM') as any) - timeToMinutes(b.startTime, (b.startPeriod||'AM') as any))}
-                    isSessionExpanded={id => expandedSessions.has(String(id))}
-                    onToggleSessionExpand={id => setExpandedSessions(p => { const n = new Set(p); n.has(String(id)) ? n.delete(String(id)) : n.add(String(id)); return n })}
-                    onAddParallelSession={onAddParallelSession}
-                    formatTime={formatTime}
-                    formatTimeRange={s => `${formatTime(s.startTime, s.startPeriod||'AM')} - ${formatTime(s.endTime, s.endPeriod||'AM')}`}
-                    getLocationLabel={l => l}
-                    getSessionTypeLabel={t => SESSION_TYPE_LABELS[t.toLowerCase()] || t}
-                    isTimeValid={() => true}
-                    onEditSession={onEditSession}
-                    onDeleteSession={onDeleteSession}
-                    onSessionClick={onSessionClick}
-                    sessionFormOpen={sessionFormOpen}
-                    showTimeColumn={false}
-                    showDragHandle={parallelCount > 1}
-                    showBookmark={showBookmark}
-                    bookmarkedSessionIds={bookmarkedSessionIds}
-                    onBookmark={onBookmark}
-                    eventUuid={eventUuid}
-                    onNavigate={onNavigate}
-                    selectedSessionIds={selectedSessionIds}
-                    onToggleSessionSelected={toggleSession}
-                  />
+                    draggable={parallelCount > 1}
+                    onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDraggingParallelSessionId(String(session.id)) }}
+                    onDragEnd={() => { setDraggingParallelSessionId(null); setDragOverParallelSessionId(null) }}
+                    onDragOver={(e) => { e.preventDefault(); setDragOverParallelSessionId(String(session.id)) }}
+                    onDrop={() => {
+                      if (!draggingParallelSessionId || draggingParallelSessionId === String(session.id)) return
+                      const ordered = getOrderedSessionsForGroup(group.sessions, group.timeKey, parallelOrder)
+                      const ids = ordered.map(s => String(s.id))
+                      const fromIdx = ids.indexOf(draggingParallelSessionId)
+                      const toIdx = ids.indexOf(String(session.id))
+                      if (fromIdx === -1 || toIdx === -1) return
+                      const reordered = [...ids]
+                      reordered.splice(fromIdx, 1)
+                      reordered.splice(toIdx, 0, draggingParallelSessionId)
+                      setParallelOrder(prev => ({ ...prev, [group.timeKey]: reordered }))
+                      onReorderParallelSessions?.(group.timeKey, reordered)
+                      setDraggingParallelSessionId(null)
+                      setDragOverParallelSessionId(null)
+                    }}
+                    className={`transition-opacity ${draggingParallelSessionId === String(session.id) ? 'opacity-40' : ''} ${dragOverParallelSessionId === String(session.id) && draggingParallelSessionId !== String(session.id) ? 'ring-2 ring-primary ring-offset-1 rounded-xl' : ''}`}
+                  >
+                    <SessionContainer
+                      session={session}
+                      parallelSessions={parallelSessionsMap[String(session.id)] || []}
+                      isExpanded={isNestedExpanded(String(session.id))}
+                      onToggleExpand={() => toggleNestedExpand(String(session.id))}
+                      getNestedParallelSessions={id => (parallelSessionsMap[id] || []).sort((a,b) => timeToMinutes(a.startTime, (a.startPeriod||'AM') as any) - timeToMinutes(b.startTime, (b.startPeriod||'AM') as any))}
+                      isSessionExpanded={id => isNestedExpanded(String(id))}
+                      onToggleSessionExpand={id => toggleNestedExpand(String(id))}
+                      onAddParallelSession={onAddParallelSession}
+                      formatTime={formatTime}
+                      formatTimeRange={s => `${formatTime(s.startTime, s.startPeriod||'AM')} - ${formatTime(s.endTime, s.endPeriod||'AM')}`}
+                      getLocationLabel={l => l}
+                      getSessionTypeLabel={t => SESSION_TYPE_LABELS[t.toLowerCase()] || t}
+                      isTimeValid={() => true}
+                      onEditSession={onEditSession}
+                      onDeleteSession={onDeleteSession}
+                      onSessionClick={onSessionClick}
+                      sessionFormOpen={sessionFormOpen}
+                      showTimeColumn={false}
+                      showDragHandle={parallelCount > 1}
+                      isDragging={draggingParallelSessionId === String(session.id)}
+                      isDragOver={dragOverParallelSessionId === String(session.id) && draggingParallelSessionId !== String(session.id)}
+                      showBookmark={showBookmark}
+                      bookmarkedSessionIds={bookmarkedSessionIds}
+                      onBookmark={onBookmark}
+                      eventUuid={eventUuid}
+                      onNavigate={onNavigate}
+                      selectedSessionIds={selectedSessionIds}
+                      onToggleSessionSelected={toggleSession}
+                    />
+                  </div>
                 ))}
               </div>
             </div>

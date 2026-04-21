@@ -90,8 +90,12 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
 
   const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
   const userEmail = localStorage.getItem('pub_userEmail') ?? ''
-  const storedPicture = localStorage.getItem('pub_profilePicture') ?? ''
+  const [storedPicture, setStoredPicture] = useState(() => localStorage.getItem('pub_profilePicture') ?? '')
   const resolvedProfileImage = profileImageUrl || storedPicture || null
+
+  useEffect(() => {
+    setStoredPicture(localStorage.getItem('pub_profilePicture') ?? '')
+  }, [activePath])
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [openFolderId, setOpenFolderId] = useState<string | null>(null)

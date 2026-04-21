@@ -102,7 +102,7 @@ export const uploadParticipantFile = async (
   formData.append('file', file)
   formData.append('event_uuid', event_uuid)
 
-  const response = await fetch(API_ENDPOINTS.PARTICIPANT_MANAGEMENT.UPLOAD, {
+  const response = await fetch(API_ENDPOINTS.PARTICIPANT_MANAGEMENT.UPLOAD(event_uuid), {
     method: 'POST',
     headers,
     credentials: 'include',

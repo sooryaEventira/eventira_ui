@@ -45,6 +45,7 @@ const getSectionFromPath = (
   webpageSlug?: string
   organizationId?: string
   attendeeTagId?: string
+  participantId?: string
   sessionId?: string
   scheduleUuid?: string
 } => {
@@ -60,6 +61,12 @@ const getSectionFromPath = (
   const attendeeTagMatch = rest.match(/^\/attendees\/tag\/([^/]+)\/?$/)
   if (attendeeTagMatch) {
     return { section: 'attendees', attendeeTagId: attendeeTagMatch[1] }
+  }
+
+  // Participant detail: /attendees/:participantUuid
+  const attendeeDetailMatch = rest.match(/^\/attendees\/([^/]+)\/?$/)
+  if (attendeeDetailMatch) {
+    return { section: 'attendees', participantId: attendeeDetailMatch[1] }
   }
 
   const orgDetailMatch = rest.match(/^\/organizations\/([^/]+)\/?$/)
@@ -176,21 +183,31 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         let resolvedId = ''
 
         if (email) {
-          // Look up this user in the attendees list to get the UUID peers will see
+          // Look up this user in participants first (backend-supported public endpoint).
+          // Fallback to attendees for backward compatibility on older deployments.
           try {
-            const listRes = await fetch(API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid))
-            if (listRes.ok) {
-              const listData = await listRes.json()
-              const items: any[] = Array.isArray(listData?.data)
-                ? listData.data
-                : Array.isArray(listData?.results)
-                ? listData.results
-                : Array.isArray(listData)
-                ? listData
-                : []
-              const match = items.find((a: any) => String(a?.email ?? '').toLowerCase() === email)
-              if (match) resolvedId = String(match.uuid ?? match.id ?? '').trim()
+            const parseItems = (payload: any): any[] =>
+              Array.isArray(payload?.data)
+                ? payload.data
+                : Array.isArray(payload?.results)
+                  ? payload.results
+                  : Array.isArray(payload)
+                    ? payload
+                    : []
+
+            let items: any[] = []
+            const participantsRes = await fetch(API_ENDPOINTS.PUBLIC.PARTICIPANTS.LIST(eventUuid))
+            if (participantsRes.ok) {
+              items = parseItems(await participantsRes.json())
+            } else {
+              const attendeesRes = await fetch(API_ENDPOINTS.PUBLIC.ATTENDEES.LIST(eventUuid))
+              if (attendeesRes.ok) {
+                items = parseItems(await attendeesRes.json())
+              }
             }
+
+            const match = items.find((p: any) => String(p?.email ?? '').toLowerCase() === email)
+            if (match) resolvedId = String(match.uuid ?? match.id ?? '').trim()
           } catch { /* non-critical */ }
         }
 
@@ -413,20 +430,19 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     const hasIndexNavigation = indexNavigationRaw.length > 0
     const indexNavItems = hasIndexNavigation ? mapIndexNavigationToItems(indexNavigationRaw) : null
 
-    const baseItemsRaw = hasIndexNavigation
-      ? indexNavItems!
+    // If the API has responded (websiteIndex !== null), always respect its navigation — even if empty.
+    // Only fall back to localStorage/auto-generated when the API hasn't loaded yet.
+    const apiResponded = websiteIndex !== null
+    const baseItemsRaw = apiResponded
+      ? (hasIndexNavigation ? indexNavItems! : [])
       : hasIndexData
         ? defaultFlat
         : (stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat)
     const baseItems = pruneUnavailableSystemPages(baseItemsRaw)
 
     const defaultFlatPagesForUpsert = systemAndWebpageItems as NavigationPageItem[]
-    // Reconcile: ensure newly created pages appear even if the tree is stale.
-    // IMPORTANT: When we have an explicit navigation tree from the public index
-    // (hasIndexNavigation), we respect it as the single source of truth and do
-    // NOT auto-append missing webpages to the root. Otherwise, keep the old
-    // behavior of upserting missing pages so they're visible.
-    const reconciled = hasIndexNavigation
+    // When API responded, its navigation is the single source of truth — never auto-append.
+    const reconciled = (apiResponded || hasIndexNavigation)
       ? baseItems
       : upsertMissingPagesToRoot(baseItems, defaultFlatPagesForUpsert)
 
@@ -564,6 +580,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
               eventUuid={eventUuid}
               onNavigate={handleNavigate}
               tagId={current.attendeeTagId}
+              participantId={current.participantId}
             />
           </React.Suspense>
         ) : current.section === 'organization' ? (

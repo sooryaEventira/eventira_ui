@@ -11,6 +11,7 @@ export const addBookmark = async (eventUuid: string, sessionUuid: string): Promi
       'Content-Type': 'application/json',
       Authorization: `Bearer ${token}`,
     },
+    body: JSON.stringify({ is_bookmarked: true }),
   })
   if (!response.ok) throw new Error(`Bookmark add failed: ${response.status}`)
 }

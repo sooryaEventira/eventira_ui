@@ -1,12 +1,16 @@
 import React, { useCallback, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronUp, Attachment01, Calendar, User01, AlertCircle, XClose } from '@untitled-ui/icons-react'
+import { ChevronDown, ChevronUp, Attachment01, Calendar, User01, AlertCircle, XClose, Bookmark } from '@untitled-ui/icons-react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 
 interface PublicScheduleGridProps {
   sessions: SavedSession[]
   onSpeakerClick?: (speakerUuid: string) => void
+  onSessionClick?: (sessionId: string) => void
   showConflicts?: boolean
+  showBookmark?: boolean
+  bookmarkedSessionIds?: Set<string>
+  onToggleBookmark?: (session: SavedSession) => void
 }
 
 const timeToMinutes = (time: string, period: string) => {
@@ -123,12 +127,27 @@ interface SessionCardProps {
   session: SavedSession
   children?: React.ReactNode
   onSpeakerClick?: (uuid: string) => void
+  onSessionClick?: (sessionId: string) => void
   hasChildren: boolean
   open: boolean
   onToggle: () => void
+  showBookmark?: boolean
+  bookmarkedSessionIds?: Set<string>
+  onToggleBookmark?: (session: SavedSession) => void
 }
 
-const SessionCard: React.FC<SessionCardProps> = ({ session, children, onSpeakerClick, hasChildren, open, onToggle }) => {
+const SessionCard: React.FC<SessionCardProps> = ({
+  session,
+  children,
+  onSpeakerClick,
+  onSessionClick,
+  hasChildren,
+  open,
+  onToggle,
+  showBookmark = false,
+  bookmarkedSessionIds,
+  onToggleBookmark,
+}) => {
   const attachmentCount = typeof session.attachment_count === 'number'
     ? session.attachment_count
     : (session.attachments?.length || 0)
@@ -138,16 +157,37 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, children, onSpeakerC
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="font-semibold text-slate-900 text-base truncate">{session.title}</div>
+            {onSessionClick ? (
+              <button
+                type="button"
+                onClick={() => onSessionClick(session.id)}
+                className="font-semibold text-slate-900 text-base truncate text-left hover:text-primary hover:underline transition-colors"
+              >
+                {session.title}
+              </button>
+            ) : (
+              <div className="font-semibold text-slate-900 text-base truncate">{session.title}</div>
+            )}
           </div>
-          {hasChildren ? (
+          {showBookmark ? (
             <button
               type="button"
-              onClick={onToggle}
-              className="p-1 text-slate-500 hover:text-slate-700 rounded"
-              aria-label={open ? 'Collapse' : 'Expand'}
+              className={[
+                'p-1 transition-colors flex-shrink-0',
+                bookmarkedSessionIds?.has(String(session.id))
+                  ? 'text-primary'
+                  : 'text-slate-400 hover:text-primary'
+              ].join(' ')}
+              aria-label={bookmarkedSessionIds?.has(String(session.id)) ? 'Remove bookmark' : 'Bookmark session'}
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleBookmark?.(session)
+              }}
             >
-              {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              <Bookmark
+                className="h-4 w-4"
+                fill={bookmarkedSessionIds?.has(String(session.id)) ? 'currentColor' : 'none'}
+              />
             </button>
           ) : null}
         </div>
@@ -164,7 +204,7 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, children, onSpeakerC
             </span>
           ) : null}
 
-          {session.sessionType ? (
+          {session.sessionType && !['parent', 'child'].includes(session.sessionType.toLowerCase()) ? (
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
               {session.sessionType}
             </span>
@@ -178,6 +218,16 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, children, onSpeakerC
               </span>
             ) : null
           })}
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={onToggle}
+              className="ml-auto p-1 text-slate-500 hover:text-slate-700 rounded"
+              aria-label={open ? 'Collapse' : 'Expand'}
+            >
+              {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          ) : null}
         </div>
 
         {attachmentCount > 0 ? (
@@ -291,7 +341,15 @@ const ResolveModal: React.FC<ResolveModalProps> = ({ groups, selected, onSelect,
   )
 }
 
-const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpeakerClick, showConflicts = false }) => {
+const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
+  sessions,
+  onSpeakerClick,
+  onSessionClick,
+  showConflicts = false,
+  showBookmark = false,
+  bookmarkedSessionIds,
+  onToggleBookmark,
+}) => {
   const parents = useMemo(() => sessions.filter((s) => !s.parentId), [sessions])
 
   const childrenByParent = useMemo(() => {
@@ -332,9 +390,9 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
   }, [parents])
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const isExpanded = useCallback((id: string) => expanded[id] !== false, [expanded])
+  const isExpanded = useCallback((id: string) => expanded[id] === true, [expanded])
   const toggleExpanded = useCallback((id: string) => {
-    setExpanded((prev) => ({ ...prev, [id]: !(prev[id] !== false) }))
+    setExpanded((prev) => ({ ...prev, [id]: !(prev[id] === true) }))
   }, [])
 
   // Resolve modal state (only used when showConflicts=true)
@@ -382,8 +440,18 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
       if (children.length === 0) return null
       if (!isExpanded(parent.id) && depth > 0) return null
 
+      const spineLeft = 4 + (depth - 1) * 20
+      const childPad = 20 + (depth - 1) * 20
+
       return (
-        <div className="mt-2 space-y-2">
+        <div className="mt-2 relative">
+          {/* Vertical spine */}
+          <div
+            className="absolute top-0 w-0.5 bg-slate-200 rounded-full"
+            style={{ left: spineLeft, bottom: 8 }}
+            aria-hidden="true"
+          />
+          <div className="space-y-2">
           {children.map((child) => {
             const hasMore = (childrenByParent.get(child.id) ?? []).length > 0
             const childExpanded = isExpanded(child.id)
@@ -392,30 +460,64 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
               : (child.attachments?.length || 0)
 
             return (
-              <div key={child.id} className="relative">
+              <div key={child.id} className="relative" style={{ paddingLeft: childPad }}>
+                {/* Elbow branch */}
                 <div
-                  className="absolute top-0 bottom-0 w-0.5 bg-slate-300"
-                  style={{ left: `${16 + (depth - 1) * 20}px` }}
+                  className="absolute border-l-2 border-b-2 border-slate-200 rounded-bl-lg"
+                  style={{ left: spineLeft, top: 0, width: childPad - spineLeft, height: 28 }}
+                  aria-hidden="true"
                 />
                 <div
                   className="border border-slate-200 rounded-lg bg-white shadow-sm"
-                  style={{ marginLeft: `${24 + (depth - 1) * 20}px` }}
                 >
                   <div className="p-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="font-semibold text-slate-900 text-sm truncate">{child.title}</div>
+                        {onSessionClick ? (
+                          <button
+                            type="button"
+                            onClick={() => onSessionClick(child.id)}
+                            className="font-semibold text-slate-900 text-sm truncate text-left hover:text-primary hover:underline transition-colors"
+                          >
+                            {child.title}
+                          </button>
+                        ) : (
+                          <div className="font-semibold text-slate-900 text-sm truncate">{child.title}</div>
+                        )}
                       </div>
-                      {hasMore ? (
-                        <button
-                          type="button"
-                          onClick={() => toggleExpanded(child.id)}
-                          className="p-1 text-slate-500 hover:text-slate-700 rounded"
-                          aria-label={childExpanded ? 'Collapse' : 'Expand'}
-                        >
-                          {childExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                        </button>
-                      ) : null}
+                      <div className="flex items-center gap-1">
+                        {showBookmark ? (
+                          <button
+                            type="button"
+                            className={[
+                              'p-1 transition-colors',
+                              bookmarkedSessionIds?.has(String(child.id))
+                                ? 'text-primary'
+                                : 'text-slate-400 hover:text-primary'
+                            ].join(' ')}
+                            aria-label={bookmarkedSessionIds?.has(String(child.id)) ? 'Remove bookmark' : 'Bookmark session'}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              onToggleBookmark?.(child)
+                            }}
+                          >
+                            <Bookmark
+                              className="h-4 w-4"
+                              fill={bookmarkedSessionIds?.has(String(child.id)) ? 'currentColor' : 'none'}
+                            />
+                          </button>
+                        ) : null}
+                        {hasMore ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpanded(child.id)}
+                            className="p-1 text-slate-500 hover:text-slate-700 rounded"
+                            aria-label={childExpanded ? 'Collapse' : 'Expand'}
+                          >
+                            {childExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
 
                     <div className="mt-2 flex items-center gap-2 flex-wrap">
@@ -428,7 +530,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
                           {getLocationLabel(child.location)}
                         </span>
                       ) : null}
-                      {child.sessionType ? (
+                      {child.sessionType && !['parent', 'child'].includes(child.sessionType.toLowerCase()) ? (
                         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
                           {child.sessionType}
                         </span>
@@ -452,10 +554,11 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
               </div>
             )
           })}
+          </div>
         </div>
       )
     },
-    [childrenByParent, isExpanded, onSpeakerClick, toggleExpanded]
+    [bookmarkedSessionIds, childrenByParent, isExpanded, onSpeakerClick, onSessionClick, onToggleBookmark, showBookmark, toggleExpanded]
   )
 
   return (
@@ -503,7 +606,21 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
               </div>
 
               {/* Session content */}
-              <div className="flex-1">
+              <div className="relative flex-1">
+                {isParallel && (
+                  <svg
+                    className="pointer-events-none"
+                    style={{ position: 'absolute', left: -14, top: 0, width: 14, height: '100%' }}
+                    preserveAspectRatio="none"
+                    viewBox="0 0 14 100"
+                    aria-hidden="true"
+                  >
+                    <line x1="3" y1="6" x2="3" y2="94" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                    <path d="M3,6 Q3,3 6,3 L14,3" fill="none" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                    <path d="M3,94 Q3,97 6,97 L14,97" fill="none" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                    <line x1="0" y1="50" x2="3" y2="50" stroke="#cbd5e1" strokeWidth="1" strokeLinecap="round" />
+                  </svg>
+                )}
                 {showConflicts && isParallel ? (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 overflow-hidden">
                     <div className="flex items-center justify-between px-4 py-2.5">
@@ -533,6 +650,10 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
                             open={open}
                             onToggle={() => toggleExpanded(session.id)}
                             onSpeakerClick={onSpeakerClick}
+                            onSessionClick={onSessionClick}
+                            showBookmark={showBookmark}
+                            bookmarkedSessionIds={bookmarkedSessionIds}
+                            onToggleBookmark={onToggleBookmark}
                           >
                             {renderChildren(session, 1)}
                           </SessionCard>
@@ -541,24 +662,29 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({ sessions, onSpe
                     </div>
                   </div>
                 ) : (
-                  (() => {
-                    const session = group[0]
-                    const kids = childrenByParent.get(session.id) ?? []
-                    const hasChildren = kids.length > 0
-                    const open = isExpanded(session.id)
-                    return (
-                      <SessionCard
-                        key={session.id}
-                        session={session}
-                        hasChildren={hasChildren}
-                        open={open}
-                        onToggle={() => toggleExpanded(session.id)}
-                        onSpeakerClick={onSpeakerClick}
-                      >
-                        {renderChildren(session, 1)}
-                      </SessionCard>
-                    )
-                  })()
+                  <div className={isParallel ? 'space-y-2' : undefined}>
+                    {group.map((session) => {
+                      const kids = childrenByParent.get(session.id) ?? []
+                      const hasChildren = kids.length > 0
+                      const open = isExpanded(session.id)
+                      return (
+                        <SessionCard
+                          key={session.id}
+                          session={session}
+                          hasChildren={hasChildren}
+                          open={open}
+                          onToggle={() => toggleExpanded(session.id)}
+                          onSpeakerClick={onSpeakerClick}
+                          onSessionClick={onSessionClick}
+                          showBookmark={showBookmark}
+                          bookmarkedSessionIds={bookmarkedSessionIds}
+                          onToggleBookmark={onToggleBookmark}
+                        >
+                          {renderChildren(session, 1)}
+                        </SessionCard>
+                      )
+                    })}
+                  </div>
                 )}
               </div>
             </div>

@@ -7,5 +7,4 @@ export { default as ScheduleContent } from './schedulesession/ScheduleContent'
 export { default as CommunicationPage } from './communication/CommunicationPage'
 export { default as CommunicationsTable } from './communication/CommunicationsTable'
 export { default as ResourceManagementPage } from './resourcemanagement/ResourceManagementPage'
-export { default as AttendeeManagementPage } from './attendeemanagement/AttendeeManagementPage'
 

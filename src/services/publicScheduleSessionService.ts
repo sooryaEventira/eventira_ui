@@ -1,6 +1,11 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 
+const pubAuthHeaders = (): Record<string, string> => {
+  const t = localStorage.getItem('pub_accessToken')
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 /** Map API section format to UI SavedSession section format. Shared for public retrieve and admin. */
 export function mapApiSectionsToSavedSections(
   apiSections: any[],
@@ -51,7 +56,9 @@ export function mapApiSectionsToSavedSections(
       const rawSpeakers =
         Array.isArray(sec?.speakers) ? sec.speakers :
         Array.isArray(content?.speakers) ? content.speakers :
-        Array.isArray(sec?.data?.speakers) ? sec.data.speakers : []
+        Array.isArray(sec?.data?.speakers) ? sec.data.speakers :
+        Array.isArray(sec?.content) ? sec.content :
+        Array.isArray(content) ? content as any[] : []
       const speakers = rawSpeakers.map((sp: any) => ({
         id: String(sp?.uuid ?? sp?.id ?? sp?.speaker_uuid ?? ''),
         name: String(sp?.name ?? [sp?.first_name, sp?.last_name].filter(Boolean).join(' ') ?? sp?.speaker_name ?? 'Speaker'),
@@ -269,7 +276,7 @@ export const fetchPublicScheduleSessions = async (
     while (nextUrl) {
       const response = await fetch(nextUrl, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
       })
 
       if (!response || !response.ok) {
@@ -312,7 +319,7 @@ export const fetchPublicSession = async (
     const url = API_ENDPOINTS.PUBLIC.SESSIONS.RETRIEVE(eventUuid, scheduleUuid, sessionUuid)
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     })
     if (!response || response.status === 404) return null
     if (!response.ok) {

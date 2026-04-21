@@ -67,7 +67,75 @@ export interface UpdateSessionSectionBody {
   content?: Record<string, unknown> | string[]
 }
 
-/** List sessions for a schedule. GET {{admin_url}}sessions/?event_id=&schedule_uuid= (admin/schedule page only; published website uses event store). */
+/** Extract session rows from one list response page (keep in sync with SchedulePage loadSessions extractArray). */
+function extractSessionsPageItems(payload: unknown): unknown[] {
+  if (!payload) return []
+  const p = payload as Record<string, unknown>
+  if (Array.isArray(payload)) return payload
+  if (p.status === 'success' && Array.isArray(p.data)) return p.data as unknown[]
+  if (p.status === 'success' && p.data && typeof p.data === 'object') {
+    const d = p.data as Record<string, unknown>
+    if (Array.isArray(d.results)) return d.results as unknown[]
+    if (Array.isArray(d.sessions)) return d.sessions as unknown[]
+  }
+  if (Array.isArray(p.results)) return p.results as unknown[]
+  if (p.data && typeof p.data === 'object') {
+    const d = p.data as Record<string, unknown>
+    if (Array.isArray(d.results)) return d.results as unknown[]
+  }
+  if (Array.isArray(p.data)) return p.data as unknown[]
+  if (Array.isArray(p.sessions)) return p.sessions as unknown[]
+  return []
+}
+
+function getNextListUrl(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null
+  const p = payload as Record<string, unknown>
+  const n =
+    (typeof p.next === 'string' && p.next.trim() ? p.next : null) ??
+    (p.data && typeof p.data === 'object' && typeof (p.data as Record<string, unknown>).next === 'string'
+      ? String((p.data as Record<string, unknown>).next).trim()
+      : null)
+  return n || null
+}
+
+/** Write merged session list back into the same JSON shape as the first page (so SchedulePage extractArray still works). */
+function applyMergedSessionsToPayload(payload: unknown, allItems: unknown[]): unknown {
+  if (!payload || typeof payload !== 'object') return { results: allItems, count: allItems.length }
+  const p = payload as Record<string, unknown>
+  const clearPaging = (obj: Record<string, unknown>) => {
+    obj.next = null
+    obj.previous = null
+    if (typeof obj.count === 'number') obj.count = allItems.length
+  }
+  if (p.status === 'success' && p.data && typeof p.data === 'object') {
+    const d = { ...(p.data as Record<string, unknown>) }
+    if (Array.isArray(d.results)) {
+      d.results = allItems
+      clearPaging(d)
+      return { ...p, data: d }
+    }
+    if (Array.isArray(d.sessions)) {
+      d.sessions = allItems
+      clearPaging(d)
+      return { ...p, data: d }
+    }
+    if (Array.isArray(d.data)) {
+      return { ...p, data: allItems }
+    }
+  }
+  if (Array.isArray(p.results)) {
+    const out = { ...p, results: allItems }
+    clearPaging(out as Record<string, unknown>)
+    return out
+  }
+  if (Array.isArray(p.data)) {
+    return { ...p, data: allItems }
+  }
+  return { results: allItems, count: allItems.length }
+}
+
+/** List sessions for a schedule. GET {{admin_url}}sessions/?event_id=&schedule_uuid= (admin/schedule page only; published website uses event store). Follows `next` until all pages are loaded. */
 export async function listSessions(
   eventUuid: string,
   scheduleUuid: string
@@ -77,27 +145,57 @@ export async function listSessions(
   if (!accessToken || !organizationUuid) {
     return { ok: false, status: 401, errorText: 'Missing auth or organization context' }
   }
-  const url = API_ENDPOINTS.SESSIONS.LIST(eventUuid, scheduleUuid)
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-      'X-Organization': organizationUuid,
-    },
-    credentials: 'include',
-  })
-  const rawText = await response.text().catch(() => '')
-  if (!response.ok) {
-    return { ok: false, status: response.status, errorText: rawText }
+  const baseUrl = API_ENDPOINTS.SESSIONS.LIST(eventUuid, scheduleUuid)
+  const separator = baseUrl.includes('?') ? '&' : '?'
+  let nextUrl: string | null = `${baseUrl}${separator}page_size=200`
+  const merged: unknown[] = []
+  let firstPayload: unknown = null
+  let pageGuard = 0
+  const maxPages = 100
+
+  while (nextUrl) {
+    pageGuard += 1
+    if (pageGuard > maxPages) {
+      console.warn('[listSessions] Stopped after max pages:', maxPages)
+      break
+    }
+    const response = await fetch(nextUrl, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    })
+    const rawText = await response.text().catch(() => '')
+    if (!response.ok) {
+      return { ok: false, status: response.status, errorText: rawText }
+    }
+    let data: unknown = null
+    try {
+      data = rawText ? JSON.parse(rawText) : null
+    } catch {
+      data = null
+    }
+    if (firstPayload === null) firstPayload = data
+    merged.push(...extractSessionsPageItems(data))
+    const rawNext = getNextListUrl(data)
+    nextUrl = rawNext
+      ? rawNext.startsWith('http')
+        ? rawNext
+        : (() => {
+            try {
+              return new URL(rawNext, nextUrl || baseUrl).href
+            } catch {
+              return rawNext
+            }
+          })()
+      : null
   }
-  let data: unknown = null
-  try {
-    data = rawText ? JSON.parse(rawText) : null
-  } catch {
-    data = null
-  }
-  return { ok: true, data }
+
+  const combined = applyMergedSessionsToPayload(firstPayload, merged)
+  return { ok: true, data: combined }
 }
 
 /** Extract string list from API response (array of strings or array of objects with name/title). */

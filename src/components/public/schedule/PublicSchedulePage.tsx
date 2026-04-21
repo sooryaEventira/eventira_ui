@@ -611,8 +611,6 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
   const selectedGridDate = useMemo(() => {
     const fromTabs = dayKeys[activeDayIndex]
     if (fromTabs) return fromTabs
-
-    // If tabs aren't ready yet (during refresh/load), fall back to the earliest session date
     const dated: Date[] = []
     sessions.forEach((s) => {
       if (!s.date) return
@@ -627,9 +625,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
 
   const rangeLabel = useMemo(() => {
     if (dayKeys.length === 0) return ''
-    const start = dayKeys[0]
-    const end = dayKeys[dayKeys.length - 1]
-    return formatRange(start, end)
+    return formatRange(dayKeys[0], dayKeys[dayKeys.length - 1])
   }, [dayKeys])
 
   const sessionsForDay = useMemo(() => {
@@ -712,6 +708,57 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
     }
     return list
   }, [sessionsForDay, appliedKeyword, appliedLocations, appliedAttendance, appliedTags])
+
+  const nonConflictSessionsForGrid = useMemo(() => {
+    if (!filteredSessionsForDay.length) return filteredSessionsForDay
+
+    const sessionsById = new Map<string, SavedSession>()
+    const childrenByParent = new Map<string, SavedSession[]>()
+    filteredSessionsForDay.forEach((session) => {
+      const id = String(session.id)
+      sessionsById.set(id, session)
+      if (!session.parentId) return
+      const parentId = String(session.parentId)
+      const children = childrenByParent.get(parentId) ?? []
+      children.push(session)
+      childrenByParent.set(parentId, children)
+    })
+
+    // Consider only explicit top-level sessions for conflict detection.
+    // Child sessions (with parentId) should not create/remove conflicts in public grid.
+    const parentSessions = filteredSessionsForDay.filter((session) => !session.parentId)
+
+    const slotGroups = new Map<string, SavedSession[]>()
+    parentSessions.forEach((session) => {
+      const slotKey = `${session.startTime}|${session.startPeriod || 'AM'}|${session.endTime}|${session.endPeriod || 'PM'}`
+      const grouped = slotGroups.get(slotKey) ?? []
+      grouped.push(session)
+      slotGroups.set(slotKey, grouped)
+    })
+
+    const excludedIds = new Set<string>()
+    const collectDescendants = (parentId: string) => {
+      const children = childrenByParent.get(parentId) ?? []
+      children.forEach((child) => {
+        const childId = String(child.id)
+        if (excludedIds.has(childId)) return
+        excludedIds.add(childId)
+        collectDescendants(childId)
+      })
+    }
+
+    slotGroups.forEach((grouped) => {
+      if (grouped.length <= 1) return
+      grouped.forEach((session) => {
+        const sessionId = String(session.id)
+        excludedIds.add(sessionId)
+        collectDescendants(sessionId)
+      })
+    })
+
+    if (!excludedIds.size) return filteredSessionsForDay
+    return filteredSessionsForDay.filter((session) => !excludedIds.has(String(session.id)))
+  }, [filteredSessionsForDay])
 
   // Position filter panel below trigger
   useEffect(() => {
@@ -973,7 +1020,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
 
       {/* Sessions grid (read-only) */}
       {activeSchedule ? (
-        sessionsForDay.length ? (
+        filteredSessionsForDay.length ? (
           <div
             className={[
               // Hide admin-only controls inside ScheduleGrid
@@ -998,7 +1045,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
           <div className="rounded-xl border border-slate-200 bg-white p-6">
             <div className="text-base font-semibold text-slate-900">No sessions</div>
             <div className="mt-1 text-sm text-slate-600">
-              {isLoadingSchedules || isLoadingSessions ? 'Loading…' : 'This schedule doesn’t have any sessions for the selected day.'}
+              {isLoadingSchedules || isLoadingSessions ? 'Loading…' : 'This schedule doesn’t have any non-conflicting sessions for the selected day.'}
             </div>
           </div>
         )

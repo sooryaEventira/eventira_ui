@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { readEventStoreJSON } from '../../utils/eventLocalStore'
-import { fetchPublicAttendees } from '../../services/publicAttendeeService'
-import { fetchPublicSpeakers } from '../../services/publicSpeakerService'
+import { fetchPublicParticipants } from '../../services/publicParticipantService'
 
 type DirectoryAttendee = {
   id: string
@@ -129,59 +128,35 @@ const GroupDirectory: React.FC<GroupDirectoryProps> = ({
   const eventUuid = useMemo(() => getEventUuidFromEnv(), [])
   const groupKey = normalize(groupName || groupId || '')
 
-  const [attendees, setAttendees] = useState<DirectoryAttendee[] | null>(null)
-  const [speakers, setSpeakers] = useState<DirectorySpeaker[] | null>(null)
+  const [participants, setParticipants] = useState<DirectoryAttendee[] | null>(null)
 
   useEffect(() => {
     let cancelled = false
     const run = async () => {
+      if (!(showAttendees || showSpeakers) || !eventUuid) return
       try {
-        if (showAttendees && eventUuid) {
-          const raw = await fetchPublicAttendees(eventUuid)
-          const mapped = (Array.isArray(raw) ? raw : []).map((a: any, idx: number) => ({
-            id: String(a.uuid ?? a.id ?? `attendee-${idx}`),
-            name:
-              String(a.name ?? '').trim() ||
-              String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() ||
-              'Unknown',
-            organization: a.organization ?? a.institute ?? a.company ?? undefined,
-            post: a.post ?? a.title ?? undefined,
-            avatarUrl: a.avatarUrl ?? a.avatar_url ?? undefined,
-            groups: (a as any).groups,
-            tags: (a as any).tags
-          }))
-          if (!cancelled) setAttendees(mapped)
-        }
+        const result = await fetchPublicParticipants(eventUuid)
+        const raw = Array.isArray(result) ? result : (result as any)?.items ?? []
+        const mapped = raw.map((a: any, idx: number) => ({
+          id: String(a.uuid ?? a.id ?? `participant-${idx}`),
+          name:
+            String(a.name ?? '').trim() ||
+            String([a.first_name, a.last_name].filter(Boolean).join(' ')).trim() ||
+            'Unknown',
+          organization: a.organization ?? a.institute ?? a.company ?? undefined,
+          post: a.post ?? a.title ?? undefined,
+          avatarUrl: a.avatarUrl ?? a.avatar_url ?? a.image ?? undefined,
+          groups: a.groups,
+          tags: a.tags,
+        }))
+        if (!cancelled) setParticipants(mapped)
       } catch {
-        if (!cancelled) setAttendees(null)
-      }
-
-      try {
-        if (showSpeakers && eventUuid) {
-          const raw = await fetchPublicSpeakers(eventUuid)
-          const mapped = (Array.isArray(raw) ? raw : []).map((s: any, idx: number) => ({
-            id: String(s.uuid ?? s.id ?? `speaker-${idx}`),
-            name:
-              String(s.name ?? '').trim() ||
-              String([s.first_name, s.last_name].filter(Boolean).join(' ')).trim() ||
-              'Unknown',
-            title: s.title ?? s.role ?? undefined,
-            organization: s.organization ?? s.company ?? undefined,
-            avatarUrl: s.avatarUrl ?? s.avatar_url ?? undefined,
-            groups: (s as any).groups,
-            tags: (s as any).tags
-          }))
-          if (!cancelled) setSpeakers(mapped)
-        }
-      } catch {
-        if (!cancelled) setSpeakers(null)
+        if (!cancelled) setParticipants(null)
       }
     }
 
     run()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [eventUuid, showAttendees, showSpeakers])
 
   const organizations = useMemo(() => {
@@ -189,28 +164,28 @@ const GroupDirectory: React.FC<GroupDirectoryProps> = ({
   }, [eventUuid])
 
   const filteredAttendees = useMemo(() => {
-    const source = attendees ?? readEventStoreJSON<DirectoryAttendee[]>(eventUuid, 'attendees', [])
+    const source = participants ?? readEventStoreJSON<DirectoryAttendee[]>(eventUuid, 'participants', [])
     if (!groupKey) return source
-    return source.filter((a) => {
+    return source.filter((a: DirectoryAttendee) => {
       const names = [
         ...extractGroupNames((a as any).groups),
         ...extractGroupNames((a as any).tags)
       ]
       return names.includes(groupKey)
     })
-  }, [attendees, eventUuid, groupKey])
+  }, [participants, eventUuid, groupKey])
 
   const filteredSpeakers = useMemo(() => {
-    const source = speakers ?? readEventStoreJSON<DirectorySpeaker[]>(eventUuid, 'speakers', [])
+    const source = participants ?? readEventStoreJSON<DirectorySpeaker[]>(eventUuid, 'participants', [])
     if (!groupKey) return source
-    return source.filter((s) => {
+    return source.filter((s: DirectorySpeaker) => {
       const names = [
         ...extractGroupNames((s as any).groups),
         ...extractGroupNames((s as any).tags)
       ]
       return names.includes(groupKey)
     })
-  }, [speakers, eventUuid, groupKey])
+  }, [participants, eventUuid, groupKey])
 
   const filteredOrganizations = useMemo(() => {
     if (!groupKey) return organizations
@@ -241,7 +216,7 @@ const GroupDirectory: React.FC<GroupDirectoryProps> = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredAttendees.map((a, idx) => (
+                {filteredAttendees.map((a: DirectoryAttendee, idx: number) => (
                   <CardRow
                     key={`${a.id}-${idx}`}
                     title={a.name}
@@ -268,7 +243,7 @@ const GroupDirectory: React.FC<GroupDirectoryProps> = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredSpeakers.map((s, idx) => (
+                {filteredSpeakers.map((s: DirectorySpeaker, idx: number) => (
                   <CardRow
                     key={`${s.id}-${idx}`}
                     title={s.name}

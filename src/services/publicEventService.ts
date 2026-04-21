@@ -1,6 +1,11 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 
+const pubAuthHeaders = (): Record<string, string> => {
+  const t = localStorage.getItem('pub_accessToken')
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 export interface PublicEventData {
   uuid: string
   eventName?: string
@@ -25,7 +30,7 @@ export const fetchPublicEvent = async (eventUuid: string): Promise<PublicEventDa
     const tryFetch = async (url: string) => {
       const response = await fetch(url, {
         method: 'GET',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
       })
       return response
     }
@@ -105,7 +110,7 @@ export const fetchPublicEventList = async (): Promise<PublicEventData[]> => {
   const url = API_ENDPOINTS.PUBLIC.EVENT.LIST()
   const response = await fetch(url, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
   })
 
   if (!response.ok) {
@@ -324,7 +329,7 @@ export const fetchPublicEventsByTag = async (tagId: string): Promise<PublicEvent
     const url = API_ENDPOINTS.PUBLIC.EVENT.LIST_BY_TAG(tagId)
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     })
 
     if (!response?.ok) {

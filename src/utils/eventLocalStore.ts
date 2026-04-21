@@ -2,6 +2,7 @@ export type EventStoreKey =
   | 'organizations'
   | 'speakers'
   | 'attendees'
+  | 'participants'
   | 'schedule'
   | 'sessions'
 

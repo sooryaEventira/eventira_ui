@@ -3,7 +3,7 @@ import { SearchLg, FilterLines } from '@untitled-ui/icons-react'
 import { fetchPublicParticipants, fetchPublicParticipant } from '../../../services/publicParticipantService'
 import { buildSearchIndex, normalizeSearchText } from '../../../utils/indexedSearch'
 import { useAblyPresence } from '../../../hooks/useAblyPresence'
-import AblyDirectChat from '../speakers/AblyDirectChat'
+import DirectChat from './DirectChat'
 import { TablePagination } from '../../ui'
 
 type PublicParticipant = {
@@ -21,6 +21,7 @@ interface ParticipantsListPageProps {
   eventUuid: string
   onNavigate: (path: string) => void
   tagId?: string
+  participantId?: string
 }
 
 const ParticipantRow = ({ participant, isSelected, isOnline }: { participant: PublicParticipant; isSelected: boolean; isOnline: boolean }) => {
@@ -45,7 +46,7 @@ const ParticipantRow = ({ participant, isSelected, isOnline }: { participant: Pu
   )
 }
 
-const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, onNavigate: _onNavigate, tagId }) => {
+const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, onNavigate: _onNavigate, tagId, participantId }) => {
   const [myId, setMyId] = useState(() => localStorage.getItem('pub_attendeeUuid') ?? '')
   const onlineIds = useAblyPresence(`event-${eventUuid}-presence`, myId || undefined)
 
@@ -62,7 +63,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
   const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [apiParticipants, setApiParticipants] = useState<PublicParticipant[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(participantId ?? null)
   const [detailParticipant, setDetailParticipant] = useState<PublicParticipant | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [chatOpenForId, setChatOpenForId] = useState<string | null>(null)
@@ -72,6 +73,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
   const PAGE_SIZE = 10
 
   useEffect(() => { setCurrentPage(1) }, [tagId])
+  useEffect(() => { if (participantId) setSelectedId(participantId) }, [participantId])
 
   useEffect(() => {
     let cancelled = false
@@ -331,7 +333,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
           >
             {a && (
               <div className="flex flex-col h-full">
-                <AblyDirectChat
+                <DirectChat
                   peerId={a.id}
                   peerName={a.name}
                   peerAvatarUrl={a.avatarUrl}

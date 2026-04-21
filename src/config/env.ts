@@ -236,10 +236,8 @@ export const API_ENDPOINTS = {
       `${PUBLIC_API_ROOT}chat/ably-token/?room=${room}`,
     /** List chat rooms (connections). GET {{public_url}}chat/rooms/ */
     CHAT_ROOMS: `${PUBLIC_API_ROOT}chat/rooms/`,
-    /** List messages in a room. GET {{public_url}}chat/rooms/{room_uuid}/messages/ */
-    CHAT_MESSAGES: (roomUuid: string) => `${PUBLIC_API_ROOT}chat/rooms/${roomUuid}/messages/`,
-    /** Send a message. POST {{public_url}}chat/rooms/{room_uuid}/messages/ */
-    CHAT_SEND: (roomUuid: string) => `${PUBLIC_API_ROOT}chat/rooms/${roomUuid}/messages/`,
+    /** Get Ably token for a room. GET {{public_url}}chat/rooms/{room_uuid}/token/ */
+    CHAT_ROOM_TOKEN: (roomUuid: string) => `${PUBLIC_API_ROOT}chat/rooms/${roomUuid}/token/`,
     /** Attendee profile. PATCH {{public_url}}events/{eventUuid}/profile/ */
     PROFILE: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/profile/`,
   },
@@ -370,7 +368,7 @@ export const API_ENDPOINTS = {
   },
   // Unified User/Participant Management endpoints (combines speakers + attendees)
   PARTICIPANT_MANAGEMENT: {
-    UPLOAD: `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/upload-excel/`,
+    UPLOAD: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/upload-excel/?event_id=${eventUuid}`,
     LIST: (eventUuid: string, page = 1, tagId?: string, ordering?: string, pageSize?: number, role?: string) => {
       let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/?event_id=${eventUuid}&page=${page}`
       if (pageSize) url += `&page_size=${pageSize}`

@@ -2,6 +2,11 @@ import { API_ENDPOINTS } from '../config/env'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 import type { WebsiteIndexData } from './webpageService'
 
+const pubAuthHeaders = (): Record<string, string> => {
+  const t = localStorage.getItem('pub_accessToken')
+  return t ? { Authorization: `Bearer ${t}` } : {}
+}
+
 export interface PublicWebpageData {
   uuid: string
   event?: string
@@ -25,7 +30,7 @@ export const fetchPublicIndex = async (eventUuid: string): Promise<WebsiteIndexD
   const url = API_ENDPOINTS.PUBLIC.INDEX(eventUuid)
   const response = await fetch(url, {
     method: 'GET',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     credentials: 'include'
   })
 
@@ -64,7 +69,7 @@ export const fetchPublicWebpages = async (eventUuid: string): Promise<PublicWebp
     const url = API_ENDPOINTS.PUBLIC.WEBPAGES.LIST(eventUuid)
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     })
 
     if (!response || !response.ok) {
@@ -146,7 +151,7 @@ export const fetchPublicWebpage = async (
     const url = API_ENDPOINTS.PUBLIC.WEBPAGES.GET(eventUuid, webpageSlug)
     const response = await fetch(url, {
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
     })
 
     if (!response || !response.ok) {

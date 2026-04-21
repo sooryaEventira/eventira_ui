@@ -116,7 +116,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     if (value == null) return null
     if (value instanceof Date) {
       const d = new Date(value.getTime())
-      d.setHours(0, 0, 0, 0)
+      d.setUTCHours(0, 0, 0, 0)
       return Number.isNaN(d.getTime()) ? null : d
     }
     const r = String(value).trim()
@@ -127,12 +127,12 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       const year = parseInt(match[1], 10)
       const month = parseInt(match[2], 10) - 1
       const day = parseInt(match[3], 10)
-      const d = new Date(year, month, day)
+      const d = new Date(Date.UTC(year, month, day))
       return Number.isNaN(d.getTime()) ? null : d
     }
     const d = new Date(r)
     if (Number.isNaN(d.getTime())) return null
-    d.setHours(0, 0, 0, 0)
+    d.setUTCHours(0, 0, 0, 0)
     return d
   }, [])
 
@@ -140,7 +140,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     const d = parseToLocalDate(propSelectedDate)
     if (d) return d
     const date = new Date()
-    date.setHours(0, 0, 0, 0)
+    date.setUTCHours(0, 0, 0, 0)
     return date
   }
 
@@ -257,7 +257,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
 
   const handleDateChange = (date: Date) => {
     const normalizedDate = new Date(date)
-    normalizedDate.setHours(0, 0, 0, 0) // Normalize to start of day
+    normalizedDate.setUTCHours(0, 0, 0, 0)
     setSelectedDate(normalizedDate)
     onDateChange?.(normalizedDate)
   }
@@ -539,12 +539,12 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   const hasSessionsForSelectedDate = useMemo(() => {
     if (!selectedDate) return false
     const selected = new Date(selectedDate)
-    selected.setHours(0, 0, 0, 0)
+    selected.setUTCHours(0, 0, 0, 0)
     return gridSessions.some((s: any) => {
       if (!s?.date) return false
       const d = new Date(s.date as any)
       if (Number.isNaN(d.getTime())) return false
-      d.setHours(0, 0, 0, 0)
+      d.setUTCHours(0, 0, 0, 0)
       return d.getTime() === selected.getTime()
     })
   }, [gridSessions, selectedDate])

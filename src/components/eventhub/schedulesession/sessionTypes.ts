@@ -43,7 +43,9 @@ export interface SessionDraft {
 export interface SavedSession extends SessionDraft {
   id: string
   date?: Date
-  parentId?: string // ID of parent session if this is a parallel session
+  parentId?: string
+  speakers?: Array<{ uuid?: string; id?: string; name?: string; first_name?: string; last_name?: string; role?: string; image?: string; avatar_url?: string; avatarUrl?: string }>
+  is_bookmarked?: boolean
 }
 
 export interface SavedSchedule {
