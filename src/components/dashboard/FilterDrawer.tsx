@@ -127,7 +127,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
           cursor: isDragging ? 'grabbing' : 'grab',
           zIndex: 50
         }}
-        className="w-80 bg-white rounded-xl shadow-2xl border border-gray-200"
+        className="w-60 bg-white rounded-xl shadow-2xl border border-gray-200"
       >
         {/* Header */}
         <div

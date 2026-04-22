@@ -5,7 +5,7 @@ import DashboardContent from './DashboardContent'
 import { type Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
 import type { FilterState } from './SearchAndFilterBar'
-import { deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
+import { archiveEvent, deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { showToast } from '../../utils/toast'
 
@@ -15,6 +15,7 @@ const TemplateSelectionPage = lazy(() => import('./TemplateSelectionPage').then(
 const EventWebsitePage = lazy(() => import('../eventhub/Eventwebsite/EventWebsitePage').then(m => ({ default: m.default })))
 const WebsitePreviewPage = lazy(() => import('../eventhub/WebsitePreviewPage').then(m => ({ default: m.default })))
 const TeamManagementPage = lazy(() => import('./team/TeamManagementPage').then(m => ({ default: m.default })))
+const ArchivedEventsPage = lazy(() => import('./ArchivedEventsPage').then(m => ({ default: m.default })))
 
 // Type import for NewEventForm
 import type { EventFormData } from './NewEventForm'
@@ -91,6 +92,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [showEventWebsitePage, setShowEventWebsitePage] = useState(false)
   const [showPreviewPage, setShowPreviewPage] = useState(false)
   const [previewPageId, setPreviewPageId] = useState<string>('')
+  const [showArchivedEventsPage, setShowArchivedEventsPage] = useState(false)
 
   const getDashboardPathForItem = (itemId: string) => {
     if (itemId === 'events') return '/dashboard'
@@ -270,14 +272,16 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           'hybrid': 'Hybrid',
         }
         
-        // Map status to Live/Draft
-        const statusMap: Record<string, 'Live' | 'Draft'> = {
+        // Map status to Live/Draft/Archived
+        const statusMap: Record<string, Event['status']> = {
           'Live': 'Live',
           'live': 'Live',
           'Published': 'Live',
           'published': 'Live',
           'Draft': 'Draft',
           'draft': 'Draft',
+          'Archived': 'Archived',
+          'archived': 'Archived',
         }
 
         // Format event date range for dashboard listing:
@@ -417,6 +421,20 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       showToast.success('Event deleted')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to delete event. Please try again.'
+      showToast.error(msg)
+      throw e
+    }
+  }
+
+  const handleArchiveEvent = async (eventId: string) => {
+    if (!eventId) return
+    const idToArchive = String(eventId).trim()
+    if (!idToArchive) return
+    try {
+      await archiveEvent(idToArchive)
+      await loadEvents()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to archive event. Please try again.'
       showToast.error(msg)
       throw e
     }
@@ -613,6 +631,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     onNewEventClick?.()
   }
 
+  const handleArchivedEventsClick = () => {
+    setShowArchivedEventsPage(true)
+    onArchivedEventsClick?.()
+  }
+
   const handleFormClose = () => {
     setShowNewEventForm(false)
   }
@@ -720,6 +743,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     return <TemplateSelectionPage />
   }
 
+
   // Show form overlay if form is open
   if (showNewEventForm) {
     return (
@@ -761,7 +785,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
       {/* Main Content */}
       <main className="lg:ml-[250px] mt-16 p-4 sm:p-6">
-        {activeItemId === 'team' ? (
+        {showArchivedEventsPage ? (
+          <Suspense fallback={<ComponentLoadingFallback />}>
+            <ArchivedEventsPage
+              onBackClick={() => { setShowArchivedEventsPage(false); loadEvents() }}
+              onUnarchived={loadEvents}
+            />
+          </Suspense>
+        ) : activeItemId === 'team' ? (
           <Suspense fallback={<ComponentLoadingFallback />}>
             <TeamManagementPage />
           </Suspense>
@@ -790,7 +821,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <DashboardContent
             title={title}
             onNewEventClick={handleNewEventClick}
-            onArchivedEventsClick={onArchivedEventsClick}
+            onArchivedEventsClick={handleArchivedEventsClick}
             searchValue={searchValue}
             onSearchChange={setSearchValue}
             dateRange={dateRange}
@@ -800,6 +831,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
             currentFilters={filterState}
             onEditEvent={onEditEvent}
             onDeleteEvent={handleDeleteEvent}
+            onArchiveEvent={handleArchiveEvent}
             onEventRowClick={handleEventRowClick}
             onSortEvents={onSortEvents}
             events={filteredEvents}

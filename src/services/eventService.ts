@@ -875,3 +875,57 @@ export const publishEvent = async (eventUuid: string): Promise<any> => {
     throw new Error(errorMessage)
   }
 }
+
+const authHeaders = () => ({
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${localStorage.getItem('accessToken') ?? ''}`,
+  'X-Organization': localStorage.getItem('organizationUuid') ?? '',
+})
+
+export const fetchArchivedEvents = async (): Promise<EventData[]> => {
+  const response = await fetch(API_ENDPOINTS.EVENT.ARCHIVED_LIST, {
+    method: 'GET',
+    headers: authHeaders(),
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const msg = handleApiError(null, response, 'Failed to fetch archived events.')
+    throw new Error(msg)
+  }
+  try {
+    const data = await response.json()
+    const raw = data?.data ?? data
+    const list = Array.isArray(raw) ? raw : Array.isArray(raw?.results) ? raw.results : []
+    return list as EventData[]
+  } catch {
+    return []
+  }
+}
+
+export const archiveEvent = async (eventUuid: string): Promise<void> => {
+  const response = await fetch(API_ENDPOINTS.EVENT.ARCHIVE(eventUuid), {
+    method: 'POST',
+    headers: authHeaders(),
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const msg = handleApiError(null, response, 'Failed to archive event.')
+    showToast.error(msg)
+    throw new Error(msg)
+  }
+  showToast.success('Event archived')
+}
+
+export const unarchiveEvent = async (eventUuid: string): Promise<void> => {
+  const response = await fetch(API_ENDPOINTS.EVENT.UNARCHIVE(eventUuid), {
+    method: 'POST',
+    headers: authHeaders(),
+    credentials: 'include',
+  })
+  if (!response.ok) {
+    const msg = handleApiError(null, response, 'Failed to unarchive event.')
+    showToast.error(msg)
+    throw new Error(msg)
+  }
+  showToast.success('Event unarchived')
+}

@@ -19,6 +19,8 @@ interface DashboardContentProps {
   currentFilters?: FilterState
   onEditEvent?: (eventId: string) => void
   onDeleteEvent?: (eventId: string) => void | Promise<void>
+  onDuplicateEvent?: (eventId: string) => void
+  onArchiveEvent?: (eventId: string) => void
   onEventRowClick?: (event: Event) => void
   onSortEvents?: (column: string) => void
   totalEvents?: number
@@ -39,6 +41,8 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   currentFilters = {},
   onEditEvent,
   onDeleteEvent,
+  onDuplicateEvent,
+  onArchiveEvent,
   onEventRowClick,
   onSortEvents,
   totalEvents,
@@ -130,6 +134,8 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
         events={events}
         onEditClick={onEditEvent}
         onDeleteClick={onDeleteEvent}
+        onDuplicateClick={onDuplicateEvent}
+        onArchiveClick={onArchiveEvent}
         onRowClick={onEventRowClick}
         onSort={onSortEvents}
         searchValue={searchValue}

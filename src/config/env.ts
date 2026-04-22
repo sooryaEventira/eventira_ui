@@ -99,6 +99,9 @@ export const API_ENDPOINTS = {
     DELETE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
     UPDATE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/`,
     PUBLISH: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/publish/`,
+    ARCHIVE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/archive/`,
+    UNARCHIVE: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event/${eventUuid}/unarchive/`,
+    ARCHIVED_LIST: `${env.AUTH_API_URL}${ADMIN_API_BASE}events/archived/`,
     /** Event hub overview: GET overview/?event_id={{event_uuid}} */
     OVERVIEW: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}overview/?event_id=${eventUuid}`,
   },

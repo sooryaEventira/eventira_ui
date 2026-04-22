@@ -27,7 +27,7 @@ const SearchAndFilterBar: React.FC<SearchAndFilterBarProps> = ({
     <>
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
         {/* Search Input */}
-        <div className="w-full sm:w-[500px] bg-white overflow-hidden rounded-lg border border-[#D5D7DA] outline outline-1 outline-[#D5D7DA] outline-offset-[-1px] inline-flex items-center justify-start gap-2 shadow-[0px_1px_2px_rgba(10,12.67,18,0.05)] px-3 py-2">
+        <div className="w-full sm:w-[500px] bg-white overflow-hidden rounded-lg border border-[#D5D7DA] outline outline-1 outline-[#D5D7DA] outline-offset-[-1px] inline-flex items-center justify-start gap-2 shadow-[0px_1px_2px_rgba(10,12.67,18,0.05)] px-3 py-2 ">
           <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
             {/* Icon Container */}
             <div className="w-5 h-5 relative overflow-hidden flex items-center justify-center flex-shrink-0">

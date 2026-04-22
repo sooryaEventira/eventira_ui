@@ -1,5 +1,5 @@
-import React, { useMemo, useState, useEffect } from 'react'
-import { Trash03 } from '@untitled-ui/icons-react'
+import React, { useMemo, useState, useEffect, useRef } from 'react'
+import { DotsVertical } from '@untitled-ui/icons-react'
 import { DividerLineTable, type DividerLineTableColumn, type DividerLineTableSortDescriptor, type DateRange } from '../ui/untitled'
 import { TablePagination } from '../ui/TablePagination'
 import { ConfirmDeleteModal } from '../ui'
@@ -7,7 +7,7 @@ import { ConfirmDeleteModal } from '../ui'
 export interface Event {
   id: string
   name: string
-  status: 'Live' | 'Draft'
+  status: 'Live' | 'Draft' | 'Archived'
   attendanceType: 'Virtual' | 'In-person' | 'Hybrid'
   registrations: number
   eventDate: string
@@ -26,6 +26,9 @@ interface EventsTableProps {
   events?: Event[]
   onEditClick?: (eventId: string) => void
   onDeleteClick?: (eventId: string) => void | Promise<void>
+  onDuplicateClick?: (eventId: string) => void
+  onArchiveClick?: (eventId: string) => void
+  onUnarchiveClick?: (eventId: string) => void
   onRowClick?: (event: Event) => void
   onSort?: (column: string) => void
   searchValue?: string
@@ -33,15 +36,18 @@ interface EventsTableProps {
   statusFilter?: string
   attendanceTypeFilter?: string
   createdByFilter?: string
+  hideCreatedByColumn?: boolean
 }
 
-const StatusBadge: React.FC<{ status: 'Live' | 'Draft' }> = ({ status }) => {
-  const styles = {
+const StatusBadge: React.FC<{ status: 'Live' | 'Draft' | 'Archived' }> = ({ status }) => {
+  const styles: Record<string, string> = {
     Live: 'bg-green-100 text-green-700',
-    Draft: 'bg-red-100 text-red-700'
+    Draft: 'bg-red-100 text-red-700',
+    Archived: 'bg-slate-100 text-slate-600',
   }
   return (
-    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status]}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${styles[status]}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${status === 'Live' ? 'bg-green-500' : status === 'Draft' ? 'bg-red-500' : 'bg-slate-400'}`} />
       {status}
     </span>
   )
@@ -64,13 +70,17 @@ const EventsTable: React.FC<EventsTableProps> = ({
   events = [],
   onEditClick,
   onDeleteClick,
+  onDuplicateClick,
+  onArchiveClick,
+  onUnarchiveClick,
   onRowClick,
   onSort,
   searchValue = '',
   dateRange,
   statusFilter,
   attendanceTypeFilter,
-  createdByFilter
+  createdByFilter,
+  hideCreatedByColumn = false
 }) => {
   const [sortDescriptor, setSortDescriptor] = useState<DividerLineTableSortDescriptor | undefined>()
   const [currentPage, setCurrentPage] = useState(1)
@@ -78,6 +88,21 @@ const EventsTable: React.FC<EventsTableProps> = ({
   const [deleteTarget, setDeleteTarget] = useState<Event | null>(null)
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!openMenuId) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null)
+        setMenuPosition(null)
+      }
+    }
+    const t = setTimeout(() => document.addEventListener('mousedown', handleClickOutside), 0)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handleClickOutside) }
+  }, [openMenuId])
 
   // Log events received
   useEffect(() => {
@@ -263,49 +288,111 @@ const EventsTable: React.FC<EventsTableProps> = ({
       //   render: (item) => <div>{item.registrations}</div>
       // },
 
-      {
+      ...(!hideCreatedByColumn ? [{
         id: 'createdBy',
         header: 'Created by',
         sortable: true,
-        sortAccessor: (item) => item.createdBy,
-        render: (item) => <div>{item.createdBy ? item.createdBy.charAt(0).toUpperCase() + item.createdBy.slice(1) : ''}</div>
-      },
+        sortAccessor: (item: Event) => item.createdBy,
+        render: (item: Event) => <div>{item.createdBy ? item.createdBy.charAt(0).toUpperCase() + item.createdBy.slice(1) : ''}</div>
+      }] : []),
       {
         id: 'actions',
         header: '',
         sortable: false,
         align: 'right',
         render: (item) => (
-          <div className="flex items-center justify-end gap-3">
-            {/* <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                onEditClick?.(item.id)
-              }}
-              className="text-[#6938EF] hover:text-[#5925DC] transition-colors"
-              aria-label={`Edit ${item.name}`}
-            >
-              <Edit05 className="h-4 w-5 text-[#A4A7AE]" />
-            </button> */}
-
+          <div ref={openMenuId === item.id ? menuRef : undefined} className="relative flex items-center justify-end">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
-                setDeleteTarget(item)
-                setIsDeleteModalOpen(true)
+                if (openMenuId === item.id) {
+                  setOpenMenuId(null)
+                  setMenuPosition(null)
+                  return
+                }
+                const buttonRect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect()
+                const menuWidth = 160
+                const estimatedMenuHeight = 180
+                const viewportPadding = 8
+                const left = Math.max(viewportPadding, buttonRect.right - menuWidth)
+                const canOpenDown = buttonRect.bottom + estimatedMenuHeight <= window.innerHeight - viewportPadding
+                const top = canOpenDown
+                  ? buttonRect.bottom + 4
+                  : Math.max(viewportPadding, buttonRect.top - estimatedMenuHeight - 4)
+                setMenuPosition({ top, left })
+                setOpenMenuId(item.id)
               }}
-              className="text-slate-500 hover:text-rose-600 transition-colors"
-              aria-label={`Delete ${item.name}`}
+              className={`inline-flex items-center justify-center w-8 h-8 rounded-lg border transition-colors ${
+                openMenuId === item.id
+                  ? 'border-blue-500 bg-blue-50 text-blue-600'
+                  : 'border-transparent text-slate-400 hover:text-slate-700 hover:bg-slate-100 hover:border-slate-200'
+              }`}
+              aria-label="More options"
             >
-              <Trash03 className="h-4 w-4" strokeWidth={1.8} />
+              <DotsVertical className="h-4 w-4" />
             </button>
+            {openMenuId === item.id && menuPosition && (
+              <div
+                className="fixed z-[100] min-w-[160px] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                style={{ top: menuPosition.top, left: menuPosition.left }}
+              >
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setMenuPosition(null); onEditClick?.(item.id) }}
+                  className="flex w-full items-center px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setMenuPosition(null); onDuplicateClick?.(item.id) }}
+                  className="flex w-full items-center px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Duplicate
+                </button>
+                {onUnarchiveClick ? (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setMenuPosition(null); onUnarchiveClick(item.id) }}
+                    className="flex w-full items-center px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    Unarchive
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (item.status === 'Archived') return
+                      setOpenMenuId(null)
+                      setMenuPosition(null)
+                      onArchiveClick?.(item.id)
+                    }}
+                    disabled={item.status === 'Archived'}
+                    className={`flex w-full items-center px-4 py-2 text-sm font-medium transition-colors ${
+                      item.status === 'Archived'
+                        ? 'cursor-not-allowed text-slate-400'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    Archive
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setOpenMenuId(null); setMenuPosition(null); setDeleteTarget(item); setIsDeleteModalOpen(true) }}
+                  className="mt-1 flex w-full items-center border-t border-slate-100 px-4 py-2 text-sm font-medium text-rose-600 hover:bg-rose-50 transition-colors"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
           </div>
         )
       }
     ],
-    [onDeleteClick, onEditClick]
+    [openMenuId, onDeleteClick, onEditClick, onDuplicateClick, onArchiveClick, onUnarchiveClick, hideCreatedByColumn]
   )
 
   return (
@@ -313,6 +400,8 @@ const EventsTable: React.FC<EventsTableProps> = ({
       <DividerLineTable
         data={paginatedEvents}
         columns={columns}
+        rootClassName="overflow-visible"
+        bodyClassName="overflow-x-auto overflow-y-visible"
         getRowKey={(item) => item.id}
         sortDescriptor={sortDescriptor}
         onSortChange={handleSortChange}
