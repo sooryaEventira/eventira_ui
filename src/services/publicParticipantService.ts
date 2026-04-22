@@ -78,8 +78,10 @@ export const fetchPublicParticipants = async (
     if (data?.status === 'error') throw new Error(handleApiError(data, undefined, 'Failed to fetch participants.'))
 
     const items = parseListResponse(data)
-    const count: number = typeof data?.count === 'number' ? data.count : items.length
-    const totalPages = Math.max(1, Math.ceil(count / pageSize))
+    const rawCount = data?.count ?? data?.data?.count ?? data?.results?.count
+    const parsedCount = Number(rawCount)
+    const count: number = Number.isFinite(parsedCount) && parsedCount >= 0 ? parsedCount : items.length
+    const totalPages = Math.max(1, Math.ceil(count / Math.max(1, pageSize)))
     return { items, count, totalPages }
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
