@@ -8,7 +8,6 @@ import PageCreationModal, { type PageType } from '../../page/PageCreationModal'
 import CreateNavFolderModal from './CreateNavFolderModal'
 import {
   createWebpage,
-  fetchWebpages,
   fetchWebsiteIndex,
   fetchNavigationContent,
   deleteWebpage,
@@ -29,7 +28,7 @@ import { isFolder, isPage } from '../../../utils/navigationTree'
 import { NAV_ICON_KEYS, renderNavIcon, ICONSAX_VARIANTS, buildIconKey, parseIconKey } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
-import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, Play, ChevronDown, ChevronUp, Folder, AlertCircle, Settings01 } from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, ChevronDown, ChevronUp, Folder, AlertCircle, Settings01 } from '@untitled-ui/icons-react'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
 interface EventWebsitePageProps {
@@ -94,9 +93,7 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [pendingNavCallback, setPendingNavCallback] = useState<(() => void) | null>(null)
 
 
-  const filteredWebpages = useMemo(() => webpages, [webpages])
-
-  const handleAddMenuItem = useCallback(
+const handleAddMenuItem = useCallback(
     (pageUuid: string) => {
       const page = availableNavPages.find((p) => p.uuid === pageUuid)
       if (!page || page.is_added) return
@@ -606,10 +603,9 @@ const loadNavigationFromApi = useCallback(async () => {
     setNavigationPreviewActive((prev) => prev ?? navigationFromApi[0]?.id ?? null)
   }, [activeSubItem, navigationFromApi])
 
-  // Fetch webpages for event website listing from WEBPAGE.LIST endpoint
+  // Fetch webpages for event website listing — single call returns pages + participant_groups + schedules
   const loadWebpages = useCallback(async () => {
     if (!createdEvent?.uuid) {
-      // Clear webpages when event UUID is not available to prevent stale data
       setWebpages([])
       return
     }
@@ -617,11 +613,31 @@ const loadNavigationFromApi = useCallback(async () => {
     setIsLoadingWebpages(true)
     try {
       console.log('📄 [EventWebsitePage] Fetching webpages for event:', createdEvent.uuid)
-      const serverWebpages = await fetchWebpages(createdEvent.uuid)
-      console.log('📄 [EventWebsitePage] Fetched webpages:', serverWebpages.length, 'pages')
+
+      // One API call gives us pages, participant_groups, and schedules together
+      const navData = await fetchNavigationContent(createdEvent.uuid)
+
+      // Map NavContentItem pages → WebpageData, preserving any extra fields the API returns
+      const mapNavPages = (pages: typeof navData.pages): WebpageData[] =>
+        pages.map((p: any) => ({
+          uuid: p.uuid ?? '',
+          event: p.event ?? '',
+          name: p.name ?? p.title ?? '',
+          slug: p.slug ?? '',
+          content: p.content ?? null,
+          created_by: p.created_by ?? 0,
+          updated_by: p.updated_by ?? 0,
+          created_date: p.created_date ?? '',
+          updated_date: p.updated_date ?? '',
+        }))
+
+      const serverWebpages = mapNavPages(navData.pages)
+      console.log('📄 [EventWebsitePage] Fetched:', serverWebpages.length, 'pages,', navData.participant_groups.length, 'groups,', navData.schedules.length, 'schedules')
+
+      // Set navContent immediately so participant_groups and schedules are rendered
+      setNavContent(navData)
 
       // If the backend has no Welcome page yet, auto-create it so it appears in listing by default.
-      // This keeps "default template" behavior consistent with the listing view.
       const isScratchMode = (() => {
         try {
           const urlParams = new URLSearchParams(window.location.search)
@@ -634,9 +650,9 @@ const loadNavigationFromApi = useCallback(async () => {
         }
       })()
 
-      const hasWelcomeOnServer = serverWebpages.some((w) => {
-        const name = String((w as any)?.name ?? '').trim().toLowerCase()
-        const slug = String((w as any)?.slug ?? '').trim().toLowerCase()
+      const hasWelcomeOnServer = serverWebpages.some((w: WebpageData) => {
+        const name = String(w?.name ?? '').trim().toLowerCase()
+        const slug = String(w?.slug ?? '').trim().toLowerCase()
         return name === 'welcome' || slug === 'welcome'
       })
 
@@ -676,24 +692,23 @@ const loadNavigationFromApi = useCallback(async () => {
 
           await createWebpage(request)
 
-          // Refresh list so the newly created Welcome shows in listing immediately.
-          const refreshed = await fetchWebpages(createdEvent.uuid)
-          setWebpages(refreshed ?? [])
-          // Seed index pages list too (Navigation tab) if it hasn't been loaded yet.
-          setIndexWebpages((prev) => (prev.length ? prev : (refreshed ?? [])))
+          // Refresh after creating Welcome page
+          const refreshedNav = await fetchNavigationContent(createdEvent.uuid)
+          const refreshed = mapNavPages(refreshedNav.pages)
+          setWebpages(refreshed)
+          setIndexWebpages((prev) => (prev.length ? prev : refreshed))
+          setNavContent(refreshedNav)
           return
         } catch (e) {
-          // Don't block listing; just fall back to what the server returned.
           console.error('❌ [EventWebsitePage] Failed to auto-create Welcome webpage:', e)
           showToast.error('Failed to create default Welcome page')
         }
       }
 
       setWebpages(serverWebpages)
-      fetchNavigationContent(createdEvent.uuid).then(setNavContent).catch(() => {})
+      setIndexWebpages((prev) => (prev.length ? prev : serverWebpages))
     } catch (error) {
-      console.error('? [EventWebsitePage] Error fetching website index:', error)
-      // Error is handled by errorHandler
+      console.error('❌ [EventWebsitePage] Error fetching website pages:', error)
     } finally {
       setIsLoadingWebpages(false)
     }
@@ -2216,127 +2231,17 @@ const loadNavigationFromApi = useCallback(async () => {
 
           {/* Content based on active tab */}
           {activeSubItem === 'website-pages' && (
-            <div>
-              {/* Pages List */}
-              <div className="space-y-0 border border-slate-200 rounded-lg bg-white">
-                {isLoadingWebpages ? (
-                  <div className="flex items-center justify-center py-8 text-slate-500">
-                    <p>Loading webpages...</p>
-                  </div>
-                ) : filteredWebpages.length === 0 ? (
-                  <div className="flex items-center justify-center py-8 text-slate-500">
-                    <p>No pages yet. Click "+ New Page" to create one.</p>
-                  </div>
-                ) : (
-                  filteredWebpages.map((webpage) => {
-                    const isFirstPage = webpage.name.toLowerCase() === 'welcome'
-                    return (
-                      <div
-                        key={webpage.uuid}
-                        className="flex items-center justify-between py-2 px-4 border-b border-slate-200 last:border-b-0 hover:bg-slate-50 transition-colors"
-                      >
-                        <span className="text-sm font-medium text-slate-900 capitalize">
-                          {webpage.name}
-                        </span>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="tertiary"
-                            size="sm"
-                            onClick={() => handlePageAction(webpage.uuid, 'view')}
-                            className="p-2 text-slate-400 hover:text-slate-600"
-                            aria-label="View"
-                            iconLeading={<Play className="h-4 w-4" />}
-                          />
-                          <div className="relative">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => setOpenDropdownId(openDropdownId === webpage.uuid ? null : webpage.uuid)}
-                              className="inline-flex items-center gap-2  whitespace-nowrap"
-                            >
-                              <div className='flex'>       
-                              Actions                          
-                             <ChevronDown className="h-5 w-6 text-slate-500 pt-1" />
-                              </div>
-                            </Button>
-
-                            {/* Dropdown Menu */}
-                            {openDropdownId === webpage.uuid && (
-                              <div className="absolute right-0 mt-2 w-40 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full" onClick={(e) => e.stopPropagation()}>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'edit')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3"
-                                >
-                                  Edit
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'duplicate')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
-                                >
-                                  Duplicate
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'settings')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
-                                >
-                                  Settings
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'hide')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
-                                >
-                                  Hide page
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'copy-link')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
-                                >
-                                  Copy link
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handlePageAction(webpage.uuid, 'delete')
-                                    setOpenDropdownId(null)
-                                  }}
-                                  disabled={isFirstPage}
-                                  className={`w-full text-left px-4 py-2.5 text-sm last:rounded-b-md flex items-center gap-3 ${
-                                    isFirstPage
-                                      ? 'text-slate-300 bg-slate-50 cursor-not-allowed'
-                                      : 'text-red-600 hover:bg-red-50'
-                                  }`}
-                                >
-                                 
-                                  Delete
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
+            <div className="pb-96">
+              <div className="space-y-0 border border-slate-200 rounded-lg bg-white overflow-visible">
+                <WebsitePagesList
+                  webpages={sortedWebpagesForListing}
+                  navContent={navContent}
+                  isLoading={isLoadingWebpages}
+                  onAction={handlePageAction}
+                  openDropdownId={openDropdownId}
+                  setOpenDropdownId={setOpenDropdownId}
+                  enableRowClickEdit
+                />
               </div>
             </div>
           )}

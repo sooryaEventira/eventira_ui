@@ -39,6 +39,7 @@ interface DashboardLayoutProps {
   onProfileClick?: () => void
   onLogout?: () => void
   onNewEventClick?: () => void
+  onArchivedEventsClick?: () => void
   onEditEvent?: (eventId: string) => void
   onSortEvents?: (column: string) => void
   onOrganizationChange?: (org: { uuid: string; name: string; role?: string }) => void
@@ -55,6 +56,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onProfileClick,
   onLogout,
   onNewEventClick,
+  onArchivedEventsClick,
   onEditEvent,
   onSortEvents,
   onOrganizationChange
@@ -788,6 +790,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           <DashboardContent
             title={title}
             onNewEventClick={handleNewEventClick}
+            onArchivedEventsClick={onArchivedEventsClick}
             searchValue={searchValue}
             onSearchChange={setSearchValue}
             dateRange={dateRange}

@@ -86,6 +86,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
 }) => {
   const participantGroups = navContent?.participant_groups ?? []
   const schedules = navContent?.schedules ?? []
+  console.log('[WebsitePagesList] render — webpages:', webpages.length, 'groups:', participantGroups.length, 'schedules:', schedules.length, 'navContent:', navContent)
 
   if (isLoading) {
     return (

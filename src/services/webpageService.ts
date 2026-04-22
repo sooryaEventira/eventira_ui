@@ -379,16 +379,23 @@ export const fetchNavigationContent = async (eventUuid: string): Promise<Navigat
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}`, 'X-Organization': organizationUuid },
     credentials: 'include',
   })
-  if (!response.ok) return empty
+  if (!response.ok) {
+    console.warn('[fetchNavigationContent] Response not OK:', response.status)
+    return empty
+  }
   try {
     const data = await response.json()
+    console.log('[fetchNavigationContent] Raw response:', JSON.stringify(data).substring(0, 800))
     const d = data?.data ?? data
-    return {
+    const result = {
       pages: Array.isArray(d?.pages) ? d.pages : [],
       participant_groups: Array.isArray(d?.participant_groups) ? d.participant_groups : [],
       schedules: Array.isArray(d?.schedules) ? d.schedules : [],
     }
-  } catch {
+    console.log('[fetchNavigationContent] Parsed:', result.pages.length, 'pages,', result.participant_groups.length, 'groups,', result.schedules.length, 'schedules')
+    return result
+  } catch (e) {
+    console.error('[fetchNavigationContent] Parse error:', e)
     return empty
   }
 }
