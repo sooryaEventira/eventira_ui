@@ -4,6 +4,7 @@ import {
   fetchParticipants,
   searchParticipants,
   fetchParticipantTags,
+  getParticipant,
   updateParticipant,
   deleteParticipant,
   bulkAddParticipantTag,
@@ -41,6 +42,10 @@ interface UserManagementPageProps {
 /** Map raw ParticipantData → Participant */
 function mapParticipantToAttendee(p: ParticipantData): Participant {
   const mappedGroups: Participant['groups'] = (() => {
+    // Detail API returns group_names: string[]
+    if (Array.isArray((p as any).group_names) && (p as any).group_names.length > 0) {
+      return (p as any).group_names.map((name: string) => ({ id: name, name, variant: 'muted' as const }))
+    }
     // API returns groups as string[] of names
     if (Array.isArray(p.groups) && p.groups.length > 0) {
       return p.groups.map((name: string) => ({ id: name, name, variant: 'muted' as const }))
@@ -70,8 +75,8 @@ function mapParticipantToAttendee(p: ParticipantData): Participant {
     name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown',
     firstName: p.first_name,
     lastName: p.last_name,
-    email: p.email,
-    avatarUrl: p.avatar_url,
+    email: p.email || (p as any).user_email,
+    avatarUrl: p.avatar_url || (p as any).image,
     bannerUrl: p.banner_url,
     status: (p.status as Participant['status']) || 'sent',
     role: (p.role as Participant['role']) || 'attendee',
@@ -260,9 +265,22 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     document.body.removeChild(link)
   }
 
-  const handleEditParticipant = (id: string) => {
-    const p = participants.find((a) => a.id === id)
-    if (p) { setSelectedParticipant(p); setIsSlideoutOpen(true) }
+  const handleEditParticipant = async (id: string) => {
+    const listParticipant = participants.find((a) => a.id === id)
+    if (!eventUuid) return
+    try {
+      const detail = await getParticipant(id, eventUuid)
+      const mapped = mapParticipantToAttendee(detail)
+      setSelectedParticipant(mapped)
+      setIsSlideoutOpen(true)
+    } catch (err) {
+      // Fallback to already loaded row data if detail endpoint fails.
+      if (listParticipant) {
+        setSelectedParticipant(listParticipant)
+        setIsSlideoutOpen(true)
+      }
+      showToast.error(err instanceof Error ? err.message : 'Failed to load participant details.')
+    }
   }
 
   const handleSaveParticipant = async (updated: Participant) => {
@@ -274,6 +292,8 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
       organisation: updated.organization,
       designation: updated.post || undefined,
       description: updated.description,
+      // Backend responses expose `group_names`; send both keys for compatibility.
+      group_names: tagNames.length ? tagNames : undefined,
       tag_names: tagNames.length ? tagNames : undefined,
       custom_fields: updated.customFields?.length
         ? Object.fromEntries(updated.customFields.map((f) => [f.label, f.value]))
