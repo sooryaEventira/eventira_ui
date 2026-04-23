@@ -242,7 +242,15 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
         <>
           <SectionHeader label="User Groups" />
           {participantGroups.map((group) => (
-            <ContentRow key={group.uuid} uuid={group.uuid} title={group.title} enableRowClickEdit={enableRowClickEdit} openDropdownId={openDropdownId} setOpenDropdownId={setOpenDropdownId} onAction={onAction} />
+            <ContentRow
+              key={group.uuid}
+              uuid={((group as any).ref_uuid ?? group.uuid) as string}
+              title={group.title}
+              enableRowClickEdit={enableRowClickEdit}
+              openDropdownId={openDropdownId}
+              setOpenDropdownId={setOpenDropdownId}
+              onAction={onAction}
+            />
           ))}
         </>
       )}
@@ -251,7 +259,15 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
         <>
           <SectionHeader label="Schedules Pages" />
           {schedules.map((schedule) => (
-            <ContentRow key={schedule.uuid} uuid={schedule.uuid} title={schedule.title} enableRowClickEdit={enableRowClickEdit} openDropdownId={openDropdownId} setOpenDropdownId={setOpenDropdownId} onAction={onAction} />
+            <ContentRow
+              key={schedule.uuid}
+              uuid={((schedule as any).ref_uuid ?? schedule.uuid) as string}
+              title={schedule.title}
+              enableRowClickEdit={enableRowClickEdit}
+              openDropdownId={openDropdownId}
+              setOpenDropdownId={setOpenDropdownId}
+              onAction={onAction}
+            />
           ))}
         </>
       )}

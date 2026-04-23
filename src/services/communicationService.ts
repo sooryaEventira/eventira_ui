@@ -3,12 +3,21 @@ import { showToast } from '../utils/toast'
 import { handleApiError, handleNetworkError, handleParseError } from '../utils/errorHandler'
 import type { ApiResponse } from './authService'
 
+export interface RecipientFilter {
+  type: 'group' | 'message_status' | 'user_status'
+  operator: 'is' | 'is_not'
+  value: string
+}
+
 export interface SendCommunicationRequest {
   event_uuid: string
   subject: string
   message: string
   channel: 'email' | 'push-notification'
-  tag_uuids: string[]
+  recipient_match: 'all' | 'any'
+  recipient_filters: RecipientFilter[]
+  save_as_draft?: boolean
+  attachment_uuids?: string[]
 }
 
 export interface SendCommunicationResponseData {
@@ -87,10 +96,13 @@ export const sendCommunication = async (
       credentials: 'include',
       body: JSON.stringify({
         event_uuid: request.event_uuid,
+        channel: request.channel,
         subject: request.subject.trim(),
         message: request.message.trim(),
-        channel: request.channel,
-        tag_uuids: request.tag_uuids,
+        save_as_draft: request.save_as_draft ?? false,
+        recipient_match: request.recipient_match,
+        recipient_filters: request.recipient_filters,
+        attachment_uuids: request.attachment_uuids ?? [],
       }),
     })
 

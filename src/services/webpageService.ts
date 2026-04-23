@@ -74,6 +74,24 @@ export interface WebsiteIndexData {
   navigation?: any[]
 }
 
+export interface WebsitePageConfigItem {
+  uuid: string
+  item_type: 'page' | 'participant_group' | 'schedule' | string
+  resource_uuid: string
+  resource_title: string
+  title?: string
+  icon?: string
+  desktop_container_max_width?: number
+  desktop_container_unit?: string
+  browser?: 'in_app' | 'in_browser' | string
+  feature_permission?: 'everyone' | 'logged_in' | 'guests' | 'certain_groups' | string
+  visibility?: 'show' | 'show_without_access' | 'hide' | string
+  hide_on_mobile?: boolean
+  show_in_mobile_menu_without_access?: boolean
+  is_desktop_home?: boolean
+  is_mobile_home?: boolean
+}
+
 export const createOrUpdateWebpage = async (
   webpageUuid: string | null,
   eventUuid: string,
@@ -397,6 +415,38 @@ export const fetchNavigationContent = async (eventUuid: string): Promise<Navigat
   } catch (e) {
     console.error('[fetchNavigationContent] Parse error:', e)
     return empty
+  }
+}
+
+export const fetchWebsitePageConfigs = async (eventUuid: string): Promise<WebsitePageConfigItem[]> => {
+  if (!eventUuid) return []
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) return []
+
+  const url = API_ENDPOINTS.WEBSITE.PAGE_CONFIGS(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    console.warn('[fetchWebsitePageConfigs] Response not OK:', response.status)
+    return []
+  }
+
+  try {
+    const data = await response.json()
+    const rows = data?.data ?? data
+    return Array.isArray(rows) ? rows as WebsitePageConfigItem[] : []
+  } catch (e) {
+    console.error('[fetchWebsitePageConfigs] Parse error:', e)
+    return []
   }
 }
 

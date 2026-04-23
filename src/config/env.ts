@@ -138,6 +138,9 @@ export const API_ENDPOINTS = {
     /** List all pages with navigation content. GET {{admin_url}}navigation/content/?event_id={{event_uuid}} */
     NAVIGATION_CONTENT: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}navigation/content/?event_id=${eventUuid}`,
+    /** Page configuration rows. GET {{admin_url}}website/page-configs/?event_id={{event_uuid}} */
+    PAGE_CONFIGS: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}website/page-configs/?event_id=${eventUuid}`,
     /** Website settings (branding, domain, visibility). PUT/PATCH with body. */
     SETTINGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website-settings/?event_id=${eventUuid}`,
   },

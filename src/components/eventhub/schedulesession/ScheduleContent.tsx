@@ -101,12 +101,14 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   const [filterTags, setFilterTags] = useState<Set<string>>(new Set())
   const [filterPanelPosition, setFilterPanelPosition] = useState<{ top: number; left: number } | null>(null)
   const [apiTags, setApiTags] = useState<ScheduleTag[]>([])
+  const [apiLocations, setApiLocations] = useState<ScheduleLocation[]>([])
   const filterDropdownRef = useRef<HTMLDivElement>(null)
   const filterTriggerRef = useRef<HTMLButtonElement>(null)
   const filterPanelRef = useRef<HTMLDivElement>(null)
   const [addTagsDropdownOpen, setAddTagsDropdownOpen] = useState(false)
   const [addTagsDropdownPos, setAddTagsDropdownPos] = useState<{ top: number; left: number } | null>(null)
   const [addTagsSelected, setAddTagsSelected] = useState<Set<string>>(new Set())
+  const [addLocationSelected, setAddLocationSelected] = useState<string | null>(null)
   const addTagsBtnRef = useRef<HTMLButtonElement>(null)
   const addTagsDropdownRef = useRef<HTMLDivElement>(null)
   const didNotifyInitialDateRef = useRef(false)
@@ -285,19 +287,24 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     else handleDownloadTemplate()
   }
 
-  // Fetch schedule tags from API
+  // Fetch schedule tags + locations for filter/bulk actions
   useEffect(() => {
     if (!eventUuid || !scheduleUuid) return
     let cancelled = false
 
-    fetchScheduleTags(scheduleUuid, eventUuid)
-      .then((tags) => {
+    Promise.all([
+      fetchScheduleTags(scheduleUuid, eventUuid),
+      fetchScheduleLocations(scheduleUuid, eventUuid),
+    ])
+      .then(([tags, locations]) => {
         if (!cancelled) setApiTags(tags)
+        if (!cancelled) setApiLocations(locations)
       })
       .catch((error) => {
         if (!cancelled) {
-          console.error('Failed to fetch schedule tags:', error)
+          console.error('Failed to fetch schedule tags/locations:', error)
           setApiTags([])
+          setApiLocations([])
         }
       })
 
@@ -474,7 +481,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   useLayoutEffect(() => {
     if (!addTagsDropdownOpen || !addTagsBtnRef.current) return
     const rect = addTagsBtnRef.current.getBoundingClientRect()
-    const panelWidth = 240
+    const panelWidth = 280
     setAddTagsDropdownPos({
       top: rect.bottom + 4,
       left: Math.min(rect.left, (typeof window !== 'undefined' ? window.innerWidth : 800) - panelWidth - 16),
@@ -675,7 +682,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               <button
                 ref={addTagsBtnRef}
                 type="button"
-                onClick={() => { setAddTagsSelected(new Set()); setAddTagsDropdownOpen((v) => !v) }}
+                onClick={() => {
+                  setAddTagsSelected(new Set())
+                  setAddLocationSelected(null)
+                  setAddTagsDropdownOpen((v) => !v)
+                }}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:border-primary/40 hover:text-primary transition-colors"
               >
                 
@@ -1177,7 +1188,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       {addTagsDropdownOpen && addTagsDropdownPos && createPortal(
         <div
           ref={addTagsDropdownRef}
-          style={{ position: 'fixed', top: addTagsDropdownPos.top, left: addTagsDropdownPos.left, width: 240, zIndex: 9999 }}
+          style={{ position: 'fixed', top: addTagsDropdownPos.top, left: addTagsDropdownPos.left, width: 280, zIndex: 9999 }}
           className="rounded-xl border border-slate-200 bg-white shadow-lg"
         >
           <div className="px-3 py-2 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide">
@@ -1204,19 +1215,42 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               ))
             )}
           </div>
-          {apiTags.length > 0 && (
+          <div className="px-3 py-2 border-y border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+            Location
+          </div>
+          <div className="max-h-40 overflow-y-auto py-1">
+            {apiLocations.length === 0 ? (
+              <div className="px-3 py-4 text-center text-sm text-slate-400">No locations found.</div>
+            ) : (
+              apiLocations.map((loc) => (
+                <label key={loc.uuid || loc.name} className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-slate-50">
+                  <input
+                    type="checkbox"
+                    checked={addLocationSelected === loc.name}
+                    onChange={() => setAddLocationSelected((prev) => prev === loc.name ? null : loc.name)}
+                    className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                  />
+                  <span className="text-sm text-slate-700">{loc.name}</span>
+                </label>
+              ))
+            )}
+          </div>
+          {(apiTags.length > 0 || apiLocations.length > 0) && (
             <div className="border-t border-slate-100 px-3 py-2">
               <button
                 type="button"
-                disabled={addTagsSelected.size === 0}
+                disabled={addTagsSelected.size === 0 && !addLocationSelected}
                 onClick={() => {
-                  const selected = Array.from(addTagsSelected)
+                  const selectedTags = Array.from(addTagsSelected)
                   gridSessions
                     .filter((s) => selectedSessionIds.includes(String(s.id)))
                     .forEach((s) => {
                       const existing: string[] = Array.isArray(s.tags) ? s.tags.map((t: any) => typeof t === 'string' ? t : t?.name ?? '') : []
-                      const merged = Array.from(new Set([...existing, ...selected]))
-                      onEditSession?.({ ...s, tags: merged } as any)
+                      const mergedTags = selectedTags.length > 0
+                        ? Array.from(new Set([...existing, ...selectedTags]))
+                        : existing
+                      const nextLocation = addLocationSelected ? addLocationSelected : s.location
+                      onEditSession?.({ ...s, tags: mergedTags, location: nextLocation } as any)
                     })
                   setAddTagsDropdownOpen(false)
                 }}

@@ -10,11 +10,13 @@ import {
   createWebpage,
   fetchWebsiteIndex,
   fetchNavigationContent,
+  fetchWebsitePageConfigs,
   deleteWebpage,
   type CreateWebpageRequest,
   type WebpageData,
   type WebsiteIndexTag,
   type NavigationContentData,
+  type WebsitePageConfigItem,
 } from '../../../services/webpageService'
 import { createNavigationFolder as createNavigationFolderApi, deleteNavigationFolder as deleteNavigationFolderApi, fetchAvailableNavigationPages, fetchEventNavigation, updateNavigationItemIcon, saveNavigation } from '../../../services/navigationService'
 import { publishEvent } from '../../../services/eventService'
@@ -63,6 +65,8 @@ const EventWebsitePage: React.FC<EventWebsitePageProps> = ({
   const [webpages, setWebpages] = useState<WebpageData[]>([])
   const [isLoadingWebpages, setIsLoadingWebpages] = useState(false)
   const [navContent, setNavContent] = useState<NavigationContentData>({ pages: [], participant_groups: [], schedules: [] })
+  const [pageConfigs, setPageConfigs] = useState<WebsitePageConfigItem[]>([])
+  const [isLoadingPageConfigs, setIsLoadingPageConfigs] = useState(false)
   const [indexWebpages, setIndexWebpages] = useState<WebpageData[]>([])
   const [indexSpeakerTags, setIndexSpeakerTags] = useState<WebsiteIndexTag[]>([])
   const [indexAttendeeTags, setIndexAttendeeTags] = useState<WebsiteIndexTag[]>([])
@@ -724,6 +728,30 @@ const loadNavigationFromApi = useCallback(async () => {
     }
   }, [activeSubItem])
 
+  useEffect(() => {
+    if (activeSubItem !== 'website-config') return
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) {
+      setPageConfigs([])
+      return
+    }
+    let cancelled = false
+    setIsLoadingPageConfigs(true)
+    fetchWebsitePageConfigs(eventUuid)
+      .then((rows) => {
+        if (!cancelled) setPageConfigs(Array.isArray(rows) ? rows : [])
+      })
+      .catch(() => {
+        if (!cancelled) setPageConfigs([])
+      })
+      .finally(() => {
+        if (!cancelled) setIsLoadingPageConfigs(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [activeSubItem, createdEvent?.uuid])
+
   // Listen for webpage-saved events to refresh the list and navigation (e.g. after Build page checkbox)
   useEffect(() => {
     const handleWebpageSaved = (event: CustomEvent) => {
@@ -1015,6 +1043,43 @@ const loadNavigationFromApi = useCallback(async () => {
   }
 
   const renderConfigurationTab = () => {
+    const fallbackRows: Array<{ id: string; name: string; type: 'webpage' | 'user-group' | 'schedule' }> = [
+      ...webpages.map((item) => ({
+        id: item.uuid,
+        name: item.name,
+        type: 'webpage' as const,
+      })),
+      ...(navContent?.participant_groups ?? []).map((item: any) => ({
+        id: String(item?.ref_uuid ?? item?.uuid ?? ''),
+        name: String(item?.title ?? item?.name ?? 'Untitled'),
+        type: 'user-group' as const,
+      })),
+      ...(navContent?.schedules ?? []).map((item: any) => ({
+        id: String(item?.ref_uuid ?? item?.uuid ?? ''),
+        name: String(item?.title ?? item?.name ?? 'Untitled'),
+        type: 'schedule' as const,
+      })),
+    ].filter((row) => row.id)
+
+    const configRows = pageConfigs.length > 0
+      ? pageConfigs.map((item) => ({
+          id: String(item.resource_uuid || item.uuid),
+          name: String(item.resource_title || item.title || 'Untitled'),
+          type: item.item_type === 'participant_group'
+            ? 'user-group'
+            : item.item_type === 'schedule'
+              ? 'schedule'
+              : 'webpage',
+          browser: item.browser,
+          feature_permission: item.feature_permission,
+          visibility: item.visibility,
+          hide_on_mobile: item.hide_on_mobile,
+          show_in_mobile_menu_without_access: item.show_in_mobile_menu_without_access,
+          is_desktop_home: item.is_desktop_home,
+          is_mobile_home: item.is_mobile_home,
+        }))
+      : fallbackRows
+
     return (
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
@@ -1031,32 +1096,60 @@ const loadNavigationFromApi = useCallback(async () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
-            {webpages.length === 0 ? (
+            {isLoadingPageConfigs ? (
+              <tr>
+                <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
+                  Loading configuration...
+                </td>
+              </tr>
+            ) : configRows.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
                   No pages yet.
                 </td>
               </tr>
             ) : (
-              webpages.map((item) => {
+              configRows.map((item) => {
                 return (
-                  <tr key={item.uuid} className="hover:bg-slate-50 transition-colors">
+                  <tr key={`${item.type}:${item.id}`} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900 capitalize whitespace-nowrap">
-                      {item.name}
+                      <div className="flex items-center gap-2">
+                        <span>{item.name}</span>
+                        {item.type !== 'webpage' && (
+                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+                            {item.type === 'user-group' ? 'User Group' : 'Schedule'}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500">
                       <span className="text-xs text-slate-400">Not added</span>
                     </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">-</td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {(item as any).browser ? String((item as any).browser).replace('_', ' ') : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {(item as any).feature_permission ? String((item as any).feature_permission).replace('_', ' ') : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {(item as any).visibility ? String((item as any).visibility).replace('_', ' ') : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {(item as any).hide_on_mobile ? 'Hide on mobile' : '-'}
+                    </td>
+                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
+                      {(item as any).is_desktop_home || (item as any).is_mobile_home ? 'Yes' : '-'}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => handlePageAction(item.uuid, 'settings')}
-                        className="p-1.5 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        onClick={() => handlePageAction(item.id, 'settings')}
+                        disabled={item.type !== 'webpage'}
+                        className={`p-1.5 rounded transition-colors ${
+                          item.type === 'webpage'
+                            ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
+                            : 'text-slate-300 cursor-not-allowed'
+                        }`}
                         aria-label="Configure page"
                       >
                         <Settings01 className="h-4 w-4" />
@@ -1818,30 +1911,73 @@ const loadNavigationFromApi = useCallback(async () => {
 
   const handlePageAction = (pageId: string, action: string) => {
     const webpage = webpages.find(w => w.uuid === pageId)
-    if (!webpage) return
+    const participantGroup = (navContent?.participant_groups ?? []).find(
+      (g) => g.uuid === pageId || String((g as any).ref_uuid ?? '') === pageId
+    )
+    const schedulePage = (navContent?.schedules ?? []).find(
+      (s) => s.uuid === pageId || String((s as any).ref_uuid ?? '') === pageId
+    )
+    const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
 
     // Check if this is the welcome page (cannot be deleted)
-    const isFirstPage = webpage.name.toLowerCase() === 'welcome'
+    const isFirstPage = (webpage?.name ?? '').toLowerCase() === 'welcome'
 
     switch (action) {
       case 'view':
-        // Navigate to preview page
-        window.history.pushState({}, '', `/event/website/preview/${pageId}`)
-        window.dispatchEvent(new PopStateEvent('popstate'))
+        if (webpage) {
+          // Webpage preview in admin preview shell
+          window.history.pushState({}, '', `/event/website/preview/${pageId}`)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          break
+        }
+        if (participantGroup) {
+          // CMS preview for user group page
+          const targetId = String((participantGroup as any).ref_uuid ?? participantGroup.uuid)
+          window.history.pushState({}, '', `/event/website/preview/${targetId}?section=participants`)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          break
+        }
+        if (schedulePage) {
+          // CMS preview for schedule sessions page
+          const targetId = String((schedulePage as any).ref_uuid ?? schedulePage.uuid)
+          window.history.pushState({}, '', `/event/website/preview/${targetId}?section=schedule-sessions`)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          break
+        }
         break
       case 'edit':
+        if (!webpage) break
         // Navigate to editor page
         window.history.pushState({}, '', `/event/website/editor/${pageId}`)
         window.dispatchEvent(new PopStateEvent('popstate'))
         break
       case 'duplicate':
+        if (!webpage) break
         // TODO: Implement backend API call to duplicate webpage
         // duplicatePage(pageId) // This is for local pages, not backend webpages
         break
       case 'copy-link': {
-        const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
         if (!eventUuid) return
-        const publicUrl = `${window.location.origin}/events/${eventUuid}/webpages/${pageId}`
+        let publicUrl = ''
+        if (webpage) {
+          const normalizedSlug =
+            (webpage.slug || webpage.name || '')
+              .toString()
+              .trim()
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '')
+          const publicPath = normalizedSlug || pageId
+          publicUrl = `${window.location.origin}/events/${eventUuid}/webpages/${publicPath}`
+        } else if (participantGroup) {
+          const targetId = String((participantGroup as any).ref_uuid ?? participantGroup.uuid)
+          publicUrl = `${window.location.origin}/events/${eventUuid}/attendees/tag/${targetId}`
+        } else if (schedulePage) {
+          const targetId = String((schedulePage as any).ref_uuid ?? schedulePage.uuid)
+          publicUrl = `${window.location.origin}/events/${eventUuid}/schedule/${targetId}/sessions`
+        } else {
+          return
+        }
         try {
           void navigator.clipboard.writeText(publicUrl)
           showToast.success('Page link copied')
@@ -1851,6 +1987,7 @@ const loadNavigationFromApi = useCallback(async () => {
         break
       }
       case 'settings': {
+        if (!webpage) break
         // Navigate to the preview page for this specific webpage, opening the Settings tab
         window.history.pushState({}, '', `/event/website/preview/${pageId}?tab=settings`)
         window.dispatchEvent(new PopStateEvent('popstate'))
@@ -1860,6 +1997,7 @@ const loadNavigationFromApi = useCallback(async () => {
         toggleHiddenNavId(pageId)
         break
       case 'delete':
+        if (!webpage) break
         if (isFirstPage) {
           // Show error or prevent deletion
           alert('The welcome page cannot be deleted.')

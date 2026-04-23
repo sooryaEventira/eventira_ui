@@ -12,17 +12,79 @@ import Sponsors from '../advanced/Sponsors'
 import FAQAccordion from '../advanced/FAQAccordion'
 import ContactFooter from '../advanced/ContactFooter'
 import SchedulePage from '../advanced/SchedulePage'
-import { Edit05, User01 } from '@untitled-ui/icons-react'
+import { Edit05 } from '@untitled-ui/icons-react'
 import Input from '../ui/untitled/Input'
 import PageCreationModal, { type PageType } from '../page/PageCreationModal'
 import { fetchWebpage, fetchWebpages, type WebpageData } from '../../services/webpageService'
 import Preview from '../shared/Preview'
 import type { PageData } from '../../types'
+import { fetchParticipants } from '../../services/participantService'
+import PublicScheduleSessionsPage from '../public/schedule/PublicScheduleSessionsPage'
+import { API_ENDPOINTS } from '../../config/env'
+import { showToast } from '../../utils/toast'
 
 interface WebsitePreviewPageProps {
   pageId: string
   onBackClick?: () => void
   userAvatarUrl?: string
+}
+
+type CmsPreviewSection = 'webpage' | 'participants' | 'schedule-sessions'
+
+const getPreviewSectionFromSearch = (): CmsPreviewSection => {
+  const section = new URLSearchParams(window.location.search).get('section')
+  if (section === 'participants') return 'participants'
+  if (section === 'schedule-sessions') return 'schedule-sessions'
+  return 'webpage'
+}
+
+const CmsParticipantsPreview: React.FC<{ eventUuid: string; tagId: string }> = ({ eventUuid, tagId }) => {
+  const [isLoading, setIsLoading] = useState(false)
+  const [participants, setParticipants] = useState<any[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    const run = async () => {
+      setIsLoading(true)
+      try {
+        const result = await fetchParticipants(eventUuid, 1, tagId, undefined, 100)
+        if (!cancelled) setParticipants(Array.isArray(result?.data) ? result.data : [])
+      } catch {
+        if (!cancelled) setParticipants([])
+      } finally {
+        if (!cancelled) setIsLoading(false)
+      }
+    }
+    run()
+    return () => { cancelled = true }
+  }, [eventUuid, tagId])
+
+  if (isLoading) {
+    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">Loading participants...</div>
+  }
+  if (participants.length === 0) {
+    return <div className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-600">No participants found for this group.</div>
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-800">
+        Participants ({participants.length})
+      </div>
+      <div className="divide-y divide-slate-100">
+        {participants.map((p, idx) => {
+          const name = String(p?.name ?? [p?.first_name, p?.last_name].filter(Boolean).join(' ') ?? 'Unknown').trim() || 'Unknown'
+          const subtitle = [p?.designation ?? p?.post, p?.organization ?? p?.company].filter(Boolean).join(' • ')
+          return (
+            <div key={String(p?.uuid ?? p?.id ?? idx)} className="px-4 py-3">
+              <div className="text-sm font-medium text-slate-900">{name}</div>
+              {subtitle ? <div className="text-xs text-slate-500">{subtitle}</div> : null}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
 
 const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
@@ -37,6 +99,8 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
     const params = new URLSearchParams(window.location.search)
     return params.get('tab') === 'settings' ? 'settings' : 'preview'
   })
+  const [previewSection, setPreviewSection] = useState<CmsPreviewSection>(() => getPreviewSectionFromSearch())
+  const [isSavingSettings, setIsSavingSettings] = useState(false)
   const [webpageData, setWebpageData] = useState<WebpageData | null>(null)
   const [isLoadingWebpage, setIsLoadingWebpage] = useState(false)
   const [webpageError, setWebpageError] = useState<string | null>(null)
@@ -179,6 +243,18 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
 
   // Initialize currentPage from pageId or first page when pages are loaded
   useEffect(() => {
+    const sectionFromUrl = getPreviewSectionFromSearch()
+    setPreviewSection(sectionFromUrl)
+
+    if (sectionFromUrl !== 'webpage') {
+      // For CMS participant/schedule previews, use route pageId directly.
+      if (pageId && pageId !== currentPage) {
+        setCurrentPage(pageId)
+        currentPageRef.current = pageId
+      }
+      return
+    }
+
     // Skip if this is a manual selection (handled by handlePageSelect)
     if (manualSelectionRef.current) {
       manualSelectionRef.current = false
@@ -208,10 +284,17 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
       setCurrentPage(pages[0].id)
       currentPageRef.current = pages[0].id
     }
-  }, [pageId, pages])
+  }, [pageId, pages, currentPage])
 
   // Fetch webpage data when currentPage changes and event UUID is available
   useEffect(() => {
+    if (previewSection !== 'webpage') {
+      setIsLoadingWebpage(false)
+      setWebpageError(null)
+      setWebpageData(null)
+      return
+    }
+
     // Abort any ongoing request
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -355,7 +438,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
       }
       isFetchingRef.current = false
     }
-  }, [currentPage, pageId, createdEvent?.uuid])
+  }, [currentPage, pageId, createdEvent?.uuid, previewSection])
 
   const handleSearchClick = () => {
     // TODO: Implement search functionality
@@ -446,6 +529,68 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
     // Navigate back to Event Website management page
     handleBack()
   }
+
+  const handleSaveSettings = useCallback(async () => {
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid || !currentPage || previewSection !== 'webpage') {
+      showToast.error('Page configuration can only be saved for webpage preview.')
+      return
+    }
+
+    const accessToken = localStorage.getItem('accessToken')
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!accessToken || !organizationUuid) {
+      showToast.error('Authentication required. Please login again.')
+      return
+    }
+
+    const browserValue = settings.browser === 'app' ? 'in_app' : 'in_browser'
+    const permissionMap: Record<string, string> = {
+      everyone: 'everyone',
+      'logged-in': 'logged_in',
+      guests: 'guests',
+      groups: 'certain_groups',
+    }
+
+    setIsSavingSettings(true)
+    try {
+      const response = await fetch(API_ENDPOINTS.WEBSITE.PAGE_CONFIGS(eventUuid), {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid,
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          item_type: 'page',
+          resource_uuid: currentPage,
+          title: settings.title,
+          icon: settings.icon,
+          desktop_container_max_width: Number(settings.desktopMaxWidth || 700),
+          desktop_container_unit: settings.desktopMaxWidthUnit || 'px',
+          browser: browserValue,
+          feature_permission: permissionMap[settings.featurePermission] ?? 'everyone',
+          visibility: settings.visibility === 'show-no-access' ? 'show_without_access' : settings.visibility,
+          hide_on_mobile: settings.hideOnMobile,
+          show_in_mobile_menu_without_access: settings.showFeatureInMenu,
+          is_desktop_home: settings.setAsDesktopHome,
+          is_mobile_home: settings.setAsMobileHome,
+        }),
+      })
+
+      if (!response.ok) {
+        const message = await response.text().catch(() => '')
+        throw new Error(message || 'Failed to save page configuration.')
+      }
+
+      showToast.success('Page configuration saved.')
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Failed to save page configuration.')
+    } finally {
+      setIsSavingSettings(false)
+    }
+  }, [createdEvent?.uuid, currentPage, previewSection, settings])
 
   // Format date for display
   const formatEventDate = () => {
@@ -791,22 +936,16 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
           <div className="flex items-center justify-between mb-6">
             <h1 className="text-3xl font-bold text-primary">Event Website</h1>
             <div className="flex items-center gap-3">
-              <button
-                onClick={handleEdit}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors"
-              >
-                <Edit05 className="h-4 w-4" />
-                Edit
-              </button>
-              {/* <button
-                onClick={handleNewPage}
-                className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#6938EF] hover:bg-[#5925DC] transition-colors"
-              >
-                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                New page
-              </button> */}
+              {previewSection === 'webpage' && (
+                <button
+                  onClick={handleEdit}
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-white border border-slate-300 hover:bg-slate-50 transition-colors"
+                >
+                  <Edit05 className="h-4 w-4" />
+                  Edit
+                </button>
+              )}
+
             </div>
           </div>
 
@@ -838,7 +977,16 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
           <div className="flex-1 overflow-y-auto">
             {activeTab === 'preview' && (
               <>
-                {isLoadingWebpage ? (
+                {previewSection === 'participants' && createdEvent?.uuid && currentPage ? (
+                  <CmsParticipantsPreview eventUuid={createdEvent.uuid} tagId={currentPage} />
+                ) : previewSection === 'schedule-sessions' && createdEvent?.uuid && currentPage ? (
+                  <PublicScheduleSessionsPage
+                    eventUuid={createdEvent.uuid}
+                    scheduleUuid={currentPage}
+                    onNavigate={() => {}}
+                    showBookmark={false}
+                  />
+                ) : isLoadingWebpage ? (
                   <div className="flex items-center justify-center py-12">
                     <div className="text-center">
                       <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary mb-4"></div>
@@ -881,7 +1029,12 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
 
             {activeTab === 'settings' && (
               <div className="max-w-3xl space-y-6">
-                {/* Title */}
+                {previewSection !== 'webpage' && (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+                    Settings are currently available for webpage previews only.
+                  </div>
+                )}
+
                 <div>
                   <Input
                     label="Title"
@@ -891,240 +1044,181 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
                   />
                 </div>
 
-                {/* Icon */}
                 <div>
-                  <label className="flex w-full flex-col gap-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Icon</span>
-                    <div className="relative">
-                      <select
-                        value={settings.icon}
-                        onChange={(e) => setSettings({ ...settings, icon: e.target.value })}
-                        className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2 pl-10 text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="user">Change icon</option>
-                        <option value="home">Home</option>
-                        <option value="calendar">Calendar</option>
-                        <option value="users">Users</option>
-                        <option value="settings">Settings</option>
-                      </select>
-                      <User01 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                      <svg
-                        className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      >
-                        <path d="m6 9 6 6 6-6" />
-                      </svg>
-                    </div>
+                  <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500">
+                    Feature permission
                   </label>
-                </div>
-
-                {/* Desktop container max width */}
-                <div>
-                  <label className="flex w-full flex-col gap-1">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Desktop container max width</span>
-                    <div className="flex gap-2">
+                  <p className="mb-2 text-xs text-slate-500">Who has access</p>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
                       <input
-                        type="number"
-                        value={settings.desktopMaxWidth}
-                        onChange={(e) => setSettings({ ...settings, desktopMaxWidth: e.target.value })}
-                        className="w-32 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        type="radio"
+                        name="featurePermission"
+                        value="everyone"
+                        checked={settings.featurePermission === 'everyone'}
+                        onChange={(e) => setSettings({ ...settings, featurePermission: e.target.value as any })}
+                        className="h-4 w-4 text-primary focus:ring-primary/20"
                       />
-                      <select
-                        value={settings.desktopMaxWidthUnit}
-                        onChange={(e) => setSettings({ ...settings, desktopMaxWidthUnit: e.target.value })}
-                        className="w-20 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm transition focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="px">px</option>
-                        <option value="%">%</option>
-                        <option value="rem">rem</option>
-                      </select>
-                    </div>
-                  </label>
+                      <span className="text-sm text-slate-700">Everyone</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="featurePermission"
+                        value="logged-in"
+                        checked={settings.featurePermission === 'logged-in'}
+                        onChange={(e) => setSettings({ ...settings, featurePermission: e.target.value as any })}
+                        className="h-4 w-4 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Logged in users</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="featurePermission"
+                        value="groups"
+                        checked={settings.featurePermission === 'groups'}
+                        onChange={(e) => setSettings({ ...settings, featurePermission: e.target.value as any })}
+                        className="h-4 w-4 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Users in certain groups</span>
+                    </label>
+                  </div>
                 </div>
 
-                {/* Browser */}
                 <div>
-                  <label className="flex w-full flex-col gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Browser</span>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="browser"
-                          value="app"
-                          checked={settings.browser === 'app'}
-                          onChange={(e) => setSettings({ ...settings, browser: e.target.value as 'app' | 'browser' })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Open website in app</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="browser"
-                          value="browser"
-                          checked={settings.browser === 'browser'}
-                          onChange={(e) => setSettings({ ...settings, browser: e.target.value as 'app' | 'browser' })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Open website in browser</span>
-                      </label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Groups</label>
+                  <div className="flex items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs">Speakers <span className="text-slate-400">x</span></span>
+                      <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs">VIP <span className="text-slate-400">x</span></span>
                     </div>
-                  </label>
+                    <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
+                    </svg>
+                  </div>
                 </div>
 
-                {/* Feature permission */}
                 <div>
-                  <label className="flex w-full flex-col gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Feature permission (Who has access)</span>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="featurePermission"
-                          value="everyone"
-                          checked={settings.featurePermission === 'everyone'}
-                          onChange={(e) => setSettings({ ...settings, featurePermission: e.target.value as any })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Everyone</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="featurePermission"
-                          value="logged-in"
-                          checked={settings.featurePermission === 'logged-in'}
-                          onChange={(e) => setSettings({ ...settings, featurePermission: e.target.value as any })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Logged in users</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="featurePermission"
-                          value="guests"
-                          checked={settings.featurePermission === 'guests'}
-                          onChange={(e) => setSettings({ ...settings, featurePermission: e.target.value as any })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Guests (Non-logged in users)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="featurePermission"
-                          value="groups"
-                          checked={settings.featurePermission === 'groups'}
-                          onChange={(e) => setSettings({ ...settings, featurePermission: e.target.value as any })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Users in certain groups</span>
-                      </label>
-                    </div>
-                  </label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Visibility</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="visibility"
+                        value="show"
+                        checked={settings.visibility === 'show'}
+                        onChange={(e) => setSettings({ ...settings, visibility: e.target.value as any })}
+                        className="h-4 w-4 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Show feature in menu</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="visibility"
+                        value="hide"
+                        checked={settings.visibility === 'hide'}
+                        onChange={(e) => setSettings({ ...settings, visibility: e.target.value as any })}
+                        className="h-4 w-4 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Hide feature for now</span>
+                    </label>
+                  </div>
                 </div>
 
-                {/* Visibility */}
                 <div>
-                  <label className="flex w-full flex-col gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Visibility</span>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="visibility"
-                          value="show"
-                          checked={settings.visibility === 'show'}
-                          onChange={(e) => setSettings({ ...settings, visibility: e.target.value as any })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Show feature in menu</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="visibility"
-                          value="show-no-access"
-                          checked={settings.visibility === 'show-no-access'}
-                          onChange={(e) => setSettings({ ...settings, visibility: e.target.value as any })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Show feature in menu, even if user has not access</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="radio"
-                          name="visibility"
-                          value="hide"
-                          checked={settings.visibility === 'hide'}
-                          onChange={(e) => setSettings({ ...settings, visibility: e.target.value as any })}
-                          className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Hide feature for now</span>
-                      </label>
-                    </div>
-                  </label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Platform</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.hideOnMobile}
+                        onChange={(e) => setSettings({ ...settings, hideOnMobile: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Hide on mobile app</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.showFeatureInMenu}
+                        onChange={(e) => setSettings({ ...settings, showFeatureInMenu: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Hide on event website</span>
+                    </label>
+                  </div>
                 </div>
 
-                {/* Platform */}
                 <div>
-                  <label className="flex w-full flex-col gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Platform</span>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.hideOnMobile}
-                          onChange={(e) => setSettings({ ...settings, hideOnMobile: e.target.checked })}
-                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Hide on mobile</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.showFeatureInMenu}
-                          onChange={(e) => setSettings({ ...settings, showFeatureInMenu: e.target.checked })}
-                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Show feature in menu, even if user has not access</span>
-                      </label>
-                    </div>
-                  </label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Browser (Mobile app)</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="browser"
+                        value="app"
+                        checked={settings.browser === 'app'}
+                        onChange={(e) => setSettings({ ...settings, browser: e.target.value as 'app' | 'browser' })}
+                        className="h-4 w-4 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Open event page in mobile app</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="browser"
+                        value="browser"
+                        checked={settings.browser === 'browser'}
+                        onChange={(e) => setSettings({ ...settings, browser: e.target.value as 'app' | 'browser' })}
+                        className="h-4 w-4 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Open event page in browser</span>
+                    </label>
+                  </div>
                 </div>
 
-                {/* Home page */}
                 <div>
-                  <label className="flex w-full flex-col gap-2">
-                    <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Home page</span>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.setAsDesktopHome}
-                          onChange={(e) => setSettings({ ...settings, setAsDesktopHome: e.target.checked })}
-                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Set as desktop home page</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.setAsMobileHome}
-                          onChange={(e) => setSettings({ ...settings, setAsMobileHome: e.target.checked })}
-                          className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-2 focus:ring-primary/20"
-                        />
-                        <span className="text-sm text-slate-700">Set as mobile home page</span>
-                      </label>
-                    </div>
-                  </label>
+                  <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Home page</label>
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.setAsDesktopHome}
+                        onChange={(e) => setSettings({ ...settings, setAsDesktopHome: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Set as desktop home page</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.setAsMobileHome}
+                        onChange={(e) => setSettings({ ...settings, setAsMobileHome: e.target.checked })}
+                        className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                      />
+                      <span className="text-sm text-slate-700">Set as mobile home page</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => window.history.back()}
+                    className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSettings}
+                    disabled={isSavingSettings || previewSection !== 'webpage'}
+                    className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                  >
+                    {isSavingSettings ? 'Saving...' : 'Save'}
+                  </button>
                 </div>
               </div>
             )}

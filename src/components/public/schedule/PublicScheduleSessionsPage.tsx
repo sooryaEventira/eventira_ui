@@ -9,6 +9,7 @@ interface PublicScheduleSessionsPageProps {
   eventUuid: string
   scheduleUuid: string
   onNavigate: (path: string) => void
+  showBookmark?: boolean
 }
 
 const normalizeDate = (value: any): Date | null => {
@@ -125,6 +126,7 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
   eventUuid,
   scheduleUuid,
   onNavigate,
+  showBookmark = true,
 }) => {
   const [sessions, setSessions] = useState<SavedSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -296,7 +298,7 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
           sessions={sessionsForDay}
           onSpeakerClick={handleSpeakerClick}
           onSessionClick={handleSessionClick}
-          showBookmark
+          showBookmark={showBookmark}
           bookmarkedSessionIds={bookmarkedSessionIds}
           onToggleBookmark={handleBookmarkToggle}
         />

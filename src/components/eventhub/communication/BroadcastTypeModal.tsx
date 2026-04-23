@@ -48,7 +48,7 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
     return () => document.removeEventListener('keydown', handleEscape)
   }, [isOpen, onClose])
 
-  const handleCreateSchedule = () => {
+  const handleCreateBroadcast = () => {
     const selectedType = type ?? 'push-notification'
     if (onSubmit) {
       onSubmit({ title: title.trim(), type: selectedType })
@@ -176,10 +176,10 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
             </button>
             <button
               type="button"
-              onClick={handleCreateSchedule}
+              onClick={handleCreateBroadcast}
               className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
-              Create schedule
+              Create Broadcast
             </button>
           </div>
         </div>
