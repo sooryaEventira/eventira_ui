@@ -1144,12 +1144,7 @@ const loadNavigationFromApi = useCallback(async () => {
                       <button
                         type="button"
                         onClick={() => handlePageAction(item.id, 'settings')}
-                        disabled={item.type !== 'webpage'}
-                        className={`p-1.5 rounded transition-colors ${
-                          item.type === 'webpage'
-                            ? 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'
-                            : 'text-slate-300 cursor-not-allowed'
-                        }`}
+                        className="p-1.5 rounded transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                         aria-label="Configure page"
                       >
                         <Settings01 className="h-4 w-4" />
@@ -1987,10 +1982,24 @@ const loadNavigationFromApi = useCallback(async () => {
         break
       }
       case 'settings': {
-        if (!webpage) break
-        // Navigate to the preview page for this specific webpage, opening the Settings tab
-        window.history.pushState({}, '', `/event/website/preview/${pageId}?tab=settings`)
-        window.dispatchEvent(new PopStateEvent('popstate'))
+        if (webpage) {
+          // Navigate to webpage settings
+          window.history.pushState({}, '', `/event/website/preview/${pageId}?tab=settings`)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          break
+        }
+        if (participantGroup) {
+          const targetId = String((participantGroup as any).ref_uuid ?? participantGroup.uuid)
+          window.history.pushState({}, '', `/event/website/preview/${targetId}?section=participants&tab=settings`)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          break
+        }
+        if (schedulePage) {
+          const targetId = String((schedulePage as any).ref_uuid ?? schedulePage.uuid)
+          window.history.pushState({}, '', `/event/website/preview/${targetId}?section=schedule-sessions&tab=settings`)
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          break
+        }
         break
       }
       case 'hide':
@@ -2234,25 +2243,50 @@ const loadNavigationFromApi = useCallback(async () => {
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">You have unpublished changes</h3>
                   <p className="mt-1.5 text-sm text-slate-600">
-                    Your changes won't take effect until you publish. If you leave now, they'll be discarded.
+                    You have unpublished navigation changes. Publish now to apply them, or discard to leave without saving.
                   </p>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '20px' }}>
+                <div
+                  key="unsaved-nav-actions-top"
+                  style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '12px' }}
+                >
                   <button
                     type="button"
                     data-modal-button="true"
-                    style={{ flex: 1, padding: '12px 20px', backgroundColor: '#6938EF', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
-                    onClick={handlePublishAndSwitch}
+                    onClick={handleDiscardNavChanges}
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      backgroundColor: '#ffffff',
+                      color: '#344054',
+                      border: '1px solid #D0D5DD',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      minHeight: '42px'
+                    }}
                   >
-                    Publish now
+                    Discard changes
                   </button>
                   <button
                     type="button"
                     data-modal-button="true"
-                    style={{ flex: 1, padding: '12px 20px', backgroundColor: '#ffffff', color: '#344054', border: '1px solid #D0D5DD', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
-                    onClick={handleDiscardNavChanges}
+                    onClick={handlePublishAndSwitch}
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      backgroundColor: '#6938EF',
+                      color: '#ffffff',
+                      border: '1px solid #6938EF',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      minHeight: '42px'
+                    }}
                   >
-                    Discard changes
+                    Publish now
                   </button>
                 </div>
               </div>
@@ -2442,25 +2476,50 @@ const loadNavigationFromApi = useCallback(async () => {
               <div>
                 <h3 className="text-base font-semibold text-slate-900">You have unpublished changes</h3>
                 <p className="mt-1.5 text-sm text-slate-600">
-                  Your changes won't take effect until you publish. If you leave now, they'll be discarded.
+                  You have unpublished navigation changes. Publish now to apply them, or discard to leave without saving.
                 </p>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '12px' }}>
+              <div
+                key="unsaved-nav-actions-main"
+                style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '12px' }}
+              >
                 <button
                   type="button"
                   data-modal-button="true"
-                  style={{ flex: 1, padding: '12px 20px', backgroundColor: '#6938EF', color: '#ffffff', border: 'none', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
-                  onClick={handlePublishAndSwitch}
+                  onClick={handleDiscardNavChanges}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    backgroundColor: '#ffffff',
+                    color: '#344054',
+                    border: '1px solid #D0D5DD',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    minHeight: '42px'
+                  }}
                 >
-                  Publish now
+                  Discard changes
                 </button>
                 <button
                   type="button"
                   data-modal-button="true"
-                  style={{ flex: 1, padding: '12px 20px', backgroundColor: '#ffffff', color: '#344054', border: '1px solid #D0D5DD', borderRadius: '10px', fontSize: '15px', fontWeight: '600', cursor: 'pointer', minHeight: '48px' }}
-                  onClick={handleDiscardNavChanges}
+                  onClick={handlePublishAndSwitch}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    backgroundColor: '#6938EF',
+                    color: '#ffffff',
+                    border: '1px solid #6938EF',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    minHeight: '42px'
+                  }}
                 >
-                  Discard changes
+                  Publish now
                 </button>
               </div>
             </div>

@@ -370,7 +370,10 @@ export const API_ENDPOINTS = {
   // Communication endpoints
   COMMUNICATION: {
     SEND: `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/`,
+    SEND_BY_ID: (communicationId: number, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/${communicationId}/send/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_uuid=${eventUuid}`,
+    ATTACHMENT_UPLOAD: `${env.AUTH_API_URL}${ADMIN_API_BASE}attachments/upload/`,
   },
   // Unified User/Participant Management endpoints (combines speakers + attendees)
   PARTICIPANT_MANAGEMENT: {

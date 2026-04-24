@@ -15,7 +15,14 @@ import SchedulePage from '../advanced/SchedulePage'
 import { Edit05 } from '@untitled-ui/icons-react'
 import Input from '../ui/untitled/Input'
 import PageCreationModal, { type PageType } from '../page/PageCreationModal'
-import { fetchWebpage, fetchWebpages, type WebpageData } from '../../services/webpageService'
+import {
+  fetchWebpage,
+  fetchWebpages,
+  fetchWebsitePageConfigs,
+  fetchNavigationContent,
+  type WebpageData,
+  type NavigationContentData,
+} from '../../services/webpageService'
 import Preview from '../shared/Preview'
 import type { PageData } from '../../types'
 import { fetchParticipants } from '../../services/participantService'
@@ -30,6 +37,20 @@ interface WebsitePreviewPageProps {
 }
 
 type CmsPreviewSection = 'webpage' | 'participants' | 'schedule-sessions'
+
+const getDefaultSettings = () => ({
+  title: '',
+  icon: 'user',
+  desktopMaxWidth: '700',
+  desktopMaxWidthUnit: 'px',
+  browser: 'app' as 'app' | 'browser',
+  featurePermission: 'everyone' as 'everyone' | 'logged-in' | 'guests' | 'groups',
+  visibility: 'show' as 'show' | 'show-no-access' | 'hide',
+  hideOnMobile: false,
+  showFeatureInMenu: false,
+  setAsDesktopHome: true,
+  setAsMobileHome: false
+})
 
 const getPreviewSectionFromSearch = (): CmsPreviewSection => {
   const section = new URLSearchParams(window.location.search).get('section')
@@ -111,6 +132,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
   
   // Fetch actual webpages from backend for sidebar
   const [webpages, setWebpages] = useState<WebpageData[]>([])
+  const [navContent, setNavContent] = useState<NavigationContentData>({ pages: [], participant_groups: [], schedules: [] })
   const [isLoadingWebpages, setIsLoadingWebpages] = useState(false)
 
   // Prioritize createdEvent data from API, fallback to eventData from form
@@ -134,13 +156,18 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
       setIsLoadingWebpages(true)
       try {
         console.log('📋 [WebsitePreviewPage] Fetching webpages for sidebar...')
-        const fetchedWebpages = await fetchWebpages(createdEvent.uuid)
+        const [fetchedWebpages, fetchedNavContent] = await Promise.all([
+          fetchWebpages(createdEvent.uuid),
+          fetchNavigationContent(createdEvent.uuid),
+        ])
         console.log('📋 [WebsitePreviewPage] Fetched webpages:', fetchedWebpages.length, 'pages')
         console.log('📋 [WebsitePreviewPage] Webpage names:', fetchedWebpages.map(w => w.name))
         setWebpages(fetchedWebpages)
+        setNavContent(fetchedNavContent)
       } catch (error) {
         console.error('❌ [WebsitePreviewPage] Error fetching webpages:', error)
         setWebpages([])
+        setNavContent({ pages: [], participant_groups: [], schedules: [] })
       } finally {
         setIsLoadingWebpages(false)
       }
@@ -159,8 +186,12 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
         const loadWebpages = async () => {
           if (!createdEvent?.uuid) return
           try {
-            const fetchedWebpages = await fetchWebpages(createdEvent.uuid)
+            const [fetchedWebpages, fetchedNavContent] = await Promise.all([
+              fetchWebpages(createdEvent.uuid),
+              fetchNavigationContent(createdEvent.uuid),
+            ])
             setWebpages(fetchedWebpages)
+            setNavContent(fetchedNavContent)
           } catch (error) {
             console.error('❌ [WebsitePreviewPage] Error refreshing webpages:', error)
           }
@@ -175,15 +206,28 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
     }
   }, [createdEvent?.uuid])
 
-  // Convert fetched webpages to PageSidebar format (use backend data, not context)
+  // Convert fetched webpages + nav content to PageSidebar items (preview-only).
   const pages = useMemo(() => {
-    const mappedPages = webpages.map(webpage => ({
-      id: webpage.uuid, // Use UUID from backend
-      name: webpage.name
-    }))
+    const mappedPages = [
+      ...webpages.map(webpage => ({
+        id: webpage.uuid,
+        name: webpage.name,
+        section: 'webpage' as CmsPreviewSection,
+      })),
+      ...(navContent.participant_groups ?? []).map((group: any) => ({
+        id: String(group?.ref_uuid ?? group?.uuid ?? ''),
+        name: String(group?.title ?? group?.name ?? 'Untitled'),
+        section: 'participants' as CmsPreviewSection,
+      })),
+      ...(navContent.schedules ?? []).map((schedule: any) => ({
+        id: String(schedule?.ref_uuid ?? schedule?.uuid ?? ''),
+        name: String(schedule?.title ?? schedule?.name ?? 'Untitled'),
+        section: 'schedule-sessions' as CmsPreviewSection,
+      })),
+    ].filter((p) => p.id)
     console.log('📋 [WebsitePreviewPage] Pages array updated:', mappedPages.length, 'pages:', mappedPages.map(p => p.name))
     return mappedPages
-  }, [webpages])
+  }, [webpages, navContent])
   
   const [currentPage, setCurrentPage] = useState<string | null>(null)
   
@@ -196,19 +240,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
   const [isPageModalOpen, setIsPageModalOpen] = useState(false)
   
   // Settings form state
-  const [settings, setSettings] = useState({
-    title: 'Welcome',
-    icon: 'user',
-    desktopMaxWidth: '700',
-    desktopMaxWidthUnit: 'px',
-    browser: 'app' as 'app' | 'browser',
-    featurePermission: 'everyone' as 'everyone' | 'logged-in' | 'guests' | 'groups',
-    visibility: 'show' as 'show' | 'show-no-access' | 'hide',
-    hideOnMobile: false,
-    showFeatureInMenu: false,
-    setAsDesktopHome: true,
-    setAsMobileHome: false
-  })
+  const [settings, setSettings] = useState(getDefaultSettings)
 
   // Load banner from localStorage or eventData
   useEffect(() => {
@@ -494,11 +526,17 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
     // Update current page state and ref immediately
     setCurrentPage(pageId)
     currentPageRef.current = pageId
+    const nextSection = (selectedPage as any).section as CmsPreviewSection
+    setPreviewSection(nextSection)
     console.log('📋 [WebsitePreviewPage] currentPage state updated to:', pageId)
     console.log('📋 [WebsitePreviewPage] currentPageRef updated to:', pageId)
     
-    // Update URL to match the selected page
-    const newUrl = `/event/website/preview/${pageId}`
+    // Update URL to match the selected page (preserve tab, include section for non-webpages)
+    const params = new URLSearchParams()
+    if (nextSection !== 'webpage') params.set('section', nextSection)
+    if (activeTab === 'settings') params.set('tab', 'settings')
+    const qs = params.toString()
+    const newUrl = `/event/website/preview/${pageId}${qs ? `?${qs}` : ''}`
     console.log('📋 [WebsitePreviewPage] Updating URL to:', newUrl)
     window.history.pushState({}, '', newUrl)
     
@@ -532,10 +570,17 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
 
   const handleSaveSettings = useCallback(async () => {
     const eventUuid = createdEvent?.uuid
-    if (!eventUuid || !currentPage || previewSection !== 'webpage') {
-      showToast.error('Page configuration can only be saved for webpage preview.')
+    if (!eventUuid || !currentPage) {
+      showToast.error('Please select a page before saving configuration.')
       return
     }
+    const itemType =
+      previewSection === 'participants'
+        ? 'participant_group'
+        : previewSection === 'schedule-sessions'
+          ? 'schedule'
+          : 'page'
+
 
     const accessToken = localStorage.getItem('accessToken')
     const organizationUuid = localStorage.getItem('organizationUuid')
@@ -563,7 +608,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
         },
         credentials: 'include',
         body: JSON.stringify({
-          item_type: 'page',
+          item_type: itemType,
           resource_uuid: currentPage,
           title: settings.title,
           icon: settings.icon,
@@ -591,6 +636,77 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
       setIsSavingSettings(false)
     }
   }, [createdEvent?.uuid, currentPage, previewSection, settings])
+
+  useEffect(() => {
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid || !currentPage) return
+    let cancelled = false
+    // Reset stale values immediately when switching target page.
+    setSettings(getDefaultSettings())
+
+    const run = async () => {
+      try {
+        const rows = await fetchWebsitePageConfigs(eventUuid)
+        if (cancelled || !Array.isArray(rows) || rows.length === 0) return
+
+        const expectedType =
+          previewSection === 'participants'
+            ? 'participant_group'
+            : previewSection === 'schedule-sessions'
+              ? 'schedule'
+              : 'page'
+
+        const row = rows.find((r: any) =>
+          String(r?.resource_uuid ?? r?.uuid ?? '') === String(currentPage) &&
+          String(r?.item_type ?? '') === expectedType
+        ) || rows.find((r: any) => String(r?.resource_uuid ?? r?.uuid ?? '') === String(currentPage))
+
+        if (!row || cancelled) return
+
+        const firstNonEmpty = (...vals: any[]) => {
+          for (const v of vals) {
+            const s = typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim()
+            if (s) return s
+          }
+          return ''
+        }
+
+        setSettings((prev) => ({
+          ...prev,
+          title: firstNonEmpty(row.title, row.resource_title, prev.title),
+          icon: String(row.icon ?? prev.icon ?? 'user'),
+          desktopMaxWidth: String(row.desktop_container_max_width ?? prev.desktopMaxWidth ?? '700'),
+          desktopMaxWidthUnit: String(row.desktop_container_unit ?? prev.desktopMaxWidthUnit ?? 'px'),
+          browser: String(row.browser ?? '').toLowerCase() === 'in_browser' ? 'browser' : 'app',
+          featurePermission:
+            String(row.feature_permission ?? '').toLowerCase() === 'logged_in'
+              ? 'logged-in'
+              : String(row.feature_permission ?? '').toLowerCase() === 'guests'
+                ? 'guests'
+                : String(row.feature_permission ?? '').toLowerCase() === 'certain_groups'
+                  ? 'groups'
+                  : 'everyone',
+          visibility:
+            String(row.visibility ?? '').toLowerCase() === 'show_without_access'
+              ? 'show-no-access'
+              : String(row.visibility ?? '').toLowerCase() === 'hide'
+                ? 'hide'
+                : 'show',
+          hideOnMobile: Boolean(row.hide_on_mobile),
+          showFeatureInMenu: Boolean(row.show_in_mobile_menu_without_access),
+          setAsDesktopHome: Boolean(row.is_desktop_home),
+          setAsMobileHome: Boolean(row.is_mobile_home),
+        }))
+      } catch {
+        // Keep local defaults if config fetch fails.
+      }
+    }
+
+    run()
+    return () => {
+      cancelled = true
+    }
+  }, [createdEvent?.uuid, currentPage, previewSection])
 
   // Format date for display
   const formatEventDate = () => {
@@ -625,8 +741,9 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
 
 
   // Get current page data from fetched webpages (not context)
+  const currentPageEntry = pages.find((p) => p.id === currentPage)
+  const currentPageName = currentPageEntry?.name || 'Welcome'
   const currentPageData = webpages.find(w => w.uuid === currentPage)
-  const currentPageName = currentPageData?.name || 'Welcome'
   const pageType = (currentPageData as any)?.type
   const pageComponent = (currentPageData as any)?.component
   console.log('📋 [WebsitePreviewPage] Current page data:', { 
@@ -842,7 +959,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
     })
     
     return extractedData
-  }, [currentPage, currentPageName])
+  }, [currentPage, currentPageName, pages])
 
   // Convert webpage data to PageData format
   const webpagePageData = useMemo(() => {
@@ -1029,11 +1146,6 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
 
             {activeTab === 'settings' && (
               <div className="max-w-3xl space-y-6">
-                {previewSection !== 'webpage' && (
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
-                    Settings are currently available for webpage previews only.
-                  </div>
-                )}
 
                 <div>
                   <Input
@@ -1214,7 +1326,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
                   <button
                     type="button"
                     onClick={handleSaveSettings}
-                    disabled={isSavingSettings || previewSection !== 'webpage'}
+                    disabled={isSavingSettings}
                     className="flex-1 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                   >
                     {isSavingSettings ? 'Saving...' : 'Save'}

@@ -137,7 +137,6 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
   const [schedulesLoading, setSchedulesLoading] = useState(true)
   const [schedulesError, setSchedulesError] = useState<string | null>(null)
 
-  const [activeScheduleId, setActiveScheduleId] = useState<string>('')
   const [sessions, setSessions] = useState<SavedSession[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(false)
   const [sessionsError, setSessionsError] = useState<string | null>(null)
@@ -157,27 +156,33 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
           end_date: String(s.end_date ?? ''),
         }))
         setSchedules(mapped)
-        if (mapped.length > 0) setActiveScheduleId(mapped[0].id)
       })
       .catch(() => { if (!cancelled) setSchedulesError('Failed to load schedules.') })
       .finally(() => { if (!cancelled) setSchedulesLoading(false) })
     return () => { cancelled = true }
   }, [eventUuid])
 
-  // Load bookmarked sessions for active schedule
+  // Load bookmarked sessions across all bookmarked schedules (single mixed list)
   useEffect(() => {
-    if (!activeScheduleId) return
+    if (schedules.length === 0) {
+      setSessions([])
+      setSessionsLoading(false)
+      setSessionsError(null)
+      return
+    }
     let cancelled = false
     setSessionsLoading(true)
     setSessionsError(null)
     setSessions([])
-    fetchBookmarkedScheduleSessions(eventUuid, activeScheduleId)
-      .then((raw) => {
+    Promise.all(schedules.map((s) => fetchBookmarkedScheduleSessions(eventUuid, s.id).catch(() => [])))
+      .then((allRaw) => {
         if (cancelled) return
-        const mapped = (Array.isArray(raw) ? raw : []).map(mapToSavedSession)
+        const mergedRaw = allRaw.flatMap((raw) => (Array.isArray(raw) ? raw : []))
+        const mapped = mergedRaw.map(mapToSavedSession)
+        const deduped = Array.from(new Map(mapped.map((s: any) => [String(s.id), s])).values())
         // Resolve parentId: ensure children can find their parent by uuid
-        const allIds = new Set(mapped.map((s: any) => s.id))
-        const resolved = mapped.map((s: any) => {
+        const allIds = new Set(deduped.map((s: any) => s.id))
+        const resolved = deduped.map((s: any) => {
           let parentId = s.parentId
           if (parentId && !allIds.has(parentId)) parentId = undefined
           return { ...s, parentId }
@@ -187,7 +192,7 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
       .catch(() => { if (!cancelled) setSessionsError('Failed to load sessions.') })
       .finally(() => { if (!cancelled) setSessionsLoading(false) })
     return () => { cancelled = true }
-  }, [eventUuid, activeScheduleId])
+  }, [eventUuid, schedules])
 
   // Day tabs
   const dayKeys = useMemo(() => {
@@ -202,7 +207,7 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
   }, [sessions])
 
   const [activeDayIndex, setActiveDayIndex] = useState(0)
-  useEffect(() => { setActiveDayIndex(0) }, [activeScheduleId])
+  useEffect(() => { setActiveDayIndex(0) }, [sessions])
 
   const activeDayKey = dayKeys[activeDayIndex] ? startOfDayKey(dayKeys[activeDayIndex]) : null
 
@@ -236,7 +241,7 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
     setFilterLocations(new Set())
     setFilterAttendance(new Set())
     setFilterTags(new Set())
-  }, [activeScheduleId])
+  }, [sessions])
 
   const locationOptions = useMemo(() => {
     const set = new Set<string>()
@@ -382,25 +387,6 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
 
       {!schedulesLoading && !schedulesError && schedules.length > 0 && (
         <>
-          {/* Schedule tabs */}
-          <div className="flex flex-wrap items-center gap-6 border-b border-slate-200">
-            {schedules.map((s) => {
-              const isActive = s.id === activeScheduleId
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  onClick={() => setActiveScheduleId(s.id)}
-                  className={['py-3 text-sm font-semibold transition-colors', isActive ? 'text-primary' : 'text-slate-600 hover:text-slate-900'].join(' ')}
-                >
-                  <span className={['inline-block border-b-2 -mb-px', isActive ? 'border-primary' : 'border-transparent hover:border-slate-300'].join(' ')}>
-                    {s.title.toUpperCase()}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
-
           {/* Date range */}
           {rangeLabel && (
             <div className="text-sm font-semibold text-slate-700">{rangeLabel}</div>
@@ -553,8 +539,8 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
 
           {!sessionsLoading && !sessionsError && sessions.length === 0 && (
             <div className="rounded-xl border border-slate-200 bg-white p-12 text-center">
-              <p className="font-semibold text-slate-700">No bookmarked sessions in this schedule.</p>
-              <p className="mt-1 text-sm text-slate-500">Bookmark sessions from the schedule to see them here.</p>
+              <p className="font-semibold text-slate-700">No bookmarked sessions yet.</p>
+              <p className="mt-1 text-sm text-slate-500">Bookmark sessions to see them here.</p>
             </div>
           )}
 

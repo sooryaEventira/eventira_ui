@@ -4,16 +4,17 @@ import { handleApiError, handleNetworkError, handleParseError } from '../utils/e
 import type { ApiResponse } from './authService'
 
 export interface RecipientFilter {
-  type: 'group' | 'message_status' | 'user_status'
+  type: 'group' | 'message_status'
   operator: 'is' | 'is_not'
   value: string
 }
 
 export interface SendCommunicationRequest {
   event_uuid: string
+  title?: string
   subject: string
   message: string
-  channel: 'email' | 'push-notification'
+  channel: 'email' | 'notification'
   recipient_match: 'all' | 'any'
   recipient_filters: RecipientFilter[]
   save_as_draft?: boolean
@@ -27,16 +28,34 @@ export interface SendCommunicationResponseData {
   status: string
 }
 
+export interface CommunicationTag {
+  uuid?: string
+  id?: string | number
+  name?: string
+}
+
+export interface CommunicationRecipientFilter {
+  type?: 'group' | 'message_status' | string
+  operator?: 'is' | 'is_not' | string
+  value?: string
+}
+
 export interface CommunicationData {
   id: number
   event_uuid: string
   subject?: string
   message?: string
-  channel: 'email' | 'push-notification'
+  channel: 'email' | 'notification'
   tag_uuids?: string[]
+  tags?: CommunicationTag[]
+  recipient_filters?: CommunicationRecipientFilter[]
   total_recipients: number
+  sent_count?: number
+  delivered_count?: number
+  failed_count?: number
   status: string
   created_at?: string
+  created_date?: string
   scheduled_at?: string
 }
 
@@ -96,6 +115,7 @@ export const sendCommunication = async (
       credentials: 'include',
       body: JSON.stringify({
         event_uuid: request.event_uuid,
+        ...(request.title ? { title: request.title } : {}),
         channel: request.channel,
         subject: request.subject.trim(),
         message: request.message.trim(),
@@ -151,9 +171,14 @@ export const sendCommunication = async (
     }
 
     if (data.status === 'success' && data.data) {
-      showToast.success(
-        data.message || `Communication sent successfully to ${data.data.total_recipients} recipient(s)`
-      )
+      const isDraftSave = request.save_as_draft === true
+      if (isDraftSave) {
+        showToast.success(data.message || 'Draft saved successfully.')
+      } else {
+        showToast.success(
+          data.message || `Communication sent successfully to ${data.data.total_recipients ?? 0} recipient(s)`
+        )
+      }
       return data.data
     }
 
@@ -171,6 +196,113 @@ export const sendCommunication = async (
 
     throw new Error('An unexpected error occurred while sending the communication.')
   }
+}
+
+/**
+ * Trigger sending of an already-created communication by its ID.
+ * POST event-communications/{id}/send/?event_id={eventUuid}
+ */
+export const sendCommunicationById = async (
+  communicationId: number,
+  eventUuid: string
+): Promise<{ id?: number; status?: string; total_recipients?: number; sent_count?: number; failed_count?: number } | null> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const response = await fetch(API_ENDPOINTS.COMMUNICATION.SEND_BY_ID(communicationId, eventUuid), {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    let message = 'Failed to send communication. Please try again.'
+    try {
+      const err: ApiResponse = await response.json()
+      message = handleApiError(err, response, message)
+    } catch {
+      message = handleApiError(null, response, message)
+    }
+    throw new Error(message)
+  }
+
+  // Some backend variants return 204 or 200 with empty/non-JSON body.
+  if (response.status === 204) {
+    showToast.success('Communication sent successfully.')
+    return null
+  }
+
+  const raw = await response.text()
+  if (!raw.trim()) {
+    showToast.success('Communication sent successfully.')
+    return null
+  }
+
+  try {
+    const data: ApiResponse<{ id?: number; status?: string; total_recipients?: number; sent_count?: number; failed_count?: number }> = JSON.parse(raw)
+    if (data.status === 'error' || data.status === 'failure') {
+      throw new Error(handleApiError(data, undefined, 'Failed to send communication.'))
+    }
+    showToast.success(data.message || 'Communication sent successfully.')
+    return data.data ?? null
+  } catch {
+    // Non-JSON body on 2xx should still be treated as success.
+    showToast.success('Communication sent successfully.')
+    return null
+  }
+}
+
+/**
+ * Upload a single attachment file and return its UUID
+ */
+export const uploadAttachment = async (file: File): Promise<string> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const response = await fetch(API_ENDPOINTS.COMMUNICATION.ATTACHMENT_UPLOAD, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: formData,
+  })
+
+  if (!response.ok) {
+    let message = 'Failed to upload attachment.'
+    try {
+      const err: ApiResponse = await response.json()
+      message = handleApiError(err, response, message)
+    } catch {
+      message = handleApiError(null, response, message)
+    }
+    throw new Error(message)
+  }
+
+  let data: ApiResponse<{ uuid: string }>
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error(handleParseError('Invalid response from server.'))
+  }
+
+  if (data.status === 'error') throw new Error(handleApiError(data, undefined, 'Failed to upload attachment.'))
+  if (data.data?.uuid) return data.data.uuid
+
+  throw new Error('Unexpected response: missing UUID.')
 }
 
 /**
@@ -227,8 +359,9 @@ export const fetchCommunications = async (
         return []
       }
 
+      // For other non-ok responses, try to parse error message and throw
       try {
-        const errorData: ApiResponse = await response.json()
+        const errorData: ApiResponse<CommunicationData[]> = await response.json()
         const errorMessage = handleApiError(
           errorData,
           response,
@@ -237,11 +370,7 @@ export const fetchCommunications = async (
         throw new Error(errorMessage)
       } catch (parseError) {
         if (parseError instanceof Error && parseError.message.includes('JSON')) {
-          const errorMessage = handleApiError(
-            null,
-            response,
-            'Failed to fetch communications. Please try again.'
-          )
+          const errorMessage = handleApiError(null, response, 'Failed to fetch communications. Please try again.')
           throw new Error(errorMessage)
         }
         throw parseError
@@ -256,12 +385,8 @@ export const fetchCommunications = async (
       throw new Error(errorMessage)
     }
 
-    if (data.status === 'error') {
-      const errorMessage = handleApiError(
-        data,
-        undefined,
-        'Failed to fetch communications. Please try again.'
-      )
+    if (data.status === 'error' || data.status === 'failure') {
+      const errorMessage = handleApiError(data, undefined, 'Failed to fetch communications. Please try again.')
       throw new Error(errorMessage)
     }
 
@@ -283,4 +408,48 @@ export const fetchCommunications = async (
 
     throw new Error('An unexpected error occurred while fetching communications.')
   }
+}
+
+/**
+ * Fetch user groups (tags) for the communication Settings recipient filters.
+ * GET user-tags/?event_uuid={eventUuid}
+ */
+export const fetchUserTags = async (
+  eventUuid: string
+): Promise<Array<{ uuid: string; name: string }>> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+  if (!eventUuid) return []
+
+  const response = await fetch(API_ENDPOINTS.TAGS.LIST(eventUuid), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    if (response.status === 404) return []
+    throw new Error(`Failed to fetch user groups (${response.status}).`)
+  }
+
+  let data: ApiResponse<Array<{ uuid: string; name: string; is_active?: boolean }>>
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error(handleParseError('Invalid response from server.'))
+  }
+
+  if (data.status === 'error') throw new Error(handleApiError(data, undefined, 'Failed to fetch user groups.'))
+
+  const list = Array.isArray(data.data) ? data.data : Array.isArray(data) ? (data as unknown as Array<{ uuid: string; name: string; is_active?: boolean }>) : []
+  return list
+    .filter((t) => t.is_active !== false && t.uuid && t.name)
+    .map((t) => ({ uuid: t.uuid, name: t.name }))
 }

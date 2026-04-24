@@ -9,6 +9,7 @@ interface BroadcastPreviewModalProps {
   message: string
   isSending?: boolean
   recipients?: string[] // Array of selected group/tag names
+  attachments?: Array<{ uuid: string; name: string; sizeLabel: string }>
 }
 
 const BroadcastPreviewModal: React.FC<BroadcastPreviewModalProps> = ({
@@ -18,7 +19,8 @@ const BroadcastPreviewModal: React.FC<BroadcastPreviewModalProps> = ({
   subject,
   message,
   isSending = false,
-  recipients = []
+  recipients = [],
+  attachments = [],
 }) => {
   return (
     <Modal
@@ -56,6 +58,24 @@ const BroadcastPreviewModal: React.FC<BroadcastPreviewModalProps> = ({
                   >
                     {recipient}
                   </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {attachments.length > 0 && (
+            <div className="border-t border-slate-200 pt-4">
+              <div className="mb-2">
+                <span className="font-bold text-slate-900">Attachments: </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((attachment) => (
+                  <div
+                    key={attachment.uuid}
+                    className="flex items-center gap-1.5 rounded bg-slate-100 px-2.5 py-1.5 text-sm max-w-xs"
+                  >
+                    <span className="truncate font-medium text-blue-600">{attachment.name}</span>
+                    <span className="shrink-0 text-slate-400">({attachment.sizeLabel})</span>
+                  </div>
                 ))}
               </div>
             </div>

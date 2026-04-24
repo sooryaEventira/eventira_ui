@@ -948,7 +948,7 @@ const ScheduleGrid: React.FC<ScheduleGridProps> = ({
               {parallelCount > 1 && (
                 <svg
                   className="absolute pointer-events-none"
-                  style={{ left: -10, top: 0, bottom: 0, width: 14, height: '100%' }}
+                  style={{ left: -14, top: 0, bottom: 0, width: 14, height: '100%' }}
                   preserveAspectRatio="none"
                   viewBox="0 0 14 100"
                   aria-hidden="true"

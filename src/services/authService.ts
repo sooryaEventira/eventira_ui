@@ -6,7 +6,7 @@ export interface ApiResponse<T = any> {
   message: string
   errors: string[]
   data: T
-  status: 'success' | 'error'
+  status: 'success' | 'error' | 'failure'
 }
 
 export interface SendOtpRequest {

@@ -11,8 +11,7 @@ import { Communication, Macro } from './communicationTypes'
 import type { BroadcastType } from './BroadcastTypeModal'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
-import { fetchCommunications } from '../../../services/communicationService'
-import { fetchTags } from '../../../services/attendeeService'
+import { fetchCommunications, fetchUserTags } from '../../../services/communicationService'
 
 interface CommunicationPageProps {
   eventName?: string
@@ -91,6 +90,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
 
   const [communications, setCommunications] = React.useState<Communication[]>([])
   const [isLoadingCommunications, setIsLoadingCommunications] = React.useState(false)
+  const [optimisticSentIds, setOptimisticSentIds] = React.useState<Set<string>>(new Set())
 
   // Load communications from API
   const loadCommunications = async () => {
@@ -103,33 +103,31 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
 
     setIsLoadingCommunications(true)
     try {
-      const [communicationsData, tagsData] = await Promise.all([
-        fetchCommunications(eventUuid),
-        fetchTags(eventUuid).catch(() => []) // Fetch tags, return empty array on error
-      ])
+      const communicationsData = await fetchCommunications(eventUuid)
+      const needsGroupNameLookup = communicationsData.some((comm) =>
+        Array.isArray(comm.recipient_filters) &&
+        comm.recipient_filters.some((f) => f?.type === 'group' && !!f?.value)
+      )
+      const userTags = needsGroupNameLookup
+        ? await fetchUserTags(eventUuid).catch(() => [])
+        : []
+      const groupNameByUuid = new Map(userTags.map((t) => [t.uuid, t.name]))
       
       // Console log the API response
       console.log('=== Communication List API Response ===')
       console.log('Communications Data:', JSON.stringify(communicationsData, null, 2))
-      console.log('Tags Data:', JSON.stringify(tagsData, null, 2))
       console.log('========================================')
-      
-      // Create a map of tag UUID to tag name for quick lookup
-      const tagMap = new Map<string, string>()
-      tagsData.forEach((tag) => {
-        if (tag.is_active !== false) {
-          tagMap.set(tag.uuid, tag.name)
-        }
-      })
       
       // Map API response to Communication interface
       const mappedCommunications: Communication[] = communicationsData.map((commData) => {
+        const commId = String(commData.id)
         // Log each communication item
         console.log('Processing Communication:', {
-          id: commData.id,
+          id: commId,
           subject: commData.subject,
-          tag_uuids: commData.tag_uuids,
+          tags: commData.tags,
           total_recipients: commData.total_recipients,
+          sent_count: commData.sent_count,
           status: commData.status,
           channel: commData.channel
         })
@@ -140,33 +138,55 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         } else if (commData.status === 'draft') {
           status = 'draft'
         }
+        if (optimisticSentIds.has(commId) && status === 'draft') {
+          status = 'sent'
+        }
 
-        // Determine type based on channel
-        const type: Communication['type'] = commData.channel === 'email' ? 'email' : 'notification'
+        // Determine type based on channel (backend can vary casing/format)
+        const normalizedChannel = String(commData.channel || '')
+          .trim()
+          .toLowerCase()
+          .replace(/[\s-]+/g, '_')
+        const type: Communication['type'] = normalizedChannel === 'email' ? 'email' : 'notification'
 
-        // Map tag_uuids to userGroups
-        const userGroups = (commData.tag_uuids || [])
-          .map((tagUuid) => {
-            const tagName = tagMap.get(tagUuid)
-            return tagName
-              ? {
-                  id: tagUuid,
-                  name: tagName,
-                  variant: 'primary' as const
+        // Map Groups column from tags first, then recipient_filters.
+        const tagsSource = commData.tags ?? []
+        const recipientFilters = commData.recipient_filters ?? []
+
+        const userGroups = tagsSource.length > 0
+          ? tagsSource
+              .map((t) => {
+                const id = t.uuid ?? String(t.id ?? '')
+                const name = t.name ?? ''
+                return name ? { id, name, variant: 'primary' as const } : null
+              })
+              .filter((g): g is NonNullable<typeof g> => g !== null)
+          : recipientFilters
+              .filter((f) => !!f?.value)
+              .map((f, idx) => {
+                const rawValue = String(f.value ?? '')
+                const resolvedGroupName =
+                  f.type === 'group' ? (groupNameByUuid.get(rawValue) ?? rawValue) : rawValue
+                const prettyValue = rawValue.replace(/_/g, ' ')
+                const label = f.type === 'message_status'
+                  ? prettyValue.charAt(0).toUpperCase() + prettyValue.slice(1)
+                  : resolvedGroupName
+                return {
+                  id: `filter-${commId}-${idx}`,
+                  name: label,
+                  variant: (f.type === 'message_status' ? 'secondary' : 'primary') as const
                 }
-              : null
-          })
-          .filter((group): group is NonNullable<typeof group> => group !== null)
+              })
 
         return {
-          id: String(commData.id),
+          id: commId,
           title: commData.subject || 'Untitled',
-          userGroups: userGroups,
-          status: status,
-          type: type,
+          userGroups,
+          status,
+          type,
           recipients: {
-            sent: commData.total_recipients || 0,
-            total: commData.total_recipients || 0 // TODO: Update when API provides separate sent/total counts
+            sent: commData.sent_count ?? commData.total_recipients ?? 0,
+            total: commData.total_recipients ?? 0,
           },
           scheduledDate: commData.scheduled_at
         }
@@ -177,10 +197,26 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
       console.log('==============================')
       
       setCommunications(mappedCommunications)
+      setOptimisticSentIds((prev) => {
+        if (prev.size === 0) return prev
+        const sentInApi = new Set(
+          communicationsData
+            .filter((c) => c.status !== 'draft')
+            .map((c) => String(c.id))
+        )
+        const next = new Set(prev)
+        let changed = false
+        prev.forEach((id) => {
+          if (sentInApi.has(id)) {
+            next.delete(id)
+            changed = true
+          }
+        })
+        return changed ? next : prev
+      })
     } catch (error) {
       // Error is already handled in fetchCommunications with toast
-      // Set empty array on error to prevent UI issues
-      setCommunications([])
+      // Preserve existing state so locally-added drafts remain visible
     } finally {
       setIsLoadingCommunications(false)
     }
@@ -263,37 +299,32 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     setSelectedBroadcastType(null)
     setInitialBroadcastTitle('')
     setCurrentDraftId(null)
+    loadCommunications()
   }
 
   const handleComposerSave = (data: { subject: string; message: string; templateType?: string }) => {
     if (currentDraftId) {
-      // Update existing draft
       setCommunications((prev) =>
         prev.map((comm) =>
-          comm.id === currentDraftId
-            ? {
-                ...comm,
-                title: data.subject,
-                // Keep other fields as is
-              }
-            : comm
+          comm.id === currentDraftId ? { ...comm, title: data.subject } : comm
         )
       )
     } else {
-      // Create new draft
       const newId = Date.now().toString()
-      const newCommunication: Communication = {
-        id: newId,
-        title: data.subject,
-        userGroups: [], // Will be set when user selects groups
-        status: 'draft',
-        type: selectedBroadcastType === 'email' ? 'email' : 'notification',
-        recipients: { sent: 0, total: 0 }
-      }
-      setCommunications((prev) => [...prev, newCommunication])
+      setCommunications((prev) => [
+        ...prev,
+        {
+          id: newId,
+          title: data.subject,
+          userGroups: [],
+          status: 'draft',
+          type: selectedBroadcastType === 'email' ? 'email' : 'notification',
+          recipients: { sent: 0, total: 0 },
+        },
+      ])
       setCurrentDraftId(newId)
     }
-    // Don't close the composer here, let it switch to view mode
+    loadCommunications()
   }
 
   const handleEditCommunication = (communicationId: string) => {
@@ -332,19 +363,59 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
           selectedBroadcastType === 'push-notification' ? (
             <PushNotificationMakerPage
               macros={macros}
-              initialTitle={initialBroadcastTitle}
+              broadcastTitle={initialBroadcastTitle}
               onCancel={handleComposerCancel}
               onSave={(data) => {
-                // UI-only save for now; keep consistent with existing save behavior
                 handleComposerSave({ subject: data.title, message: data.message })
+              }}
+              onSend={async (data) => {
+                const sentId = data.communicationId != null ? String(data.communicationId) : null
+                if (sentId) {
+                  setOptimisticSentIds((prev) => {
+                    const next = new Set(prev)
+                    next.add(sentId)
+                    return next
+                  })
+                  setCommunications((prev) =>
+                    prev.map((comm) =>
+                      comm.id === sentId ? { ...comm, status: 'sent', type: 'notification' } : comm
+                    )
+                  )
+                }
+                setShowComposer(false)
+                setSelectedBroadcastType(null)
+                setCurrentDraftId(null)
+                await new Promise((resolve) => setTimeout(resolve, 1200))
+                await loadCommunications()
               }}
             />
           ) : (
             <BroadcastComposer
               onCancel={handleComposerCancel}
               onSave={handleComposerSave}
-              onSend={async (_data) => {
-                // Reload communications from API after sending
+              onSend={async (data) => {
+                const sentId = data.communicationId != null ? String(data.communicationId) : null
+                if (sentId) {
+                  setOptimisticSentIds((prev) => {
+                    const next = new Set(prev)
+                    next.add(sentId)
+                    return next
+                  })
+                }
+                setCommunications((prev) => {
+                  let next = [...prev]
+                  // Remove local temporary draft row immediately to avoid showing stale "draft".
+                  if (currentDraftId) {
+                    next = next.filter((comm) => comm.id !== currentDraftId)
+                  }
+                  // If API draft row already exists in table, mark it as sent optimistically.
+                  if (sentId) {
+                    next = next.map((comm) => (comm.id === sentId ? { ...comm, status: 'sent', type: 'email' } : comm))
+                  }
+                  return next
+                })
+                // Give backend list endpoint a brief window to reflect sent status.
+                await new Promise((resolve) => setTimeout(resolve, 1200))
                 await loadCommunications()
                 setShowComposer(false)
                 setSelectedBroadcastType(null)
@@ -353,6 +424,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
               macros={macros}
               templateType="late-message"
               type={selectedBroadcastType || 'email'}
+              broadcastTitle={initialBroadcastTitle}
             />
           )
         ) : (

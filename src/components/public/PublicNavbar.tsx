@@ -83,11 +83,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
 
   const myCalendarPath = eventUuid ? `/events/${eventUuid}/your-schedule` : '/your-schedule'
 
-  const isScheduleNode = (node: PublicNavNode): boolean => {
-    if (node.type === 'page') return node.path.includes('/schedule')
-    return (node.children || []).some(isScheduleNode)
-  }
-
   const isAuthenticated = Boolean(localStorage.getItem('pub_accessToken'))
   const userEmail = localStorage.getItem('pub_userEmail') ?? ''
   const [storedPicture, setStoredPicture] = useState(() => localStorage.getItem('pub_profilePicture') ?? '')
@@ -176,7 +171,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   const renderSidebarNode = (node: PublicNavNode) => {
     if (node.type === 'page') {
       const isActive = isActiveForItem(activePath || '', node.path)
-      const isSchedule = isScheduleNode(node)
       return (
         <div key={node.id}>
           <button
@@ -190,14 +184,12 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
             {renderNavIcon(node.iconKey, 'h-4 w-4 shrink-0')}
             <span>{node.label}</span>
           </button>
-          {isSchedule && isAuthenticated && myCalendarButton(true)}
         </div>
       )
     }
 
     const isOpen = openFolderId === node.id
     const isActive = isActiveForNode(node)
-    const hasScheduleChild = isScheduleNode(node)
 
     return (
       <div key={node.id} className="relative">
@@ -246,7 +238,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                   </div>
                 )
               })}
-              {hasScheduleChild && isAuthenticated && myCalendarButton()}
             </div>
           </div>
         ) : null}
@@ -272,6 +263,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
           {/* Dynamic created pages */}
           <div className="mt-2 flex flex-col gap-0.5">
             {items.map(renderSidebarNode)}
+            {isAuthenticated && myCalendarButton()}
           </div>
 
           {/* Exit event - common for all, at bottom */}
@@ -423,7 +415,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
           {items.map((node) => {
             if (node.type === 'page') {
               const isActive = isActiveForItem(activePath || '', node.path)
-              const isSchedule = isScheduleNode(node)
               return (
                 <div key={node.id}>
                   <button
@@ -434,21 +425,10 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                     {renderNavIcon(node.iconKey, 'h-4 w-4')}
                     <span>{node.label}</span>
                   </button>
-                  {isSchedule && isAuthenticated && (
-                    <button
-                      type="button"
-                      onClick={() => { setMobileOpen(false); onNavigate(myCalendarPath) }}
-                      className={['ml-4 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold', isActiveForItem(activePath || '', myCalendarPath) ? 'bg-white/20 text-white' : 'text-white/90 hover:bg-white/10'].join(' ')}
-                    >
-                      <CalendarDate className="h-4 w-4 shrink-0" />
-                      <span>My Calendar</span>
-                    </button>
-                  )}
                 </div>
               )
             }
             const expanded = Boolean(mobileExpanded[node.id])
-            const hasScheduleChild = isScheduleNode(node)
             return (
               <div key={node.id}>
                 <button
@@ -477,19 +457,19 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                     </button>
                   )
                 })}
-                {expanded && hasScheduleChild && isAuthenticated && (
-                  <button
-                    type="button"
-                    onClick={() => { setMobileOpen(false); onNavigate(myCalendarPath) }}
-                    className={['ml-4 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold', isActiveForItem(activePath || '', myCalendarPath) ? 'bg-white/20 text-white' : 'text-white/90 hover:bg-white/10'].join(' ')}
-                  >
-                    <CalendarDate className="h-4 w-4 shrink-0" />
-                    <span>My Calendar</span>
-                  </button>
-                )}
               </div>
             )
           })}
+          {isAuthenticated && (
+            <button
+              type="button"
+              onClick={() => { setMobileOpen(false); onNavigate(myCalendarPath) }}
+              className={['flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold', isActiveForItem(activePath || '', myCalendarPath) ? 'bg-white/20 text-white' : 'text-white/90 hover:bg-white/10'].join(' ')}
+            >
+              <CalendarDate className="h-4 w-4 shrink-0" />
+              <span>My Schedule</span>
+            </button>
+          )}
           <div className="mt-auto pt-4">
             <button
               type="button"

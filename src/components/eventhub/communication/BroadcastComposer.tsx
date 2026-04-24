@@ -20,19 +20,19 @@ import type { Macro } from './communicationTypes'
 import BroadcastPreviewModal from './BroadcastPreviewModal'
 import { ScheduleBroadcastModal } from './ScheduleBroadcastModal'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { fetchTags } from '../../../services/attendeeService'
-import { sendCommunication } from '../../../services/communicationService'
+import { sendCommunication, sendCommunicationById, uploadAttachment, fetchUserTags } from '../../../services/communicationService'
 import { showToast } from '../../../utils/toast'
 
 interface BroadcastComposerProps {
   onCancel: () => void
   onSave: (data: { subject: string; message: string; templateType?: string }) => void
-  onSend?: (data: { subject: string; message: string }) => void
+  onSend?: (data: { subject: string; message: string; communicationId?: number }) => void | Promise<void>
   macros?: Macro[]
   initialSubject?: string
   initialMessage?: string
   templateType?: string
   type?: 'email' | 'push-notification'
+  broadcastTitle?: string
 }
 
 const MESSAGE_STATUS_OPTIONS = [
@@ -40,10 +40,6 @@ const MESSAGE_STATUS_OPTIONS = [
   { value: 'Clicked', label: 'Clicked' },
   { value: 'Bounced', label: 'Bounced' },
   { value: 'Not opened', label: 'Not opened' }
-]
-const USER_STATUS_OPTIONS = [
-  { value: 'Logged In', label: 'Logged In' },
-  { value: 'Not logged in', label: 'Not logged in' }
 ]
 
 const TOOLBAR_CONTAINER = [
@@ -70,7 +66,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   macros = [],
   initialSubject = '',
   initialMessage = '',
-  type = 'email'
+  type = 'email',
+  broadcastTitle = ''
 }) => {
   const [activeTab, setActiveTab] = useState<'late-message' | 'settings'>('late-message')
   const [subject, setSubject] = useState(initialSubject || '')
@@ -83,21 +80,27 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [isSavingAttachments, setIsSavingAttachments] = useState(false)
+  const [pendingAttachments, setPendingAttachments] = useState<Array<{ id: string; file: File; name: string; sizeLabel: string }>>([])
+  const [uploadedAttachments, setUploadedAttachments] = useState<Array<{ uuid: string; name: string; sizeLabel: string }>>([])
+  const [draftCommunicationId, setDraftCommunicationId] = useState<number | null>(null)
+
+  const attachmentUuids = uploadedAttachments.map(a => a.uuid)
 
   // Settings Tab State
-  const [matchLogic, setMatchLogic] = useState<'ANY' | 'ALL'>('ANY')
+  const [matchLogic, setMatchLogic] = useState<'ANY' | 'ALL'>('ALL')
   const [filters, setFilters] = useState([
-    { id: '1', field: 'Group', operator: 'is', value: 'Speakers' }
+    { id: '1', field: 'Group', operator: 'is', value: '' }
   ])
   const [tags, setTags] = useState<Array<{ uuid: string; name: string }>>([])
 
   const { createdEvent } = useEventForm()
   const quillRef = useRef<ReactQuill>(null)
   const macroDropdownRef = useRef<HTMLDivElement>(null)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
-  // Build modules once. Custom color handler uses quillRef so we can call
-  // getSelection(true) which re-focuses the editor before reading the range,
-  // avoiding the selection-loss issue that makes the default handler a no-op.
+  // Build modules once. Handlers close over refs (always current) so useMemo
+  // with empty deps is safe — no stale captures.
   const quillModules = useMemo(() => ({
     toolbar: {
       container: TOOLBAR_CONTAINER,
@@ -111,10 +114,64 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
           } else {
             editor.format('color', value || false, 'user')
           }
+        },
+        image() {
+          imageInputRef.current?.click()
         }
       }
     }
   }), []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const formatBytes = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}K`
+    return `${(bytes / (1024 * 1024)).toFixed(1)}M`
+  }
+
+  const handleAttachmentAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = ''
+    if (!files.length) return
+    const newItems = files.map(file => ({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      file,
+      name: file.name,
+      sizeLabel: formatBytes(file.size),
+    }))
+    setPendingAttachments(prev => [...prev, ...newItems])
+  }
+
+  const removeAttachment = (id: string) =>
+    setPendingAttachments(prev => prev.filter(a => a.id !== id))
+
+  const buildRecipientFilters = () => {
+    const fieldTypeMap: Record<string, 'group' | 'message_status'> = {
+      'Group': 'group',
+      'Message status': 'message_status',
+    }
+    const valueMap: Record<string, string> = {
+      'Opened': 'opened', 'Clicked': 'clicked', 'Bounced': 'bounced', 'Not opened': 'not_opened',
+    }
+    const operatorMap: Record<string, 'is' | 'is_not'> = { 'is': 'is', 'is not': 'is_not' }
+    return filters
+      .filter((f) => f.field && f.value)
+      .reduce<Array<{ type: 'group' | 'message_status'; operator: 'is' | 'is_not'; value: string }>>((acc, f) => {
+        let value = f.value
+        if (f.field === 'Group') {
+          const tag = tags.find((t) => t.name === f.value || t.uuid === f.value)
+          if (!tag?.uuid) return acc  // skip filters where tag UUID could not be resolved
+          value = tag.uuid
+        } else {
+          value = valueMap[f.value] ?? f.value.toLowerCase().replace(/\s+/g, '_')
+        }
+        acc.push({
+          type: fieldTypeMap[f.field] ?? 'group',
+          operator: operatorMap[f.operator] ?? 'is',
+          value,
+        })
+        return acc
+      }, [])
+  }
 
   // Initialize editor with initial content once on mount — no value prop so
   // react-quill never compares props vs live editor content and resets the editor.
@@ -131,18 +188,26 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       const eventUuid = createdEvent?.uuid
       if (!eventUuid) { setTags([]); return }
       try {
-        const tagsData = await fetchTags(eventUuid)
-        setTags(
-          tagsData
-            .filter((tag) => tag.is_active !== false)
-            .map((tag) => ({ uuid: tag.uuid, name: tag.name }))
-        )
+        const tagsData = await fetchUserTags(eventUuid)
+        setTags(tagsData)
       } catch {
         setTags([])
       }
     }
     loadTags()
   }, [createdEvent?.uuid])
+
+  useEffect(() => {
+    if (!tags.length) return
+    setFilters((prev) =>
+      prev.map((f) => {
+        if (f.field === 'Group' && !f.value) {
+          return { ...f, value: tags[0].name }
+        }
+        return f
+      })
+    )
+  }, [tags])
 
   useEffect(() => {
     if (!showMacroDropdown) return
@@ -178,8 +243,47 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     setShowMacroDropdown(false)
   }
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const current = editorContentRef.current
+
+    let newlyUploaded: typeof uploadedAttachments = []
+    if (pendingAttachments.length > 0) {
+      setIsSavingAttachments(true)
+      for (const att of pendingAttachments) {
+        try {
+          const uuid = await uploadAttachment(att.file)
+          newlyUploaded.push({ uuid, name: att.name, sizeLabel: att.sizeLabel })
+        } catch {
+          showToast.error(`Failed to upload "${att.name}". Please try again.`)
+          setIsSavingAttachments(false)
+          return
+        }
+      }
+      setUploadedAttachments(prev => [...prev, ...newlyUploaded])
+      setPendingAttachments([])
+      setIsSavingAttachments(false)
+    }
+
+    if (createdEvent?.uuid && subject.trim() && current.trim() && current !== '<p><br></p>') {
+      const allAttachmentUuids = [...attachmentUuids, ...newlyUploaded.map(a => a.uuid)]
+      try {
+        const draft = await sendCommunication({
+          event_uuid: createdEvent.uuid,
+          ...(broadcastTitle ? { title: broadcastTitle } : {}),
+          channel: type === 'email' ? 'email' : 'notification',
+          subject: subject.trim(),
+          message: current.trim(),
+          recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
+          recipient_filters: buildRecipientFilters(),
+          save_as_draft: true,
+          attachment_uuids: allAttachmentUuids,
+        })
+        setDraftCommunicationId(draft.id)
+      } catch {
+        // draft save failed — toast shown by service; continue with local save
+      }
+    }
+
     setSavedMessage(current)
     onSave({ subject, message: current, templateType: activeTab === 'late-message' ? 'late-message' : undefined })
     setIsEditing(false)
@@ -205,7 +309,9 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       `}</style>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-[26px] font-semibold text-primary-dark mb-4">Communication</h1>
+        <h1 className="text-[22px] font-semibold text-primary-dark mb-4">
+          {broadcastTitle || 'Communication'}
+        </h1>
         {!isEditing && (
           <div className="flex items-center gap-3">
             <Button type="button" variant="primary" size="md" onClick={handleOpenPreview} iconTrailing={<Send01 className="h-4 w-4" />}>
@@ -322,10 +428,37 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                     className="flex-1"
                   />
 
+                  {/* Attachment chips */}
+                  {(pendingAttachments.length > 0 || uploadedAttachments.length > 0) && (
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
+                      {uploadedAttachments.map(att => (
+                        <div key={att.uuid} className="flex items-center gap-1.5 rounded bg-slate-100 px-2.5 py-1.5 text-sm max-w-xs">
+                          <span className="truncate font-medium text-blue-600">{att.name}</span>
+                          <span className="shrink-0 text-slate-400">({att.sizeLabel})</span>
+                        </div>
+                      ))}
+                      {pendingAttachments.map(att => (
+                        <div key={att.id} className="flex items-center gap-1.5 rounded bg-slate-100 px-2.5 py-1.5 text-sm max-w-xs">
+                          <span className="truncate font-medium text-blue-600">{att.name}</span>
+                          <span className="shrink-0 text-slate-400">({att.sizeLabel})</span>
+                          <button
+                            type="button"
+                            onClick={() => removeAttachment(att.id)}
+                            className="ml-0.5 shrink-0 text-slate-400 hover:text-slate-600"
+                          >
+                            <XClose className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {/* Action Buttons */}
                   <div className="mt-auto pt-6 flex justify-end gap-3 border-t border-slate-200">
-                    <Button type="button" variant="secondary" size="md" onClick={onCancel}>Cancel</Button>
-                    <Button type="button" variant="primary" size="md" onClick={handleSave}>Save changes</Button>
+                    <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSavingAttachments}>Cancel</Button>
+                    <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSavingAttachments}>
+                      {isSavingAttachments ? 'Uploading...' : 'Save changes'}
+                    </Button>
                   </div>
                 </>
               ) : (
@@ -343,6 +476,16 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                     )}
                   </div>
                   <div className="broadcast-editor-content text-slate-600" dangerouslySetInnerHTML={{ __html: savedMessage }} />
+                  {uploadedAttachments.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100">
+                      {uploadedAttachments.map(att => (
+                        <div key={att.uuid} className="flex items-center gap-1.5 rounded bg-slate-100 px-2.5 py-1.5 text-sm max-w-xs">
+                          <span className="truncate font-medium text-blue-600">{att.name}</span>
+                          <span className="shrink-0 text-slate-400">({att.sizeLabel})</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex justify-end pt-4">
                     <Button type="button" variant="primary" size="md" onClick={() => setIsEditing(true)}>Edit</Button>
                   </div>
@@ -357,11 +500,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                   type="button" variant="secondary" size="sm"
                   iconLeading={<Plus className="h-4 w-4" />}
                   onClick={() => {
-                    const addMessageStatusFirst = filters.length % 2 === 1
-                    const newFilter = addMessageStatusFirst
-                      ? { id: Date.now().toString(), field: 'Message status', operator: 'is not', value: 'Opened' }
-                      : { id: Date.now().toString(), field: 'Users', operator: 'is not', value: 'Logged In' }
-                    setFilters([...filters, newFilter])
+                    setFilters([...filters, { id: Date.now().toString(), field: 'Message status', operator: 'is not', value: 'Opened' }])
                   }}
                 >
                   New filter
@@ -377,6 +516,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                       onChange={(e) => setMatchLogic(e.target.value as 'ANY' | 'ALL')}
                       className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
+                      <option value="ANY">ANY</option>
                       <option value="ALL">ALL</option>
                     </select>
                     <span>of the following filters</span>
@@ -391,15 +531,14 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                         value={filter.field}
                         onChange={(e) => {
                           const newFilters = [...filters]
-                          const nextField = e.target.value as 'Message status' | 'Users' | 'Group'
+                          const nextField = e.target.value as 'Message status' | 'Group'
                           newFilters[index].field = nextField
-                          newFilters[index].value = nextField === 'Message status' ? 'Opened' : nextField === 'Users' ? 'Logged In' : (tags[0]?.name ?? '')
+                          newFilters[index].value = nextField === 'Message status' ? 'Opened' : (tags[0]?.name ?? '')
                           setFilters(newFilters)
                         }}
                         className="min-w-[140px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         <option value="Message status">Message status</option>
-                        <option value="Users">Users</option>
                         <option value="Group">Group</option>
                       </select>
 
@@ -429,12 +568,6 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                           <>
                             <option value="">Select status...</option>
                             {MESSAGE_STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-                          </>
-                        )}
-                        {filter.field === 'Users' && (
-                          <>
-                            <option value="">Select status...</option>
-                            {USER_STATUS_OPTIONS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
                           </>
                         )}
                         {filter.field === 'Group' && (
@@ -479,49 +612,36 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
           if (!subject.trim()) { showToast.error('Subject is required.'); return }
           if (!savedMessage.trim() || savedMessage === '<p><br></p>') { showToast.error('Message is required.'); return }
 
-          const fieldTypeMap: Record<string, 'group' | 'message_status' | 'user_status'> = {
-            'Group': 'group',
-            'Message status': 'message_status',
-            'Users': 'user_status',
-          }
-          const valueMap: Record<string, string> = {
-            'Opened': 'opened', 'Clicked': 'clicked', 'Bounced': 'bounced', 'Not opened': 'not_opened',
-            'Logged In': 'logged_in', 'Not logged in': 'not_logged_in',
-          }
-          const operatorMap: Record<string, 'is' | 'is_not'> = { 'is': 'is', 'is not': 'is_not' }
-
-          const recipientFilters = filters
-            .filter((f) => f.field && f.value)
-            .map((f) => {
-              let value = f.value
-              if (f.field === 'Group') {
-                const tag = tags.find((t) => t.name === f.value)
-                value = tag?.uuid ?? f.value
-              } else {
-                value = valueMap[f.value] ?? f.value.toLowerCase().replace(/\s+/g, '_')
-              }
-              return {
-                type: fieldTypeMap[f.field] ?? 'group',
-                operator: operatorMap[f.operator] ?? 'is',
-                value,
-              }
-            })
-
+          const recipientFilters = buildRecipientFilters()
           if (recipientFilters.length === 0) { showToast.error('Please add at least one filter in the Settings tab.'); return }
 
           setIsSending(true)
           try {
-            await sendCommunication({
-              event_uuid: createdEvent.uuid,
-              channel: type === 'email' ? 'email' : 'push-notification',
-              subject: subject.trim(),
-              message: savedMessage.trim(),
-              recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
-              recipient_filters: recipientFilters,
-              save_as_draft: false,
-            })
-            if (onSend) onSend({ subject, message: savedMessage })
+            let communicationId = draftCommunicationId
+            // If no draft id exists yet, create draft first, then trigger send-by-id.
+            if (!communicationId) {
+              const draft = await sendCommunication({
+                event_uuid: createdEvent.uuid,
+                ...(broadcastTitle ? { title: broadcastTitle } : {}),
+                channel: type === 'email' ? 'email' : 'notification',
+                subject: subject.trim(),
+                message: savedMessage.trim(),
+                recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
+                recipient_filters: recipientFilters,
+                save_as_draft: true,
+                attachment_uuids: attachmentUuids,
+              })
+              communicationId = draft.id
+              setDraftCommunicationId(draft.id)
+            }
+            await sendCommunicationById(communicationId, createdEvent.uuid)
+            // Keep modal briefly so backend status can settle before list refresh.
+            await new Promise((resolve) => setTimeout(resolve, 1200))
             setShowPreviewModal(false)
+            if (onSend) {
+              await Promise.resolve(onSend({ subject, message: savedMessage, communicationId }))
+            }
+            return
           } catch {
             // error toast handled in service
           } finally {
@@ -532,6 +652,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
         message={savedMessage}
         isSending={isSending}
         recipients={selectedRecipients}
+        attachments={uploadedAttachments}
       />
 
       <ScheduleBroadcastModal
@@ -541,6 +662,16 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
           console.log('Scheduled for:', date)
           setShowScheduleModal(false)
         }}
+      />
+
+      {/* Hidden file input for attachments */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        multiple
+        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+        className="hidden"
+        onChange={handleAttachmentAdd}
       />
     </div>
   )
