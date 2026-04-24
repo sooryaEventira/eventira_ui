@@ -21,6 +21,11 @@ export interface SendCommunicationRequest {
   attachment_uuids?: string[]
 }
 
+export interface UpdateCommunicationRecipientsRequest {
+  recipient_match: 'all' | 'any'
+  recipient_filters: RecipientFilter[]
+}
+
 export interface SendCommunicationResponseData {
   id: number
   event_uuid: string
@@ -57,6 +62,13 @@ export interface CommunicationData {
   created_at?: string
   created_date?: string
   scheduled_at?: string
+}
+
+export interface CommunicationDetailResponseData extends CommunicationData {
+  title?: string
+  recipient_match?: 'all' | 'any' | string
+  recipients?: string
+  attachments?: Array<{ uuid?: string; file_name?: string; file?: string; content_type?: string }>
 }
 
 /**
@@ -259,6 +271,48 @@ export const sendCommunicationById = async (
 }
 
 /**
+ * Update only recipient targeting for a communication draft.
+ * PATCH event-communications/{id}/?event_id={eventUuid}
+ * Body: { recipient_match, recipient_filters }
+ */
+export const updateCommunicationRecipients = async (
+  communicationId: number,
+  eventUuid: string,
+  request: UpdateCommunicationRecipientsRequest
+): Promise<void> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const response = await fetch(API_ENDPOINTS.COMMUNICATION.DETAIL(communicationId, eventUuid), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify({
+      recipient_match: request.recipient_match,
+      recipient_filters: request.recipient_filters,
+    }),
+  })
+
+  if (!response.ok) {
+    let message = 'Failed to update recipient filters.'
+    try {
+      const err: ApiResponse = await response.json()
+      message = handleApiError(err, response, message)
+    } catch {
+      message = handleApiError(null, response, message)
+    }
+    throw new Error(message)
+  }
+}
+
+/**
  * Upload a single attachment file and return its UUID
  */
 export const uploadAttachment = async (file: File): Promise<string> => {
@@ -338,63 +392,111 @@ export const fetchCommunications = async (
       throw new Error(errorMessage)
     }
 
-    const response = await fetch(API_ENDPOINTS.COMMUNICATION.LIST(eventUuid), {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${accessToken}`,
-        'X-Organization': organizationUuid,
-      },
-      credentials: 'include',
-    })
+    const extractItemsAndNext = (payload: unknown): { items: CommunicationData[]; next: string | null } => {
+      if (!payload || typeof payload !== 'object') return { items: [], next: null }
+      const p = payload as Record<string, unknown>
 
-    if (!response || !response.ok) {
-      if (!response) {
-        const errorMessage = handleNetworkError(null)
-        throw new Error(errorMessage)
+      if (p.status === 'error' || p.status === 'failure') {
+        throw new Error(handleApiError(p as ApiResponse, undefined, 'Failed to fetch communications. Please try again.'))
       }
 
-      // Handle 404 as empty list (no communications found)
-      if (response.status === 404) {
-        return []
+      // Plain paginated shape: { results: [...], next: "..." }
+      if (Array.isArray(p.results)) {
+        return {
+          items: p.results as CommunicationData[],
+          next: typeof p.next === 'string' && p.next.trim() ? p.next : null,
+        }
       }
 
-      // For other non-ok responses, try to parse error message and throw
-      try {
-        const errorData: ApiResponse<CommunicationData[]> = await response.json()
-        const errorMessage = handleApiError(
-          errorData,
-          response,
-          'Failed to fetch communications. Please try again.'
-        )
-        throw new Error(errorMessage)
-      } catch (parseError) {
-        if (parseError instanceof Error && parseError.message.includes('JSON')) {
-          const errorMessage = handleApiError(null, response, 'Failed to fetch communications. Please try again.')
+      // Success wrapper shape
+      if (p.status === 'success') {
+        const data = p.data
+        if (Array.isArray(data)) {
+          return {
+            items: data as CommunicationData[],
+            next: typeof p.next === 'string' && p.next.trim() ? p.next : null,
+          }
+        }
+        if (data && typeof data === 'object') {
+          const d = data as Record<string, unknown>
+          if (Array.isArray(d.results)) {
+            return {
+              items: d.results as CommunicationData[],
+              next:
+                (typeof d.next === 'string' && d.next.trim() ? d.next : null) ??
+                (typeof p.next === 'string' && p.next.trim() ? p.next : null),
+            }
+          }
+        }
+      }
+
+      return { items: [], next: null }
+    }
+
+    const merged: CommunicationData[] = []
+    let nextUrl: string | null = API_ENDPOINTS.COMMUNICATION.LIST(eventUuid)
+    let pageGuard = 0
+    const maxPages = 100
+
+    while (nextUrl) {
+      pageGuard += 1
+      if (pageGuard > maxPages) break
+
+      const response = await fetch(nextUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid,
+        },
+        credentials: 'include',
+      })
+
+      if (!response || !response.ok) {
+        if (!response) {
+          const errorMessage = handleNetworkError(null)
           throw new Error(errorMessage)
         }
-        throw parseError
+        if (response.status === 404) return []
+        try {
+          const errorData: ApiResponse<CommunicationData[]> = await response.json()
+          const errorMessage = handleApiError(
+            errorData,
+            response,
+            'Failed to fetch communications. Please try again.'
+          )
+          throw new Error(errorMessage)
+        } catch (parseError) {
+          if (parseError instanceof Error && parseError.message.includes('JSON')) {
+            const errorMessage = handleApiError(null, response, 'Failed to fetch communications. Please try again.')
+            throw new Error(errorMessage)
+          }
+          throw parseError
+        }
+      }
+
+      const raw = await response.text()
+      let payload: unknown = null
+      try {
+        payload = raw ? JSON.parse(raw) : null
+      } catch {
+        const errorMessage = handleParseError('Invalid response from server. Please try again.')
+        throw new Error(errorMessage)
+      }
+
+      const { items, next } = extractItemsAndNext(payload)
+      merged.push(...items)
+
+      if (next && next.trim()) {
+        nextUrl = next.startsWith('http')
+          ? next
+          : new URL(next, nextUrl).href
+      } else {
+        nextUrl = null
       }
     }
 
-    let data: ApiResponse<CommunicationData[]>
-    try {
-      data = await response.json()
-    } catch {
-      const errorMessage = handleParseError('Invalid response from server. Please try again.')
-      throw new Error(errorMessage)
-    }
-
-    if (data.status === 'error' || data.status === 'failure') {
-      const errorMessage = handleApiError(data, undefined, 'Failed to fetch communications. Please try again.')
-      throw new Error(errorMessage)
-    }
-
-    if (data.status === 'success' && data.data) {
-      return Array.isArray(data.data) ? data.data : []
-    }
-
-    return []
+    return merged
   } catch (error) {
     if (error instanceof TypeError && error.message.includes('fetch')) {
       const errorMessage = handleNetworkError(null)
@@ -408,6 +510,55 @@ export const fetchCommunications = async (
 
     throw new Error('An unexpected error occurred while fetching communications.')
   }
+}
+
+/**
+ * Fetch one communication detail by ID
+ * GET event-communications/{id}/?event_id={eventUuid}
+ */
+export const fetchCommunicationById = async (
+  communicationId: string | number,
+  eventUuid: string
+): Promise<CommunicationDetailResponseData> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+  if (!eventUuid) throw new Error('Event UUID is required.')
+
+  const response = await fetch(API_ENDPOINTS.COMMUNICATION.DETAIL(communicationId, eventUuid), {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    let message = 'Failed to fetch communication details.'
+    try {
+      const err: ApiResponse = await response.json()
+      message = handleApiError(err, response, message)
+    } catch {
+      message = handleApiError(null, response, message)
+    }
+    throw new Error(message)
+  }
+
+  let data: ApiResponse<CommunicationDetailResponseData>
+  try {
+    data = await response.json()
+  } catch {
+    throw new Error(handleParseError('Invalid response from server.'))
+  }
+
+  if (data.status === 'error' || data.status === 'failure' || !data.data) {
+    throw new Error(handleApiError(data, undefined, 'Failed to fetch communication details.'))
+  }
+
+  return data.data
 }
 
 /**

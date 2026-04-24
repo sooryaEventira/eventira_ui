@@ -334,6 +334,12 @@ export const API_ENDPOINTS = {
     /** Bulk import: POST {{url}}{{admin_url}}sessions/schedules/{{schedule_uuid}}/bulk-import/ — pass event_id in body (form-data). */
     BULK_IMPORT: (scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/schedules/${scheduleUuid}/bulk-import/`,
+    /** Bulk update selected sessions: POST .../sessions/bulk-update/?event_id={{event_uuid}} */
+    BULK_UPDATE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/bulk-update/?event_id=${eventUuid}`,
+    /** Bulk delete selected sessions: POST .../sessions/bulk-delete/?event_id={{event_uuid}} */
+    BULK_DELETE: (eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/bulk-delete/?event_id=${eventUuid}`,
     /** List locations for sessions (add/edit session slideout). GET .../sessions/locations?event_id=&schedule_uuid= */
     LOCATIONS: (eventUuid: string, scheduleUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}sessions/locations?event_id=${eventUuid}&schedule_uuid=${scheduleUuid}`,
@@ -372,6 +378,8 @@ export const API_ENDPOINTS = {
     SEND: `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/`,
     SEND_BY_ID: (communicationId: number, eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/${communicationId}/send/?event_id=${eventUuid}`,
+    DETAIL: (communicationId: number | string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/${communicationId}/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_uuid=${eventUuid}`,
     ATTACHMENT_UPLOAD: `${env.AUTH_API_URL}${ADMIN_API_BASE}attachments/upload/`,
   },

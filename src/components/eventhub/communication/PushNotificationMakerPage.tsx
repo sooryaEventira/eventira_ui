@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import Button from '../../ui/untitled/Button'
 import MobileView from '../../../assets/images/mobile_view.png'
 import EventiraLogo from '../../../assets/images/Logo.png'
-import { ChevronDown, Plus, XClose } from '@untitled-ui/icons-react'
+import { AlertCircle, ArrowLeft, ChevronDown, Plus, XClose } from '@untitled-ui/icons-react'
 import type { Macro } from './communicationTypes'
 import { fetchUserTags, sendCommunication, sendCommunicationById } from '../../../services/communicationService'
 import { useEventForm } from '../../../contexts/EventFormContext'
@@ -42,10 +42,14 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
   const [activeTab, setActiveTab] = useState<'message' | 'settings'>('message')
   const [title, setTitle] = useState(initialTitle)
   const [body, setBody] = useState(initialMessage)
+  const [savedTitle, setSavedTitle] = useState(initialTitle)
+  const [savedBody, setSavedBody] = useState(initialMessage)
   const [isSaving, setIsSaving] = useState(false)
   const [isSending, setIsSending] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [showUnsavedMessageModal, setShowUnsavedMessageModal] = useState(false)
+  const [pendingTab, setPendingTab] = useState<'message' | 'settings' | null>(null)
   const [draftCommunicationId, setDraftCommunicationId] = useState<number | null>(null)
   const [hasSavedDraft, setHasSavedDraft] = useState(false)
   const [matchLogic, setMatchLogic] = useState<'ANY' | 'ALL'>('ALL')
@@ -169,6 +173,8 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
       setDraftCommunicationId(draft.id)
       draftSaved = true
       setHasSavedDraft(true)
+      setSavedTitle(title)
+      setSavedBody(body)
     } catch {
       setHasSavedDraft(false)
     } finally {
@@ -181,10 +187,34 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
     if (!draftSaved) return
   }
 
+  const hasUnsavedMessageChanges =
+    title.trim() !== savedTitle.trim() || body.trim() !== savedBody.trim()
+
+  const handleTabSwitch = (nextTab: 'message' | 'settings') => {
+    if (nextTab === activeTab) return
+    if (activeTab === 'message' && nextTab === 'settings' && hasUnsavedMessageChanges) {
+      setPendingTab(nextTab)
+      setShowUnsavedMessageModal(true)
+      return
+    }
+    setActiveTab(nextTab)
+  }
+
   return (
     <div className="rounded-xl bg-white overflow-hidden">
       <div className="px-6 pt-5 pb-0 flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold text-slate-900">{broadcastTitle || 'Communication'}</h2>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="tertiary"
+            size="sm"
+            onClick={onCancel}
+            iconLeading={<ArrowLeft className="h-4 w-4" />}
+          >
+       
+          </Button>
+          <h2 className="text-lg font-semibold text-slate-900">{broadcastTitle || 'Communication'}</h2>
+        </div>
         {hasSavedDraft && (
           <div className="flex items-center gap-3">
             <Button type="button" variant="primary" size="md" onClick={() => setShowPreviewModal(true)}>
@@ -200,7 +230,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
       <div className="flex gap-6 border-b border-slate-200 px-6">
         <button
           type="button"
-          onClick={() => setActiveTab('message')}
+          onClick={() => handleTabSwitch('message')}
           className={`pb-3 pt-4 text-sm font-semibold border-b-2 ${
             activeTab === 'message' ? 'text-primary border-b-primary' : 'text-slate-600 border-b-transparent hover:text-slate-900'
           }`}
@@ -209,7 +239,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
         </button>
         <button
           type="button"
-          onClick={() => setActiveTab('settings')}
+          onClick={() => handleTabSwitch('settings')}
           className={`pb-3 pt-4 text-sm font-semibold border-b-2 ${
             activeTab === 'settings' ? 'text-primary border-b-primary' : 'text-slate-600 border-b-transparent hover:text-slate-900'
           }`}
@@ -522,6 +552,49 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
           setShowScheduleModal(false)
         }}
       />
+
+      {showUnsavedMessageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                <AlertCircle className="h-6 w-6 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">You have unsaved message changes</h3>
+                <p className="mt-1.5 text-sm text-slate-600">
+                  Save your message before moving to Settings?
+                </p>
+              </div>
+              <div className="mt-3 grid w-full grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    setShowUnsavedMessageModal(false)
+                    if (pendingTab) setActiveTab(pendingTab)
+                    setPendingTab(null)
+                  }}
+                >
+                  Continue without saving
+                </button>
+                <button
+                  type="button"
+                  className="w-full rounded-md border border-primary bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                  onClick={async () => {
+                    await handleSave()
+                    setShowUnsavedMessageModal(false)
+                    if (pendingTab) setActiveTab(pendingTab)
+                    setPendingTab(null)
+                  }}
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

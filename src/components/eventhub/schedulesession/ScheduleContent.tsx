@@ -9,6 +9,7 @@ import SessionCreationModal from './SessionCreationModal'
 import { SavedSession } from './sessionTypes'
 import sessionTemplate from '../../../assets/excel/Session templates.xlsx?url'
 import { fetchScheduleTags, createScheduleTag, deleteScheduleTag, createScheduleLocation, fetchScheduleLocations, updateScheduleLocation, deleteScheduleLocation, type ScheduleTag, type ScheduleLocation } from '../../../services/scheduleTagService'
+import { bulkDeleteSessions, bulkUpdateSessions } from '../../../services/sessionService'
 import { showToast } from '../../../utils/toast'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 
@@ -47,6 +48,8 @@ interface ScheduleContentProps {
   availableLocations?: string[]
   /** Optional list of tags for filter dropdown. Will be fetched from API if eventUuid is provided. */
   availableTags?: string[]
+  onBulkUpdateApplied?: () => Promise<void> | void
+  onBulkDeleteApplied?: () => Promise<void> | void
 }
 
 const ScheduleContent: React.FC<ScheduleContentProps> = ({
@@ -68,7 +71,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   onSessionClick,
   sessionFormOpen = false,
   availableLocations: propAvailableLocations,
-  availableTags: propAvailableTags
+  availableTags: propAvailableTags,
+  onBulkUpdateApplied,
+  onBulkDeleteApplied
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
@@ -109,6 +114,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   const [addTagsDropdownPos, setAddTagsDropdownPos] = useState<{ top: number; left: number } | null>(null)
   const [addTagsSelected, setAddTagsSelected] = useState<Set<string>>(new Set())
   const [addLocationSelected, setAddLocationSelected] = useState<string | null>(null)
+  const [isApplyingBulkUpdate, setIsApplyingBulkUpdate] = useState(false)
+  const [isApplyingBulkDelete, setIsApplyingBulkDelete] = useState(false)
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false)
   const addTagsBtnRef = useRef<HTMLButtonElement>(null)
   const addTagsDropdownRef = useRef<HTMLDivElement>(null)
   const didNotifyInitialDateRef = useRef(false)
@@ -570,6 +578,71 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     setFilterOpen(false)
   }
 
+  const handleApplyBulkTagLocation = async () => {
+    if (!eventUuid) {
+      showToast.error('Event UUID is required.')
+      return
+    }
+    const sessionUuids = selectedSessionIds
+      .map((id) => String(id).trim())
+      .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+
+    if (sessionUuids.length === 0) {
+      showToast.error('Please select saved sessions to apply bulk update.')
+      return
+    }
+
+    const tagUuids = Array.from(addTagsSelected)
+    const location = addLocationSelected ?? undefined
+    if (tagUuids.length === 0 && !location) return
+
+    setIsApplyingBulkUpdate(true)
+    try {
+      await bulkUpdateSessions(eventUuid, {
+        session_uuids: sessionUuids,
+        ...(tagUuids.length > 0 ? { tag_uuids: tagUuids } : {}),
+        ...(location ? { location } : {}),
+      })
+      showToast.success('Sessions updated successfully.')
+      setAddTagsDropdownOpen(false)
+      setAddTagsSelected(new Set())
+      setAddLocationSelected(null)
+      setClearSelectionTrigger((n) => n + 1)
+      await Promise.resolve(onBulkUpdateApplied?.())
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to bulk update sessions.')
+    } finally {
+      setIsApplyingBulkUpdate(false)
+    }
+  }
+
+  const handleBulkDeleteSelected = async () => {
+    if (!eventUuid) {
+      showToast.error('Event UUID is required.')
+      return
+    }
+    const sessionUuids = selectedSessionIds
+      .map((id) => String(id).trim())
+      .filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+
+    if (sessionUuids.length === 0) {
+      showToast.error('Please select saved sessions to delete.')
+      return
+    }
+
+    setIsApplyingBulkDelete(true)
+    try {
+      await bulkDeleteSessions(eventUuid, { session_uuids: sessionUuids })
+      showToast.success('Selected sessions deleted successfully.')
+      setClearSelectionTrigger((n) => n + 1)
+      await Promise.resolve(onBulkDeleteApplied?.())
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to delete selected sessions.')
+    } finally {
+      setIsApplyingBulkDelete(false)
+    }
+  }
+
   const toggleFilterLocation = (loc: string) => {
     setFilterLocations((prev) => {
       const next = new Set(prev)
@@ -694,11 +767,12 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => { onDeleteSession?.(null as any); setClearSelectionTrigger((n) => n + 1) }}
+                onClick={() => setShowBulkDeleteConfirm(true)}
+                disabled={isApplyingBulkDelete}
                 className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-600 px-3 py-1.5 text-sm font-medium text-white shadow-sm transition-colors"
               >
                 <Trash01 className="h-4 w-4" />
-                Delete
+                {isApplyingBulkDelete ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           ) : (
@@ -1184,6 +1258,22 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
         onConfirm={handleDeleteLocation}
       />
 
+      <ConfirmDeleteModal
+        isOpen={showBulkDeleteConfirm}
+        title="Delete selected sessions"
+        description={`Are you sure you want to delete ${selectedSessionIds.length} selected session(s)? This action cannot be undone.`}
+        confirmText="Delete"
+        isLoading={isApplyingBulkDelete}
+        onCancel={() => {
+          if (isApplyingBulkDelete) return
+          setShowBulkDeleteConfirm(false)
+        }}
+        onConfirm={async () => {
+          await handleBulkDeleteSelected()
+          setShowBulkDeleteConfirm(false)
+        }}
+      />
+
       {/* Add Tags dropdown portal */}
       {addTagsDropdownOpen && addTagsDropdownPos && createPortal(
         <div
@@ -1202,10 +1292,10 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                 <label key={tag.uuid} className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-slate-50">
                   <input
                     type="checkbox"
-                    checked={addTagsSelected.has(tag.name)}
+                    checked={addTagsSelected.has(tag.uuid)}
                     onChange={() => setAddTagsSelected((prev) => {
                       const next = new Set(prev)
-                      next.has(tag.name) ? next.delete(tag.name) : next.add(tag.name)
+                      next.has(tag.uuid) ? next.delete(tag.uuid) : next.add(tag.uuid)
                       return next
                     })}
                     className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
@@ -1239,24 +1329,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
             <div className="border-t border-slate-100 px-3 py-2">
               <button
                 type="button"
-                disabled={addTagsSelected.size === 0 && !addLocationSelected}
-                onClick={() => {
-                  const selectedTags = Array.from(addTagsSelected)
-                  gridSessions
-                    .filter((s) => selectedSessionIds.includes(String(s.id)))
-                    .forEach((s) => {
-                      const existing: string[] = Array.isArray(s.tags) ? s.tags.map((t: any) => typeof t === 'string' ? t : t?.name ?? '') : []
-                      const mergedTags = selectedTags.length > 0
-                        ? Array.from(new Set([...existing, ...selectedTags]))
-                        : existing
-                      const nextLocation = addLocationSelected ? addLocationSelected : s.location
-                      onEditSession?.({ ...s, tags: mergedTags, location: nextLocation } as any)
-                    })
-                  setAddTagsDropdownOpen(false)
-                }}
+                disabled={(addTagsSelected.size === 0 && !addLocationSelected) || isApplyingBulkUpdate}
+                onClick={handleApplyBulkTagLocation}
                 className="w-full rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
-                Apply
+                {isApplyingBulkUpdate ? 'Applying...' : 'Apply'}
               </button>
             </div>
           )}

@@ -11,7 +11,8 @@ import { Communication, Macro } from './communicationTypes'
 import type { BroadcastType } from './BroadcastTypeModal'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
-import { fetchCommunications, fetchUserTags } from '../../../services/communicationService'
+import { fetchCommunications, fetchCommunicationById, fetchUserTags } from '../../../services/communicationService'
+import { showToast } from '../../../utils/toast'
 
 interface CommunicationPageProps {
   eventName?: string
@@ -235,6 +236,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   const [showComposer, setShowComposer] = React.useState(false)
   const [selectedBroadcastType, setSelectedBroadcastType] = React.useState<BroadcastType | null>(null)
   const [initialBroadcastTitle, setInitialBroadcastTitle] = React.useState<string>('')
+  const [initialComposerSubject, setInitialComposerSubject] = React.useState<string>('')
+  const [initialComposerMessage, setInitialComposerMessage] = React.useState<string>('')
   const [currentDraftId, setCurrentDraftId] = React.useState<string | null>(null)
 
   const [macros, setMacros] = React.useState<Macro[]>([
@@ -281,6 +284,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   const handleBroadcastTypeSelect = (type: BroadcastType) => {
     setSelectedBroadcastType(type)
     setInitialBroadcastTitle('')
+    setInitialComposerSubject('')
+    setInitialComposerMessage('')
     setIsBroadcastModalOpen(false)
     setShowComposer(true)
     setCurrentDraftId(null)
@@ -289,6 +294,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   const handleBroadcastSubmit = (data: { title: string; type: BroadcastType }) => {
     setSelectedBroadcastType(data.type)
     setInitialBroadcastTitle(data.title)
+    setInitialComposerSubject('')
+    setInitialComposerMessage('')
     setIsBroadcastModalOpen(false)
     setShowComposer(true)
     setCurrentDraftId(null)
@@ -298,6 +305,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     setShowComposer(false)
     setSelectedBroadcastType(null)
     setInitialBroadcastTitle('')
+    setInitialComposerSubject('')
+    setInitialComposerMessage('')
     setCurrentDraftId(null)
     loadCommunications()
   }
@@ -327,9 +336,28 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     loadCommunications()
   }
 
-  const handleEditCommunication = (communicationId: string) => {
-    console.log('Edit communication:', communicationId)
-    // TODO: Implement edit communication functionality
+  const handleEditCommunication = async (communicationId: string) => {
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) {
+      showToast.error('Event UUID is required. Please select an event first.')
+      return
+    }
+    try {
+      const detail = await fetchCommunicationById(communicationId, eventUuid)
+      const normalizedChannel = String(detail.channel || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[\s-]+/g, '_')
+      const editorType: BroadcastType = normalizedChannel === 'email' ? 'email' : 'push-notification'
+      setSelectedBroadcastType(editorType)
+      setInitialBroadcastTitle(detail.title || '')
+      setInitialComposerSubject(detail.subject || '')
+      setInitialComposerMessage(detail.message || '')
+      setCurrentDraftId(String(detail.id))
+      setShowComposer(true)
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to load communication details.')
+    }
   }
 
   return (
@@ -364,6 +392,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
             <PushNotificationMakerPage
               macros={macros}
               broadcastTitle={initialBroadcastTitle}
+              initialTitle={initialComposerSubject}
+              initialMessage={initialComposerMessage}
               onCancel={handleComposerCancel}
               onSave={(data) => {
                 handleComposerSave({ subject: data.title, message: data.message })
@@ -425,6 +455,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
               templateType="late-message"
               type={selectedBroadcastType || 'email'}
               broadcastTitle={initialBroadcastTitle}
+              initialSubject={initialComposerSubject}
+              initialMessage={initialComposerMessage}
             />
           )
         ) : (

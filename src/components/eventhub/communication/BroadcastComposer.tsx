@@ -13,14 +13,15 @@ import {
   Calendar,
   Plus,
   XClose,
-  AlertCircle
+  AlertCircle,
+  ArrowLeft
 } from '@untitled-ui/icons-react'
 import Button from '../../ui/untitled/Button'
 import type { Macro } from './communicationTypes'
 import BroadcastPreviewModal from './BroadcastPreviewModal'
 import { ScheduleBroadcastModal } from './ScheduleBroadcastModal'
 import { useEventForm } from '../../../contexts/EventFormContext'
-import { sendCommunication, sendCommunicationById, uploadAttachment, fetchUserTags } from '../../../services/communicationService'
+import { sendCommunication, sendCommunicationById, updateCommunicationRecipients, uploadAttachment, fetchUserTags } from '../../../services/communicationService'
 import { showToast } from '../../../utils/toast'
 
 interface BroadcastComposerProps {
@@ -71,6 +72,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'late-message' | 'settings'>('late-message')
   const [subject, setSubject] = useState(initialSubject || '')
+  const [savedSubject, setSavedSubject] = useState(initialSubject || '')
   // savedMessage is used for read-only view and preview; live editing uses editorContentRef
   const [savedMessage, setSavedMessage] = useState(initialMessage)
   const editorContentRef = useRef(initialMessage)
@@ -79,6 +81,9 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   const [showMacroDropdown, setShowMacroDropdown] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [isPreparingPreview, setIsPreparingPreview] = useState(false)
+  const [showUnsavedMessageModal, setShowUnsavedMessageModal] = useState(false)
+  const [pendingTab, setPendingTab] = useState<'late-message' | 'settings' | null>(null)
   const [isSending, setIsSending] = useState(false)
   const [isSavingAttachments, setIsSavingAttachments] = useState(false)
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ id: string; file: File; name: string; sizeLabel: string }>>([])
@@ -220,6 +225,18 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     return () => { clearTimeout(t); document.removeEventListener('mousedown', handle) }
   }, [showMacroDropdown])
 
+  useEffect(() => {
+    if (activeTab !== 'late-message' || !isEditing) return
+    const quill = quillRef.current?.getEditor()
+    if (!quill) return
+    const desiredHtml = editorContentRef.current || savedMessage || initialMessage || ''
+    if (!desiredHtml) return
+    const currentHtml = quill.root?.innerHTML || ''
+    if (currentHtml.trim() === desiredHtml.trim()) return
+    quill.clipboard.dangerouslyPasteHTML(desiredHtml)
+    editorContentRef.current = desiredHtml
+  }, [activeTab, isEditing, savedMessage, initialMessage])
+
   const selectedRecipients = useMemo(() => {
     const names: string[] = []
     filters.forEach((f) => {
@@ -273,8 +290,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
           channel: type === 'email' ? 'email' : 'notification',
           subject: subject.trim(),
           message: current.trim(),
-          recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
-          recipient_filters: buildRecipientFilters(),
+          recipient_match: 'all',
+          recipient_filters: [],
           save_as_draft: true,
           attachment_uuids: allAttachmentUuids,
         })
@@ -285,13 +302,50 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     }
 
     setSavedMessage(current)
+    setSavedSubject(subject)
     onSave({ subject, message: current, templateType: activeTab === 'late-message' ? 'late-message' : undefined })
     setIsEditing(false)
+    return true
   }
 
-  const handleOpenPreview = () => {
-    setSavedMessage(editorContentRef.current)
-    setShowPreviewModal(true)
+  const hasUnsavedMessageChanges =
+    isEditing &&
+    (
+      subject.trim() !== savedSubject.trim() ||
+      editorContentRef.current.trim() !== savedMessage.trim() ||
+      pendingAttachments.length > 0
+    )
+
+  const handleTabSwitch = (nextTab: 'late-message' | 'settings') => {
+    if (nextTab === activeTab) return
+    if (activeTab === 'late-message' && nextTab === 'settings' && hasUnsavedMessageChanges) {
+      setPendingTab(nextTab)
+      setShowUnsavedMessageModal(true)
+      return
+    }
+    setActiveTab(nextTab)
+  }
+
+  const handleOpenPreview = async () => {
+    if (!createdEvent?.uuid) { showToast.error('Event UUID is required. Please select an event first.'); return }
+    if (!draftCommunicationId) { showToast.error('Please save changes first.'); return }
+
+    const recipientFilters = buildRecipientFilters()
+    if (recipientFilters.length === 0) { showToast.error('Please add at least one filter in the Settings tab.'); return }
+
+    setIsPreparingPreview(true)
+    try {
+      await updateCommunicationRecipients(draftCommunicationId, createdEvent.uuid, {
+        recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
+        recipient_filters: recipientFilters,
+      })
+      setSavedMessage(editorContentRef.current)
+      setShowPreviewModal(true)
+    } catch {
+      // error toast handled in service helper
+    } finally {
+      setIsPreparingPreview(false)
+    }
   }
 
   return (
@@ -309,13 +363,23 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       `}</style>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-[22px] font-semibold text-primary-dark mb-4">
-          {broadcastTitle || 'Communication'}
-        </h1>
+        <div className="flex items-center gap-3">
+          <Button
+            type="button"
+            variant="tertiary"
+            size="sm"
+            onClick={onCancel}
+            iconLeading={<ArrowLeft className="h-4 w-4" />}
+          >
+          </Button>
+          <h1 className="text-[22px] font-semibold text-primary-dark mb-0">
+            {broadcastTitle || 'Communication'}
+          </h1>
+        </div>
         {!isEditing && (
           <div className="flex items-center gap-3">
-            <Button type="button" variant="primary" size="md" onClick={handleOpenPreview} iconTrailing={<Send01 className="h-4 w-4" />}>
-              Send
+            <Button type="button" variant="primary" size="md" onClick={handleOpenPreview} disabled={isPreparingPreview} iconTrailing={<Send01 className="h-4 w-4" />}>
+              {isPreparingPreview ? 'Preparing...' : 'Send'}
             </Button>
             <Button type="button" variant="secondary" size="md" onClick={() => setShowScheduleModal(true)} iconTrailing={<Calendar className="h-4 w-4" />}>
               Schedule
@@ -330,14 +394,14 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
         <div className="flex gap-6 border-b border-slate-200 flex-shrink-0">
           <Button
             type="button" variant="tertiary" size="sm"
-            onClick={() => setActiveTab('late-message')}
+            onClick={() => handleTabSwitch('late-message')}
             className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors whitespace-nowrap ${activeTab === 'late-message' ? 'text-primary border-b-primary' : 'text-slate-600 hover:text-slate-900 border-b-transparent'}`}
           >
             Message
           </Button>
           <Button
             type="button" variant="tertiary" size="sm"
-            onClick={() => setActiveTab('settings')}
+            onClick={() => handleTabSwitch('settings')}
             className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors whitespace-nowrap ${activeTab === 'settings' ? 'text-primary border-b-primary' : 'text-slate-600 hover:text-slate-900 border-b-transparent'}`}
           >
             Settings
@@ -663,6 +727,49 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
           setShowScheduleModal(false)
         }}
       />
+
+      {showUnsavedMessageModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                <AlertCircle className="h-6 w-6 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">You have unsaved message changes</h3>
+                <p className="mt-1.5 text-sm text-slate-600">
+                  Save your message before moving to Settings?
+                </p>
+              </div>
+              <div className="mt-3 grid w-full grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    setShowUnsavedMessageModal(false)
+                    if (pendingTab) setActiveTab(pendingTab)
+                    setPendingTab(null)
+                  }}
+                >
+                  Continue without saving
+                </button>
+                <button
+                  type="button"
+                  className="w-full rounded-md border border-primary bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                  onClick={async () => {
+                    await handleSave()
+                    setShowUnsavedMessageModal(false)
+                    if (pendingTab) setActiveTab(pendingTab)
+                    setPendingTab(null)
+                  }}
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Hidden file input for attachments */}
       <input

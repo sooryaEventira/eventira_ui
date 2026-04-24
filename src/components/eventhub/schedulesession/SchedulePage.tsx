@@ -2676,6 +2676,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             selectedDate={selectedDate}
             rangeStartDate={rangeStartDate}
             rangeEndDate={rangeEndDate}
+            onBulkUpdateApplied={async () => {
+              if (activeScheduleId) await loadSessions(activeScheduleId)
+            }}
+            onBulkDeleteApplied={async () => {
+              if (activeScheduleId) await loadSessions(activeScheduleId)
+            }}
             sessionFormOpen={isSessionSlideoutOpen}
             onSessionClick={async (session) => {
               const eventUuid = createdEvent?.uuid

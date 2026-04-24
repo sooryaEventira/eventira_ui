@@ -652,7 +652,11 @@ export const updateEvent = async (eventUuid: string, request: UpdateEventRequest
   }
 
   const body: Record<string, any> = {}
-  if (request.eventName != null) body.title = request.eventName
+  if (request.eventName != null) {
+    body.title = request.eventName
+    body.eventName = request.eventName
+    body.event_name = request.eventName
+  }
   if (request.startDate != null) body.event_date = request.startDate
   if (request.endDate != null) body.end_date = request.endDate
   if (request.timezoneId != null) body.timezone_id = request.timezoneId

@@ -35,6 +35,16 @@ export interface UpdateSessionBody {
   parent?: string | null
 }
 
+export interface BulkUpdateSessionsBody {
+  session_uuids: string[]
+  tag_uuids?: string[]
+  location?: string
+}
+
+export interface BulkDeleteSessionsBody {
+  session_uuids: string[]
+}
+
 /** Content shape for text section. API expects content: { title, body }. */
 export interface SessionSectionContentText {
   title: string
@@ -610,6 +620,94 @@ export async function deleteSession(
     }
     const message = handleApiError(err, response, 'Failed to delete session.')
     throw new Error(message)
+  }
+}
+
+/** Bulk update sessions (tags/location). POST .../sessions/bulk-update/?event_id={{event_uuid}} */
+export async function bulkUpdateSessions(
+  eventUuid: string,
+  body: BulkUpdateSessionsBody
+): Promise<unknown> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) throw new Error('Missing auth or organization context.')
+  if (!eventUuid) throw new Error('Missing event context.')
+
+  const payload: BulkUpdateSessionsBody = {
+    session_uuids: body.session_uuids ?? [],
+    ...(Array.isArray(body.tag_uuids) ? { tag_uuids: body.tag_uuids } : {}),
+    ...(typeof body.location === 'string' ? { location: body.location } : {}),
+  }
+
+  const response = await fetch(API_ENDPOINTS.SESSIONS.BULK_UPDATE(eventUuid), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+
+  const rawText = await response.text().catch(() => '')
+  if (!response.ok) {
+    let err: unknown = null
+    try {
+      err = rawText ? JSON.parse(rawText) : null
+    } catch {
+      err = rawText || null
+    }
+    const message = handleApiError(err as any, response, 'Failed to bulk update sessions.')
+    throw new Error(message)
+  }
+
+  if (!rawText) return null
+  try {
+    return JSON.parse(rawText)
+  } catch {
+    return rawText
+  }
+}
+
+/** Bulk delete sessions. POST .../sessions/bulk-delete/?event_id={{event_uuid}} */
+export async function bulkDeleteSessions(
+  eventUuid: string,
+  body: BulkDeleteSessionsBody
+): Promise<unknown> {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) throw new Error('Missing auth or organization context.')
+  if (!eventUuid) throw new Error('Missing event context.')
+
+  const response = await fetch(API_ENDPOINTS.SESSIONS.BULK_DELETE(eventUuid), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ session_uuids: body.session_uuids ?? [] }),
+  })
+
+  const rawText = await response.text().catch(() => '')
+  if (!response.ok) {
+    let err: unknown = null
+    try {
+      err = rawText ? JSON.parse(rawText) : null
+    } catch {
+      err = rawText || null
+    }
+    const message = handleApiError(err as any, response, 'Failed to bulk delete sessions.')
+    throw new Error(message)
+  }
+
+  if (!rawText) return null
+  try {
+    return JSON.parse(rawText)
+  } catch {
+    return rawText
   }
 }
 
