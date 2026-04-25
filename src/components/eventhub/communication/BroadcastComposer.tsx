@@ -298,6 +298,21 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
 
   const handleSave = async () => {
     const current = editorContentRef.current
+    const trimmedSubject = subject.trim()
+    const trimmedMessage = current.trim()
+
+    if (!createdEvent?.uuid) {
+      showToast.error('Event UUID is required. Please select an event first.')
+      return false
+    }
+    if (!trimmedSubject) {
+      showToast.error('Subject is required.')
+      return false
+    }
+    if (!trimmedMessage || trimmedMessage === '<p><br></p>') {
+      showToast.error('Message is required.')
+      return false
+    }
 
     let newlyUploaded: typeof uploadedAttachments = []
     if (pendingAttachments.length > 0) {
@@ -309,7 +324,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
         } catch {
           showToast.error(`Failed to upload "${att.name}". Please try again.`)
           setIsSavingAttachments(false)
-          return
+          return false
         }
       }
       setUploadedAttachments(prev => [...prev, ...newlyUploaded])
@@ -317,21 +332,20 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       setIsSavingAttachments(false)
     }
 
-    if (createdEvent?.uuid && subject.trim() && current.trim() && current !== '<p><br></p>') {
-      const allAttachmentUuids = [...attachmentUuids, ...newlyUploaded.map(a => a.uuid)]
-      try {
-        const draft = await sendCommunication({
-          event_uuid: createdEvent.uuid,
-          ...(broadcastTitle ? { title: broadcastTitle } : {}),
-          channel: type === 'email' ? 'email' : 'notification',
-          subject: subject.trim(),
-          message: current.trim(),
-          attachment_uuids: allAttachmentUuids,
-        })
-        setDraftCommunicationId(draft.id)
-      } catch {
-        // draft save failed — toast shown by service; continue with local save
-      }
+    const allAttachmentUuids = [...attachmentUuids, ...newlyUploaded.map(a => a.uuid)]
+    try {
+      const draft = await sendCommunication({
+        event_uuid: createdEvent.uuid,
+        ...(broadcastTitle ? { title: broadcastTitle } : {}),
+        channel: type === 'email' ? 'email' : 'notification',
+        subject: trimmedSubject,
+        message: trimmedMessage,
+        attachment_uuids: allAttachmentUuids,
+      })
+      setDraftCommunicationId(draft.id)
+    } catch {
+      // draft save failed — service shows toast
+      return false
     }
 
     setSavedMessage(current)
@@ -838,7 +852,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                   type="button"
                   className="w-full rounded-md border border-primary bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                   onClick={async () => {
-                    await handleSave()
+                    const saved = await handleSave()
+                    if (!saved) return
                     setShowUnsavedMessageModal(false)
                     if (pendingTab) setActiveTab(pendingTab)
                     setPendingTab(null)
