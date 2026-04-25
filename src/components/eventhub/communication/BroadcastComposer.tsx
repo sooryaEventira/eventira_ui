@@ -26,8 +26,11 @@ import { showToast } from '../../../utils/toast'
 
 interface BroadcastComposerProps {
   onCancel: () => void
+  onDiscard?: () => void
   onSave: (data: { subject: string; message: string; templateType?: string }) => void
   onSend?: (data: { subject: string; message: string; communicationId?: number }) => void | Promise<void>
+  onDirtyChange?: (dirty: boolean) => void
+  registerSaveHandler?: (handler: (() => Promise<boolean>) | null) => void
   macros?: Macro[]
   initialSubject?: string
   initialMessage?: string
@@ -60,8 +63,11 @@ const quillFormats = [
 
 const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   onCancel,
+  onDiscard,
   onSave,
   onSend,
+  onDirtyChange,
+  registerSaveHandler,
   macros = [],
   initialSubject = '',
   initialMessage = '',
@@ -355,17 +361,55 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     return true
   }
 
+  const normalizeEditorHtml = (value: string) => {
+    const trimmed = value.trim()
+    if (!trimmed) return ''
+    const plain = trimmed
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/\s+/g, '')
+      .trim()
+    if (!plain) return ''
+    return trimmed
+  }
+
+  const getCurrentEditorHtml = () => {
+    const quill = quillRef.current?.getEditor()
+    const liveHtml = quill?.root?.innerHTML ?? editorContentRef.current
+    const normalized = normalizeEditorHtml(liveHtml || '')
+    editorContentRef.current = normalized
+    return normalized
+  }
+
   const hasUnsavedMessageChanges =
     isEditing &&
     (
       subject.trim() !== savedSubject.trim() ||
-      editorContentRef.current.trim() !== savedMessage.trim() ||
+      normalizeEditorHtml(editorContentRef.current) !== normalizeEditorHtml(savedMessage) ||
       pendingAttachments.length > 0
     )
 
+  useEffect(() => {
+    onDirtyChange?.(hasUnsavedMessageChanges)
+  }, [hasUnsavedMessageChanges, onDirtyChange])
+
+  useEffect(() => {
+    registerSaveHandler?.(handleSave)
+    return () => {
+      registerSaveHandler?.(null)
+    }
+  }, [registerSaveHandler, handleSave])
+
   const handleTabSwitch = (nextTab: 'late-message' | 'settings') => {
     if (nextTab === activeTab) return
-    if (activeTab === 'late-message' && nextTab === 'settings' && hasUnsavedMessageChanges) {
+    const liveHasUnsavedChanges =
+      isEditing &&
+      (
+        subject.trim() !== savedSubject.trim() ||
+        getCurrentEditorHtml() !== normalizeEditorHtml(savedMessage) ||
+        pendingAttachments.length > 0
+      )
+    if (activeTab === 'late-message' && nextTab === 'settings' && liveHasUnsavedChanges) {
       setPendingTab(nextTab)
       setShowUnsavedMessageModal(true)
       return
@@ -627,12 +671,12 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                       onChange={(e) => setMatchLogic(e.target.value as 'ANY' | 'ALL')}
                       className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm font-medium text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                     >
-                      <option value="ANY">ANY</option>
+                      {/* <option value="ANY">ANY</option> */}
                       <option value="ALL">ALL</option>
                     </select>
                     <span>of the following filters</span>
                   </div>
-                  <div className="text-sm font-medium text-primary self-end sm:self-auto">400/500</div>
+                  {/* <div className="text-sm font-medium text-primary self-end sm:self-auto">400/500</div> */}
                 </div>
 
                 <div className="space-y-3">
@@ -649,7 +693,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                         }}
                         className="min-w-[140px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
-                        <option value="Message status">Message status</option>
+                        {/* <option value="Message status">Message status</option> */}
                         <option value="Group">Group</option>
                       </select>
 
@@ -663,7 +707,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                         className="w-[80px] rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         <option value="is">is</option>
-                        <option value="is not">is not</option>
+                        {/* <option value="is not">is not</option> */}
                       </select>
 
                       <select
@@ -842,11 +886,15 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                   className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   onClick={() => {
                     setShowUnsavedMessageModal(false)
-                    if (pendingTab) setActiveTab(pendingTab)
                     setPendingTab(null)
+                    if (onDiscard) {
+                      onDiscard()
+                    } else {
+                      onCancel()
+                    }
                   }}
                 >
-                  Continue without saving
+                  Discard changes
                 </button>
                 <button
                   type="button"

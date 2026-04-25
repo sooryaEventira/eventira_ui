@@ -16,6 +16,7 @@ interface PushNotificationMakerPageProps {
   initialTitle?: string
   initialMessage?: string
   onCancel: () => void
+  onDiscard?: () => void
   onSave: (data: { title: string; message: string; tapBehaviour: string; tapTarget: string }) => void
   onSend?: (data: { title: string; message: string; communicationId?: number }) => void | Promise<void>
 }
@@ -35,6 +36,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
   initialTitle = '',
   initialMessage = '',
   onCancel,
+  onDiscard,
   onSave,
   onSend
 }) => {
@@ -626,16 +628,20 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
                 </p>
               </div>
               <div className="mt-3 grid w-full grid-cols-2 gap-2">
-                <button
+              <button
                   type="button"
                   className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   onClick={() => {
                     setShowUnsavedMessageModal(false)
-                    if (pendingTab) setActiveTab(pendingTab)
                     setPendingTab(null)
+                    if (onDiscard) {
+                      onDiscard()
+                    } else {
+                      onCancel()
+                    }
                   }}
                 >
-                  Continue without saving
+                  Discard changes
                 </button>
                 <button
                   type="button"

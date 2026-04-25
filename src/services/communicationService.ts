@@ -49,6 +49,7 @@ export interface CommunicationRecipientFilter {
 export interface CommunicationData {
   id: number
   event_uuid: string
+  title?: string
   subject?: string
   message?: string
   channel: 'email' | 'notification'

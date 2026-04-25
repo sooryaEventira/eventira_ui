@@ -71,21 +71,27 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     ]
   }, [])
 
+  const runOrConfirmExit = (action: () => void) => {
+    if (showComposer && composerHasUnsavedChanges) {
+      pendingExitActionRef.current = action
+      setShowUnsavedExitModal(true)
+      return
+    }
+    action()
+  }
+
   const handleSidebarItemClick = (itemId: string) => {
     console.log('Sidebar item clicked:', itemId)
     
     // If clicking on event-hub, navigate back to event hub page
     if (itemId === 'event-hub' && onBackClick) {
-      onBackClick()
+      runOrConfirmExit(() => onBackClick())
       return
     }
     
-    // If clicking on a different card, navigate to it
-    if (itemId !== 'communications') {
-      const isCardId = defaultCards.some((card) => card.id === itemId)
-      if (isCardId && onCardClick) {
-        onCardClick(itemId)
-      }
+    // For all other sidebar destinations, route through card navigation callback.
+    if (itemId !== 'communications' && onCardClick) {
+      runOrConfirmExit(() => onCardClick(itemId))
     }
   }
 
@@ -172,10 +178,12 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
                 const label = f.type === 'message_status'
                   ? prettyValue.charAt(0).toUpperCase() + prettyValue.slice(1)
                   : resolvedGroupName
+                const variant: 'primary' | 'secondary' =
+                  f.type === 'message_status' ? 'secondary' : 'primary'
                 return {
                   id: `filter-${commId}-${idx}`,
                   name: label,
-                  variant: (f.type === 'message_status' ? 'secondary' : 'primary') as const
+                  variant
                 }
               })
 
@@ -239,6 +247,10 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   const [initialComposerSubject, setInitialComposerSubject] = React.useState<string>('')
   const [initialComposerMessage, setInitialComposerMessage] = React.useState<string>('')
   const [currentDraftId, setCurrentDraftId] = React.useState<string | null>(null)
+  const [composerHasUnsavedChanges, setComposerHasUnsavedChanges] = React.useState(false)
+  const [showUnsavedExitModal, setShowUnsavedExitModal] = React.useState(false)
+  const pendingExitActionRef = React.useRef<(() => void) | null>(null)
+  const composerSaveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null)
 
   const [macros, setMacros] = React.useState<Macro[]>([
     {
@@ -308,6 +320,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     setInitialComposerSubject('')
     setInitialComposerMessage('')
     setCurrentDraftId(null)
+    setComposerHasUnsavedChanges(false)
     loadCommunications()
   }
 
@@ -369,7 +382,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
             eventName={eventName}
             isDraft={isDraft}
             eventStatus={eventStatus}
-            onBackClick={onBackClick}
+            onBackClick={onBackClick ? () => runOrConfirmExit(() => onBackClick()) : undefined}
             onSearchClick={handleSearchClick}
             onNotificationClick={handleNotificationClick}
             onProfileClick={handleProfileClick}
@@ -421,8 +434,13 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
             />
           ) : (
             <BroadcastComposer
-              onCancel={handleComposerCancel}
+              onCancel={() => runOrConfirmExit(handleComposerCancel)}
+              onDiscard={handleComposerCancel}
               onSave={handleComposerSave}
+              onDirtyChange={setComposerHasUnsavedChanges}
+              registerSaveHandler={(handler) => {
+                composerSaveHandlerRef.current = handler
+              }}
               onSend={async (data) => {
                 const sentId = data.communicationId != null ? String(data.communicationId) : null
                 if (sentId) {
@@ -450,6 +468,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
                 setShowComposer(false)
                 setSelectedBroadcastType(null)
                 setCurrentDraftId(null)
+                setComposerHasUnsavedChanges(false)
               }}
               macros={macros}
               templateType="late-message"
@@ -491,6 +510,53 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         onClose={() => setIsCreateMacroModalOpen(false)}
         onConfirm={handleCreateMacroConfirm}
       />
+      {showUnsavedExitModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="flex flex-col items-center text-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
+                <InfoCircle className="h-6 w-6 text-amber-500" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">You have unsaved message changes</h3>
+                <p className="mt-1.5 text-sm text-slate-600">
+                  Save your message before leaving this page?
+                </p>
+              </div>
+              <div className="mt-3 grid w-full grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    setShowUnsavedExitModal(false)
+                    const action = pendingExitActionRef.current
+                    pendingExitActionRef.current = null
+                    action?.()
+                  }}
+                >
+                  Continue without saving
+                </button>
+                <button
+                  type="button"
+                  className="w-full rounded-md border border-primary bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
+                  onClick={async () => {
+                    const save = composerSaveHandlerRef.current
+                    if (!save) return
+                    const ok = await save()
+                    if (!ok) return
+                    setShowUnsavedExitModal(false)
+                    const action = pendingExitActionRef.current
+                    pendingExitActionRef.current = null
+                    action?.()
+                  }}
+                >
+                  Save changes
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
