@@ -130,6 +130,10 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [filterTagId, setFilterTagId] = useState<string | undefined>(undefined)
   const [ordering, setOrdering] = useState<string>('name')
+  const normalizeOrdering = (ord?: string) => {
+    const allowed = new Set(['name', '-name', 'designation', '-designation'])
+    return ord && allowed.has(ord) ? ord : 'name'
+  }
 
   // ---------- Modals ----------
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
@@ -182,11 +186,13 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     try {
       const result = query
         ? await searchParticipants(eventUuid, query, tagId)
-        : await fetchParticipants(eventUuid, page, tagId, ord)
+        : await fetchParticipants(eventUuid, page, tagId, normalizeOrdering(ord))
       setTotalCount(result.count)
       setParticipants(result.data.map(mapParticipantToAttendee))
+      return result
     } catch (err) {
       console.error('Failed to load participants:', err)
+      return null
     } finally {
       setIsLoadingParticipants(false)
     }
@@ -227,25 +233,26 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   // ---------- Handlers ----------
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
-    loadParticipants(page, searchQuery, filterTagId, ordering)
+    loadParticipants(page, searchQuery, filterTagId, normalizeOrdering(ordering))
   }
 
   const handleFilterTagChange = (tagId: string | undefined) => {
     setFilterTagId(tagId)
     setCurrentPage(1)
-    loadParticipants(1, searchQuery, tagId, ordering)
+    loadParticipants(1, searchQuery, tagId, normalizeOrdering(ordering))
   }
 
   const handleSearchChange = (query: string) => {
     setSearchQuery(query)
     setCurrentPage(1)
-    loadParticipants(1, query, filterTagId, ordering)
+    loadParticipants(1, query, filterTagId, normalizeOrdering(ordering))
   }
 
   const handleSortChange = (ord: string) => {
-    setOrdering(ord)
+    const nextOrdering = normalizeOrdering(ord)
+    setOrdering(nextOrdering)
     setCurrentPage(1)
-    loadParticipants(1, searchQuery, filterTagId, ord)
+    loadParticipants(1, searchQuery, filterTagId, nextOrdering)
   }
 
   const handleUploadFiles = async (files: File[]) => {
@@ -306,14 +313,24 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
 
   const handleDeleteParticipant = async (id: string) => {
     await deleteParticipant(id, eventUuid)
-    setParticipants((prev) => prev.filter((p) => p.id !== id))
+    const result = await loadParticipants(currentPage, searchQuery, filterTagId, normalizeOrdering(ordering))
+    if (currentPage > 1 && result && result.data.length === 0) {
+      const previousPage = currentPage - 1
+      setCurrentPage(previousPage)
+      await loadParticipants(previousPage, searchQuery, filterTagId, normalizeOrdering(ordering))
+    }
     if (selectedParticipant?.id === id) { setSelectedParticipant(null); setIsSlideoutOpen(false) }
   }
 
   const handleBulkDelete = async (ids: string[]) => {
     if (!eventUuid || !ids.length) return
     await bulkDeleteParticipants(eventUuid, ids)
-    setParticipants((prev) => prev.filter((p) => !ids.includes(p.id)))
+    const result = await loadParticipants(currentPage, searchQuery, filterTagId, normalizeOrdering(ordering))
+    if (currentPage > 1 && result && result.data.length === 0) {
+      const previousPage = currentPage - 1
+      setCurrentPage(previousPage)
+      await loadParticipants(previousPage, searchQuery, filterTagId, normalizeOrdering(ordering))
+    }
     setIsSlideoutOpen(false)
   }
 

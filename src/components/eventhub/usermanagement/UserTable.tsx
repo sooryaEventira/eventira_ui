@@ -326,6 +326,14 @@ const UserTable: React.FC<UserTableProps> = ({
       <div className="flex items-center gap-2">
         {selectedUserIds.size > 0 ? (
           <>
+            <button
+              type="button"
+              onClick={onDownload}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 transition hover:border-primary/40 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Download"
+            >
+              <Download01 className="h-4 w-4" strokeWidth={2} />
+            </button>
             <div className="relative" ref={addToGroupRef}>
               <button
                 type="button"
@@ -473,7 +481,8 @@ const UserTable: React.FC<UserTableProps> = ({
       setSortDescriptor(descriptor)
       setCurrentPage(1)
       if (serverSidePagination && onServerSortChange) {
-        const field = SORT_FIELD_MAP[String(descriptor.column)] ?? String(descriptor.column)
+        const field = SORT_FIELD_MAP[String(descriptor.column)]
+        if (!field) return
         onServerSortChange(descriptor.direction === 'descending' ? `-${field}` : field)
       }
     },
@@ -546,19 +555,10 @@ const UserTable: React.FC<UserTableProps> = ({
             <span>
               All{' '}
               <span className="font-semibold text-primary">
-                {allPagesSelected ? (serverSidePagination?.totalCount ?? users.length) : selectedUserIds.size}
+                {selectedUserIds.size}
               </span>{' '}
-              {allPagesSelected ? 'users' : 'rows'} selected
+              rows selected from {serverSidePagination?.totalCount ?? users.length}
             </span>
-            {!allPagesSelected && serverSidePagination && serverSidePagination.totalCount > selectedUserIds.size && (
-              <button
-                type="button"
-                onClick={() => { setAllPagesSelected(true); setSelectedUserIds(new Set(visibleUserIdsOnPage)) }}
-                className="font-medium text-primary underline underline-offset-2 hover:text-primary/80"
-              >
-                Select all {serverSidePagination.totalCount}
-              </button>
-            )}
             <button
               type="button"
               onClick={() => { setAllPagesSelected(false); setSelectedUserIds(new Set()) }}

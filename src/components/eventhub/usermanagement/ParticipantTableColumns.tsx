@@ -225,13 +225,7 @@ export const useParticipantTableColumns = ({
       {
         id: 'groups',
         header: 'Group',
-        sortable: true,
-        sortAccessor: ({ participant }) => {
-          if (participant?.tags && participant.tags.length > 0) {
-            return Array.isArray(participant.tags) ? participant.tags.join(' ') : participant.tags
-          }
-          return participant?.groups.map((g) => g.name).join(' ') || ''
-        },
+        sortable: false,
         render: ({ participant }) => {
           if (!participant) return null
 

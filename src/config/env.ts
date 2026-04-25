@@ -386,8 +386,9 @@ export const API_ENDPOINTS = {
   // Unified User/Participant Management endpoints (combines speakers + attendees)
   PARTICIPANT_MANAGEMENT: {
     UPLOAD: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/upload-excel/?event_id=${eventUuid}`,
-    LIST: (eventUuid: string, page = 1, tagId?: string, ordering?: string, pageSize?: number, role?: string) => {
-      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/?event_id=${eventUuid}&page=${page}`
+    LIST: (eventUuid: string, page?: number, tagId?: string, ordering?: string, pageSize?: number, role?: string) => {
+      let url = `${env.AUTH_API_URL}${ADMIN_API_BASE}participants/?event_id=${eventUuid}`
+      if (typeof page === 'number') url += `&page=${page}`
       if (pageSize) url += `&page_size=${pageSize}`
       if (tagId) url += `&tag_id=${tagId}`
       if (ordering) url += `&ordering=${ordering}`

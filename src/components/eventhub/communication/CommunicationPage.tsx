@@ -181,7 +181,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
 
         return {
           id: commId,
-          title: commData.subject || 'Untitled',
+          title: commData.title || commData.subject || 'Untitled',
           userGroups,
           status,
           type,

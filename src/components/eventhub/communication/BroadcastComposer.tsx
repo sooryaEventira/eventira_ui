@@ -44,19 +44,17 @@ const MESSAGE_STATUS_OPTIONS = [
 ]
 
 const TOOLBAR_CONTAINER = [
-  [{ font: [] }],
   ['bold', 'italic', 'underline'],
-  [{ color: [] }, { background: [] }],
-  [{ align: [] }],
+  [{ background: [] }],
   [{ list: 'ordered' }, { list: 'bullet' }],
   ['link', 'image'],
   ['clean'],
 ]
 
 const quillFormats = [
-  'font', 'bold', 'italic', 'underline',
-  'color', 'background',
-  'align', 'list',
+  'bold', 'italic', 'underline',
+  'background',
+  'list',
   'link', 'image'
 ]
 
@@ -81,6 +79,9 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   const [showMacroDropdown, setShowMacroDropdown] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
+  const [showLinkModal, setShowLinkModal] = useState(false)
+  const [linkText, setLinkText] = useState('')
+  const [linkUrl, setLinkUrl] = useState('')
   const [isPreparingPreview, setIsPreparingPreview] = useState(false)
   const [showUnsavedMessageModal, setShowUnsavedMessageModal] = useState(false)
   const [pendingTab, setPendingTab] = useState<'late-message' | 'settings' | null>(null)
@@ -103,6 +104,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   const quillRef = useRef<ReactQuill>(null)
   const macroDropdownRef = useRef<HTMLDivElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const pendingLinkRangeRef = useRef<{ index: number; length: number } | null>(null)
 
   // Build modules once. Handlers close over refs (always current) so useMemo
   // with empty deps is safe — no stale captures.
@@ -110,15 +112,15 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     toolbar: {
       container: TOOLBAR_CONTAINER,
       handlers: {
-        color(value: string) {
+        link() {
           const editor = quillRef.current?.getEditor()
           if (!editor) return
           const range = editor.getSelection(true)
-          if (range && range.length > 0) {
-            editor.formatText(range.index, range.length, 'color', value || false, 'user')
-          } else {
-            editor.format('color', value || false, 'user')
-          }
+          pendingLinkRangeRef.current = range ? { index: range.index, length: range.length } : null
+          const selectedText = range && range.length > 0 ? editor.getText(range.index, range.length).trim() : ''
+          setLinkText(selectedText)
+          setLinkUrl('')
+          setShowLinkModal(true)
         },
         image() {
           imageInputRef.current?.click()
@@ -258,6 +260,40 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     quill.setSelection(range.index + macroText.length, 0)
     setSelectedMacro('')
     setShowMacroDropdown(false)
+  }
+
+  const handleCloseLinkModal = () => {
+    setShowLinkModal(false)
+    setLinkText('')
+    setLinkUrl('')
+    pendingLinkRangeRef.current = null
+  }
+
+  const normalizeUrl = (rawUrl: string) => {
+    if (/^(https?:\/\/|mailto:|tel:)/i.test(rawUrl)) return rawUrl
+    return `https://${rawUrl}`
+  }
+
+  const handleInsertLink = () => {
+    const quill = quillRef.current?.getEditor()
+    const text = linkText.trim()
+    const rawUrl = linkUrl.trim()
+    if (!quill || !text || !rawUrl) return
+
+    const href = normalizeUrl(rawUrl)
+    const range = pendingLinkRangeRef.current ?? quill.getSelection(true)
+    const insertIndex = range ? range.index : quill.getLength()
+    const replaceLength = range ? range.length : 0
+
+    if (replaceLength > 0) {
+      quill.deleteText(insertIndex, replaceLength, 'user')
+    }
+
+    quill.insertText(insertIndex, text, 'user')
+    quill.formatText(insertIndex, text.length, 'link', href, 'user')
+    quill.setSelection(insertIndex + text.length, 0, 'user')
+    editorContentRef.current = quill.root.innerHTML
+    handleCloseLinkModal()
   }
 
   const handleSave = async () => {
@@ -725,6 +761,53 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
           setShowScheduleModal(false)
         }}
       />
+
+      {showLinkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="mx-4 w-full max-w-md rounded-xl bg-white p-5 shadow-xl">
+            <h3 className="text-base font-semibold text-slate-900">Insert link</h3>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Text to display</label>
+                <input
+                  type="text"
+                  value={linkText}
+                  onChange={(e) => setLinkText(e.target.value)}
+                  placeholder="Enter link text"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Link URL</label>
+                <input
+                  type="text"
+                  value={linkUrl}
+                  onChange={(e) => setLinkUrl(e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={handleCloseLinkModal}
+                className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleInsertLink}
+                disabled={!linkText.trim() || !linkUrl.trim()}
+                className="rounded-md border border-primary bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Insert
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showUnsavedMessageModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
