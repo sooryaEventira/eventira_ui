@@ -4,7 +4,7 @@ import MobileView from '../../../assets/images/mobile_view.png'
 import EventiraLogo from '../../../assets/images/Logo.png'
 import { AlertCircle, ArrowLeft, ChevronDown, Plus, XClose } from '@untitled-ui/icons-react'
 import type { Macro } from './communicationTypes'
-import { fetchUserTags, sendCommunication, sendCommunicationById } from '../../../services/communicationService'
+import { fetchUserTags, sendCommunication, sendCommunicationById, updateCommunicationRecipients } from '../../../services/communicationService'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import BroadcastPreviewModal from './BroadcastPreviewModal'
 import { ScheduleBroadcastModal } from './ScheduleBroadcastModal'
@@ -46,6 +46,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
   const [savedBody, setSavedBody] = useState(initialMessage)
   const [isSaving, setIsSaving] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [isPreparingPreview, setIsPreparingPreview] = useState(false)
   const [showPreviewModal, setShowPreviewModal] = useState(false)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [showUnsavedMessageModal, setShowUnsavedMessageModal] = useState(false)
@@ -58,6 +59,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
 
   const [tapBehaviour, setTapBehaviour] = useState<'open-session' | 'open-speaker-profile' | 'open-event-page' | 'external-link'>('open-session')
   const [tapTarget, setTapTarget] = useState('')
+  const currentEventName = (createdEvent?.eventName || '').trim()
 
   const titleRemaining = Math.max(TITLE_LIMIT - title.length, 0)
   const bodyPlain = useMemo(() => String(body || '').replace(/\s+/g, ' ').trim(), [body])
@@ -103,6 +105,12 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
     )
   }, [tags])
 
+  useEffect(() => {
+    if (tapBehaviour === 'open-event-page') {
+      setTapTarget(currentEventName)
+    }
+  }, [tapBehaviour, currentEventName])
+
   const buildRecipientFilters = () => {
     const fieldTypeMap: Record<string, 'group' | 'message_status'> = {
       'Group': 'group',
@@ -138,6 +146,31 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
     setMacroOpen(false)
   }
 
+  const buildTapAction = (eventUuid: string) => {
+    if (tapBehaviour === 'open-event-page') {
+      return {
+        action_type: 'open_event_page',
+        action_value: eventUuid,
+      }
+    }
+    if (tapBehaviour === 'open-session') {
+      return {
+        action_type: 'open_session',
+        action_value: tapTarget || '',
+      }
+    }
+    if (tapBehaviour === 'open-speaker-profile') {
+      return {
+        action_type: 'open_speaker_profile',
+        action_value: tapTarget || '',
+      }
+    }
+    return {
+      action_type: 'external_link',
+      action_value: tapTarget || '',
+    }
+  }
+
   const handleSave = async () => {
     if (!createdEvent?.uuid) {
       showToast.error('Event UUID is required. Please select an event first.')
@@ -165,9 +198,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
         channel: 'notification',
         subject: title.trim(),
         message: body.trim(),
-        recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
-        recipient_filters: recipientFilters,
-        save_as_draft: true,
+        tap_action: buildTapAction(createdEvent.uuid),
         attachment_uuids: [],
       })
       setDraftCommunicationId(draft.id)
@@ -200,6 +231,27 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
     setActiveTab(nextTab)
   }
 
+  const handleOpenPreview = async () => {
+    if (!createdEvent?.uuid) { showToast.error('Event UUID is required. Please select an event first.'); return }
+    if (!draftCommunicationId) { showToast.error('Please save changes first.'); return }
+
+    const recipientFilters = buildRecipientFilters()
+    if (recipientFilters.length === 0) { showToast.error('Please add at least one filter in the Settings tab.'); return }
+
+    setIsPreparingPreview(true)
+    try {
+      await updateCommunicationRecipients(draftCommunicationId, createdEvent.uuid, {
+        recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
+        recipient_filters: recipientFilters,
+      })
+      setShowPreviewModal(true)
+    } catch {
+      // service shows error
+    } finally {
+      setIsPreparingPreview(false)
+    }
+  }
+
   return (
     <div className="rounded-xl bg-white overflow-hidden">
       <div className="px-6 pt-5 pb-0 flex items-center justify-between gap-3">
@@ -217,8 +269,8 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
         </div>
         {hasSavedDraft && (
           <div className="flex items-center gap-3">
-            <Button type="button" variant="primary" size="md" onClick={() => setShowPreviewModal(true)}>
-              Send
+            <Button type="button" variant="primary" size="md" onClick={handleOpenPreview} disabled={isPreparingPreview}>
+              {isPreparingPreview ? 'Preparing...' : 'Send'}
             </Button>
             <Button type="button" variant="secondary" size="md" onClick={() => setShowScheduleModal(true)}>
               Schedule
@@ -331,9 +383,14 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
                   <select
                     value={tapTarget}
                     onChange={(e) => setTapTarget(e.target.value)}
+                    disabled={tapBehaviour === 'open-event-page'}
                     className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                   >
-                    <option value="">Select session</option>
+                    {tapBehaviour === 'open-event-page' ? (
+                      <option value={currentEventName}>{currentEventName || 'Current event'}</option>
+                    ) : (
+                      <option value="">Select session</option>
+                    )}
                   </select>
                 </div>
               </div>
@@ -518,10 +575,12 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
                 channel: 'notification',
                 subject: title.trim(),
                 message: body.trim(),
+                tap_action: buildTapAction(createdEvent.uuid),
+                attachment_uuids: [],
+              })
+              await updateCommunicationRecipients(draft.id, createdEvent.uuid, {
                 recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
                 recipient_filters: recipientFilters,
-                save_as_draft: true,
-                attachment_uuids: [],
               })
               communicationId = draft.id
               setDraftCommunicationId(draft.id)

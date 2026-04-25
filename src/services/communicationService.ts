@@ -15,9 +15,10 @@ export interface SendCommunicationRequest {
   subject: string
   message: string
   channel: 'email' | 'notification'
-  recipient_match: 'all' | 'any'
-  recipient_filters: RecipientFilter[]
-  save_as_draft?: boolean
+  tap_action?: {
+    action_type: string
+    action_value: string
+  }
   attachment_uuids?: string[]
 }
 
@@ -117,6 +118,16 @@ export const sendCommunication = async (
       throw new Error(errorMessage)
     }
 
+    const requestBody = {
+      event_uuid: request.event_uuid,
+      ...(request.title ? { title: request.title } : {}),
+      channel: request.channel,
+      subject: request.subject.trim(),
+      message: request.message.trim(),
+      ...(request.tap_action ? { tap_action: request.tap_action } : {}),
+      attachment_uuids: request.attachment_uuids ?? [],
+    }
+
     const response = await fetch(API_ENDPOINTS.COMMUNICATION.SEND, {
       method: 'POST',
       headers: {
@@ -125,17 +136,7 @@ export const sendCommunication = async (
         'X-Organization': organizationUuid,
       },
       credentials: 'include',
-      body: JSON.stringify({
-        event_uuid: request.event_uuid,
-        ...(request.title ? { title: request.title } : {}),
-        channel: request.channel,
-        subject: request.subject.trim(),
-        message: request.message.trim(),
-        save_as_draft: request.save_as_draft ?? false,
-        recipient_match: request.recipient_match,
-        recipient_filters: request.recipient_filters,
-        attachment_uuids: request.attachment_uuids ?? [],
-      }),
+      body: JSON.stringify(requestBody),
     })
 
     if (!response || !response.ok) {
@@ -183,14 +184,7 @@ export const sendCommunication = async (
     }
 
     if (data.status === 'success' && data.data) {
-      const isDraftSave = request.save_as_draft === true
-      if (isDraftSave) {
-        showToast.success(data.message || 'Draft saved successfully.')
-      } else {
-        showToast.success(
-          data.message || `Communication sent successfully to ${data.data.total_recipients ?? 0} recipient(s)`
-        )
-      }
+      showToast.success(data.message || 'Draft saved successfully.')
       return data.data
     }
 
@@ -397,7 +391,7 @@ export const fetchCommunications = async (
       const p = payload as Record<string, unknown>
 
       if (p.status === 'error' || p.status === 'failure') {
-        throw new Error(handleApiError(p as ApiResponse, undefined, 'Failed to fetch communications. Please try again.'))
+        throw new Error(handleApiError(p as unknown as ApiResponse, undefined, 'Failed to fetch communications. Please try again.'))
       }
 
       // Plain paginated shape: { results: [...], next: "..." }

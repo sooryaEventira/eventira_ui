@@ -290,9 +290,6 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
           channel: type === 'email' ? 'email' : 'notification',
           subject: subject.trim(),
           message: current.trim(),
-          recipient_match: 'all',
-          recipient_filters: [],
-          save_as_draft: true,
           attachment_uuids: allAttachmentUuids,
         })
         setDraftCommunicationId(draft.id)
@@ -690,10 +687,11 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                 channel: type === 'email' ? 'email' : 'notification',
                 subject: subject.trim(),
                 message: savedMessage.trim(),
+                attachment_uuids: attachmentUuids,
+              })
+              await updateCommunicationRecipients(draft.id, createdEvent.uuid, {
                 recipient_match: matchLogic.toLowerCase() as 'all' | 'any',
                 recipient_filters: recipientFilters,
-                save_as_draft: true,
-                attachment_uuids: attachmentUuids,
               })
               communicationId = draft.id
               setDraftCommunicationId(draft.id)
