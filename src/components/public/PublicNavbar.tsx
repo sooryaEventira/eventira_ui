@@ -256,8 +256,16 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
     if (isRegisteringPush) return
     try {
       setIsRegisteringPush(true)
-      const { isPublicFcmConfigured, getPublicFcmToken, onPublicFcmForegroundMessage } = await import('../../services/publicFcmService')
+      const {
+        isPublicFcmConfigured,
+        getPublicFcmToken,
+        onPublicFcmForegroundMessage,
+        getMissingPublicFcmConfigKeys
+      } = await import('../../services/publicFcmService')
       if (!isPublicFcmConfigured()) {
+        if (import.meta.env.DEV) {
+          console.warn('[FCM] Missing public Firebase env keys:', getMissingPublicFcmConfigKeys())
+        }
         showToast.error('FCM is not configured. Please set Firebase env values.')
         return
       }

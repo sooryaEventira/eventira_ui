@@ -62,3 +62,14 @@ export const onPublicFcmForegroundMessage = async (
 }
 
 export const isPublicFcmConfigured = (): boolean => hasFirebaseConfig()
+
+export const getMissingPublicFcmConfigKeys = (): string[] => {
+  const missing: string[] = []
+  if (!firebaseConfig.apiKey) missing.push('VITE_FIREBASE_API_KEY')
+  if (!firebaseConfig.authDomain) missing.push('VITE_FIREBASE_AUTH_DOMAIN')
+  if (!firebaseConfig.projectId) missing.push('VITE_FIREBASE_PROJECT_ID')
+  if (!firebaseConfig.messagingSenderId) missing.push('VITE_FIREBASE_MESSAGING_SENDER_ID')
+  if (!firebaseConfig.appId) missing.push('VITE_FIREBASE_APP_ID')
+  if (!env.FIREBASE_VAPID_KEY) missing.push('VITE_FIREBASE_VAPID_KEY')
+  return missing
+}
