@@ -109,7 +109,17 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   const eventName = createdEvent?.eventName || eventData?.eventName || propEventName || ''
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
   const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
-  const eventUuid = createdEvent?.uuid || ''
+  const eventUuid =
+    createdEvent?.uuid ||
+    (eventData as { uuid?: string } | null)?.uuid ||
+    (() => {
+      try {
+        const stored = localStorage.getItem('created-event')
+        return stored ? JSON.parse(stored)?.uuid || '' : ''
+      } catch {
+        return ''
+      }
+    })()
 
   // ---------- Tab ----------
   const [activeTab, setActiveTab] = useState<AttendeeTab>('user')
@@ -291,11 +301,18 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
   }
 
   const handleSaveParticipant = async (updated: Participant) => {
+    if (!eventUuid || !updated.id) {
+      showToast.error('Unable to save user details. Missing participant or event id.')
+      return
+    }
     const tagNames = (updated.groups || []).map((g) => g.name || g.id).filter(Boolean)
+    const imageFile = (updated as Participant & { imageFile?: File | null }).imageFile
     await updateParticipant(updated.id, eventUuid, {
       first_name: updated.firstName,
       last_name: updated.lastName,
       email: updated.email,
+      image: imageFile || undefined,
+      avatar_url: imageFile ? undefined : updated.avatarUrl || undefined,
       organisation: updated.organization,
       designation: updated.post || undefined,
       description: updated.description,

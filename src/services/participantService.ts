@@ -31,6 +31,7 @@ export interface ParticipantData {
   email_verified_date?: string
   feedback_incomplete?: boolean
   custom_fields?: Record<string, string>
+  image?: File | string
   [key: string]: any
 }
 
@@ -248,13 +249,44 @@ export const updateParticipant = async (
   eventUuid: string,
   participantData: Partial<ParticipantData>
 ): Promise<ParticipantData> => {
-  const headers = getAuthHeaders()
-  const response = await fetch(API_ENDPOINTS.PARTICIPANT_MANAGEMENT.UPDATE(participantUuid, eventUuid), {
-    method: 'PATCH',
-    headers,
-    credentials: 'include',
-    body: JSON.stringify(participantData),
-  })
+  const hasImageFile = participantData.image instanceof File
+  let response: Response
+  if (hasImageFile) {
+    const headers = getAuthHeadersNoContentType() as Record<string, string>
+    const formData = new FormData()
+    Object.entries(participantData).forEach(([key, value]) => {
+      if (value == null) return
+      if (value instanceof File) {
+        formData.append(key, value)
+        return
+      }
+      if (Array.isArray(value)) {
+        value.forEach((item) => {
+          if (item != null) formData.append(key, String(item))
+        })
+        return
+      }
+      if (typeof value === 'object') {
+        formData.append(key, JSON.stringify(value))
+        return
+      }
+      formData.append(key, String(value))
+    })
+    response = await fetch(API_ENDPOINTS.PARTICIPANT_MANAGEMENT.UPDATE(participantUuid, eventUuid), {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: formData,
+    })
+  } else {
+    const headers = getAuthHeaders()
+    response = await fetch(API_ENDPOINTS.PARTICIPANT_MANAGEMENT.UPDATE(participantUuid, eventUuid), {
+      method: 'PATCH',
+      headers,
+      credentials: 'include',
+      body: JSON.stringify(participantData),
+    })
+  }
   const data = await handleResponse(response, 'Failed to update participant. Please try again.')
   showToast.success('Participant updated successfully')
   return data?.data ?? data

@@ -24,7 +24,6 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
   topOffset = 64,
   eventUuid
 }) => {
-  const [editedParticipant, setEditedParticipant] = useState<Participant | null>(null)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
@@ -35,6 +34,7 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
   const [tagOptions, setTagOptions] = useState<CreatableMultiSelectOption[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const [customFields, setCustomFields] = useState<
     Array<{ id: string; label: string; value: string; hideFromProfile?: boolean }>
@@ -56,7 +56,6 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
 
   useEffect(() => {
     if (attendee && isOpen) {
-      setEditedParticipant(attendee)
       const nameParts = attendee.name.split(' ')
       setFirstName(attendee.firstName || nameParts[0] || '')
       setLastName(attendee.lastName || nameParts.slice(1).join(' ') || '')
@@ -66,6 +65,7 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
       setDescription(attendee.description || (attendee as any).bio || '')
       setSelectedGroups((attendee.groups || []).map((g: ParticipantGroup) => ({ value: g.id, label: g.name })))
       setAvatarUrl(attendee.avatarUrl || null)
+      setAvatarFile(null)
       setCustomFields(
         (attendee.customFields || []).map((field: { label: string; value: string }, idx: number) => ({
           id: `${Date.now()}-${idx}`,
@@ -82,6 +82,7 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
     if (!file) return
     const validTypes = ['image/svg+xml', 'image/png', 'image/jpeg', 'image/jpg', 'image/gif']
     if (!validTypes.includes(file.type)) return
+    setAvatarFile(file)
     const reader = new FileReader()
     reader.onloadend = () => setAvatarUrl(reader.result as string)
     reader.readAsDataURL(file)
@@ -89,7 +90,7 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
   }
 
   const handleSave = async () => {
-    if (!editedParticipant || isSaving) return
+    if (!attendee || isSaving) return
     setIsSaving(true)
     const nextGroups: ParticipantGroup[] = selectedGroups.map((g) => ({
       id: g.value,
@@ -101,11 +102,12 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
       .filter((f) => f.label || f.value)
 
     const updated: Participant = {
-      ...editedParticipant,
+      ...attendee,
       firstName,
       lastName,
       name: `${firstName} ${lastName}`.trim(),
       email,
+      avatarUrl: avatarUrl || undefined,
       organization,
       post,
       description,
@@ -115,7 +117,7 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
         : undefined,
     }
     try {
-      await onSave?.(updated)
+      await onSave?.({ ...updated, imageFile: avatarFile } as Participant)
       onClose()
     } finally {
       setIsSaving(false)
