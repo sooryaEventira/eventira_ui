@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Upload01, XClose, Plus, SearchLg, Folder, Send01 } from '@untitled-ui/icons-react'
+import { Upload01, XClose, Plus, SearchLg, Folder} from '@untitled-ui/icons-react'
 import type { SessionSection } from './sessionTypes'
 import { fetchParticipants, type ParticipantData } from '../../../services/participantService'
 import { env } from '../../../config/env'
@@ -593,7 +593,6 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   }
 
   if (section.type === 'text') {
-    const title = String(section.title ?? section.data?.title ?? 'Section').trim()
     const body = String(section.description ?? section.data?.body ?? '').trim()
     return (
       <div className="p-4">

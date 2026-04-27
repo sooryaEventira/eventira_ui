@@ -31,9 +31,9 @@ interface SessionDetailsFormProps {
 
 const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
   draft,
-  tagsInput,
+  tagsInput: _tagsInput,
   onFieldChange,
-  onTagsInputChange,
+  onTagsInputChange: _onTagsInputChange,
   onAddSectionClick,
   sessionTagOptions,
   availableTags = [],

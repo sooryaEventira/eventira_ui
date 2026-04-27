@@ -1,8 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from 'react'
 import type { PublicNavNode } from '../../types/navigation'
 import { renderNavIcon } from '../../utils/navIcons'
-import { Home03, ArrowSquareRight, Bell03, CalendarDate } from '@untitled-ui/icons-react'
-import { MessageTextCircle01 } from '@untitled-ui/icons-react'
+import { Home03, ArrowSquareRight, Bell03, CalendarDate, MessageTextCircle01 } from '@untitled-ui/icons-react'
 import { showToast } from '../../utils/toast'
 import {
   fetchPublicNotifications,
@@ -10,7 +9,6 @@ import {
   registerPublicDeviceToken,
   type PublicNotificationItem,
 } from '../../services/publicNotificationService'
-import { getPublicFcmToken, isPublicFcmConfigured, onPublicFcmForegroundMessage } from '../../services/publicFcmService'
 
 /** Sidebar width (Tailwind w-64 = 16rem). Use pl-64 on main content when using this navbar. */
 export const PUBLIC_NAVBAR_SIDEBAR_WIDTH_CLASS = 'w-64'
@@ -174,27 +172,6 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated])
 
-  useEffect(() => {
-    if (!isAuthenticated) return
-    let unsubscribe: (() => void) | null = null
-    onPublicFcmForegroundMessage(async (payload) => {
-      const incoming = payload?.notification || payload?.data || {}
-      const nextItem: PublicNotificationItem = {
-        id: String(incoming.id ?? incoming.notification_id ?? Date.now()),
-        title: incoming.title,
-        message: incoming.body ?? incoming.message,
-        body: incoming.body,
-        is_read: false,
-        created_at: new Date().toISOString(),
-        ...incoming,
-      }
-      setNotifications((prev) => [nextItem, ...prev])
-    }).then((off) => { unsubscribe = off })
-    return () => {
-      if (unsubscribe) unsubscribe()
-    }
-  }, [isAuthenticated])
-
   const ChevronDown = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="m6 9 6 6 6-6" />
@@ -277,12 +254,13 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
 
   const handleEnablePush = async () => {
     if (isRegisteringPush) return
-    if (!isPublicFcmConfigured()) {
-      showToast.error('FCM is not configured. Please set Firebase env values.')
-      return
-    }
     try {
       setIsRegisteringPush(true)
+      const { isPublicFcmConfigured, getPublicFcmToken, onPublicFcmForegroundMessage } = await import('../../services/publicFcmService')
+      if (!isPublicFcmConfigured()) {
+        showToast.error('FCM is not configured. Please set Firebase env values.')
+        return
+      }
       const token = await getPublicFcmToken()
       if (!token) {
         showToast.error('Notification permission is blocked or unavailable.')
@@ -290,6 +268,19 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
       }
       await registerPublicDeviceToken(token)
       localStorage.setItem('pub_notifications_enabled', 'true')
+      onPublicFcmForegroundMessage((payload) => {
+        const incoming = payload?.notification || payload?.data || {}
+        const nextItem: PublicNotificationItem = {
+          id: String(incoming.id ?? incoming.notification_id ?? Date.now()),
+          title: incoming.title,
+          message: incoming.body ?? incoming.message,
+          body: incoming.body,
+          is_read: false,
+          created_at: new Date().toISOString(),
+          ...incoming,
+        }
+        setNotifications((prev) => [nextItem, ...prev])
+      }).catch(() => {})
       showToast.success('Push notifications enabled.')
       await loadNotifications()
     } catch (error) {
