@@ -15,6 +15,7 @@ interface HeaderSelectAll {
 
 interface ParticipantTableColumnsProps {
   selectedParticipantIds: Set<string>
+  allPagesSelected?: boolean
   onToggleRow: (id: string, checked: boolean) => void
   headerSelectAll?: HeaderSelectAll
   onEditParticipant?: (participantId: string) => void
@@ -117,6 +118,7 @@ function GroupBadges<T>({
 
 export const useParticipantTableColumns = ({
   selectedParticipantIds,
+  allPagesSelected = false,
   onToggleRow,
   headerSelectAll,
   onEditParticipant,
@@ -149,7 +151,7 @@ export const useParticipantTableColumns = ({
                 type="checkbox"
                 className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/40"
                 aria-label={`Select ${participant.name}`}
-                checked={selectedParticipantIds.has(participant.id)}
+                checked={allPagesSelected || selectedParticipantIds.has(participant.id)}
                 onChange={(event) => {
                   event.stopPropagation()
                   onToggleRow(participant.id, event.target.checked)
@@ -279,6 +281,7 @@ export const useParticipantTableColumns = ({
     ],
     [
       selectedParticipantIds,
+      allPagesSelected,
       onToggleRow,
       headerSelectAll,
       onEditParticipant,

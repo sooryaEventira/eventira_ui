@@ -71,7 +71,8 @@ function mapParticipantToAttendee(p: ParticipantData): Participant {
   }
 
   return {
-    id: p.id || p.uuid || '',
+    // Prefer uuid as stable cross-page identity; numeric id can be page-local in some APIs.
+    id: p.uuid || p.id || '',
     name: p.name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown',
     firstName: p.first_name,
     lastName: p.last_name,
@@ -339,9 +340,37 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     if (selectedParticipant?.id === id) { setSelectedParticipant(null); setIsSlideoutOpen(false) }
   }
 
-  const handleBulkDelete = async (ids: string[]) => {
-    if (!eventUuid || !ids.length) return
-    await bulkDeleteParticipants(eventUuid, ids)
+  const resolveAllFilteredParticipantIds = async (): Promise<string[]> => {
+    if (!eventUuid) return []
+    const collected = new Set<string>()
+    if (searchQuery.trim()) {
+      const result = await searchParticipants(eventUuid, searchQuery, filterTagId)
+      result.data.forEach((p) => {
+        const pid = p.uuid || p.id
+        if (pid) collected.add(pid)
+      })
+      return Array.from(collected)
+    }
+    const pageSize = 100
+    let page = 1
+    let hasMore = true
+    while (hasMore) {
+      const result = await fetchParticipants(eventUuid, page, filterTagId, normalizeOrdering(ordering), pageSize)
+      result.data.forEach((p) => {
+        const pid = p.uuid || p.id
+        if (pid) collected.add(pid)
+      })
+      hasMore = Boolean(result.next)
+      page += 1
+    }
+    return Array.from(collected)
+  }
+
+  const handleBulkDelete = async (ids: string[], selectAll?: boolean) => {
+    if (!eventUuid) return
+    const targetIds = selectAll ? await resolveAllFilteredParticipantIds() : ids
+    if (!targetIds.length) return
+    await bulkDeleteParticipants(eventUuid, targetIds)
     const result = await loadParticipants(currentPage, searchQuery, filterTagId, normalizeOrdering(ordering))
     if (currentPage > 1 && result && result.data.length === 0) {
       const previousPage = currentPage - 1
@@ -351,9 +380,11 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
     setIsSlideoutOpen(false)
   }
 
-  const handleAddToGroup = async (ids: string[], groupId: string) => {
-    if (!eventUuid || !ids.length || !groupId) return
-    await bulkAddParticipantTag(eventUuid, ids, groupId)
+  const handleAddToGroup = async (ids: string[], groupId: string, selectAll?: boolean) => {
+    if (!eventUuid || !groupId) return
+    const targetIds = selectAll ? await resolveAllFilteredParticipantIds() : ids
+    if (!targetIds.length) return
+    await bulkAddParticipantTag(eventUuid, targetIds, groupId)
     await loadParticipants()
   }
 

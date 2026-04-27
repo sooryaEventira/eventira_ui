@@ -128,8 +128,7 @@ export const fetchParticipants = async (
 ): Promise<ParticipantsPageResult> => {
   if (!eventUuid) throw new Error('Event UUID is required.')
   const headers = getAuthHeaders()
-  const pageParam = ordering ? undefined : page
-  const url = API_ENDPOINTS.PARTICIPANT_MANAGEMENT.LIST(eventUuid, pageParam, tagId, ordering, pageSize, role)
+  const url = API_ENDPOINTS.PARTICIPANT_MANAGEMENT.LIST(eventUuid, page, tagId, ordering, pageSize, role)
 
   const response = await fetch(url, { method: 'GET', headers, credentials: 'include' })
   const responseData = await handleResponse(response, 'Failed to load participants. Please try again.')

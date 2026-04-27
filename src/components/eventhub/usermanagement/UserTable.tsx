@@ -25,7 +25,7 @@ interface UserTableProps {
   onEditUser?: (userId: string) => void
   onDeleteUser?: (userId: string) => void
   onBulkDeleteUsers?: (userIds: string[], selectAll?: boolean) => void | Promise<void>
-  onAddToGroup?: (userIds: string[], groupId: string) => void | Promise<void>
+  onAddToGroup?: (userIds: string[], groupId: string, selectAll?: boolean) => void | Promise<void>
   onEditCustomField?: (customFieldId: string) => void
   onDeleteCustomField?: (customFieldId: string) => void
   onDownload?: () => void
@@ -147,12 +147,13 @@ const UserTable: React.FC<UserTableProps> = ({
 
   // ---------- Selection ----------
   const handleToggleUser = useCallback((id: string, checked: boolean) => {
+    if (allPagesSelected && !checked) setAllPagesSelected(false)
     setSelectedUserIds((prev) => {
       const next = new Set(prev)
       checked ? next.add(id) : next.delete(id)
       return next
     })
-  }, [])
+  }, [allPagesSelected])
 
   const handleToggleCustomField = useCallback((id: string, checked: boolean) => {
     setSelectedCustomFieldIds((prev) => {
@@ -246,12 +247,29 @@ const UserTable: React.FC<UserTableProps> = ({
 
   const headerSelectAll = useMemo(() => {
     if (activeTab !== 'user') return undefined
+    if (allPagesSelected) {
+      return {
+        visibleIds: visibleUserIdsOnPage,
+        onToggleAll: (checked: boolean) => {
+          if (!checked) {
+            setAllPagesSelected(false)
+            setSelectedUserIds(new Set())
+          }
+        },
+        allSelected: true,
+        indeterminate: false,
+      }
+    }
     const allSelected = visibleUserIdsOnPage.length > 0 && visibleUserIdsOnPage.every((id) => selectedUserIds.has(id))
     const indeterminate = visibleUserIdsOnPage.some((id) => selectedUserIds.has(id)) && !allSelected
     return {
       visibleIds: visibleUserIdsOnPage,
       onToggleAll: (checked: boolean) => {
-        if (!checked) setAllPagesSelected(false)
+        if (checked && serverSidePagination) {
+          setAllPagesSelected(true)
+        } else {
+          setAllPagesSelected(false)
+        }
         setSelectedUserIds((prev) => {
           const next = new Set(prev)
           visibleUserIdsOnPage.forEach((id) => (checked ? next.add(id) : next.delete(id)))
@@ -261,10 +279,11 @@ const UserTable: React.FC<UserTableProps> = ({
       allSelected,
       indeterminate,
     }
-  }, [activeTab, visibleUserIdsOnPage, selectedUserIds])
+  }, [activeTab, allPagesSelected, visibleUserIdsOnPage, selectedUserIds, serverSidePagination])
 
   const userColumns = useParticipantTableColumns({
     selectedParticipantIds: selectedUserIds,
+    allPagesSelected,
     onToggleRow: handleToggleUser,
     headerSelectAll,
     onEditParticipant: onEditUser,
@@ -352,7 +371,12 @@ const UserTable: React.FC<UserTableProps> = ({
                       <button
                         key={g.id}
                         type="button"
-                        onClick={() => { onAddToGroup?.(Array.from(selectedUserIds), g.id); setAddToGroupOpen(false); setSelectedUserIds(new Set()) }}
+                        onClick={() => {
+                          onAddToGroup?.(allPagesSelected ? [] : Array.from(selectedUserIds), g.id, allPagesSelected)
+                          setAddToGroupOpen(false)
+                          setSelectedUserIds(new Set())
+                          setAllPagesSelected(false)
+                        }}
                         className="w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
                       >
                         {g.name}
@@ -553,12 +577,21 @@ const UserTable: React.FC<UserTableProps> = ({
         subheader={activeTab === 'user' && selectedUserIds.size > 0 ? (
           <div className="flex items-center justify-center gap-2 border-b border-primary/20 bg-primary/5 px-4 py-2 text-sm text-slate-700">
             <span>
-              All{' '}
-              <span className="font-semibold text-primary">
-                {selectedUserIds.size}
-              </span>{' '}
-              rows selected from {serverSidePagination?.totalCount ?? users.length}
+              {allPagesSelected ? (
+                <>All <span className="font-semibold text-primary">{serverSidePagination?.totalCount ?? users.length}</span> users selected</>
+              ) : (
+                <>All <span className="font-semibold text-primary">{selectedUserIds.size}</span> rows selected from {serverSidePagination?.totalCount ?? users.length}</>
+              )}
             </span>
+            {!allPagesSelected && serverSidePagination && selectedUserIds.size < serverSidePagination.totalCount && (
+              <button
+                type="button"
+                onClick={() => setAllPagesSelected(true)}
+                className="font-medium text-primary underline underline-offset-2 hover:text-primary-dark"
+              >
+                Select all {serverSidePagination.totalCount} users
+              </button>
+            )}
             <button
               type="button"
               onClick={() => { setAllPagesSelected(false); setSelectedUserIds(new Set()) }}
