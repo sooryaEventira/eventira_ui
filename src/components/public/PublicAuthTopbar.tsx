@@ -129,10 +129,16 @@ const PublicAuthTopbar: React.FC<PublicAuthTopbarProps> = ({
         getMissingPublicFcmConfigKeys
       } = await import('../../services/publicFcmService')
       if (!isPublicFcmConfigured()) {
+        const missingKeys = getMissingPublicFcmConfigKeys()
+        console.warn('[FCM] Missing public Firebase env keys:', missingKeys)
         if (import.meta.env.DEV) {
-          console.warn('[FCM] Missing public Firebase env keys:', getMissingPublicFcmConfigKeys())
+          console.warn('[FCM] Missing public Firebase env keys:', missingKeys)
         }
-        showToast.error('FCM is not configured. Please set Firebase env values.')
+        showToast.error(
+          missingKeys.length
+            ? `FCM config missing: ${missingKeys.join(', ')}`
+            : 'FCM is not configured. Please set Firebase env values.'
+        )
         return
       }
       const token = await getPublicFcmToken()
