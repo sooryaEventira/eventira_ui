@@ -56,6 +56,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   const [tagOptions, setTagOptions] = useState<CreatableMultiSelectOption[]>([])
   const [locationOptions, setLocationOptions] = useState<CreatableMultiSelectOption[]>([])
   const [isLoadingTags, setIsLoadingTags] = useState(false)
+  const [isLoadingLocations, setIsLoadingLocations] = useState(false)
 
   // Merge availableTags/Locations props into options without overwriting better labels.
   // availableTags may contain UUID strings when the API returns tag UUIDs; loadTags
@@ -132,14 +133,14 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
 
         const items = extractArray(data)
 
-        // Build name→UUID map from API response
-        const nameToUuid: Record<string, string> = {}
+        // Build UUID→name map from API response
+        const uuidToName: Record<string, string> = {}
         const newOptions: CreatableMultiSelectOption[] = []
         for (const tag of items) {
           const name = tag?.name
           if (typeof name !== 'string' || !name.trim()) continue
           const value = tag?.uuid || tag?.id || name.toLowerCase().replace(/\s+/g, '-')
-          nameToUuid[name] = value
+          if (tag?.uuid || tag?.id) uuidToName[String(value)] = name
           newOptions.push({ value, label: name })
         }
 
@@ -157,13 +158,11 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
           return merged
         })
 
-        // Normalize details.tags: replace any name-based entries with their UUID
-        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+        // Normalize details.tags: replace any UUID-backed entries with tag names for user-friendly UI
         setDetails((prev) => ({
           ...prev,
           tags: prev.tags.map((tag) => {
-            if (UUID_RE.test(tag)) return tag          // already a UUID
-            return nameToUuid[tag] ?? tag               // swap name → UUID
+            return uuidToName[tag] ?? tag
           })
         }))
       } catch (e) {
@@ -174,6 +173,85 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
     }
 
     loadTags()
+  }, [isOpen, createdEvent?.uuid, editingScheduleId])
+
+  // Fetch locations for this schedule from API (GET {{admin_url}}schedules/{{schedule_uuid}}/locations/?event_id={{event_uuid}})
+  useEffect(() => {
+    const loadLocations = async () => {
+      if (!isOpen) return
+      const eventUuid = createdEvent?.uuid
+      if (!eventUuid || !editingScheduleId) return
+
+      const accessToken = localStorage.getItem('accessToken')
+      const organizationUuid = localStorage.getItem('organizationUuid')
+      if (!accessToken || !organizationUuid) return
+
+      setIsLoadingLocations(true)
+      try {
+        const url = API_ENDPOINTS.SCHEDULE_LOCATIONS.LIST(editingScheduleId, eventUuid)
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`,
+            'X-Organization': organizationUuid
+          },
+          credentials: 'include'
+        })
+
+        if (!response.ok) {
+          setIsLoadingLocations(false)
+          return
+        }
+
+        const data = await response.json()
+        const extractArray = (payload: any): any[] => {
+          if (!payload) return []
+          if (Array.isArray(payload)) return payload
+          if (payload.status === 'success' && Array.isArray(payload.data)) return payload.data
+          if (payload.status === 'success' && Array.isArray(payload.data?.results)) return payload.data.results
+          if (Array.isArray(payload.results)) return payload.results
+          if (Array.isArray(payload.data?.results)) return payload.data.results
+          if (Array.isArray(payload.data)) return payload.data
+          return []
+        }
+
+        const items = extractArray(data)
+        const uuidToName: Record<string, string> = {}
+        const newOptions: CreatableMultiSelectOption[] = items
+          .map((loc: any) => {
+            const name = String(loc?.name ?? loc?.location ?? loc ?? '').trim()
+            if (!name) return null
+            const value = String(loc?.uuid ?? loc?.id ?? name.toLowerCase().replace(/\s+/g, '-'))
+            if (loc?.uuid || loc?.id) uuidToName[value] = name
+            return { value, label: name }
+          })
+          .filter((opt): opt is CreatableMultiSelectOption => Boolean(opt))
+
+        setLocationOptions((prev) => {
+          const merged = [...prev]
+          for (const opt of newOptions) {
+            const exists = merged.some(
+              (o) => o.label.toLowerCase() === opt.label.toLowerCase() || o.value === opt.value
+            )
+            if (!exists) merged.push(opt)
+          }
+          return merged
+        })
+
+        // Normalize any UUID-backed selections to user-facing location names.
+        setDetails((prev) => ({
+          ...prev,
+          location: prev.location.map((loc) => uuidToName[loc] ?? loc)
+        }))
+      } catch {
+        // keep existing options
+      } finally {
+        setIsLoadingLocations(false)
+      }
+    }
+
+    loadLocations()
   }, [isOpen, createdEvent?.uuid, editingScheduleId])
 
 
@@ -247,8 +325,8 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
   }, [details.location, locationOptions])
 
   const handleTagsChange = (newValue: MultiValue<CreatableMultiSelectOption>, _actionMeta: ActionMeta<CreatableMultiSelectOption>) => {
-    // Store option.value: UUID for API tags, original name for newly created tags
-    const tagValues = Array.from(newValue).map(option => option.value)
+    // Store tag names for display/editing consistency in slideout.
+    const tagValues = Array.from(newValue).map(option => option.label)
     console.log('[Slideout] handleTagsChange called, tagValues:', tagValues)
     handleFieldChange('tags', tagValues)
   }
@@ -316,10 +394,12 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
     }
   }
 
-  const handleCreateLocation = (inputValue: string) => {
+  const handleCreateLocation = async (inputValue: string) => {
+    const locationName = inputValue.trim()
+    if (!locationName) return
     const newLocation: CreatableMultiSelectOption = {
-      value: inputValue.toLowerCase().replace(/\s+/g, '-'),
-      label: inputValue
+      value: locationName.toLowerCase().replace(/\s+/g, '-'),
+      label: locationName
     }
     // Add to options if not already present
     setLocationOptions(prev => {
@@ -327,6 +407,49 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
       if (exists) return prev
       return [...prev, newLocation]
     })
+    // Keep newly created location selected in the form.
+    setDetails((prev) => ({
+      ...prev,
+      location: prev.location.includes(locationName) ? prev.location : [...prev.location, locationName]
+    }))
+
+    // Persist to API only in edit mode (schedule must already exist).
+    const eventUuid = createdEvent?.uuid
+    const accessToken = localStorage.getItem('accessToken')
+    const organizationUuid = localStorage.getItem('organizationUuid')
+    if (!editingScheduleId || !eventUuid || !accessToken || !organizationUuid) return
+
+    try {
+      const response = await fetch(API_ENDPOINTS.SCHEDULE_LOCATIONS.CREATE(editingScheduleId, eventUuid), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid
+        },
+        credentials: 'include',
+        body: JSON.stringify({ name: locationName })
+      })
+
+      if (!response.ok) {
+        // Keep optimistic UI entry; don't block user flow.
+        return
+      }
+
+      const data = await response.json().catch(() => null)
+      const createdName = String(data?.data?.name ?? data?.name ?? locationName)
+      const normalized = createdName.toLowerCase().replace(/\s+/g, '-')
+      setLocationOptions((prev) => {
+        const exists = prev.some((opt) => opt.value === normalized || opt.label === createdName)
+        return exists ? prev : [...prev, { value: normalized, label: createdName }]
+      })
+      setDetails((prev) => ({
+        ...prev,
+        location: prev.location.includes(createdName) ? prev.location : [...prev.location, createdName]
+      }))
+    } catch {
+      // Ignore network issues here; location remains available in UI.
+    }
   }
 
   const handleSave = () => {
@@ -402,6 +525,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
                 value={selectedLocations}
                 onChange={handleLocationsChange}
                 onCreateOption={handleCreateLocation}
+                isDisabled={isLoadingLocations}
               />
             </div>
           </div>

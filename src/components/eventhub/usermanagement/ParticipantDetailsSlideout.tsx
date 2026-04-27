@@ -156,7 +156,7 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
     >
       {/* Banner */}
       <div className="relative h-40 w-full overflow-hidden">
-        <img src={profileBackground} alt="Profile background" className="h-full w-full object-cover" />
+        {/* <img src='' alt="" className="h-full w-full object-cover" /> */}
         <button
           type="button"
           onClick={onClose}
@@ -168,9 +168,9 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
       </div>
 
       {/* Avatar + name */}
-      <div className="relative -mt-20 px-6 pb-4">
+      <div className="relative -mt-32 px-6 pb-4">
         <div className="flex items-center justify-center gap-3">
-          <Badge variant="success" className="text-xs whitespace-nowrap">Active</Badge>
+          {/* <Badge variant="success" className="text-xs whitespace-nowrap">Active</Badge> */}
           <div className="relative">
             <input
               ref={avatarInputRef}

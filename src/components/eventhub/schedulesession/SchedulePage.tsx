@@ -2645,8 +2645,68 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
               const target = savedSchedules.find((s) => s.id === scheduleId)
               if (target) setScheduleToDelete(target)
             }}
-            onEditSchedule={(scheduleId) => {
+            onEditSchedule={async (scheduleId) => {
               const target = savedSchedules.find((item) => item.id === scheduleId)
+              const eventUuid = createdEvent?.uuid
+              const accessToken = localStorage.getItem('accessToken')
+              const organizationUuid = localStorage.getItem('organizationUuid')
+
+              if (eventUuid && accessToken && organizationUuid) {
+                try {
+                  const response = await fetch(
+                    API_ENDPOINTS.SCHEDULES.UPDATE(eventUuid, scheduleId),
+                    {
+                      method: 'GET',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${accessToken}`,
+                        'X-Organization': organizationUuid,
+                      },
+                      credentials: 'include',
+                    }
+                  )
+
+                  if (!response.ok) throw new Error('Failed to retrieve schedule details.')
+                  const payload = await response.json().catch(() => ({}))
+                  const data = payload?.data ?? payload
+
+                  const tagsFromApi = Array.isArray(data?.tag_names) && data.tag_names.length > 0
+                      ? data.tag_names.map(String)
+                    : Array.isArray(data?.tag_uuids) && data.tag_uuids.length > 0
+                      ? data.tag_uuids.map(String)
+                      : Array.isArray(data?.tags)
+                        ? data.tags.map((t: any) => String(t?.name ?? t?.label ?? t?.uuid ?? t?.id ?? t))
+                        : target?.availableTags ?? []
+
+                  const locationsFromApi = Array.isArray(data?.location_names) && data.location_names.length > 0
+                    ? data.location_names.map(String)
+                    : Array.isArray(data?.locations)
+                      ? data.locations.map((loc: any) => String(loc?.name ?? loc?.location ?? loc))
+                      : target?.availableLocations ?? []
+
+                  const descriptionFromApi =
+                    String(
+                      data?.description ??
+                      data?.session?.sections?.[0]?.description ??
+                      target?.session?.sections?.[0]?.description ??
+                      (target as any)?.description ??
+                      ''
+                    )
+
+                  setEditingScheduleId(scheduleId)
+                  setScheduleDetailsInitialDetails({
+                    title: String(data?.name ?? data?.title ?? target?.name ?? ''),
+                    tags: tagsFromApi,
+                    location: locationsFromApi,
+                    description: descriptionFromApi,
+                  })
+                  setIsScheduleDetailsSlideoutOpen(true)
+                  return
+                } catch (err) {
+                  showToast.error(err instanceof Error ? err.message : 'Failed to load schedule details.')
+                }
+              }
+
               if (!target) return
               setEditingScheduleId(scheduleId)
               setScheduleDetailsInitialDetails({
