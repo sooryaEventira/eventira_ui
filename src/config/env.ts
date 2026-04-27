@@ -60,6 +60,14 @@ export const env = {
   COMETCHAT_APP_ID: import.meta.env.VITE_COMETCHAT_APP_ID || '',
   COMETCHAT_REGION: import.meta.env.VITE_COMETCHAT_REGION || '',
   COMETCHAT_AUTH_KEY: import.meta.env.VITE_COMETCHAT_AUTH_KEY || '',
+  FIREBASE_API_KEY: import.meta.env.VITE_FIREBASE_API_KEY || '',
+  FIREBASE_AUTH_DOMAIN: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || '',
+  FIREBASE_PROJECT_ID: import.meta.env.VITE_FIREBASE_PROJECT_ID || '',
+  FIREBASE_STORAGE_BUCKET: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || '',
+  FIREBASE_MESSAGING_SENDER_ID: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '',
+  FIREBASE_APP_ID: import.meta.env.VITE_FIREBASE_APP_ID || '',
+  FIREBASE_MEASUREMENT_ID: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || '',
+  FIREBASE_VAPID_KEY: import.meta.env.VITE_FIREBASE_VAPID_KEY || '',
 }
 
 /**
@@ -246,6 +254,14 @@ export const API_ENDPOINTS = {
     CHAT_ROOM_TOKEN: (roomUuid: string) => `${PUBLIC_API_ROOT}chat/rooms/${roomUuid}/token/`,
     /** Attendee profile. PATCH {{public_url}}events/{eventUuid}/profile/ */
     PROFILE: (eventUuid: string) => `${PUBLIC_API_ROOT}events/${eventUuid}/profile/`,
+    NOTIFICATIONS: {
+      /** Register browser/device token for push notifications. POST {{public_url}}devices/register/ */
+      DEVICE_REGISTER: `${PUBLIC_API_ROOT}devices/register/`,
+      /** List notifications for authenticated user. GET {{public_url}}notifications/ */
+      LIST: `${PUBLIC_API_ROOT}notifications/`,
+      /** Mark all notifications as read for authenticated user. PATCH {{public_url}}notifications/ */
+      READ_ALL: `${PUBLIC_API_ROOT}notifications/`,
+    },
   },
   // User Management endpoints
   ATTENDEE_MANAGEMENT: {

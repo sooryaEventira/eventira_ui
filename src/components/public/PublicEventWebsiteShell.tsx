@@ -21,6 +21,7 @@ import { API_ENDPOINTS } from '../../config/env'
 type PublicSection =
   | 'webpage'
   | 'attendees'
+  | 'messages'
   | 'schedule'
   | 'schedule-sessions'
   | 'sessions'
@@ -92,6 +93,7 @@ const getSectionFromPath = (
 
   if (rest.startsWith('/organizations')) return { section: 'organizations' }
   if (rest.startsWith('/attendees')) return { section: 'attendees' }
+  if (rest === '/messages' || rest === '/messages/') return { section: 'messages' }
   if (rest.startsWith('/schedule')) return { section: 'schedule' }
   if (rest === '/sessions' || rest === '/sessions/') return { section: 'sessions' }
   if (rest === '/profile' || rest === '/profile/') return { section: 'event-profile' }
@@ -113,6 +115,7 @@ const PublicEventPersonalInfoPage = React.lazy(() => import('./PublicEventPerson
 const PublicPrivacySettingsPage = React.lazy(() => import('./PublicPrivacySettingsPage'))
 const PublicYourSchedulePage = React.lazy(() => import('./schedule/PublicYourSchedulePage'))
 const PublicScheduleSessionsPage = React.lazy(() => import('./schedule/PublicScheduleSessionsPage'))
+const PublicMessagesPage = React.lazy(() => import('./PublicMessagesPage'))
 
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
@@ -581,6 +584,13 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
               onNavigate={handleNavigate}
               tagId={current.attendeeTagId}
               participantId={current.participantId}
+            />
+          </React.Suspense>
+        ) : current.section === 'messages' ? (
+          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+            <PublicMessagesPage
+              showTopbar={false}
+              onBack={() => handleNavigate(`/events/${eventUuid}`)}
             />
           </React.Suspense>
         ) : current.section === 'organization' ? (

@@ -123,7 +123,12 @@ const PublicProfilePage: React.FC = () => {
         if (d.email != null) setEmail(String(d.email))
         if (d.designation != null) setPost(String(d.designation))
         if (d.organisation != null) setOrganization(String(d.organisation))
-        if (d.image) setProfilePicture(String(d.image))
+        if (d.image) {
+          const pic = String(d.image)
+          setProfilePicture(pic)
+          localStorage.setItem('pub_profilePicture', pic)
+          window.dispatchEvent(new CustomEvent('pub_profilePicture_changed', { detail: pic }))
+        }
       })
       .catch(() => {/* keep JWT-derived defaults */})
   }, [])
@@ -136,6 +141,7 @@ const PublicProfilePage: React.FC = () => {
       const url = reader.result as string
       setProfilePicture(url)
       localStorage.setItem('pub_profilePicture', url)
+      window.dispatchEvent(new CustomEvent('pub_profilePicture_changed', { detail: url }))
     }
     reader.readAsDataURL(file)
   }

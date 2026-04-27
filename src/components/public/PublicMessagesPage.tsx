@@ -16,6 +16,11 @@ interface ChatRoom {
   created_at: string
 }
 
+interface PublicMessagesPageProps {
+  showTopbar?: boolean
+  onBack?: () => void
+}
+
 function pubHeaders(): Record<string, string> {
   const token = localStorage.getItem('pub_accessToken')
   const headers: Record<string, string> = { 'Content-Type': 'application/json' }
@@ -58,7 +63,10 @@ const Avatar: React.FC<{ name: string; image: string | null; size?: 'sm' | 'md';
   )
 }
 
-const PublicMessagesPage: React.FC = () => {
+const PublicMessagesPage: React.FC<PublicMessagesPageProps> = ({
+  showTopbar = true,
+  onBack,
+}) => {
   const myId = localStorage.getItem('pub_attendeeUuid') ?? localStorage.getItem('pub_userUuid') ?? ''
   const myName = [localStorage.getItem('pub_firstName'), localStorage.getItem('pub_lastName')].filter(Boolean).join(' ') || 'Me'
 
@@ -204,15 +212,25 @@ const PublicMessagesPage: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
-      <PublicAuthTopbar menuTitle="Messages" menuItems={[{ label: 'Back to events', href: '/event-list' }]} />
+    <div className={`flex ${showTopbar ? 'min-h-screen' : 'h-[calc(100vh-4rem)]'} flex-col bg-slate-50`}>
+      {showTopbar && (
+        <PublicAuthTopbar menuTitle="Messages" menuItems={[{ label: 'Back to events', href: '/event-list' }]} />
+      )}
 
       <div className="flex flex-1 overflow-hidden">
         <div className="flex w-full flex-1 flex-col">
           {/* Header */}
           <div className="flex items-center justify-between px-6 py-5">
             <div className="flex items-center gap-3">
-              <button type="button" onClick={() => (window.location.href = '/event-list')} className="flex items-center justify-center text-slate-500 hover:text-slate-700" aria-label="Back">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onBack) onBack()
+                  else window.location.href = '/event-list'
+                }}
+                className="flex items-center justify-center text-slate-500 hover:text-slate-700"
+                aria-label="Back"
+              >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-5 w-5"><path d="m15 18-6-6 6-6" /></svg>
               </button>
               <h1 className="text-xl font-bold text-slate-600">Messages</h1>

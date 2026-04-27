@@ -681,11 +681,24 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
                     </button>
                   )}
                 </div>
-                {s.role && (
-                  <span className="inline-flex items-center justify-center rounded-full border border-primary/30 bg-primary/10 px-4 text-sm font-medium text-primary">
-                    {s.role}
-                  </span>
-                )}
+                <select
+                  id={`speaker-role-select-${section.id}-${s.id}`}
+                  value={s.role || 'Chairman'}
+                  onChange={(e) => {
+                    const nextRole = e.target.value as 'Chairman' | 'Panelist' | 'Speaker'
+                    const next = ((section.data?.speakers || []) as Array<{ id: string; name: string; role?: string }>).map((sp) =>
+                      sp.id === s.id ? { ...sp, role: nextRole } : sp
+                    )
+                    onUpdateSection(section.id, {
+                      data: { ...(section.data || {}), speakers: next, speaker_uuids: next.map((sp) => sp.id) }
+                    })
+                  }}
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="Chairman">Chairman</option>
+                  <option value="Panelist">Panelist</option>
+                  <option value="Speaker">Speaker</option>
+                </select>
               </div>
             ))}
 

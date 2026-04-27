@@ -2,6 +2,15 @@ import React, { useMemo, useState, useRef, useEffect } from 'react'
 import type { PublicNavNode } from '../../types/navigation'
 import { renderNavIcon } from '../../utils/navIcons'
 import { Home03, ArrowSquareRight, Bell03, CalendarDate } from '@untitled-ui/icons-react'
+import { MessageTextCircle01 } from '@untitled-ui/icons-react'
+import { showToast } from '../../utils/toast'
+import {
+  fetchPublicNotifications,
+  readAllPublicNotifications,
+  registerPublicDeviceToken,
+  type PublicNotificationItem,
+} from '../../services/publicNotificationService'
+import { getPublicFcmToken, isPublicFcmConfigured, onPublicFcmForegroundMessage } from '../../services/publicFcmService'
 
 /** Sidebar width (Tailwind w-64 = 16rem). Use pl-64 on main content when using this navbar. */
 export const PUBLIC_NAVBAR_SIDEBAR_WIDTH_CLASS = 'w-64'
@@ -23,6 +32,8 @@ interface PublicNavbarProps {
   exitEventPath?: string
   /** Called when notification icon is clicked. If not provided, icon is hidden. */
   onNotificationClick?: () => void
+  /** Called when chat icon is clicked. Defaults to /messages navigation. */
+  onChatClick?: () => void
   /** Called when profile icon is clicked. If not provided, icon is hidden. */
   onProfileClick?: () => void
   /** Optional profile/avatar image URL for the top bar. */
@@ -40,6 +51,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   homePath: homePathProp,
   exitEventPath = '/',
   onNotificationClick,
+  onChatClick,
   onProfileClick,
   profileImageUrl,
 }) => {
@@ -89,14 +101,31 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
   const resolvedProfileImage = profileImageUrl || storedPicture || null
 
   useEffect(() => {
-    setStoredPicture(localStorage.getItem('pub_profilePicture') ?? '')
+    const refresh = () => setStoredPicture(localStorage.getItem('pub_profilePicture') ?? '')
+    refresh()
+    window.addEventListener('storage', refresh)
+    window.addEventListener('pub_profilePicture_changed', refresh as EventListener)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener('pub_profilePicture_changed', refresh as EventListener)
+    }
   }, [activePath])
 
   const [mobileOpen, setMobileOpen] = useState(false)
   const [openFolderId, setOpenFolderId] = useState<string | null>(null)
   const [mobileExpanded, setMobileExpanded] = useState<Record<string, boolean>>({})
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [notificationOpen, setNotificationOpen] = useState(false)
+  const [notifications, setNotifications] = useState<PublicNotificationItem[]>([])
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false)
+  const [isRegisteringPush, setIsRegisteringPush] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
+  const notificationMenuRef = useRef<HTMLDivElement>(null)
+
+  const unreadCount = useMemo(
+    () => notifications.filter((item) => item.is_read === false).length,
+    [notifications]
+  )
 
   useEffect(() => {
     if (!profileMenuOpen) return
@@ -111,6 +140,60 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [profileMenuOpen])
+
+  useEffect(() => {
+    if (!notificationOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (notificationMenuRef.current && !notificationMenuRef.current.contains(e.target as Node)) {
+        setNotificationOpen(false)
+      }
+    }
+    const t = setTimeout(() => document.addEventListener('mousedown', handleClickOutside), 0)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [notificationOpen])
+
+  const loadNotifications = async () => {
+    if (!isAuthenticated) return
+    setIsLoadingNotifications(true)
+    try {
+      const list = await fetchPublicNotifications()
+      setNotifications(list)
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Failed to load notifications.')
+    } finally {
+      setIsLoadingNotifications(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    loadNotifications()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAuthenticated])
+
+  useEffect(() => {
+    if (!isAuthenticated) return
+    let unsubscribe: (() => void) | null = null
+    onPublicFcmForegroundMessage(async (payload) => {
+      const incoming = payload?.notification || payload?.data || {}
+      const nextItem: PublicNotificationItem = {
+        id: String(incoming.id ?? incoming.notification_id ?? Date.now()),
+        title: incoming.title,
+        message: incoming.body ?? incoming.message,
+        body: incoming.body,
+        is_read: false,
+        created_at: new Date().toISOString(),
+        ...incoming,
+      }
+      setNotifications((prev) => [nextItem, ...prev])
+    }).then((off) => { unsubscribe = off })
+    return () => {
+      if (unsubscribe) unsubscribe()
+    }
+  }, [isAuthenticated])
 
   const ChevronDown = ({ className }: { className?: string }) => (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -166,6 +249,63 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
         <span>My Schedule</span>
       </button>
     )
+  }
+
+  const formatNotificationTime = (value?: string) => {
+    if (!value) return ''
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return ''
+    return date.toLocaleString([], {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    })
+  }
+
+  const handleNotificationClick = async () => {
+    if (!isAuthenticated) {
+      showToast.error('Please login to receive notifications.')
+      return
+    }
+    setNotificationOpen((prev) => !prev)
+    if (!notificationOpen) {
+      await loadNotifications()
+    }
+    onNotificationClick?.()
+  }
+
+  const handleEnablePush = async () => {
+    if (isRegisteringPush) return
+    if (!isPublicFcmConfigured()) {
+      showToast.error('FCM is not configured. Please set Firebase env values.')
+      return
+    }
+    try {
+      setIsRegisteringPush(true)
+      const token = await getPublicFcmToken()
+      if (!token) {
+        showToast.error('Notification permission is blocked or unavailable.')
+        return
+      }
+      await registerPublicDeviceToken(token)
+      localStorage.setItem('pub_notifications_enabled', 'true')
+      showToast.success('Push notifications enabled.')
+      await loadNotifications()
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Failed to enable push notifications.')
+    } finally {
+      setIsRegisteringPush(false)
+    }
+  }
+
+  const handleMarkAllRead = async () => {
+    try {
+      await readAllPublicNotifications()
+      setNotifications((prev) => prev.map((item) => ({ ...item, is_read: true })))
+    } catch (error) {
+      showToast.error(error instanceof Error ? error.message : 'Failed to mark notifications as read.')
+    }
   }
 
   const renderSidebarNode = (node: PublicNavNode) => {
@@ -312,16 +452,96 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
           >
             {mobileOpen ? <X className="h-5 w-5" /> : <Bars className="h-5 w-5" />}
           </button>
-          {onNotificationClick ? (
+          <button
+            type="button"
+            onClick={() => {
+              if (onChatClick) onChatClick()
+              else if (eventUuid) onNavigate(`/events/${eventUuid}/messages`)
+              else window.location.href = '/messages'
+            }}
+            className="hidden h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 md:flex"
+            aria-label="Messages"
+          >
+            <MessageTextCircle01 className="h-5 w-5" />
+          </button>
+          <div ref={notificationMenuRef} className="relative hidden md:block">
             <button
               type="button"
-              onClick={onNotificationClick}
-              className="hidden h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 md:flex"
+              onClick={handleNotificationClick}
+              className="relative flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700"
               aria-label="Notifications"
+              aria-expanded={notificationOpen}
+              aria-haspopup="menu"
             >
               <BellIcon className="h-5 w-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </button>
-          ) : null}
+            {notificationOpen && (
+              <div
+                role="menu"
+                className="absolute right-0 top-full z-[1001] mt-1 w-[360px] rounded-lg border border-slate-200 bg-white shadow-lg"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
+                  <span className="text-sm font-semibold text-slate-800">Notifications</span>
+                  <button
+                    type="button"
+                    onClick={handleMarkAllRead}
+                    className="text-xs font-medium text-primary hover:text-primary-dark"
+                  >
+                    Mark all read
+                  </button>
+                </div>
+                {!localStorage.getItem('pub_notifications_enabled') && (
+                  <div className="border-b border-slate-100 px-3 py-2">
+                    <button
+                      type="button"
+                      onClick={handleEnablePush}
+                      disabled={isRegisteringPush}
+                      className="w-full rounded-md bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary/90 disabled:opacity-60"
+                    >
+                      {isRegisteringPush ? 'Enabling…' : 'Enable push notifications'}
+                    </button>
+                  </div>
+                )}
+                <div className="max-h-[320px] overflow-y-auto">
+                  {isLoadingNotifications ? (
+                    <div className="px-3 py-4 text-sm text-slate-500">Loading notifications…</div>
+                  ) : notifications.length === 0 ? (
+                    <div className="px-3 py-4 text-sm text-slate-500">No notifications yet.</div>
+                  ) : (
+                    notifications.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        className={[
+                          'w-full border-b border-slate-100 px-3 py-2 text-left last:border-b-0 hover:bg-slate-50',
+                          item.is_read === false ? 'bg-primary/5' : 'bg-white'
+                        ].join(' ')}
+                        onClick={() => {
+                          const deepLink = String(item.deep_link ?? item.click_action ?? item.url ?? '').trim()
+                          if (deepLink) onNavigate(deepLink)
+                        }}
+                      >
+                        <p className="text-sm font-semibold text-slate-800">
+                          {item.title || 'Notification'}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          {item.message || item.body || ''}
+                        </p>
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          {formatNotificationTime(item.created_at)}
+                        </p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           <div ref={profileMenuRef} className="relative hidden md:block">
             <button
               type="button"

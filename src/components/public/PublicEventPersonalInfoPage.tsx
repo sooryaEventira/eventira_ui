@@ -91,6 +91,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
         if (resolvedPic) {
           setProfilePicture(resolvedPic)
           localStorage.setItem('pub_profilePicture', resolvedPic)
+          window.dispatchEvent(new CustomEvent('pub_profilePicture_changed', { detail: resolvedPic }))
         }
       })
       .catch(() => {
@@ -207,6 +208,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
                     const dataUrl = reader.result as string
                     setProfilePicture(dataUrl)
                     localStorage.setItem('pub_profilePicture', dataUrl)
+                    window.dispatchEvent(new CustomEvent('pub_profilePicture_changed', { detail: dataUrl }))
                   }
                   reader.readAsDataURL(file)
                 }}

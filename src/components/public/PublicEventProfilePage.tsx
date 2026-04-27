@@ -50,6 +50,7 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
         if (pic) {
           setProfilePicture(pic)
           localStorage.setItem('pub_profilePicture', pic)
+          window.dispatchEvent(new CustomEvent('pub_profilePicture_changed', { detail: pic }))
         }
       })
       .catch(() => {
@@ -65,6 +66,7 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
       const url = reader.result as string
       setProfilePicture(url)
       localStorage.setItem('pub_profilePicture', url)
+      window.dispatchEvent(new CustomEvent('pub_profilePicture_changed', { detail: url }))
     }
     reader.readAsDataURL(file)
   }
