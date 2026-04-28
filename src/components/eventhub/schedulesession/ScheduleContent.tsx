@@ -8,7 +8,7 @@ import ScheduleGrid from './ScheduleGrid'
 import SessionCreationModal from './SessionCreationModal'
 import { SavedSession } from './sessionTypes'
 import sessionTemplate from '../../../assets/excel/Session templates.xlsx?url'
-import { fetchScheduleTags, createScheduleTag, deleteScheduleTag, createScheduleLocation, fetchScheduleLocations, updateScheduleLocation, deleteScheduleLocation, type ScheduleTag, type ScheduleLocation } from '../../../services/scheduleTagService'
+import { fetchScheduleTags, createScheduleTag, updateScheduleTag, deleteScheduleTag, createScheduleLocation, fetchScheduleLocations, updateScheduleLocation, deleteScheduleLocation, type ScheduleTag, type ScheduleLocation } from '../../../services/scheduleTagService'
 import { bulkDeleteSessions, bulkUpdateSessions } from '../../../services/sessionService'
 import { showToast } from '../../../utils/toast'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
@@ -341,6 +341,29 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     return () => { cancelled = true }
   }, [tagsLocationOpen, eventUuid, scheduleUuid])
 
+  // Fetch tags + locations specifically when "Add tags & Location" dropdown opens.
+  // This ensures the dropdown list is always sourced from:
+  // - API_ENDPOINTS.SCHEDULE_TAGS.LIST
+  // - API_ENDPOINTS.SCHEDULE_LOCATIONS.LIST
+  useEffect(() => {
+    if (!addTagsDropdownOpen || !eventUuid || !scheduleUuid) return
+    let cancelled = false
+    Promise.all([
+      fetchScheduleTags(scheduleUuid, eventUuid),
+      fetchScheduleLocations(scheduleUuid, eventUuid),
+    ])
+      .then(([tags, locations]) => {
+        if (cancelled) return
+        setApiTags(tags)
+        setApiLocations(locations)
+      })
+      .catch(() => {
+        if (cancelled) return
+        showToast.error('Failed to load tags or locations.')
+      })
+    return () => { cancelled = true }
+  }, [addTagsDropdownOpen, eventUuid, scheduleUuid])
+
   const handleAddTag = async () => {
     if (!tagLocationModal || !eventUuid || !scheduleUuid) return
     const name = tagLocationModal.name.trim()
@@ -394,6 +417,28 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     }
   }
 
+  const handleEditTag = async () => {
+    if (!tagLocationModal || !eventUuid || !scheduleUuid || !tagLocationModal.uuid) return
+    const newName = tagLocationModal.name.trim()
+    if (!newName) return
+    setIsSavingTag(true)
+    try {
+      const updated = await updateScheduleTag(scheduleUuid, eventUuid, tagLocationModal.uuid, newName)
+      setManageTags((prev) =>
+        prev.map((t) => (t.uuid === tagLocationModal.uuid ? { ...t, name: updated.name ?? newName } : t))
+      )
+      setApiTags((prev) =>
+        prev.map((t) => (t.uuid === tagLocationModal.uuid ? { ...t, name: updated.name ?? newName } : t))
+      )
+      showToast.success('Tag updated.')
+      closeTagLocationModal()
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to update tag.')
+    } finally {
+      setIsSavingTag(false)
+    }
+  }
+
   const handleDeleteLocation = async () => {
     if (!deleteLocationCandidate || !eventUuid || !scheduleUuid) return
     setIsDeletingLocation(true)
@@ -410,10 +455,10 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   }
 
   const handleDeleteTag = async () => {
-    if (!deleteTagCandidate || !eventUuid) return
+    if (!deleteTagCandidate || !eventUuid || !scheduleUuid) return
     setIsDeletingTag(true)
     try {
-      await deleteScheduleTag(deleteTagCandidate.uuid, eventUuid)
+      await deleteScheduleTag(scheduleUuid, deleteTagCandidate.uuid, eventUuid)
       setManageTags((prev) => prev.filter((t) => t.uuid !== deleteTagCandidate.uuid))
       setApiTags((prev) => prev.filter((t) => t.uuid !== deleteTagCandidate.uuid))
       showToast.success('Tag deleted.')
@@ -1225,11 +1270,11 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                         : handleAddLocation
                       : tagLocationModal.type === 'location'
                         ? handleEditLocation
-                        : closeTagLocationModal
+                        : handleEditTag
                   }
                   className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {isSavingTag ? 'Adding…' : tagLocationModal.mode === 'add' ? 'Add' : 'Save'}
+                  {isSavingTag ? 'Saving…' : tagLocationModal.mode === 'add' ? 'Add' : 'Save'}
                 </button>
               </div>
             </div>

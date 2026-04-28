@@ -305,7 +305,10 @@ export const API_ENDPOINTS = {
   SCHEDULE_TAGS: {
     CREATE: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/tags/?event_id=${eventUuid}`,
     LIST: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/tags/?event_id=${eventUuid}`,
-    DELETE: (tagUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}tags/${tagUuid}/delete/?event_id=${eventUuid}`,
+    /** Update schedule tag: PATCH schedules/{{schedule_uuid}}/tags/?event_id={{event_uuid}} */
+    UPDATE: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/tags/?event_id=${eventUuid}`,
+    /** Delete schedule tag: DELETE schedules/{{schedule_uuid}}/tags/?event_id={{event_uuid}} */
+    DELETE: (scheduleUuid: string, eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}schedules/${scheduleUuid}/tags/?event_id=${eventUuid}`,
   },
   SCHEDULE_LOCATIONS: {
     /** List locations. GET schedules/{{schedule_uuid}}/locations/?event_id={{event_uuid}} */

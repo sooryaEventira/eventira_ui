@@ -114,6 +114,45 @@ export async function createScheduleTag(scheduleUuid: string, eventUuid: string,
 }
 
 /**
+ * Update (rename) a schedule tag.
+ * PATCH schedules/{{schedule_uuid}}/tags/?event_id={{event_uuid}}
+ * Body: { uuid: "tag_uuid", name: "new_name" }
+ */
+export async function updateScheduleTag(
+  scheduleUuid: string,
+  eventUuid: string,
+  tagUuid: string,
+  name: string
+): Promise<ScheduleTag> {
+  const accessToken = localStorage.getItem('accessToken')
+  if (!accessToken) throw new Error('Authentication required.')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.UPDATE(scheduleUuid, eventUuid), {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+    body: JSON.stringify({ uuid: tagUuid, name }),
+  })
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '')
+    let errData: any = null
+    try { errData = text ? JSON.parse(text) : null } catch { /* ignore */ }
+    const msg = handleApiError(errData ?? text, response, 'Failed to update tag.')
+    throw new Error(msg)
+  }
+
+  const data = await response.json().catch(() => null)
+  return (data?.data ?? data ?? { uuid: tagUuid, name }) as ScheduleTag
+}
+
+/**
  * Update (rename) a location for a schedule.
  * PATCH schedules/{{schedule_uuid}}/locations/?event_id={{event_uuid}}
  * Body: { name: "current_name", new_name: "new_name" }
@@ -181,19 +220,21 @@ export async function deleteScheduleLocation(scheduleUuid: string, eventUuid: st
 /**
  * Delete a schedule tag
  */
-export async function deleteScheduleTag(tagUuid: string, eventUuid: string): Promise<void> {
+export async function deleteScheduleTag(scheduleUuid: string, tagUuid: string, eventUuid: string): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
   if (!accessToken) throw new Error('Authentication required.')
   const organizationUuid = localStorage.getItem('organizationUuid')
   if (!organizationUuid) throw new Error('Organization UUID is missing.')
 
-  const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.DELETE(tagUuid, eventUuid), {
+  const response = await fetch(API_ENDPOINTS.SCHEDULE_TAGS.DELETE(scheduleUuid, eventUuid), {
     method: 'DELETE',
     headers: {
+      'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
       'X-Organization': organizationUuid,
     },
     credentials: 'include',
+    body: JSON.stringify({ uuid: tagUuid }),
   })
 
   if (!response.ok) {
