@@ -458,6 +458,31 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
           return { ...s, parentId }
         })
 
+        // Child sessions can come without `date` in API response.
+        // Inherit date from parent so day-filtering keeps them visible in the public grid.
+        const idToDate = new Map<string, Date>()
+        withResolvedParentId.forEach((s: any) => {
+          if (!s.date) return
+          const d = new Date(s.date)
+          if (Number.isNaN(d.getTime())) return
+          idToDate.set(s.id, d)
+          const numId = s.__numericId
+          if (numId != null && numId !== '') idToDate.set(String(numId), d)
+        })
+        const withInheritedDates = withResolvedParentId.map((s: any) => {
+          if (!s.date && s.parentId) {
+            const parentDate = idToDate.get(String(s.parentId))
+            if (parentDate) {
+              return {
+                ...s,
+                date: parentDate,
+                __dateKey: parentDate.toISOString().slice(0, 10),
+              }
+            }
+          }
+          return s
+        })
+
         // Resolve parentId using "Parent Session" title when backend doesn't provide parentId,
         // to match Event Hub import behavior.
         const toMin = (time: string, period: string) => {
@@ -475,7 +500,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
         const isChild = (s: any) => Boolean(s.parentId) || Boolean(s.__parentTitle)
 
         const parentsByDayTitle = new Map<string, SavedSession[]>()
-        withResolvedParentId.forEach((s: any) => {
+        withInheritedDates.forEach((s: any) => {
           if (isChild(s)) return
           const day = s.__dateKey || ''
           const key = `${day}||${normalizeTitleKey(s.title)}`
@@ -512,7 +537,7 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
           return best?.id ?? candidates[0].id
         }
 
-        const normalized: SavedSession[] = withResolvedParentId.map((s: any) => {
+        const normalized: SavedSession[] = withInheritedDates.map((s: any) => {
           let out: any = s
           if (!s.parentId && s.__parentTitle) {
             const resolved = resolveParentByTitle(s)

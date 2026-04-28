@@ -355,7 +355,17 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
   bookmarkedSessionIds,
   onToggleBookmark,
 }) => {
-  const parents = useMemo(() => sessions.filter((s) => !s.parentId), [sessions])
+  // Keep API hierarchy as-is. Do not infer synthetic parent-child links from time ranges.
+  const effectiveParentById = useMemo(() => {
+    const map = new Map<string, string | undefined>()
+    sessions.forEach((s) => map.set(String(s.id), s.parentId ? String(s.parentId) : undefined))
+    return map
+  }, [sessions])
+
+  const parents = useMemo(
+    () => sessions.filter((s) => !effectiveParentById.get(String(s.id))),
+    [sessions, effectiveParentById]
+  )
 
   const childrenByParent = useMemo(() => {
     // Build a lookup from any form of ID (uuid string OR numeric string) → canonical session id
@@ -370,8 +380,9 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
 
     const map = new Map<string, SavedSession[]>()
     sessions.forEach((s) => {
-      if (!s.parentId) return
-      const canonicalParentId = idToCanonical.get(s.parentId) ?? s.parentId
+      const effectiveParentId = effectiveParentById.get(String(s.id))
+      if (!effectiveParentId) return
+      const canonicalParentId = idToCanonical.get(effectiveParentId) ?? effectiveParentId
       const arr = map.get(canonicalParentId) ?? []
       arr.push(s)
       map.set(canonicalParentId, arr)
@@ -385,25 +396,59 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
       })
     })
     return map
-  }, [sessions])
+  }, [sessions, effectiveParentById])
 
-  // Group parent sessions by time slot — parallel sessions share the same slot
+  // Group parent sessions:
+  // - default: exact same slot only
+  // - conflict mode: any overlapping window belongs to the same parallel group
   const groups = useMemo(() => {
-    const map = new Map<string, SavedSession[]>()
-    parents.forEach((s) => {
-      const key = timeSlotKey(s)
-      const arr = map.get(key) ?? []
-      arr.push(s)
-      map.set(key, arr)
-    })
-    return Array.from(map.entries())
-      .sort(([keyA], [keyB]) => {
-        const startA = Number(keyA.split('_')[0])
-        const startB = Number(keyB.split('_')[0])
-        return startA - startB
+    const normalizeWindow = (s: SavedSession) => {
+      const start = timeToMinutes(s.startTime, s.startPeriod || 'AM')
+      let end = timeToMinutes(s.endTime, s.endPeriod || 'AM')
+      if (end < start) end += 24 * 60
+      return { start, end }
+    }
+
+    const orderGroupSessions = (arr: SavedSession[]) =>
+      [...arr].sort((a, b) => {
+        const wa = normalizeWindow(a)
+        const wb = normalizeWindow(b)
+        if (wa.start !== wb.start) return wa.start - wb.start
+        if (wa.end !== wb.end) return wb.end - wa.end // longer first when same start
+        return String(a.title ?? '').localeCompare(String(b.title ?? ''))
       })
-      .map(([, group]) => group)
-  }, [parents])
+
+    if (!showConflicts) {
+      const map = new Map<string, SavedSession[]>()
+      parents.forEach((s) => {
+        const key = timeSlotKey(s)
+        const arr = map.get(key) ?? []
+        arr.push(s)
+        map.set(key, arr)
+      })
+      return Array.from(map.entries())
+        .sort(([keyA], [keyB]) => Number(keyA.split('_')[0]) - Number(keyB.split('_')[0]))
+        .map(([, group]) => orderGroupSessions(group))
+    }
+
+    const sorted = orderGroupSessions(parents)
+    type Cluster = { start: number; end: number; sessions: SavedSession[] }
+    const clusters: Cluster[] = []
+    sorted.forEach((s) => {
+      const { start, end } = normalizeWindow(s)
+      const cluster = clusters.find((c) => start <= c.end && end >= c.start)
+      if (!cluster) {
+        clusters.push({ start, end, sessions: [s] })
+        return
+      }
+      cluster.sessions.push(s)
+      cluster.start = Math.min(cluster.start, start)
+      cluster.end = Math.max(cluster.end, end)
+    })
+    return clusters
+      .sort((a, b) => a.start - b.start)
+      .map((c) => orderGroupSessions(c.sessions))
+  }, [parents, showConflicts])
 
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const isExpanded = useCallback((id: string) => expanded[id] === true, [expanded])
