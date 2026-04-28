@@ -271,19 +271,24 @@ export const mapRetrieveSessionToDraft = (
       }
     }
     if (slidesResources.length > 0) {
-      slidesResources.forEach((r: { url?: string; name?: string; resourceId?: string }, idx: number) => {
+      const slidesFiles = slidesResources.map((r: { url?: string; name?: string; resourceId?: string }) => ({
+        url: r.url ?? '',
+        name: r.name ?? (r.url ?? '').split('/').pop() ?? 'File',
+        ...(r.resourceId ? { resourceId: r.resourceId } : {})
+      }))
+      const existingSlides = sections.find((s: any) => s.type === 'slides')
+      if (existingSlides) {
+        const current = (existingSlides.data?.files as any[]) ?? []
+        existingSlides.data = { ...existingSlides.data, files: [...current, ...slidesFiles] }
+      } else {
         sections.push({
-          id: `section-${id}-slides-${idx}`,
+          id: `section-${id}-slides`,
           type: 'slides',
           title: 'Slides',
           description: '',
-          data: {
-            url: r.url ?? '',
-            previewUrl: r.url ?? '',
-            ...(r.resourceId ? { resourceId: r.resourceId } : {})
-          }
+          data: { files: slidesFiles }
         })
-      })
+      }
     }
     if (otherResources.length > 0) {
       const existingResources = sections.find((s: any) => s.type === 'resources')

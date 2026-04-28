@@ -68,6 +68,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
 
   const imageInputRef = useRef<HTMLInputElement | null>(null)
   const imageUploadSectionIdRef = useRef<string | null>(null)
+  const slidesInputRef = useRef<HTMLInputElement | null>(null)
+  const slidesUploadSectionIdRef = useRef<string | null>(null)
   const galleryInputRef = useRef<HTMLInputElement | null>(null)
   const galleryUploadSectionIdRef = useRef<string | null>(null)
   const resourcesInputRef = useRef<HTMLInputElement | null>(null)
@@ -363,6 +365,38 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     }))
   }
 
+  const openSlidesFilePicker = (id: string) => {
+    slidesUploadSectionIdRef.current = id
+    slidesInputRef.current?.click()
+  }
+
+  const handleSlidesFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const sectionId = slidesUploadSectionIdRef.current
+    const newFiles = e.target.files ? Array.from(e.target.files) : []
+    e.target.value = ''
+    slidesUploadSectionIdRef.current = null
+    if (!newFiles.length || !sectionId) return
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) => {
+        if (s.id !== sectionId) return s
+        const existing = (s.data?.files as Array<File | { url?: string; name: string; resourceId?: string }>) ?? []
+        return { ...s, data: { ...(s.data || {}), files: [...existing, ...newFiles] } }
+      })
+    }))
+  }
+
+  const handleRemoveSlidesFile = (sectionId: string, index: number) => {
+    setDraft((prev) => ({
+      ...prev,
+      sections: prev.sections.map((s) => {
+        if (s.id !== sectionId) return s
+        const files = (s.data?.files as Array<File | { url?: string; name: string; resourceId?: string }>) ?? []
+        return { ...s, data: { ...(s.data || {}), files: files.filter((_, i) => i !== index) } }
+      })
+    }))
+  }
+
   const handleRemoveSectionImage = (sectionId: string) => {
     const section = draft.sections.find((s) => s.id === sectionId)
     const previewUrl = section?.data?.previewUrl
@@ -560,6 +594,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
       setGalleryCurrentIndex((prev) => ({ ...prev, [sectionId]: index }))
     },
     onOpenSectionImagePicker: openSectionImagePicker,
+    onOpenSlidesFilePicker: openSlidesFilePicker,
+    onRemoveSlidesFile: handleRemoveSlidesFile,
     onRemoveSectionImage: handleRemoveSectionImage,
     onOpenGalleryPicker: openGalleryPicker,
     onRemoveGalleryImage: handleRemoveGalleryImage,
@@ -684,6 +720,14 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         accept="image/*"
         className="hidden"
         onChange={handleSectionImageChange}
+        aria-hidden
+      />
+      <input
+        ref={slidesInputRef}
+        type="file"
+        accept="image/*,application/pdf,.pptx,.ppt,.key,.odp"
+        className="hidden"
+        onChange={handleSlidesFileChange}
         aria-hidden
       />
       <input

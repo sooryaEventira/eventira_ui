@@ -43,6 +43,10 @@ export interface SessionSectionPreviewHandlers {
   galleryCurrentIndex: Record<string, number>
   onGalleryIndexChange: (sectionId: string, index: number) => void
   onOpenSectionImagePicker: (sectionId: string) => void
+  /** Open file picker for slides sections — accepts images and documents (PDF/PPT). */
+  onOpenSlidesFilePicker?: (sectionId: string) => void
+  /** Remove a file from a slides section by index. */
+  onRemoveSlidesFile?: (sectionId: string, index: number) => void
   onRemoveSectionImage: (sectionId: string) => void
   onOpenGalleryPicker: (sectionId: string) => void
   onRemoveGalleryImage: (sectionId: string, index: number) => void
@@ -79,6 +83,8 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
     galleryCurrentIndex,
     onGalleryIndexChange,
     onOpenSectionImagePicker,
+    onOpenSlidesFilePicker,
+    onRemoveSlidesFile,
     onRemoveSectionImage,
     onOpenGalleryPicker,
     onRemoveGalleryImage,
@@ -276,18 +282,56 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
   }
 
   if (section.type === 'slides' || section.type === 'image') {
+    const isSlides = section.type === 'slides'
+
+    if (isSlides) {
+      const files = (section.data?.files as Array<File | { url?: string; name: string; resourceId?: string }>) ?? []
+      return (
+        <div className="p-4">
+          <div className="mb-3">
+            <button
+              type="button"
+              onClick={() => (onOpenSlidesFilePicker ?? onOpenSectionImagePicker)(section.id)}
+              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            >
+              <Upload01 className="h-4 w-4" />
+              Upload file
+            </button>
+          </div>
+          {files.length === 0 ? (
+            <p className="text-sm text-slate-400">No files added yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {files.map((f, i) => {
+                const name = f instanceof File ? f.name : (f.name || f.url?.split('/').pop() || 'File')
+                return (
+                  <li key={i} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                    <Folder className="h-4 w-4 shrink-0 text-slate-400" />
+                    <span className="flex-1 truncate text-sm text-slate-700">{name}</span>
+                    <button
+                      type="button"
+                      onClick={() => onRemoveSlidesFile?.(section.id, i)}
+                      className="shrink-0 text-slate-400 hover:text-red-500"
+                      aria-label="Remove file"
+                    >
+                      <XClose className="h-4 w-4" />
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+        </div>
+      )
+    }
+
+    // image section (single image)
     const urlValue = String(section.data?.url ?? '').trim()
     const previewUrl = section.data?.previewUrl
     const imgSrc = toAbsoluteMediaUrl(
-      (typeof previewUrl === 'string' && previewUrl ? previewUrl : null) ||
-      urlValue ||
-      ''
+      (typeof previewUrl === 'string' && previewUrl ? previewUrl : null) || urlValue || ''
     ) || PLACEHOLDER_IMG
-    const hasImage =
-      section.data?.file != null ||
-      !!urlValue ||
-      (typeof previewUrl === 'string' && !!previewUrl)
-    const label = section.type === 'slides' ? 'Slides/Poster' : 'Image'
+    const hasImage = section.data?.file != null || !!urlValue || (typeof previewUrl === 'string' && !!previewUrl)
     return (
       <div className="p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -312,11 +356,9 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
         <div className="flex h-40 w-full items-center justify-center overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
           <img
             src={imgSrc}
-            alt={label}
+            alt="Image"
             className="h-32 w-48 rounded-md object-cover object-center shadow-sm"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = PLACEHOLDER_IMG
-            }}
+            onError={(e) => { (e.target as HTMLImageElement).src = PLACEHOLDER_IMG }}
           />
         </div>
       </div>

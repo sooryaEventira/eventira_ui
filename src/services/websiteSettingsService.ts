@@ -118,14 +118,31 @@ function parseBrandPrimaryColor(raw: Record<string, unknown>): string | undefine
   return s.startsWith('#') ? s : `#${s}`
 }
 
+/** Resolve a possibly-relative media path (e.g. /media/...) to an absolute URL using the API origin. */
+function resolveMediaUrl(path: unknown): string | undefined {
+  if (!path || typeof path !== 'string') return undefined
+  const s = path.trim()
+  if (!s) return undefined
+  if (s.startsWith('http://') || s.startsWith('https://')) return s.replace(/^http:\/\//, 'https://')
+  if (s.startsWith('/')) {
+    try {
+      const base = API_ENDPOINTS.PUBLIC.WEBSITE_SETTINGS('x').replace(/\/api\/.*/, '')
+      return `${base}${s}`
+    } catch {
+      return s
+    }
+  }
+  return s
+}
+
 /**
  * Fetch website settings for the published site (no auth).
  * Uses public endpoint: {{url}}{{public_url}}events/{{event_uuid}}/website-settings/
- * to get brand_primary_color for the published website.
+ * to get brand_primary_color and logo for the published website.
  */
 export async function fetchPublicWebsiteSettings(
   eventUuid: string
-): Promise<{ brand_primary_color?: string } | null> {
+): Promise<{ brand_primary_color?: string; logo?: string; banner?: string } | null> {
   if (!eventUuid) return null
   const url = API_ENDPOINTS.PUBLIC.WEBSITE_SETTINGS(eventUuid)
   const opts: RequestInit = {
@@ -144,10 +161,26 @@ export async function fetchPublicWebsiteSettings(
     if (!brand_primary_color && raw && typeof (raw as any).data === 'object' && (raw as any).data !== null) {
       brand_primary_color = parseBrandPrimaryColor((raw as any).data as Record<string, unknown>)
     }
-    return brand_primary_color ? { brand_primary_color } : {}
+    const logo = resolveMediaUrl(raw.logo ?? (raw as any).data?.logo)
+    const banner = resolveMediaUrl(raw.banner ?? (raw as any).data?.banner)
+    return { ...(brand_primary_color ? { brand_primary_color } : {}), ...(logo ? { logo } : {}), ...(banner ? { banner } : {}) }
   } catch {
     return null
   }
+}
+
+function buildPayload(
+  body: WebsiteSettingsBody,
+  files?: { logo?: File; banner?: File }
+): { body: BodyInit; headers: Record<string, string> } {
+  if (files?.logo || files?.banner) {
+    const fd = new FormData()
+    Object.entries(body).forEach(([k, v]) => fd.append(k, String(v)))
+    if (files.logo) fd.append('logo', files.logo)
+    if (files.banner) fd.append('banner', files.banner)
+    return { body: fd, headers: {} }
+  }
+  return { body: JSON.stringify(body), headers: { 'Content-Type': 'application/json' } }
 }
 
 /**
@@ -156,7 +189,8 @@ export async function fetchPublicWebsiteSettings(
  */
 export async function createWebsiteSettings(
   eventUuid: string,
-  body: WebsiteSettingsBody
+  body: WebsiteSettingsBody,
+  files?: { logo?: File; banner?: File }
 ): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
   if (!accessToken) {
@@ -173,16 +207,17 @@ export async function createWebsiteSettings(
   }
 
   const url = API_ENDPOINTS.WEBSITE.SETTINGS(eventUuid)
+  const payload = buildPayload(body, files)
   console.log('[website-settings POST] url:', url, 'payload:', body)
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
       'X-Organization': organizationUuid,
+      ...payload.headers,
     },
     credentials: 'include',
-    body: JSON.stringify(body),
+    body: payload.body,
   })
 
   const responseText = await response.text()
@@ -203,10 +238,12 @@ export async function createWebsiteSettings(
 /**
  * Update or create website settings for an event.
  * Uses PATCH when settings exist; uses POST when none exist (404).
+ * Pass `files` to include logo/banner as multipart/form-data.
  */
 export async function updateWebsiteSettings(
   eventUuid: string,
-  body: WebsiteSettingsBody
+  body: WebsiteSettingsBody,
+  files?: { logo?: File; banner?: File }
 ): Promise<void> {
   const accessToken = localStorage.getItem('accessToken')
   if (!accessToken) {
@@ -223,33 +260,35 @@ export async function updateWebsiteSettings(
   }
 
   const url = API_ENDPOINTS.WEBSITE.SETTINGS(eventUuid)
+  const payload = buildPayload(body, files)
   console.log('[website-settings PATCH] url:', url, 'payload:', body)
   const response = await fetch(url, {
     method: 'PATCH',
     headers: {
-      'Content-Type': 'application/json',
       Authorization: `Bearer ${accessToken}`,
       'X-Organization': organizationUuid,
+      ...payload.headers,
     },
     credentials: 'include',
-    body: JSON.stringify(body),
+    body: payload.body,
   })
 
   const responseText = await response.text()
   console.log('[website-settings PATCH] response status:', response.status, 'body:', responseText || '(empty)')
 
   if (response.status === 404) {
-    await createWebsiteSettings(eventUuid, body)
+    await createWebsiteSettings(eventUuid, body, files)
     // Backend may ignore visibility (and other fields) on POST and default to private. PATCH again to persist.
+    const patchPayload = buildPayload(body, files)
     const patchAgain = await fetch(url, {
       method: 'PATCH',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${accessToken}`,
         'X-Organization': organizationUuid,
+        ...patchPayload.headers,
       },
       credentials: 'include',
-      body: JSON.stringify(body),
+      body: patchPayload.body,
     })
     if (!patchAgain.ok) {
       const text = await patchAgain.text()

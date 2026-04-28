@@ -94,31 +94,41 @@ function getSessionSpeakers(session: SavedSession): SessionSpeaker[] {
 
 function renderSpeakers(speakers: SessionSpeaker[], onSpeakerClick?: (uuid: string) => void): React.ReactNode {
   if (!speakers.length) return null
+  const grouped = speakers.reduce<Record<string, SessionSpeaker[]>>((acc, sp) => {
+    const role = (sp.role && String(sp.role).trim()) || 'Speaker'
+    ;(acc[role] ??= []).push(sp)
+    return acc
+  }, {})
+  const roleEntries = Object.entries(grouped)
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-slate-600">
       <User01 className="h-3 w-3 shrink-0 text-slate-400" />
-      {speakers.map((sp, idx) => {
-        const role = (sp.role && String(sp.role).trim()) || 'Speaker'
-        const name = sp.name || 'Unnamed'
-        const isUuid = sp.id && sp.id.includes('-')
-        return (
-          <span key={sp.id} className="flex items-center gap-1">
-            {idx > 0 && <span className="text-slate-300">·</span>}
-            <span className="text-slate-500">{role}:</span>
-            {onSpeakerClick && isUuid ? (
-              <button
-                type="button"
-                onClick={() => onSpeakerClick(sp.id)}
-                className="font-medium text-primary hover:underline focus:outline-none"
-              >
-                {name}
-              </button>
-            ) : (
-              <span className="font-medium">{name}</span>
-            )}
-          </span>
-        )
-      })}
+      {roleEntries.map(([role, group], idx) => (
+        <span key={role} className="flex items-center gap-1">
+          {idx > 0 && <span className="text-slate-300">·</span>}
+          <span className="text-slate-500">{role}:</span>
+          {group.map((sp, i) => {
+            const name = sp.name || 'Unnamed'
+            const isUuid = sp.id && sp.id.includes('-')
+            return (
+              <React.Fragment key={sp.id}>
+                {i > 0 && <span className="text-slate-400">,</span>}
+                {onSpeakerClick && isUuid ? (
+                  <button
+                    type="button"
+                    onClick={() => onSpeakerClick(sp.id)}
+                    className="font-medium text-primary hover:underline focus:outline-none"
+                  >
+                    {name}
+                  </button>
+                ) : (
+                  <span className="font-medium">{name}</span>
+                )}
+              </React.Fragment>
+            )
+          })}
+        </span>
+      ))}
     </div>
   )
 }
@@ -129,6 +139,7 @@ interface SessionCardProps {
   onSpeakerClick?: (uuid: string) => void
   onSessionClick?: (sessionId: string) => void
   hasChildren: boolean
+  childrenCount?: number
   open: boolean
   onToggle: () => void
   showBookmark?: boolean
@@ -142,6 +153,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
   onSpeakerClick,
   onSessionClick,
   hasChildren,
+  childrenCount = 0,
   open,
   onToggle,
   showBookmark = false,
@@ -204,12 +216,6 @@ const SessionCard: React.FC<SessionCardProps> = ({
             </span>
           ) : null}
 
-          {session.sessionType && !['parent', 'child'].includes(session.sessionType.toLowerCase()) ? (
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-              {session.sessionType}
-            </span>
-          ) : null}
-
           {Array.isArray(session.tags) && session.tags.map((tag: any) => {
             const label = String(tag?.name ?? tag ?? '').trim()
             return label ? (
@@ -218,28 +224,27 @@ const SessionCard: React.FC<SessionCardProps> = ({
               </span>
             ) : null
           })}
-          {hasChildren ? (
-            <button
-              type="button"
-              onClick={onToggle}
-              className="ml-auto p-1 text-slate-500 hover:text-slate-700 rounded"
-              aria-label={open ? 'Collapse' : 'Expand'}
-            >
-              {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          ) : null}
-        </div>
 
-        {attachmentCount > 0 ? (
-          <div className="mt-3">
+          {attachmentCount > 0 ? (
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
               <Attachment01 className="h-3 w-3" />
               {attachmentCount}
             </span>
-          </div>
-        ) : null}
+          ) : null}
+        </div>
 
         {renderSpeakers(getSessionSpeakers(session), onSpeakerClick)}
+
+        {hasChildren ? (
+          <button
+            type="button"
+            onClick={onToggle}
+            className="mt-3 inline-flex w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            <span>{childrenCount} sub-session{childrenCount !== 1 ? 's' : ''}</span>
+            {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+          </button>
+        ) : null}
 
         {hasChildren && open ? children : null}
       </div>
@@ -353,12 +358,23 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
   const parents = useMemo(() => sessions.filter((s) => !s.parentId), [sessions])
 
   const childrenByParent = useMemo(() => {
+    // Build a lookup from any form of ID (uuid string OR numeric string) → canonical session id
+    // This handles the case where the API returns parent_id as a numeric DB id but the
+    // parent session's id was resolved to its UUID.
+    const idToCanonical = new Map<string, string>()
+    sessions.forEach((s) => {
+      idToCanonical.set(s.id, s.id)
+      const numId = (s as any).__numericId
+      if (numId != null) idToCanonical.set(String(numId), s.id)
+    })
+
     const map = new Map<string, SavedSession[]>()
     sessions.forEach((s) => {
       if (!s.parentId) return
-      const arr = map.get(s.parentId) ?? []
+      const canonicalParentId = idToCanonical.get(s.parentId) ?? s.parentId
+      const arr = map.get(canonicalParentId) ?? []
       arr.push(s)
-      map.set(s.parentId, arr)
+      map.set(canonicalParentId, arr)
     })
     map.forEach((arr) => {
       arr.sort((a, b) => {
@@ -530,11 +546,6 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
                           {getLocationLabel(child.location)}
                         </span>
                       ) : null}
-                      {child.sessionType && !['parent', 'child'].includes(child.sessionType.toLowerCase()) ? (
-                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                          {child.sessionType}
-                        </span>
-                      ) : null}
                     </div>
 
                     {attachmentCount > 0 ? (
@@ -647,6 +658,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
                             key={session.id}
                             session={session}
                             hasChildren={hasChildren}
+                            childrenCount={kids.length}
                             open={open}
                             onToggle={() => toggleExpanded(session.id)}
                             onSpeakerClick={onSpeakerClick}
@@ -672,6 +684,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
                           key={session.id}
                           session={session}
                           hasChildren={hasChildren}
+                          childrenCount={kids.length}
                           open={open}
                           onToggle={() => toggleExpanded(session.id)}
                           onSpeakerClick={onSpeakerClick}

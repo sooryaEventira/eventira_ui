@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useCallback, Suspense, lazy } from 'react'
+import React, { useState, useMemo, useCallback, Suspense, lazy, useEffect } from 'react'
 import { useEventForm } from '../../contexts/EventFormContext'
 import EventHubNavbar from './EventHubNavbar'
+import { fetchWebsiteSettings } from '../../services/websiteSettingsService'
 import EventHubSidebar from './EventHubSidebar'
 import { defaultCards, ContentCard } from './EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
@@ -48,7 +49,21 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
   }, [createdEvent?.eventName, createdEvent?.uuid, eventData?.eventName, propEventName])
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
   const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
-  const eventLogoUrl = createdEvent?.logo ?? undefined
+
+  const [websiteLogoUrl, setWebsiteLogoUrl] = useState<string | undefined>(undefined)
+  const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? undefined
+  useEffect(() => {
+    if (!eventUuid) return
+    let cancelled = false
+    fetchWebsiteSettings(eventUuid).then((data) => {
+      if (cancelled) return
+      const raw = data?.logo ? String(data.logo) : ''
+      if (raw) setWebsiteLogoUrl(raw.startsWith('/') ? `${(import.meta.env.VITE_AUTH_API_URL || '').replace(/\/+$/, '')}${raw}` : raw.replace(/^http:\/\//, 'https://'))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [eventUuid])
+
+  const eventLogoUrl = websiteLogoUrl ?? createdEvent?.logo ?? undefined
   const [activeSection, setActiveSection] = useState('event-website')
 
   // Read section from URL only on initial mount

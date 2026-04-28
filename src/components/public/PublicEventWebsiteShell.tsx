@@ -120,7 +120,7 @@ const PublicMessagesPage = React.lazy(() => import('./PublicMessagesPage'))
 const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ eventUuid }) => {
   const [event, setEvent] = useState<PublicEventData | null>(null)
   const [webpages, setWebpages] = useState<PublicWebpageData[]>([])
-  const [websiteSettings, setWebsiteSettings] = useState<{ brand_primary_color?: string } | null>(null)
+  const [websiteSettings, setWebsiteSettings] = useState<{ brand_primary_color?: string; logo?: string; banner?: string } | null>(null)
   const [websiteIndex, setWebsiteIndex] = useState<WebsiteIndexData | null>(null)
   const [primaryColorFromWebpage, setPrimaryColorFromWebpage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -540,7 +540,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       <PublicNavbar
         eventUuid={eventUuid}
         eventName={displayEventName}
-        logoUrl={event?.logo ?? null}
+        logoUrl={websiteSettings?.logo ?? (event?.logo ?? null)}
         items={navbarItems}
         activePath={activePath}
         onNavigate={handleNavigate}

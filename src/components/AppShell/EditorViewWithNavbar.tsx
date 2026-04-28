@@ -1,8 +1,9 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import { EventHubNavbar } from '../eventhub'
 import { PageManager, PageNameDialog, PageCreationModal } from '../page'
 import { EditorView, withSuspense } from './lazyImports'
 import { useEventForm } from '../../contexts/EventFormContext'
+import { fetchWebsiteSettings } from '../../services/websiteSettingsService'
 
 export interface EditorViewWithNavbarProps {
   currentData: any
@@ -42,7 +43,21 @@ export const EditorViewWithNavbar: React.FC<EditorViewWithNavbarProps> = (props)
   const displayEventName =
     createdEvent?.eventName || eventData?.eventName || 'Highly important conference of 2025'
   const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
-  const eventLogoUrl = createdEvent?.logo ?? undefined
+
+  const [websiteLogoUrl, setWebsiteLogoUrl] = useState<string | undefined>(undefined)
+  const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? undefined
+  useEffect(() => {
+    if (!eventUuid) return
+    let cancelled = false
+    fetchWebsiteSettings(eventUuid).then((data) => {
+      if (cancelled) return
+      const raw = data?.logo ? String(data.logo) : ''
+      if (raw) setWebsiteLogoUrl(raw.startsWith('/') ? `${(import.meta.env.VITE_AUTH_API_URL || '').replace(/\/+$/, '')}${raw}` : raw.replace(/^http:\/\//, 'https://'))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [eventUuid])
+
+  const eventLogoUrl = websiteLogoUrl ?? createdEvent?.logo ?? undefined
 
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>

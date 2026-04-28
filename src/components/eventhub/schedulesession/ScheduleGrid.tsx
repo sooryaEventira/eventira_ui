@@ -536,30 +536,39 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                       {(() => {
                         const speakers = getSessionSpeakers(child)
                         if (!speakers.length) return null
+                        const grouped = speakers.reduce<Record<string, typeof speakers>>((acc, sp) => {
+                          const role = (sp.role && String(sp.role).trim()) || 'Speaker'
+                          ;(acc[role] ??= []).push(sp)
+                          return acc
+                        }, {})
                         return (
                           <div className="mt-1 flex items-center gap-1.5 flex-wrap text-xs text-slate-600">
                             <User01 className="h-3 w-3 text-slate-400 shrink-0" />
-                            {speakers.map((sp, i) => {
-                              const role = (sp.role && String(sp.role).trim()) || 'Speaker'
-                              const canLink = !!(eventUuid && onNavigate && sp.id)
-                              return (
-                                <span key={sp.id || i}>
-                                  {role}:{' '}
-                                  {canLink ? (
-                                    <button
-                                      type="button"
-                                      onClick={(e) => { e.stopPropagation(); onNavigate!(`/events/${eventUuid}/speakers/${sp.id}`) }}
-                                      className="font-medium text-primary hover:underline"
-                                    >
-                                      {sp.name}
-                                    </button>
-                                  ) : (
-                                    <span>{sp.name}</span>
-                                  )}
-                                  {i < speakers.length - 1 ? ', ' : ''}
-                                </span>
-                              )
-                            })}
+                            {Object.entries(grouped).map(([role, group], idx) => (
+                              <span key={role} className="flex items-center gap-1">
+                                {idx > 0 && <span className="text-slate-300">·</span>}
+                                <span>{role}:</span>
+                                {group.map((sp, i) => {
+                                  const canLink = !!(eventUuid && onNavigate && sp.id)
+                                  return (
+                                    <React.Fragment key={sp.id || i}>
+                                      {i > 0 && <span className="text-slate-400">,</span>}
+                                      {canLink ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); onNavigate!(`/events/${eventUuid}/speakers/${sp.id}`) }}
+                                          className="font-medium text-primary hover:underline"
+                                        >
+                                          {sp.name}
+                                        </button>
+                                      ) : (
+                                        <span>{sp.name}</span>
+                                      )}
+                                    </React.Fragment>
+                                  )
+                                })}
+                              </span>
+                            ))}
                           </div>
                         )
                       })()}
@@ -702,30 +711,39 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
             {(() => {
               const speakers = getSessionSpeakers(session)
               if (!speakers.length) return null
+              const grouped = speakers.reduce<Record<string, typeof speakers>>((acc, sp) => {
+                const role = (sp.role && String(sp.role).trim()) || 'Speaker'
+                ;(acc[role] ??= []).push(sp)
+                return acc
+              }, {})
               return (
                 <div className="mt-1 flex items-center gap-1.5 flex-wrap text-xs text-slate-600">
                   <User01 className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                  {speakers.map((sp, i) => {
-                    const role = (sp.role && String(sp.role).trim()) || 'Speaker'
-                    const canLink = !!(eventUuid && onNavigate && sp.id)
-                    return (
-                      <span key={sp.id || i}>
-                        {role}:{' '}
-                        {canLink ? (
-                          <button
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); onNavigate!(`/events/${eventUuid}/speakers/${sp.id}`) }}
-                            className="font-medium text-primary hover:underline"
-                          >
-                            {sp.name}
-                          </button>
-                        ) : (
-                          <span>{sp.name}</span>
-                        )}
-                        {i < speakers.length - 1 ? ', ' : ''}
-                      </span>
-                    )
-                  })}
+                  {Object.entries(grouped).map(([role, group], idx) => (
+                    <span key={role} className="flex items-center gap-1">
+                      {idx > 0 && <span className="text-slate-300">·</span>}
+                      <span>{role}:</span>
+                      {group.map((sp, i) => {
+                        const canLink = !!(eventUuid && onNavigate && sp.id)
+                        return (
+                          <React.Fragment key={sp.id || i}>
+                            {i > 0 && <span className="text-slate-400">,</span>}
+                            {canLink ? (
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); onNavigate!(`/events/${eventUuid}/speakers/${sp.id}`) }}
+                                className="font-medium text-primary hover:underline"
+                              >
+                                {sp.name}
+                              </button>
+                            ) : (
+                              <span>{sp.name}</span>
+                            )}
+                          </React.Fragment>
+                        )
+                      })}
+                    </span>
+                  ))}
                 </div>
               )
             })()}

@@ -336,31 +336,60 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                   ))}
                 </ul>
               ) : section.type === 'slides' || section.type === 'image' ? (() => {
+                if (section.type === 'slides') {
+                  const files = (section.data?.files as Array<{ url?: string; name?: string }> | undefined) ?? []
+                  if (files.length === 0) {
+                    return <p className="text-sm leading-6 text-slate-600">{section.description || 'No slide/poster added yet.'}</p>
+                  }
+                  return (
+                    <ul className="space-y-2">
+                      {files.map((f, i) => {
+                        const rawUrl = f.url?.trim() || ''
+                        const resolvedUrl = toAbsoluteMediaUrl(rawUrl)
+                        const name = f.name || rawUrl.split('/').pop() || 'File'
+                        const DOC_EXTENSIONS = /\.(pdf|pptx?|key|odp)(\?|$)/i
+                        const isDoc = DOC_EXTENSIONS.test(rawUrl)
+                        if (isDoc) {
+                          return (
+                            <li key={i}>
+                              <a
+                                href={resolvedUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-primary hover:bg-slate-100"
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 shrink-0 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <span className="truncate">{name}</span>
+                              </a>
+                            </li>
+                          )
+                        }
+                        return (
+                          <li key={i}>
+                            <div
+                              className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-zoom-in"
+                              onClick={() => setLightbox({ images: [resolvedUrl], index: 0 })}
+                            >
+                              <img src={resolvedUrl} alt={name} className="h-48 w-full object-contain object-center" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                            </div>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )
+                }
+                // image section (single image)
                 const url = section.data?.url as string | undefined
                 const previewUrl = section.data?.previewUrl as string | undefined
-                const imgSrc = toAbsoluteMediaUrl(
-                  (typeof previewUrl === 'string' && previewUrl ? previewUrl : null) ||
-                  (url?.trim() || '') ||
-                  ''
-                ) || null
-                return imgSrc ? (
-                  <div
-                    className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-zoom-in"
-                    onClick={() => setLightbox({ images: [imgSrc], index: 0 })}
-                  >
-                    <img
-                      src={imgSrc}
-                      alt={section.type === 'slides' ? 'Slides/Poster' : 'Image'}
-                      className="h-48 w-full object-contain object-center"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = 'none'
-                      }}
-                    />
+                const resolvedUrl = toAbsoluteMediaUrl(
+                  (typeof previewUrl === 'string' && previewUrl ? previewUrl : null) || (url?.trim() || '') || ''
+                )
+                return resolvedUrl ? (
+                  <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-zoom-in" onClick={() => setLightbox({ images: [resolvedUrl], index: 0 })}>
+                    <img src={resolvedUrl} alt="Image" className="h-48 w-full object-contain object-center" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
                   </div>
                 ) : (
-                  <p className="text-sm leading-6 text-slate-600">
-                    {section.description || (section.type === 'slides' ? 'No slide/poster added yet.' : 'No image added yet.')}
-                  </p>
+                  <p className="text-sm leading-6 text-slate-600">{section.description || 'No image added yet.'}</p>
                 )
               })() : section.type === 'photo-gallery' ? (() => {
                 const images = (section.data?.images as Array<{ file?: File; previewUrl?: string; url?: string }>) ?? []

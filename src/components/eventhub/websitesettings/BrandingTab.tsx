@@ -4,20 +4,18 @@ import { XClose, Upload01, ChevronDown } from '@untitled-ui/icons-react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import { showToast } from '../../../utils/toast'
 import { fetchWebsiteSettings, updateWebsiteSettings, getWebsiteSettingsStorageKey, getBrandingStorageKey, type WebsiteSettingsBody } from '../../../services/websiteSettingsService'
+import { API_ENDPOINTS } from '../../../config/env'
 
 const BrandingTab: React.FC = () => {
   const { createdEvent } = useEventForm()
   const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? null
 
-  // Get banner and logo: prefer localStorage, then fall back to event from API
-  const [bannerUrl, setBannerUrl] = useState<string>(() => {
-    return localStorage.getItem('event-form-banner') || ''
-  })
-  const [logoUrl, setLogoUrl] = useState<string>(() => {
-    return localStorage.getItem('event-form-logo') || ''
-  })
+  const [bannerUrl, setBannerUrl] = useState<string>('')
+  const [logoUrl, setLogoUrl] = useState<string>('')
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
 
-  // Sync logo/banner from current event when API returns URLs (so uploaded logo renders)
+  // Load logo/banner URLs from the API event object
   useEffect(() => {
     const bannerFromApi = createdEvent?.banner && typeof createdEvent.banner === 'string'
       ? (createdEvent.banner as string).replace(/^http:\/\//, 'https://')
@@ -25,28 +23,19 @@ const BrandingTab: React.FC = () => {
     const logoFromApi = createdEvent?.logo && typeof createdEvent.logo === 'string'
       ? (createdEvent.logo as string).replace(/^http:\/\//, 'https://')
       : ''
-    if (bannerFromApi && !localStorage.getItem('event-form-banner')) {
-      setBannerUrl(bannerFromApi)
-      localStorage.setItem('event-form-banner', bannerFromApi)
-      if (eventUuid) localStorage.setItem(`event-form-banner-${eventUuid}`, bannerFromApi)
-    }
-    if (logoFromApi && !localStorage.getItem('event-form-logo')) {
-      setLogoUrl(logoFromApi)
-      localStorage.setItem('event-form-logo', logoFromApi)
-    }
-  }, [createdEvent?.banner, createdEvent?.logo, eventUuid])
+    if (bannerFromApi) setBannerUrl(bannerFromApi)
+    if (logoFromApi) setLogoUrl(logoFromApi)
+  }, [createdEvent?.banner, createdEvent?.logo])
 
   const [primaryColor, setPrimaryColor] = useState('#6366f1')
   const [headingFont, setHeadingFont] = useState('Inter')
   const [bodyFont, setBodyFont] = useState('Inter')
   const [showThemeDropdown, setShowThemeDropdown] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [settingsLoaded, setSettingsLoaded] = useState(false)
 
   // When event changes, load from event-scoped storage (or defaults) and refetch from API so we don't show another event's data
   useEffect(() => {
     if (!eventUuid) return
-    setSettingsLoaded(false)
     const key = getBrandingStorageKey(eventUuid)
     const saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null
     const parsed = saved ? (() => { try { return JSON.parse(saved) } catch { return null } })() : null
@@ -58,19 +47,55 @@ const BrandingTab: React.FC = () => {
     else setBodyFont('Inter')
   }, [eventUuid])
 
-  // Fetch saved website settings from API so form reflects saved values and published site can use them
+  const resolveMediaUrl = (value: unknown): string => {
+    if (!value || typeof value !== 'string') return ''
+    const s = value.trim()
+    if (!s) return ''
+    if (s.startsWith('http://') || s.startsWith('https://')) return s.replace(/^http:\/\//, 'https://')
+    if (s.startsWith('/')) {
+      try {
+        const base = API_ENDPOINTS.WEBSITE.SETTINGS(eventUuid || '').replace(/\/api\/.*/, '')
+        return `${base}${s}`
+      } catch {
+        return s
+      }
+    }
+    return s
+  }
+
+  // Fetch saved website settings from API each time Branding tab mounts/opened.
   useEffect(() => {
-    if (!eventUuid || settingsLoaded) return
+    if (!eventUuid) return
     let cancelled = false
     fetchWebsiteSettings(eventUuid).then((data) => {
       if (cancelled || !data) return
-      setSettingsLoaded(true)
-      if (data.brand_primary_color) setPrimaryColor(data.brand_primary_color)
-      if (data.heading_font) setHeadingFont(data.heading_font)
-      if (data.body_font) setBodyFont(data.body_font)
+      if (data.brand_primary_color) setPrimaryColor(String(data.brand_primary_color))
+      if (data.heading_font) setHeadingFont(String(data.heading_font))
+      if (data.body_font) setBodyFont(String(data.body_font))
+      const logo = resolveMediaUrl(data.logo)
+      const banner = resolveMediaUrl(data.banner)
+      if (logo) setLogoUrl(logo)
+      if (banner) setBannerUrl(banner)
+
+      const brandingKey = getBrandingStorageKey(eventUuid)
+      localStorage.setItem(brandingKey, JSON.stringify({
+        primaryColor: String(data.brand_primary_color ?? '#6366f1'),
+        headingFont: String(data.heading_font ?? 'Inter'),
+        bodyFont: String(data.body_font ?? 'Inter'),
+      }))
+
+      const settingsKey = getWebsiteSettingsStorageKey(eventUuid)
+      const current = localStorage.getItem(settingsKey)
+      const prev = current ? (() => { try { return JSON.parse(current) } catch { return {} } })() : {}
+      localStorage.setItem(settingsKey, JSON.stringify({
+        ...prev,
+        visibility: data.visibility === 'public' || data.visibility === 'hidden' ? data.visibility : 'private',
+        require_registration: Boolean(data.require_registration),
+        domain_url: String(data.domain_url ?? ''),
+      }))
     }).catch(() => { /* ignore */ })
     return () => { cancelled = true }
-  }, [eventUuid, settingsLoaded])
+  }, [eventUuid])
 
   const bannerInputRef = useRef<HTMLInputElement>(null)
   const logoInputRef = useRef<HTMLInputElement>(null)
@@ -115,12 +140,9 @@ const BrandingTab: React.FC = () => {
   const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setBannerFile(file)
       const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        setBannerUrl(result)
-        localStorage.setItem('event-form-banner', result)
-      }
+      reader.onload = () => setBannerUrl(reader.result as string)
       reader.readAsDataURL(file)
     }
   }
@@ -128,30 +150,23 @@ const BrandingTab: React.FC = () => {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
+      setLogoFile(file)
       const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        setLogoUrl(result)
-        localStorage.setItem('event-form-logo', result)
-      }
+      reader.onload = () => setLogoUrl(reader.result as string)
       reader.readAsDataURL(file)
     }
   }
 
   const handleRemoveBanner = () => {
     setBannerUrl('')
-    localStorage.removeItem('event-form-banner')
-    if (bannerInputRef.current) {
-      bannerInputRef.current.value = ''
-    }
+    setBannerFile(null)
+    if (bannerInputRef.current) bannerInputRef.current.value = ''
   }
 
   const handleRemoveLogo = () => {
     setLogoUrl('')
-    localStorage.removeItem('event-form-logo')
-    if (logoInputRef.current) {
-      logoInputRef.current.value = ''
-    }
+    setLogoFile(null)
+    if (logoInputRef.current) logoInputRef.current.value = ''
   }
 
   const handleSave = async () => {
@@ -161,11 +176,6 @@ const BrandingTab: React.FC = () => {
     }
     setIsSaving(true)
     try {
-      localStorage.setItem('event-form-banner', bannerUrl)
-      localStorage.setItem('event-form-logo', logoUrl)
-      if (eventUuid) {
-        localStorage.setItem(`event-form-banner-${eventUuid}`, bannerUrl)
-      }
       const brandingKey = getBrandingStorageKey(eventUuid)
       const settingsKey = getWebsiteSettingsStorageKey(eventUuid)
       localStorage.setItem(brandingKey, JSON.stringify({
@@ -184,7 +194,10 @@ const BrandingTab: React.FC = () => {
         require_registration: parsed?.require_registration ?? true,
         domain_url: parsed?.domain_url ?? ''
       }
-      await updateWebsiteSettings(eventUuid, body)
+      const files: { logo?: File; banner?: File } = {}
+      if (logoFile) files.logo = logoFile
+      if (bannerFile) files.banner = bannerFile
+      await updateWebsiteSettings(eventUuid, body, Object.keys(files).length ? files : undefined)
       showToast.success('Settings saved')
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : 'Failed to save settings')

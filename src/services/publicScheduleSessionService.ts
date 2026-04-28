@@ -175,17 +175,26 @@ export function mapApiSectionsToSavedSections(
       }
     }
 
-    // Slides/PDF resources → `slides` section
+    // Slides/PDF resources → single `slides` section with files array
     if (slidesResources.length > 0) {
-      slidesResources.forEach((r: { url?: string; name?: string; resourceId?: string }, idx: number) => {
+      const slidesFiles = slidesResources.map((r: { url?: string; name?: string; resourceId?: string }) => ({
+        url: r.url ?? '',
+        name: r.name ?? (r.url ?? '').split('/').pop() ?? 'File',
+        ...(r.resourceId ? { resourceId: r.resourceId } : {})
+      }))
+      const existingSlides = sections.find((s: any) => s.type === 'slides')
+      if (existingSlides) {
+        const current = (existingSlides.data?.files as any[]) ?? []
+        existingSlides.data = { ...existingSlides.data, files: [...current, ...slidesFiles] }
+      } else {
         sections.push({
-          id: `section-${sessionId}-slides-${idx}`,
+          id: `section-${sessionId}-slides`,
           type: 'slides',
           title: 'Slides',
           description: '',
-          data: { url: r.url ?? '', previewUrl: r.url ?? '', ...(r.resourceId ? { resourceId: r.resourceId } : {}) }
+          data: { files: slidesFiles }
         })
-      })
+      }
     }
 
     // Other non-image, non-video files → Resources section

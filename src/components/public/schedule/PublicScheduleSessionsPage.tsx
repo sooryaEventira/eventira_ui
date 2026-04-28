@@ -162,7 +162,24 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
       .then((raw) => {
         if (cancelled) return
         const mapped = (Array.isArray(raw) ? raw : []).map(mapRawToSavedSession)
-        setSessions(mapped)
+
+        // Child sessions often lack a date in the API response; inherit from their parent
+        // so they pass the day-filter and appear under the correct parent in the grid.
+        const idToDate = new Map<string, Date>()
+        mapped.forEach((s) => {
+          if (!s.date) return
+          idToDate.set(s.id, s.date)
+          const numId = (s as any).__numericId
+          if (numId != null) idToDate.set(String(numId), s.date)
+        })
+        const withInheritedDates = mapped.map((s) => {
+          if (!s.date && s.parentId) {
+            const parentDate = idToDate.get(s.parentId)
+            if (parentDate) return { ...s, date: parentDate, __dateKey: parentDate.toISOString().slice(0, 10) }
+          }
+          return s
+        })
+        setSessions(withInheritedDates)
         const ids = new Set<string>()
         mapped.forEach((s: any) => { if (s.is_bookmarked) ids.add(String(s.id)) })
         setBookmarkedSessionIds(ids)
@@ -208,7 +225,23 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
   const sessionsForDay = useMemo(() => {
     if (dayKeys.length === 0) return sessions
     const activeKey = startOfDayKey(dayKeys[activeDayIndex] ?? dayKeys[0])
+
+    // Collect parent session IDs (uuid and numeric) that belong to the active day
+    const parentIdsInDay = new Set<string>()
+    sessions.forEach((s) => {
+      if (s.parentId) return
+      if (!s.date) return
+      const d = new Date(s.date)
+      if (!Number.isNaN(d.getTime()) && startOfDayKey(d) === activeKey) {
+        parentIdsInDay.add(s.id)
+        const numId = (s as any).__numericId
+        if (numId != null) parentIdsInDay.add(String(numId))
+      }
+    })
+
     return sessions.filter((s) => {
+      // Always include child sessions whose parent is on this day
+      if (s.parentId) return parentIdsInDay.has(s.parentId)
       if (!s.date) return false
       const d = new Date(s.date)
       return !Number.isNaN(d.getTime()) && startOfDayKey(d) === activeKey
