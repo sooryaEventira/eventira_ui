@@ -44,6 +44,8 @@ const parseTime = (raw: any): { time: string; period: 'AM' | 'PM' } => {
   const s = String(raw).trim()
   if (!s) return fallback
   if (s.includes('T')) {
+    const isoWallClockMatch = s.match(/T(\d{2}):(\d{2})/)
+    if (isoWallClockMatch) return from24(Number(isoWallClockMatch[1]), Number(isoWallClockMatch[2]))
     const d = new Date(s)
     if (!Number.isNaN(d.getTime())) return from24(d.getHours(), d.getMinutes())
   }

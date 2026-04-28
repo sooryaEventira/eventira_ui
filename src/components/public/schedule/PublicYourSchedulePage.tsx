@@ -51,7 +51,12 @@ const parseTime = (raw: any): { time: string; period: 'AM' | 'PM' } => {
   }
   const s = String(raw).trim()
   if (!s) return fallback
-  if (s.includes('T')) { const d = new Date(s); if (!Number.isNaN(d.getTime())) return from24(d.getHours(), d.getMinutes()) }
+  if (s.includes('T')) {
+    const isoWallClockMatch = s.match(/T(\d{2}):(\d{2})/)
+    if (isoWallClockMatch) return from24(Number(isoWallClockMatch[1]), Number(isoWallClockMatch[2]))
+    const d = new Date(s)
+    if (!Number.isNaN(d.getTime())) return from24(d.getHours(), d.getMinutes())
+  }
   const ampm = s.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?\s*(AM|PM)$/i)
   if (ampm) {
     let hh = Number(ampm[1]); const mm = Number(ampm[2]); const p = ampm[3].toUpperCase() as 'AM' | 'PM'
