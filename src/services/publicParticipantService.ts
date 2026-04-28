@@ -51,7 +51,8 @@ export const fetchPublicParticipants = async (
   eventUuid: string,
   tagId?: string,
   page = 1,
-  pageSize = 10
+  pageSize = 10,
+  query?: string
 ): Promise<PublicParticipantsPage> => {
   try {
     if (!eventUuid) throw new Error('Event UUID is required.')
@@ -60,8 +61,14 @@ export const fetchPublicParticipants = async (
       ? API_ENDPOINTS.PUBLIC.PARTICIPANTS.LIST_BY_TAG(eventUuid, tagId)
       : API_ENDPOINTS.PUBLIC.PARTICIPANTS.LIST(eventUuid)
 
+    const params = new URLSearchParams()
+    params.set('page', String(page))
+    params.set('page_size', String(pageSize))
+    const trimmedQuery = String(query ?? '').trim()
+    if (trimmedQuery) params.set('q', trimmedQuery)
+
     const separator = base.includes('?') ? '&' : '?'
-    const url = `${base}${separator}page=${page}&page_size=${pageSize}`
+    const url = `${base}${separator}${params.toString()}`
 
     const response = await fetch(url, {
       method: 'GET',

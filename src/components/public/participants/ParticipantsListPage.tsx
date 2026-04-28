@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { SearchLg, FilterLines } from '@untitled-ui/icons-react'
 import { fetchPublicParticipants, fetchPublicParticipant } from '../../../services/publicParticipantService'
-import { buildSearchIndex, normalizeSearchText } from '../../../utils/indexedSearch'
 import { useAblyPresence } from '../../../hooks/useAblyPresence'
 import DirectChat from './DirectChat'
 import { TablePagination } from '../../ui'
@@ -71,6 +70,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
   }, [])
 
   const [queryInput, setQueryInput] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [organizationFilter, setOrganizationFilter] = useState<string>('all')
   const [apiParticipants, setApiParticipants] = useState<PublicParticipant[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -84,14 +84,21 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
   const PAGE_SIZE = 10
 
   useEffect(() => { setCurrentPage(1) }, [tagId])
+  useEffect(() => { setCurrentPage(1) }, [searchQuery])
   useEffect(() => { if (participantId) setSelectedId(participantId) }, [participantId])
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      setSearchQuery(queryInput.trim())
+    }, 300)
+    return () => window.clearTimeout(timeout)
+  }, [queryInput])
 
   useEffect(() => {
     let cancelled = false
     const run = async () => {
       setIsLoading(true)
       try {
-        const result = await fetchPublicParticipants(eventUuid, tagId, currentPage, PAGE_SIZE)
+        const result = await fetchPublicParticipants(eventUuid, tagId, currentPage, PAGE_SIZE, searchQuery)
         if (cancelled) return
         const currentEmail = localStorage.getItem('pub_userEmail') ?? ''
         const mapped: PublicParticipant[] = result.items.map((a: any, idx: number) => {
@@ -122,7 +129,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
     }
     run()
     return () => { cancelled = true }
-  }, [eventUuid, tagId, currentPage])
+  }, [eventUuid, tagId, currentPage, searchQuery])
 
   useEffect(() => {
     if (!selectedId) { setDetailParticipant(null); return }
@@ -153,7 +160,12 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
     const seen = new Set<string>()
     return apiParticipants.map((a: any, idx: number) => {
       const baseId = String(a?.id ?? '').trim()
-      const nameKey = normalizeSearchText(a?.name).replace(/\s+/g, '-') || 'participant'
+      const nameKey =
+        String(a?.name ?? '')
+          .toLowerCase()
+          .trim()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-') || 'participant'
       let id = baseId || `${nameKey}-${idx}`
       while (seen.has(id)) id = `${id}-${idx}`
       seen.add(id)
@@ -172,14 +184,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
     return normalizedParticipants.filter((a) => String(a.organization ?? '').trim() === organizationFilter)
   }, [normalizedParticipants, organizationFilter])
 
-  const participantIndex = useMemo(() => buildSearchIndex(baseParticipants, (a) => a.name), [baseParticipants])
-
-  const filtered = useMemo(() => {
-    const q = normalizeSearchText(queryInput)
-    if (!q) return baseParticipants
-    const tokens = q.split(' ').filter(Boolean)
-    return participantIndex.filter((e) => tokens.every((t) => e.text.includes(t))).map((e) => e.item)
-  }, [participantIndex, baseParticipants, queryInput])
+  const filtered = baseParticipants
 
   const tagLabel = useMemo(() => {
     if (!tagId || typeof window === 'undefined') return null
