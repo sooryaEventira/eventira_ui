@@ -186,15 +186,23 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       }, [])
   }
 
-  // Initialize editor with initial content once on mount — no value prop so
-  // react-quill never compares props vs live editor content and resets the editor.
+  // Sync composer state whenever parent provides a new communication detail
+  // (e.g. user clicks pencil on another row).
   useEffect(() => {
+    const nextSubject = initialSubject || ''
+    const nextMessage = initialMessage || ''
+
+    setSubject(nextSubject)
+    setSavedSubject(nextSubject)
+    setSavedMessage(nextMessage)
+    editorContentRef.current = nextMessage
+    setIsEditing(true)
+
     const quill = quillRef.current?.getEditor()
-    if (quill && initialMessage) {
-      quill.clipboard.dangerouslyPasteHTML(initialMessage)
-      editorContentRef.current = initialMessage
+    if (quill) {
+      quill.clipboard.dangerouslyPasteHTML(nextMessage)
     }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialSubject, initialMessage])
 
   useEffect(() => {
     const loadTags = async () => {

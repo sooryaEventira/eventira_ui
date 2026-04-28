@@ -504,7 +504,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
             autoFocus
           />
 
-          <div className="flex flex-col sm:flex-row gap-6">
+          {/* <div className="flex flex-col sm:flex-row gap-6">
             <div className="flex-1">
               <CreatableMultiSelect
                 label="Tags"
@@ -528,7 +528,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
                 isDisabled={isLoadingLocations}
               />
             </div>
-          </div>
+          </div> */}
 
           <div>
             <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">

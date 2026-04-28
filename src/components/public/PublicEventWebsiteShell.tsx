@@ -643,6 +643,8 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
               eventUuid={eventUuid}
               webpageSlug={webpageSlug}
               onPrimaryColor={setPrimaryColorFromWebpage}
+              bannerUrl={websiteSettings?.banner ?? (event as any)?.banner ?? null}
+              eventName={displayEventName ?? null}
             />
           ) : (
             <div className="rounded-xl border border-slate-200 bg-white p-6">

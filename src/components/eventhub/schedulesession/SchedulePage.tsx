@@ -30,8 +30,6 @@ import {
   getSessionUuidFromResponse,
   findSessionUuidFromList,
   deleteSession as deleteSessionApi,
-  fetchSessionTags,
-  fetchSessionLocations,
   type SessionTagOption,
   type CreateSessionBody,
   type UpdateSessionBody,
@@ -269,66 +267,49 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     return () => { cancelled = true }
   }, [currentEventUuid])
 
-  // Load session tags and locations from API when a schedule is selected (for add/edit session slideout).
+  // Load session tags and locations from local schedule state when a schedule is selected.
+  // (No session-tags / locations API calls here.)
   React.useEffect(() => {
-    const eventUuid = createdEvent?.uuid
     const scheduleUuid = activeScheduleId
-    if (!eventUuid || !scheduleUuid) return
+    if (!scheduleUuid) return
 
-    let cancelled = false
-    Promise.all([
-      fetchSessionTags(eventUuid),
-      fetchSessionLocations(eventUuid, scheduleUuid)
-    ]).then(([apiTagOptions, apiLocations]) => {
-      if (cancelled) return
-      const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
-      const fromSchedule = {
-        locations: Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
-      }
-      const mergeLoc = (a: string[], b: string[]) => {
-        const set = new Set<string>()
-        ;[...a, ...b].forEach((s) => s && set.add(String(s).trim()))
-        return Array.from(set).filter(Boolean)
-      }
-      setAvailableSessionTags(Array.isArray(apiTagOptions) ? apiTagOptions : [])
-      setAvailableLocations(mergeLoc(apiLocations, fromSchedule.locations))
-    }).catch(() => {
-      if (!cancelled) {
-        const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
-        setAvailableSessionTags([])
-        setAvailableLocations(schedule?.availableLocations ?? [])
-      }
-    })
-    return () => { cancelled = true }
-  }, [createdEvent?.uuid, activeScheduleId, savedSchedules])
+    const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
+    const rawTags = Array.isArray(schedule?.availableTags) ? schedule.availableTags : []
+    const rawLocations = Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
 
-  // When session or template slideout opens, refresh tags/locations so add-child, create-from-scratch, and template always have the list.
+    const uniqueTags = Array.from(new Set(rawTags.map((t) => String(t ?? '').trim()).filter(Boolean)))
+    const uniqueLocations = Array.from(new Set(rawLocations.map((l) => String(l ?? '').trim()).filter(Boolean)))
+
+    setAvailableSessionTags(
+      uniqueTags.map((name) => ({
+        uuid: name.toLowerCase().replace(/\s+/g, '-'),
+        name
+      }))
+    )
+    setAvailableLocations(uniqueLocations)
+  }, [activeScheduleId, savedSchedules])
+
+  // When session/template slideout opens, ensure latest local tags/locations are applied.
   React.useEffect(() => {
-    const eventUuid = createdEvent?.uuid
     const scheduleUuid = activeScheduleId
-    if (!eventUuid || !scheduleUuid) return
+    if (!scheduleUuid) return
     if (!isSessionSlideoutOpen && !isTemplateSessionSlideoutOpen) return
 
-    let cancelled = false
-    Promise.all([
-      fetchSessionTags(eventUuid),
-      fetchSessionLocations(eventUuid, scheduleUuid)
-    ]).then(([apiTagOptions, apiLocations]) => {
-      if (cancelled) return
-      const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
-      const fromSchedule = {
-        locations: Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
-      }
-      const mergeLoc = (a: string[], b: string[]) => {
-        const set = new Set<string>()
-        ;[...a, ...b].forEach((s) => s && set.add(String(s).trim()))
-        return Array.from(set).filter(Boolean)
-      }
-      setAvailableSessionTags(Array.isArray(apiTagOptions) ? apiTagOptions : [])
-      setAvailableLocations(mergeLoc(apiLocations, fromSchedule.locations))
-    }).catch(() => {})
-    return () => { cancelled = true }
-  }, [isSessionSlideoutOpen, isTemplateSessionSlideoutOpen, createdEvent?.uuid, activeScheduleId, savedSchedules])
+    const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
+    const rawTags = Array.isArray(schedule?.availableTags) ? schedule.availableTags : []
+    const rawLocations = Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
+
+    const uniqueTags = Array.from(new Set(rawTags.map((t) => String(t ?? '').trim()).filter(Boolean)))
+    const uniqueLocations = Array.from(new Set(rawLocations.map((l) => String(l ?? '').trim()).filter(Boolean)))
+
+    setAvailableSessionTags(
+      uniqueTags.map((name) => ({
+        uuid: name.toLowerCase().replace(/\s+/g, '-'),
+        name
+      }))
+    )
+    setAvailableLocations(uniqueLocations)
+  }, [isSessionSlideoutOpen, isTemplateSessionSlideoutOpen, activeScheduleId, savedSchedules])
 
   // Use fetched event first so weekday selector shows the correct event's dates when switching.
   // Support API fields: event_date, startDate, start_date, startDateTimeISO (use date part).

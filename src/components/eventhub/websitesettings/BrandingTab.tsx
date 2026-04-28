@@ -214,14 +214,14 @@ const BrandingTab: React.FC = () => {
       <div className="space-y-4">
         <div>
           <label className="text-sm font-semibold text-slate-900">Banner</label>
-          <p className="text-xs text-slate-500 mt-1">Recommended: 1920 × 400px</p>
+          <p className="text-xs text-slate-500 mt-1">Recommended: 1920 × 700px</p>
         </div>
         {bannerUrl ? (
           <div className="relative w-full">
             <img
               src={bannerUrl}
               alt="Banner"
-              className="w-full h-40 rounded-lg object-cover"
+              className="w-full h-56 rounded-lg object-cover"
             />
             <button
               onClick={handleRemoveBanner}

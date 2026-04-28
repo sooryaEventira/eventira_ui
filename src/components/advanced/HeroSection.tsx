@@ -21,7 +21,7 @@ const HeroSection = ({
   textColor = '#FFFFFF',
   backgroundImage = '',
   showContent = true,
-  height = '500px',
+  height = '700px',
   alignment = 'center',
   overlayOpacity = 0.4,
   buttonSpacing = '12px'
@@ -66,7 +66,7 @@ const HeroSection = ({
     const fromProps = (backgroundImage || '').trim()
     return fromProps || DEFAULT_BANNER_IMAGE
   })()
-  const safeHeight = (height || '500px').toString().trim() || '500px'
+  const safeHeight = (height || '700px').toString().trim() || '700px'
 
   const readEventMetaFromStorage = () => {
     const out = { location: '', startDate: '', endDate: '' }
@@ -204,12 +204,12 @@ const HeroSection = ({
     justifyContent: alignment === 'left' ? 'flex-start' : alignment === 'right' ? 'flex-end' : 'center',
     padding: 'clamp(40px, 8vw, 80px) clamp(20px, 4vw, 40px)',
     width: '100%',
-    maxWidth: '100%',
+    maxWidth: '1920px',
     display: 'flex',
     position: 'relative',
     boxSizing: 'border-box',
     overflow: 'hidden',
-    margin: 0
+    margin: '0 auto'
   }
   
   // Debug: Log what backgroundImage prop we received and what style is being applied

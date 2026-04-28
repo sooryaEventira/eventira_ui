@@ -46,12 +46,18 @@ interface PublicWebpageRendererProps {
   webpageSlug: string
   /** If the webpage GET response includes brand_primary_color, it will be passed here so the shell can apply it. */
   onPrimaryColor?: (color: string | null) => void
+  /** Optional site banner from website settings/event API for HeroSection fallback. */
+  bannerUrl?: string | null
+  /** Event name from public event API for HeroSection title sync. */
+  eventName?: string | null
 }
 
 const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({
   eventUuid,
   webpageSlug,
-  onPrimaryColor
+  onPrimaryColor,
+  bannerUrl,
+  eventName
 }) => {
   const [webpage, setWebpage] = useState<PublicWebpageData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -87,7 +93,40 @@ const PublicWebpageRenderer: React.FC<PublicWebpageRendererProps> = ({
     }
   }, [eventUuid, webpageSlug, onPrimaryColor])
 
-  const pageData = useMemo(() => (webpage ? extractPageData(webpage) : null), [webpage])
+  const pageData = useMemo(() => {
+    const extracted = webpage ? extractPageData(webpage) : null
+    if (!extracted) return null
+    const resolvedBanner = typeof bannerUrl === 'string' ? bannerUrl.trim() : ''
+    const resolvedEventName = typeof eventName === 'string' ? eventName.trim() : ''
+    if (!resolvedBanner && !resolvedEventName) return extracted
+
+    const nextContent = Array.isArray(extracted.content)
+      ? extracted.content.map((item: any) => {
+          if (item?.type !== 'HeroSection') return item
+          const currentBg = String(item?.props?.backgroundImage ?? '').trim()
+          // Replace empty/default hero image with website settings banner.
+          const hasDefault =
+            !currentBg || currentBg.includes('unsplash.com/photo-1540575467063')
+          const currentTitle = String(item?.props?.title ?? '').trim()
+          const shouldUpdateTitle = Boolean(resolvedEventName) && currentTitle !== resolvedEventName
+          const shouldUpdateBanner = Boolean(resolvedBanner) && hasDefault
+          if (!shouldUpdateTitle && !shouldUpdateBanner) return item
+          return {
+            ...item,
+            props: {
+              ...(item?.props ?? {}),
+              ...(shouldUpdateBanner ? { backgroundImage: resolvedBanner } : {}),
+              ...(shouldUpdateTitle ? { title: resolvedEventName } : {})
+            }
+          }
+        })
+      : extracted.content
+
+    return {
+      ...extracted,
+      content: nextContent
+    }
+  }, [webpage, bannerUrl, eventName])
   const pageType = pageData?.root?.props?.pageType
   const pageName = webpage?.name
   const config = useMemo(() => getPuckConfig(pageType, pageName), [pageType, pageName])
