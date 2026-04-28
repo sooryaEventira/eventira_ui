@@ -59,7 +59,10 @@ import {
   buildSectionsPayload
 } from './utils/sessionPayloadBuilders'
 import { UUID_REGEX, DEFAULT_EVENT_TIMEZONE } from './utils/sessionConstants'
-import { storeExcelParentMap as storeExcelParentMapUtil } from './utils/excelSessionImport'
+import {
+  normalizeBulkImportTimesTo24h as normalizeBulkImportTimesTo24hUtil,
+  storeExcelParentMap as storeExcelParentMapUtil
+} from './utils/excelSessionImport'
 
 interface SchedulePageProps {
   eventName?: string
@@ -91,6 +94,11 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   const storeExcelParentMap = useCallback(
     (file: File, eventUuid: string, scheduleUuid: string) =>
       storeExcelParentMapUtil(file, eventUuid, scheduleUuid),
+    []
+  )
+
+  const normalizeBulkImportTimesTo24h = useCallback(
+    (file: File) => normalizeBulkImportTimesTo24hUtil(file),
     []
   )
 
@@ -1675,12 +1683,13 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       if (!file) return
 
       try {
+        const normalizedFile = await normalizeBulkImportTimesTo24h(file)
         if (eventUuid && scheduleUuid) {
-          await storeExcelParentMap(file, eventUuid, scheduleUuid)
+          await storeExcelParentMap(normalizedFile, eventUuid, scheduleUuid)
         }
 
         const formData = new FormData()
-        formData.append('file', file)
+        formData.append('file', normalizedFile)
         formData.append('event_id', eventUuid)
 
         const response = await fetch(API_ENDPOINTS.SESSIONS.BULK_IMPORT(scheduleUuid), {
@@ -1704,60 +1713,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
         showToast.error('Failed to upload sessions. Please try again.')
       }
     },
-    [activeScheduleId, createdEvent?.uuid, loadSessions]
-  )
-
-  const handleUploadSessionsForSchedule = useCallback(
-    async (files: File[], scheduleId: string) => {
-      // Temporarily use provided schedule id (for table upload)
-      const eventUuid = createdEvent?.uuid
-      const accessToken = localStorage.getItem('accessToken')
-      const organizationUuid = localStorage.getItem('organizationUuid')
-
-      if (!scheduleId) {
-        showToast.error('Please select a schedule first.')
-        return
-      }
-
-      if (!eventUuid || !accessToken || !organizationUuid) {
-        showToast.error('Missing event or authentication context.')
-        return
-      }
-
-      const file = files?.[0]
-      if (!file) return
-
-      try {
-        if (eventUuid && scheduleId) {
-          await storeExcelParentMap(file, eventUuid, scheduleId)
-        }
-
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('event_id', eventUuid)
-
-        const response = await fetch(API_ENDPOINTS.SESSIONS.BULK_IMPORT(scheduleId), {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-            'X-Organization': organizationUuid
-          },
-          credentials: 'include',
-          body: formData
-        })
-
-        if (!response.ok) {
-          showToast.error('Failed to upload sessions. Please try again.')
-          return
-        }
-
-        showToast.success('Sessions uploaded successfully')
-        await loadSessions(scheduleId)
-      } catch {
-        showToast.error('Failed to upload sessions. Please try again.')
-      }
-    },
-    [createdEvent?.uuid, loadSessions, storeExcelParentMap]
+    [activeScheduleId, createdEvent?.uuid, loadSessions, normalizeBulkImportTimesTo24h, storeExcelParentMap]
   )
 
   const handleAddSessionClick = (parentId?: string, creationType?: 'template' | 'scratch') => {
@@ -2639,7 +2595,6 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             builtScheduleIds={builtScheduleIds}
             onToggleBuildPage={handleToggleBuildPage}
             onCreateSchedule={handleCreateScheduleFromList}
-            onUploadSessions={handleUploadSessionsForSchedule}
             onManageSession={handleManageSession}
             onDeleteSchedule={(scheduleId) => {
               const target = savedSchedules.find((s) => s.id === scheduleId)

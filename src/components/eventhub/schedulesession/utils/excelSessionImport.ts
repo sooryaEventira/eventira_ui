@@ -24,6 +24,15 @@ export type ExcelSessionMapEntry = {
 
 const STORAGE_KEY_PREFIX = 'session-import-map'
 
+const to24HourTime = (value: any): string | null => {
+  const minutes = parseExcelTimeToMinutes(value)
+  if (minutes === null) return null
+  const normalized = ((minutes % (24 * 60)) + 24 * 60) % (24 * 60)
+  const hh = String(Math.floor(normalized / 60)).padStart(2, '0')
+  const mm = String(normalized % 60).padStart(2, '0')
+  return `${hh}:${mm}`
+}
+
 /**
  * Parse the first sheet of an Excel file and store entries in localStorage
  * under key `session-import-map:${eventUuid}:${scheduleUuid}`.
@@ -108,4 +117,55 @@ export async function storeExcelParentMap(
   } catch (e) {
     console.log('⚠️ [Sessions] Failed to parse/store Excel map:', e)
   }
+}
+
+/**
+ * Backend bulk-import now expects 24-hour time strings (HH:MM).
+ * This rewrites "Start Time" and "End Time" columns before upload.
+ */
+export async function normalizeBulkImportTimesTo24h(file: File): Promise<File> {
+  const XLSX = await import('xlsx')
+  const buffer = await file.arrayBuffer()
+  const wb = XLSX.read(buffer, { type: 'array' })
+  const sheetName = wb.SheetNames?.[0]
+  if (!sheetName) return file
+
+  const ws = wb.Sheets[sheetName]
+  const rows: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true }) as any[][]
+  if (!rows || rows.length < 2) return file
+
+  const header = (rows[0] || []).map((h) => String(h ?? '').trim().toLowerCase())
+  const startIdx = header.findIndex((h) => h === 'start time')
+  const endIdx = header.findIndex((h) => h === 'end time')
+  if (startIdx === -1 && endIdx === -1) return file
+
+  let changed = false
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i] || []
+    if (startIdx !== -1 && row[startIdx] !== undefined) {
+      const normalized = to24HourTime(row[startIdx])
+      if (normalized && String(row[startIdx]).trim() !== normalized) {
+        row[startIdx] = normalized
+        changed = true
+      }
+    }
+    if (endIdx !== -1 && row[endIdx] !== undefined) {
+      const normalized = to24HourTime(row[endIdx])
+      if (normalized && String(row[endIdx]).trim() !== normalized) {
+        row[endIdx] = normalized
+        changed = true
+      }
+    }
+  }
+
+  if (!changed) return file
+
+  const nextWs = XLSX.utils.aoa_to_sheet(rows)
+  wb.Sheets[sheetName] = nextWs
+
+  const outType = file.name.toLowerCase().endsWith('.xls') ? 'xls' : 'xlsx'
+  const out = XLSX.write(wb, { type: 'array', bookType: outType })
+  return new File([out], file.name, {
+    type: file.type || 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  })
 }

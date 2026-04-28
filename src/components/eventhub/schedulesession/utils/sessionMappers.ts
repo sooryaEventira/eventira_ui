@@ -182,7 +182,7 @@ export const mapRetrieveSessionToDraft = (
         : []
   const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|ogg|m4v|ogv)(\?|$)/i
   const IMAGE_EXTENSIONS = /\.(jpe?g|png|gif|webp|svg|bmp|avif|tiff?)(\?|$)/i
-  const SLIDES_EXTENSIONS = /\.(pdf|pptx?|key|odp)(\?|$)/i
+  const DOCUMENT_EXTENSIONS = /\.(pdf|docx?|xlsx?|xlsm|csv|pptx?|key|odp|odt|rtf|txt)(\?|$)/i
   if (apiResources.length > 0) {
     const resourceFiles = apiResources.map((r: any) => {
       if (typeof r === 'string') return { url: r, name: r?.split?.('/')?.pop?.() ?? 'File' }
@@ -196,7 +196,7 @@ export const mapRetrieveSessionToDraft = (
     })
     const videoResources: typeof resourceFiles = []
     const imageResources: typeof resourceFiles = []
-    const slidesResources: typeof resourceFiles = []
+    const documentResources: typeof resourceFiles = []
     const otherResources: typeof resourceFiles = []
     resourceFiles.forEach((item: { url?: string; name: string }) => {
       const url = item?.url ?? ''
@@ -205,8 +205,8 @@ export const mapRetrieveSessionToDraft = (
         videoResources.push(item)
       } else if (IMAGE_EXTENSIONS.test(String(url)) || IMAGE_EXTENSIONS.test(String(name))) {
         imageResources.push(item)
-      } else if (SLIDES_EXTENSIONS.test(String(url)) || SLIDES_EXTENSIONS.test(String(name))) {
-        slidesResources.push(item)
+      } else if (DOCUMENT_EXTENSIONS.test(String(url)) || DOCUMENT_EXTENSIONS.test(String(name))) {
+        documentResources.push(item)
       } else {
         otherResources.push(item)
       }
@@ -270,38 +270,26 @@ export const mapRetrieveSessionToDraft = (
         })
       }
     }
-    if (slidesResources.length > 0) {
-      const slidesFiles = slidesResources.map((r: { url?: string; name?: string; resourceId?: string }) => ({
-        url: r.url ?? '',
-        name: r.name ?? (r.url ?? '').split('/').pop() ?? 'File',
-        ...(r.resourceId ? { resourceId: r.resourceId } : {})
-      }))
-      const existingSlides = sections.find((s: any) => s.type === 'slides')
-      if (existingSlides) {
-        const current = (existingSlides.data?.files as any[]) ?? []
-        existingSlides.data = { ...existingSlides.data, files: [...current, ...slidesFiles] }
-      } else {
-        sections.push({
-          id: `section-${id}-slides`,
-          type: 'slides',
-          title: 'Slides',
-          description: '',
-          data: { files: slidesFiles }
-        })
-      }
-    }
-    if (otherResources.length > 0) {
+    if (documentResources.length > 0 || otherResources.length > 0) {
+      const resourceFilesCombined = [
+        ...documentResources.map((r: { url?: string; name?: string; resourceId?: string }) => ({
+          url: r.url ?? '',
+          name: r.name ?? (r.url ?? '').split('/').pop() ?? 'File',
+          ...(r.resourceId ? { resourceId: r.resourceId } : {})
+        })),
+        ...otherResources
+      ]
       const existingResources = sections.find((s: any) => s.type === 'resources')
       if (existingResources) {
         const current = (existingResources.data?.files as any[]) ?? []
-        existingResources.data = { ...existingResources.data, files: [...current, ...otherResources] }
+        existingResources.data = { ...existingResources.data, files: [...current, ...resourceFilesCombined] }
       } else {
         sections.push({
           id: `section-${id}-resources`,
           type: 'resources',
           title: 'Resources',
           description: '',
-          data: { files: otherResources }
+          data: { files: resourceFilesCombined }
         })
       }
     }

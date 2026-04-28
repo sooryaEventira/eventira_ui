@@ -1252,32 +1252,29 @@ const PuckHeaderButtons: React.FC<{
       const existingLeftContainer = header.querySelector('[data-puck-header-left]')
       const existingPreviewBtn = header.querySelector('[data-custom-preview-button]') as HTMLElement
       const existingPublishBtn = header.querySelector('[data-custom-publish-button]') as HTMLElement
+      const existingFallbackPreviewBtn = header.querySelector('[data-fallback-preview-button]') as HTMLElement
+
+      // Keep only one preview button (fallback). Remove legacy custom preview button if present.
+      if (existingPreviewBtn) {
+        existingPreviewBtn.remove()
+      }
       
-      // If buttons exist and are properly attached, just update them and return early
-      if (existingPreviewBtn && existingPublishBtn && 
-          existingPreviewBtn.isConnected && existingPublishBtn.isConnected &&
+      // If fallback preview button exists and is properly attached, just update it and return early
+      if (existingFallbackPreviewBtn &&
+          existingFallbackPreviewBtn.isConnected &&
           existingLeftContainer) {
-        // Only update if showPreview state actually changed (check class)
-        const shouldBeActive = showPreview
-        const isCurrentlyActive = existingPreviewBtn.classList.contains('puck-preview-active')
-        
-        // Only update if state changed
-        if (shouldBeActive !== isCurrentlyActive) {
-          existingPreviewBtn.setAttribute('title', showPreview ? 'Exit Preview' : 'Preview')
-          if (showPreview) {
-            existingPreviewBtn.classList.add('puck-preview-active')
-          } else {
-            existingPreviewBtn.classList.remove('puck-preview-active')
-          }
-        }
+        existingFallbackPreviewBtn.setAttribute('title', showPreview ? 'Exit Preview' : 'Preview')
+        existingFallbackPreviewBtn.setAttribute('aria-label', showPreview ? 'Exit Preview' : 'Preview')
+        existingFallbackPreviewBtn.style.backgroundColor = showPreview ? '#7c3aed' : '#ffffff'
+        existingFallbackPreviewBtn.style.color = showPreview ? '#ffffff' : '#6b7280'
+        existingFallbackPreviewBtn.style.display = 'inline-flex'
+        existingFallbackPreviewBtn.style.visibility = 'visible'
+        existingFallbackPreviewBtn.style.opacity = '1'
         isUpdating = false
         return
       }
       
       // Only remove if they're not properly connected
-      if (existingPreviewBtn && existingPreviewBtn.parentNode && !existingPreviewBtn.isConnected) {
-        existingPreviewBtn.parentNode.removeChild(existingPreviewBtn)
-      }
       if (existingPublishBtn && existingPublishBtn.parentNode && !existingPublishBtn.isConnected) {
         existingPublishBtn.parentNode.removeChild(existingPublishBtn)
       }
@@ -1472,6 +1469,7 @@ const PuckHeaderButtons: React.FC<{
       if (existingPreviewBtn) {
         // Update the existing button's appearance based on showPreview state
         existingPreviewBtn.setAttribute('title', showPreview ? 'Exit Preview' : 'Preview')
+        existingPreviewBtn.setAttribute('aria-label', showPreview ? 'Exit Preview' : 'Preview')
         if (!showPreview) {
           existingPreviewBtn.style.backgroundColor = 'transparent'
           existingPreviewBtn.style.color = '#6b7280'
@@ -1479,10 +1477,30 @@ const PuckHeaderButtons: React.FC<{
           existingPreviewBtn.style.backgroundColor = '#7c3aed'
           existingPreviewBtn.style.color = '#ffffff'
         }
-        // Don't recreate if it already exists
-        if (existingPublishBtn) {
-          return
+        existingPreviewBtn.style.display = 'flex'
+        existingPreviewBtn.style.alignItems = 'center'
+        existingPreviewBtn.style.justifyContent = 'center'
+        existingPreviewBtn.style.minWidth = '44px'
+        existingPreviewBtn.style.height = '36px'
+        existingPreviewBtn.style.padding = '8px 12px'
+        existingPreviewBtn.style.opacity = '1'
+        existingPreviewBtn.style.visibility = 'visible'
+
+        // Self-heal icon if any external style/script removed it.
+        let existingIcon = existingPreviewBtn.querySelector('svg') as SVGElement | null
+        if (!existingIcon) {
+          existingIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          existingIcon.setAttribute('viewBox', '0 0 24 24')
+          existingIcon.setAttribute('fill', 'none')
+          existingIcon.setAttribute('stroke', 'currentColor')
+          existingIcon.setAttribute('stroke-width', '2')
+          existingIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>'
+          existingPreviewBtn.innerHTML = ''
+          existingPreviewBtn.appendChild(existingIcon)
         }
+        existingIcon.setAttribute('width', '20')
+        existingIcon.setAttribute('height', '20')
+        return
       }
 
       const existingActionContainer = leftContainer.querySelector('[data-action-buttons]')
@@ -1515,134 +1533,87 @@ const PuckHeaderButtons: React.FC<{
         `
       }
 
-      if (!existingPreviewBtn) {
-        const previewBtn = document.createElement('button')
-        previewBtn.setAttribute('data-custom-preview-button', 'true')
-        previewBtn.setAttribute('data-puck-custom-button', 'true') // Flag to prevent removal
-        previewBtn.setAttribute('title', showPreview ? 'Exit Preview' : 'Preview')
-        previewBtn.className = 'puck-custom-preview-btn'
-        if (showPreview) {
-          previewBtn.classList.add('puck-preview-active')
-        }
-        
-        // Inject CSS for hover effects (only once)
-        if (!document.getElementById('puck-custom-button-styles')) {
-          const style = document.createElement('style')
-          style.id = 'puck-custom-button-styles'
-          style.textContent = `
-            .puck-custom-preview-btn {
-              background: transparent;
-              border: none;
-              color: #6b7280;
-              cursor: pointer;
-              padding: 8px 12px;
-              display: flex;
-              align-items: center;
-              justify-content: center;
-              border-radius: 0;
-              position: relative;
-              z-index: 1000;
-              transition: background-color 0.15s ease, color 0.15s ease;
-            }
-            .puck-custom-preview-btn.puck-preview-active {
-              background: #7c3aed;
-              color: #ffffff;
-            }
-            .puck-custom-preview-btn:not(.puck-preview-active):hover {
-              background: #f3f4f6;
-              color: #7c3aed;
-            }
-            .puck-custom-preview-btn.puck-preview-active:hover {
-              background: #6d28d9;
-            }
-          `
-          document.head.appendChild(style)
-        }
-        
-        const previewIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-        previewIcon.setAttribute('width', '20')
-        previewIcon.setAttribute('height', '20')
-        previewIcon.setAttribute('viewBox', '0 0 24 24')
-        previewIcon.setAttribute('fill', 'none')
-        previewIcon.setAttribute('stroke', 'currentColor')
-        previewIcon.setAttribute('stroke-width', '2')
-        previewIcon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>'
-        previewBtn.appendChild(previewIcon)
-        
-        previewBtn.addEventListener('click', (e) => {
-          e.stopPropagation()
-          e.preventDefault()
-          onPreviewToggle()
-        })
+      // Remove any previously injected publish remnants so preview keeps clean spacing.
+      const stalePublishBtn = leftContainer.querySelector('[data-custom-publish-button]')
+      if (stalePublishBtn) stalePublishBtn.remove()
+      const stalePublishDivider = leftContainer.querySelector('[data-publish-divider]')
+      if (stalePublishDivider) stalePublishDivider.remove()
 
-        // Only append if not already in DOM
-        if (!previewContainer.contains(previewBtn)) {
-          previewContainer.appendChild(previewBtn)
-        }
-        if (!actionButtonsContainer.contains(previewContainer)) {
-          actionButtonsContainer.appendChild(previewContainer)
-        }
-        if (!leftContainer.contains(actionButtonsContainer)) {
-          leftContainer.appendChild(actionButtonsContainer)
-        }
+      if (!actionButtonsContainer.contains(previewContainer)) {
+        actionButtonsContainer.appendChild(previewContainer)
+      }
+      if (!leftContainer.contains(actionButtonsContainer)) {
+        leftContainer.appendChild(actionButtonsContainer)
       }
       
       isUpdating = false
 
-      if (!existingPublishBtn) {
-        const publishBtn = document.createElement('button')
-        publishBtn.setAttribute('data-custom-publish-button', 'true')
-        publishBtn.setAttribute('title', 'Publish')
-        publishBtn.style.cssText = `
-          background: #7c3aed;
-          border: none;
-          color: #ffffff;
-          cursor: pointer;
-          padding: 8px 12px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 0;
-          transition: all 0.2s ease;
-        `
-        
-        const publishIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-        publishIcon.setAttribute('width', '20')
-        publishIcon.setAttribute('height', '20')
-        publishIcon.setAttribute('viewBox', '0 0 24 24')
-        publishIcon.setAttribute('fill', 'none')
-        publishIcon.setAttribute('stroke', 'currentColor')
-        publishIcon.setAttribute('stroke-width', '2')
-        publishIcon.setAttribute('stroke-linecap', 'round')
-        publishIcon.setAttribute('stroke-linejoin', 'round')
-        publishIcon.innerHTML = '<circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>'
-        publishBtn.appendChild(publishIcon)
-        
-        publishBtn.addEventListener('click', onPublish)
-        publishBtn.addEventListener('mouseenter', () => {
-          publishBtn.style.backgroundColor = '#6d28d9'
-          publishBtn.style.opacity = '0.9'
-        })
-        publishBtn.addEventListener('mouseleave', () => {
-          publishBtn.style.backgroundColor = '#7c3aed'
-          publishBtn.style.opacity = '1'
-        })
-
-        const publishDivider = document.createElement('div')
-        publishDivider.setAttribute('data-publish-divider', 'true')
-        publishDivider.style.cssText = `
-          width: 1px;
-          height: 24px;
-          background-color: #e5e7eb;
-          margin: 0 8px;
-        `
-
-        actionButtonsContainer.appendChild(publishDivider)
-        actionButtonsContainer.appendChild(publishBtn)
-      }
-
       if (actionButtonsContainer.children.length > 0) {
         leftContainer.appendChild(actionButtonsContainer)
+      }
+
+      // Hard fallback preview button: always ensure one visible eye button in header.
+      // This avoids edge-cases where container-based injection is hidden by upstream DOM updates.
+      if (!existingFallbackPreviewBtn) {
+        const fallbackPreviewBtn = document.createElement('button')
+        fallbackPreviewBtn.setAttribute('data-fallback-preview-button', 'true')
+        fallbackPreviewBtn.setAttribute('data-puck-custom-button', 'true')
+        fallbackPreviewBtn.setAttribute('title', showPreview ? 'Exit Preview' : 'Preview')
+        fallbackPreviewBtn.setAttribute('aria-label', showPreview ? 'Exit Preview' : 'Preview')
+        fallbackPreviewBtn.style.cssText = `
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 40px;
+          height: 36px;
+          min-width: 40px;
+          margin-left: 6px;
+          border: 1px solid #e5e7eb;
+          border-radius: 6px;
+          background: ${showPreview ? '#7c3aed' : '#ffffff'};
+          color: ${showPreview ? '#ffffff' : '#6b7280'};
+          cursor: pointer;
+          visibility: visible;
+          opacity: 1;
+          z-index: 1001;
+          position: relative;
+        `
+        const eye = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+        eye.setAttribute('width', '18')
+        eye.setAttribute('height', '18')
+        eye.setAttribute('viewBox', '0 0 24 24')
+        eye.setAttribute('fill', 'none')
+        eye.setAttribute('stroke', 'currentColor')
+        eye.setAttribute('stroke-width', '2')
+        eye.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>'
+        fallbackPreviewBtn.appendChild(eye)
+        fallbackPreviewBtn.addEventListener('click', (e) => {
+          e.stopPropagation()
+          e.preventDefault()
+          onPreviewToggle()
+        })
+        headerInner.appendChild(fallbackPreviewBtn)
+      } else {
+        existingFallbackPreviewBtn.setAttribute('title', showPreview ? 'Exit Preview' : 'Preview')
+        existingFallbackPreviewBtn.setAttribute('aria-label', showPreview ? 'Exit Preview' : 'Preview')
+        existingFallbackPreviewBtn.style.backgroundColor = showPreview ? '#7c3aed' : '#ffffff'
+        existingFallbackPreviewBtn.style.color = showPreview ? '#ffffff' : '#6b7280'
+        existingFallbackPreviewBtn.style.display = 'inline-flex'
+        existingFallbackPreviewBtn.style.visibility = 'visible'
+        existingFallbackPreviewBtn.style.opacity = '1'
+        let icon = existingFallbackPreviewBtn.querySelector('svg') as SVGElement | null
+        if (!icon) {
+          icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+          icon.setAttribute('viewBox', '0 0 24 24')
+          icon.setAttribute('fill', 'none')
+          icon.setAttribute('stroke', 'currentColor')
+          icon.setAttribute('stroke-width', '2')
+          icon.innerHTML = '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle>'
+          existingFallbackPreviewBtn.innerHTML = ''
+          existingFallbackPreviewBtn.appendChild(icon)
+        }
+        icon.setAttribute('width', '18')
+        icon.setAttribute('height', '18')
       }
 
     }
@@ -1671,8 +1642,10 @@ const PuckHeaderButtons: React.FC<{
         // Never remove our custom buttons
         if (btn.hasAttribute('data-custom-publish-button') ||
             btn.hasAttribute('data-custom-preview-button') ||
+            btn.hasAttribute('data-fallback-preview-button') ||
             btn.hasAttribute('data-puck-custom-button') ||
             btn.closest('[data-custom-preview-button]') ||
+            btn.closest('[data-fallback-preview-button]') ||
             btn.closest('[data-custom-publish-button]')) {
           return
         }
@@ -1840,11 +1813,13 @@ const PuckHeaderButtons: React.FC<{
         if (target && (
           target.hasAttribute('data-custom-preview-button') ||
           target.hasAttribute('data-custom-publish-button') ||
+          target.hasAttribute('data-fallback-preview-button') ||
           target.hasAttribute('data-puck-custom-button') ||
           target.hasAttribute('data-preview-container') ||
           target.hasAttribute('data-action-buttons') ||
           target.hasAttribute('data-puck-header-left') ||
           target.closest('[data-custom-preview-button]') ||
+          target.closest('[data-fallback-preview-button]') ||
           target.closest('[data-custom-publish-button]') ||
           target.closest('[data-preview-container]') ||
           target.closest('[data-action-buttons]') ||
@@ -1981,11 +1956,9 @@ const PuckHeaderButtons: React.FC<{
           }
           
           const existingPreview = document.querySelector('[data-custom-preview-button]') as HTMLElement
-          const existingPublish = document.querySelector('[data-custom-publish-button]') as HTMLElement
           
-          // Check if buttons exist and are properly connected to DOM
-          if (existingPreview && existingPublish && 
-              existingPreview.isConnected && existingPublish.isConnected) {
+          // Check if preview button exists and is properly connected to DOM
+          if (existingPreview && existingPreview.isConnected) {
             if (!buttonsInjected) {
               buttonsInjected = true
             }
@@ -2008,9 +1981,7 @@ const PuckHeaderButtons: React.FC<{
             hideAllPublishButtons()
             findAndInjectButtons()
             const checkPreview = document.querySelector('[data-custom-preview-button]') as HTMLElement
-            const checkPublish = document.querySelector('[data-custom-publish-button]') as HTMLElement
-            if (checkPreview && checkPublish && 
-                checkPreview.isConnected && checkPublish.isConnected) {
+            if (checkPreview && checkPreview.isConnected) {
               buttonsInjected = true
               createInterval(true)
             }

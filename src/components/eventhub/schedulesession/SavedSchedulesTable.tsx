@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback } from 'react'
-import { Plus, Pencil01, Trash03, Upload01 } from '@untitled-ui/icons-react'
+import { Plus, Pencil01, Trash03 } from '@untitled-ui/icons-react'
 import {
   DividerLineTable,
   type DividerLineTableColumn,
@@ -9,8 +9,6 @@ import {
 import { SavedSchedule } from './sessionTypes'
 import { useTableHeader, TablePagination } from '../../ui'
 import NewTagModal from './NewTagModal'
-import UploadModal from '../../ui/UploadModal'
-import { showToast } from '../../../utils/toast'
 
 type TableRowData = {
   schedule: SavedSchedule
@@ -22,7 +20,6 @@ interface SavedSchedulesTableProps {
   builtScheduleIds?: Set<string>
   onToggleBuildPage?: (schedule: { id: string; name: string }, checked: boolean) => void
   onCreateSchedule: () => void
-  onUploadSessions?: (files: File[], scheduleId: string) => Promise<void> | void
   onEditSchedule?: (scheduleId: string) => void
   onDeleteSchedule?: (scheduleId: string) => void
   onManageSession?: (scheduleId: string) => void
@@ -33,7 +30,6 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
   builtScheduleIds,
   onToggleBuildPage,
   onCreateSchedule,
-  onUploadSessions,
   onEditSchedule,
   onDeleteSchedule,
   onManageSession
@@ -42,7 +38,6 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [currentPage, setCurrentPage] = useState(1)
   const [isNewTagModalOpen, setIsNewTagModalOpen] = useState(false)
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const itemsPerPage = 10
   const [sortDescriptors, setSortDescriptors] = useState<
     DividerLineTableSortDescriptor | undefined
@@ -277,43 +272,11 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
     setIsNewTagModalOpen(false)
   }
 
-  const handleUploadClick = () => {
-    setIsUploadModalOpen(true)
-  }
-
-  const handleCloseUploadModal = () => {
-    setIsUploadModalOpen(false)
-  }
-
-  const handleUploadFiles = async (files: File[]) => {
-    const selected = Array.from(selectedScheduleIds)
-    if (selected.length !== 1) {
-      showToast.error('Select exactly one schedule to upload sessions.')
-      return
-    }
-
-    if (!onUploadSessions) {
-      showToast.error('Upload is not configured.')
-      return
-    }
-
-    await onUploadSessions(files, selected[0])
-  }
-
   return (
     <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-[26px] font-bold text-primary-dark">Schedules/Session</h1>
-        <div className="grid grid-cols-2 gap-3 sm:flex sm:items-center">
-          <Button
-            type="button"
-            variant="secondary"
-            size="md"
-            onClick={handleUploadClick}
-            iconLeading={<Upload01 className="h-4 w-4" />}
-          >
-            Upload
-          </Button>
+        <div className="sm:flex sm:items-center">
           <Button
             type="button"
             variant="primary"
@@ -350,13 +313,6 @@ const SavedSchedulesTable: React.FC<SavedSchedulesTableProps> = ({
         isOpen={isNewTagModalOpen}
         onClose={() => setIsNewTagModalOpen(false)}
         onSave={handleSaveTag}
-      />
-
-      <UploadModal
-        isOpen={isUploadModalOpen}
-        onClose={handleCloseUploadModal}
-        onUpload={handleUploadFiles}
-        multiple={false}
       />
     </div>
   )

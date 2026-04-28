@@ -101,6 +101,19 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
     startLabel && endLabel ? `${startLabel} - ${endLabel}` : startLabel || endLabel
 
   const tags = Array.isArray(session.tags) ? session.tags : []
+  const orderedSections = React.useMemo(() => {
+    const sections = Array.isArray(session.sections) ? session.sections : []
+    const trailingTypes = new Set(['comments', 'live-chat'])
+    const regular: typeof sections = []
+    const trailing: typeof sections = []
+    sections.forEach((section) => {
+      const t = String(section?.type ?? '').toLowerCase()
+      if (trailingTypes.has(t)) trailing.push(section)
+      else regular.push(section)
+    })
+    return [...regular, ...trailing]
+  }, [session.sections])
+
   const displayTags = tags.map((tag) => {
     if (typeof tag !== 'string') return String(tag)
     const fromOptions = tagOptions?.find((opt) => opt.uuid === tag || opt.name === tag)
@@ -153,8 +166,8 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
       </div>
 
       <div className="space-y-8">
-        {(session.sections ?? []).length > 0 ? (
-          (session.sections ?? []).map((section) => (
+        {orderedSections.length > 0 ? (
+          orderedSections.map((section) => (
             <section key={section.id} className="space-y-3">
               <p className="text-sm font-semibold uppercase tracking-wide text-slate-500">
                 {section.type === 'text' ? 'Description' : (sectionOptions.find(o => o.id === section.type)?.label ?? section.title)}

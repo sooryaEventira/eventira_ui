@@ -1042,6 +1042,17 @@ const loadNavigationFromApi = useCallback(async () => {
     return { item: found, next }
   }
 
+  const removeNavItemLocally = useCallback((id: string) => {
+    if (!id) return
+    setNavigationFromApi((prev) => removeNavItemById(prev, id).next)
+    setHiddenNavIds((prev) => {
+      const next = new Set(prev)
+      next.delete(id)
+      return next
+    })
+    setNavigationPreviewActive((current) => (current === id ? null : current))
+  }, [setHiddenNavIds])
+
   const renderConfigurationTab = () => {
     const fallbackRows: Array<{ id: string; name: string; type: 'webpage' | 'user-group' | 'schedule' }> = [
       ...webpages.map((item) => ({
@@ -1533,7 +1544,7 @@ const loadNavigationFromApi = useCallback(async () => {
                         <Button
                           variant="tertiary"
                           size="sm"
-                          onClick={() => handlePageAction(item.id, 'delete')}
+                          onClick={() => removeNavItemLocally(item.id)}
                           className={`p-2 hover:text-red-600 ${
                             isWelcome ? 'text-slate-300 cursor-not-allowed opacity-50' : 'text-slate-400'
                           }`}
@@ -2063,7 +2074,7 @@ const loadNavigationFromApi = useCallback(async () => {
               <Button
                 variant="tertiary"
                 size="sm"
-                onClick={() => setActiveSubItem('website-header')}
+                onClick={() => handleTabSwitch('website-header')}
                 className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
                   activeSubItem === 'website-header'
                     ? 'text-primary border-b-primary'
@@ -2075,7 +2086,7 @@ const loadNavigationFromApi = useCallback(async () => {
               <Button
                 variant="tertiary"
                 size="sm"
-                onClick={() => setActiveSubItem('website-config')}
+                onClick={() => handleTabSwitch('website-config')}
                 className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
                   activeSubItem === 'website-config'
                     ? 'text-primary border-b-primary'
@@ -2347,7 +2358,7 @@ const loadNavigationFromApi = useCallback(async () => {
               <Button
                 variant="tertiary"
                 size="sm"
-                onClick={() => setActiveSubItem('website-header')}
+                onClick={() => handleTabSwitch('website-header')}
                 className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
                   activeSubItem === 'website-header'
                     ? 'text-primary border-b-primary'
@@ -2359,7 +2370,7 @@ const loadNavigationFromApi = useCallback(async () => {
               <Button
                 variant="tertiary"
                 size="sm"
-                onClick={() => setActiveSubItem('website-config')}
+                onClick={() => handleTabSwitch('website-config')}
                 className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
                   activeSubItem === 'website-config'
                     ? 'text-primary border-b-primary'
