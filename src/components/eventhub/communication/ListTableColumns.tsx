@@ -14,6 +14,7 @@ interface ListTableColumnsProps {
   onToggleAllVisible: (checked: boolean) => void
   onToggleRow: (id: string, checked: boolean) => void
   onEditCommunication?: (communicationId: string) => void
+  onDeleteCommunication?: (communicationId: string) => void
 }
 
 const getStatusBadgeVariant = (status: string) => {
@@ -41,7 +42,8 @@ export const useListTableColumns = ({
   selectedCommunicationIds,
   onToggleAllVisible,
   onToggleRow,
-  onEditCommunication
+  onEditCommunication,
+  onDeleteCommunication
 }: ListTableColumnsProps): DividerLineTableColumn<TableRowData>[] => {
   return useMemo<DividerLineTableColumn<TableRowData>[]>(
     () => [
@@ -171,6 +173,7 @@ export const useListTableColumns = ({
         align: 'right',
         render: ({ communication }) => {
           if (!communication) return null
+          const isDraft = communication.status === 'draft'
           return (
             <div className="flex items-center justify-end gap-2">
               <button
@@ -183,8 +186,19 @@ export const useListTableColumns = ({
               </button>
               <button
                 type="button"
-                className="flex h-9 w-9 items-center justify-center text-slate-500 transition hover:border-rose-400 hover:text-rose-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-rose-300/60"
+                onClick={() => {
+                  if (!isDraft) return
+                  onDeleteCommunication?.(communication.id)
+                }}
+                disabled={!isDraft}
+                className={[
+                  'flex h-9 w-9 items-center justify-center transition focus:outline-none',
+                  isDraft
+                    ? 'text-slate-500 hover:border-rose-400 hover:text-rose-600 focus-visible:ring-2 focus-visible:ring-rose-300/60'
+                    : 'text-slate-300 cursor-not-allowed opacity-60 pointer-events-none'
+                ].join(' ')}
                 aria-label={`Delete ${communication.title}`}
+                title={isDraft ? `Delete ${communication.title}` : 'Only draft items can be deleted'}
               >
                 <Trash03 className="h-4 w-4" strokeWidth={1.8} />
               </button>
@@ -199,7 +213,8 @@ export const useListTableColumns = ({
       selectedCommunicationIds,
       onToggleAllVisible,
       onToggleRow,
-      onEditCommunication
+      onEditCommunication,
+      onDeleteCommunication
     ]
   )
 }

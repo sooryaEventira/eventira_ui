@@ -730,6 +730,19 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
 
         // ISO datetime / RFC date strings
         if (raw.includes('T') || raw.includes('Z') || raw.includes('+')) {
+          // For schedule session display, preserve wall-clock time from the payload
+          // (avoid viewer-timezone shifting like 09:00 -> 05:30).
+          const isoWallClockMatch = raw.match(/T(\d{2}):(\d{2})/)
+          if (isoWallClockMatch) {
+            const hours24 = Number(isoWallClockMatch[1])
+            const minutes = isoWallClockMatch[2]
+            const period: 'AM' | 'PM' = hours24 >= 12 ? 'PM' : 'AM'
+            let hours12 = hours24 % 12
+            if (hours12 === 0) hours12 = 12
+            const hh = String(hours12).padStart(2, '0')
+            return { time: `${hh}:${minutes}`, period, source: 'datetime_wall_clock' }
+          }
+
           const asDate = new Date(raw)
           if (!Number.isNaN(asDate.getTime())) {
             const zoned = formatInZone(asDate, options?.timeZone)

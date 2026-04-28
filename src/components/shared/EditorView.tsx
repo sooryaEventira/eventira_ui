@@ -913,8 +913,19 @@ export const EditorView: React.FC<EditorViewProps> = ({
                 [class*="PuckHeader-title"] {
                  margin-left: auto !important;
                  margin-right: auto !important;
+                 visibility: hidden !important;
+                 opacity: 0 !important;
+                 width: 0 !important;
+                 overflow: hidden !important;
                 }
                 
+                [class*="Header-title"] {
+                  visibility: hidden !important;
+                  opacity: 0 !important;
+                  width: 0 !important;
+                  overflow: hidden !important;
+                }
+
 
 
 
@@ -1208,12 +1219,7 @@ const PuckHeaderButtons: React.FC<{
         const nextTitle = (pageTitle || '').trim() || 'Page 1'
         const headerInner = header.querySelector('[class*="PuckHeader-inner"]') as HTMLElement | null
         const scope: ParentNode = headerInner || header
-
-        // Prefer an existing title node if present
-        const existingTitle =
-          (scope.querySelector('[class*="PuckHeader-title"]') as HTMLElement | null) ||
-          (scope.querySelector('[class*="Header-title"]') as HTMLElement | null) ||
-          (scope.querySelector('[data-custom-page-title]') as HTMLElement | null)
+        const existingTitle = scope.querySelector('[data-custom-page-title]') as HTMLElement | null
 
         if (existingTitle) {
           if ((existingTitle.textContent || '').trim() !== nextTitle) {

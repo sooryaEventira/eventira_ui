@@ -557,6 +557,42 @@ export const fetchCommunicationById = async (
 }
 
 /**
+ * Delete a communication draft by ID.
+ * DELETE event-communications/{id}/?event_id={eventUuid}
+ */
+export const deleteCommunicationById = async (
+  communicationId: string | number,
+  eventUuid: string
+): Promise<void> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+  if (!eventUuid) throw new Error('Event UUID is required.')
+
+  const response = await fetch(API_ENDPOINTS.COMMUNICATION.DETAIL(communicationId, eventUuid), {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    let message = 'Failed to delete communication.'
+    try {
+      const err: ApiResponse = await response.json()
+      message = handleApiError(err, response, message)
+    } catch {
+      message = handleApiError(null, response, message)
+    }
+    throw new Error(message)
+  }
+}
+
+/**
  * Fetch user groups (tags) for the communication Settings recipient filters.
  * GET user-tags/?event_uuid={eventUuid}
  */

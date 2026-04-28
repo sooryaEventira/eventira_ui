@@ -7,11 +7,12 @@ import BroadcastTypeModal from './BroadcastTypeModal'
 import BroadcastComposer from './BroadcastComposer'
 import PushNotificationMakerPage from './PushNotificationMakerPage'
 import CreateMacroModal from './CreateMacroModal'
+import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { Communication, Macro } from './communicationTypes'
 import type { BroadcastType } from './BroadcastTypeModal'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
-import { fetchCommunications, fetchCommunicationById, fetchUserTags } from '../../../services/communicationService'
+import { deleteCommunicationById, fetchCommunications, fetchCommunicationById, fetchUserTags } from '../../../services/communicationService'
 import { showToast } from '../../../utils/toast'
 
 interface CommunicationPageProps {
@@ -249,6 +250,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   const [currentDraftId, setCurrentDraftId] = React.useState<string | null>(null)
   const [composerHasUnsavedChanges, setComposerHasUnsavedChanges] = React.useState(false)
   const [showUnsavedExitModal, setShowUnsavedExitModal] = React.useState(false)
+  const [deleteCandidate, setDeleteCandidate] = React.useState<Communication | null>(null)
+  const [isDeletingCommunication, setIsDeletingCommunication] = React.useState(false)
   const pendingExitActionRef = React.useRef<(() => void) | null>(null)
   const composerSaveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null)
 
@@ -373,6 +376,37 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     }
   }
 
+  const handleDeleteCommunicationRequest = (communicationId: string) => {
+    const target = communications.find((comm) => comm.id === communicationId)
+    if (!target) return
+    if (target.status !== 'draft') {
+      showToast.error('Only draft communications can be deleted.')
+      return
+    }
+    setDeleteCandidate(target)
+  }
+
+  const handleConfirmDeleteCommunication = async () => {
+    if (!deleteCandidate || isDeletingCommunication) return
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) {
+      showToast.error('Event UUID is required. Please select an event first.')
+      return
+    }
+
+    setIsDeletingCommunication(true)
+    try {
+      await deleteCommunicationById(deleteCandidate.id, eventUuid)
+      setCommunications((prev) => prev.filter((comm) => comm.id !== deleteCandidate.id))
+      setDeleteCandidate(null)
+      showToast.success('Draft deleted successfully.')
+    } catch (e) {
+      showToast.error(e instanceof Error ? e.message : 'Failed to delete communication.')
+    } finally {
+      setIsDeletingCommunication(false)
+    }
+  }
+
   return (
     <div className={hideNavbarAndSidebar ? "" : "min-h-screen overflow-x-hidden bg-white"}>
       {!hideNavbarAndSidebar && (
@@ -485,6 +519,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
             onCreateBroadcast={handleCreateBroadcast}
             onCreateMacro={handleCreateMacro}
             onEditCommunication={handleEditCommunication}
+            onDeleteCommunication={handleDeleteCommunicationRequest}
             isLoading={isLoadingCommunications}
             onEditMacro={(macroId) => {
               console.log('Edit macro:', macroId)
@@ -509,6 +544,17 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         isOpen={isCreateMacroModalOpen}
         onClose={() => setIsCreateMacroModalOpen(false)}
         onConfirm={handleCreateMacroConfirm}
+      />
+      <ConfirmDeleteModal
+        isOpen={!!deleteCandidate}
+        title="Delete communication?"
+        itemName={deleteCandidate?.title}
+        isLoading={isDeletingCommunication}
+        onCancel={() => {
+          if (isDeletingCommunication) return
+          setDeleteCandidate(null)
+        }}
+        onConfirm={handleConfirmDeleteCommunication}
       />
       {showUnsavedExitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">

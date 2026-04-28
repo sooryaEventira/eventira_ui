@@ -833,6 +833,17 @@ export const usePageManagement = () => {
       return
     }
 
+    // Guard: transient data during page switches can briefly report "Page 1"
+    // for non-page1 pages; don't let that overwrite a valid current title.
+    if (
+      currentPage !== 'page1' &&
+      normalizedTitle === 'Page 1' &&
+      currentPageName &&
+      currentPageName !== 'Page 1'
+    ) {
+      return
+    }
+
     if (normalizedTitle !== currentPageName) {
       setCurrentPageName(normalizedTitle)
     }
@@ -1266,7 +1277,10 @@ export const usePageManagement = () => {
       })
       setCurrentData(cleanedInitialData)
         setCurrentPage(pageId)
-        setCurrentPageName(pageInArray.name)
+        const loadedTitle = getPageTitleFromData(cleanedInitialData)?.trim()
+        const fallbackName = pageInArray.name?.trim()
+        const nextName = loadedTitle || fallbackName || (pageId === 'page1' ? 'Page 1' : pageId)
+        setCurrentPageName(nextName)
         setShowPageManager(false)
         
         // Update HeroSection with banner from localStorage after setting data (as backup)
@@ -1335,12 +1349,10 @@ export const usePageManagement = () => {
         setCurrentPage(pageId)
         
         // Get page name from the cached data
-        const pageTitle = getPageTitleFromData(cleanedCachedData)
-        if (pageTitle) {
-          setCurrentPageName(pageTitle)
-        } else {
-          setCurrentPageName(pageId)
-        }
+        const pageTitle = getPageTitleFromData(cleanedCachedData)?.trim()
+        const fallbackName = pageInArray?.name?.trim()
+        const nextName = pageTitle || fallbackName || (pageId === 'page1' ? 'Page 1' : pageId)
+        setCurrentPageName(nextName)
         setShowPageManager(false)
         
         // Update HeroSection with banner from localStorage after setting data (as backup)
@@ -1448,7 +1460,7 @@ export const usePageManagement = () => {
         // Apply the default data
         applyServerDataForPage(pageId, cleanedData)
         setCurrentPage(pageId)
-        setCurrentPageName(pageName)
+        // Keep title from server/applyServerDataForPage. Do not overwrite with fallback id-derived name.
         setShowPageManager(false)
         
         // Update HeroSection with banner after setting data

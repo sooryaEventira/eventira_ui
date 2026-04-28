@@ -14,6 +14,7 @@ interface CommunicationsTableProps {
   macros?: Macro[]
   onCreateBroadcast: () => void
   onEditCommunication?: (communicationId: string) => void
+  onDeleteCommunication?: (communicationId: string) => void
   onCreateMacro?: () => void
   onEditMacro?: (macroId: string) => void
   onDeleteMacro?: (macroId: string) => void
@@ -25,6 +26,7 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
   macros = [],
   onCreateBroadcast,
   onEditCommunication,
+  onDeleteCommunication,
   onCreateMacro,
   onEditMacro,
   onDeleteMacro,
@@ -200,7 +202,8 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
     selectedCommunicationIds,
     onToggleAllVisible: handleToggleAllVisible,
     onToggleRow: handleToggleRow,
-    onEditCommunication
+    onEditCommunication,
+    onDeleteCommunication
   })
 
   const macroColumns = useMacroTableColumns({
