@@ -17,6 +17,17 @@ type PublicParticipant = {
   avatarUrl?: string
 }
 
+const resolveOrganization = (raw: any): string | undefined => {
+  const value =
+    raw?.organization ??
+    raw?.organisation ??
+    raw?.institute ??
+    raw?.company ??
+    raw?.company_name
+  const text = typeof value === 'string' ? value.trim() : String(value ?? '').trim()
+  return text || undefined
+}
+
 interface ParticipantsListPageProps {
   eventUuid: string
   onNavigate: (path: string) => void
@@ -95,7 +106,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
             name,
             post: a.post ?? a.title ?? undefined,
             designation: a.designation ?? undefined,
-            organization: a.organization ?? a.institute ?? a.company ?? undefined,
+            organization: resolveOrganization(a),
             avatarUrl: a.avatarUrl ?? a.avatar_url ?? a.image ?? undefined,
           }
         })
@@ -127,7 +138,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
           name: String(raw.name ?? '').trim() || String([(raw as any).first_name, (raw as any).last_name].filter(Boolean).join(' ')).trim() || 'Unknown',
           post: (raw as any).post ?? (raw as any).title ?? undefined,
           designation: (raw as any).designation ?? undefined,
-          organization: (raw as any).organization ?? (raw as any).institute ?? (raw as any).company ?? undefined,
+          organization: resolveOrganization(raw),
           email: (raw as any).email ?? undefined,
           description: (raw as any).description ?? undefined,
           avatarUrl: (raw as any).avatarUrl ?? (raw as any).avatar_url ?? (raw as any).image ?? undefined,
@@ -205,7 +216,8 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
       )
     }
     if (!a) return null
-    const affiliation = [(a as any).designation ?? a.post, a.organization].filter(Boolean).join(' at ').trim() || undefined
+    const affiliation = String((a as any).designation ?? a.post ?? '').trim() || undefined
+    const organization = String(a.organization ?? '').trim()
     const isOnline = onlineIds.has(a.id)
     return (
       <div className="flex flex-col items-center p-6">
@@ -221,6 +233,11 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
         </div>
         <h2 className="mt-4 text-base font-semibold text-slate-900 text-center">{a.name}</h2>
         {affiliation ? <p className="mt-1 text-xs text-slate-500 text-center">{affiliation}</p> : null}
+        {organization ? (
+          <p className="mt-1 text-xs font-medium text-slate-700 text-center">
+           <span className="font-normal text-slate-600">{organization}</span>
+          </p>
+        ) : null}
         {(a as any).description ? <p className="mt-3 text-xs leading-5 text-slate-600 text-center">{(a as any).description}</p> : null}
         {(a as any).email ? (
           <a href={`mailto:${(a as any).email}`} className="mt-2 text-xs text-primary hover:underline">{(a as any).email}</a>

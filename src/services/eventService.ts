@@ -657,7 +657,7 @@ export const updateEvent = async (eventUuid: string, request: UpdateEventRequest
     body.eventName = request.eventName
     body.event_name = request.eventName
   }
-  if (request.startDate != null) body.event_date = request.startDate
+  if (request.startDate != null) body.start_date = request.startDate
   if (request.endDate != null) body.end_date = request.endDate
   if (request.timezoneId != null) body.timezone_id = request.timezoneId
   if (request.location != null) body.location = request.location

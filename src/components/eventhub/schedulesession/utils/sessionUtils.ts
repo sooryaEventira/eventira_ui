@@ -105,26 +105,30 @@ export const buildSessionSignature = (input: {
 }
 
 /**
- * Convert date + time string + AM/PM to UTC ISO string
+ * Convert date + time string + AM/PM to ISO string while preserving
+ * the entered wall-clock time (no local timezone shift).
  */
 export const toUTCISO = (date: Date, time: string, period: 'AM' | 'PM'): string => {
   const [h, m] = time.split(':').map(Number)
   let hours = h
   if (period === 'PM' && hours !== 12) hours += 12
   if (period === 'AM' && hours === 12) hours = 0
-  const d = new Date(date)
-  d.setHours(hours, m || 0, 0, 0)
-  return d.toISOString()
+  const y = date.getFullYear()
+  const mo = date.getMonth()
+  const d = date.getDate()
+  return new Date(Date.UTC(y, mo, d, hours, m || 0, 0, 0)).toISOString()
 }
 
 /**
- * Convert date + 24-hour time string to UTC ISO string
+ * Convert date + 24-hour time string to ISO string while preserving
+ * the entered wall-clock time (no local timezone shift).
  */
 export const toUTCISOFrom24h = (date: Date, time24: string): string => {
   const [h, m] = time24.split(':').map(Number)
-  const d = new Date(date)
-  d.setHours(h || 0, m || 0, 0, 0)
-  return d.toISOString()
+  const y = date.getFullYear()
+  const mo = date.getMonth()
+  const d = date.getDate()
+  return new Date(Date.UTC(y, mo, d, h || 0, m || 0, 0, 0)).toISOString()
 }
 
 /**
