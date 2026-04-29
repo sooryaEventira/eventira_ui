@@ -615,6 +615,7 @@ const SessionSectionPreview: React.FC<SessionSectionPreviewProps> = ({ section, 
               className="absolute inset-0 h-full w-full"
               src={embedUrl}
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              referrerPolicy="strict-origin-when-cross-origin"
               allowFullScreen
             />
           </div>
