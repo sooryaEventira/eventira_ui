@@ -16,6 +16,7 @@ import { API_ENDPOINTS } from '../../../config/env'
 import { showToast } from '../../../utils/toast'
 import { fetchTimezones } from '../../../services/timezoneService'
 import { createSchedule, updateSchedule, publishSchedule, unpublishSchedule } from '../../../services/scheduleService'
+import { fetchScheduleTags, fetchScheduleLocations } from '../../../services/scheduleTagService'
 import {
   listSessions,
   getSession,
@@ -267,49 +268,79 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     return () => { cancelled = true }
   }, [currentEventUuid])
 
-  // Load session tags and locations from local schedule state when a schedule is selected.
-  // (No session-tags / locations API calls here.)
-  React.useEffect(() => {
-    const scheduleUuid = activeScheduleId
-    if (!scheduleUuid) return
-
+  const syncSlideoutTagLocationOptions = React.useCallback(async (scheduleUuid: string) => {
     const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
     const rawTags = Array.isArray(schedule?.availableTags) ? schedule.availableTags : []
     const rawLocations = Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
 
-    const uniqueTags = Array.from(new Set(rawTags.map((t) => String(t ?? '').trim()).filter(Boolean)))
-    const uniqueLocations = Array.from(new Set(rawLocations.map((l) => String(l ?? '').trim()).filter(Boolean)))
+    const fallbackTags = Array.from(new Set(rawTags.map((t) => String(t ?? '').trim()).filter(Boolean)))
+    const fallbackLocations = Array.from(new Set(rawLocations.map((l) => String(l ?? '').trim()).filter(Boolean)))
 
-    setAvailableSessionTags(
-      uniqueTags.map((name) => ({
-        uuid: name.toLowerCase().replace(/\s+/g, '-'),
-        name
-      }))
-    )
-    setAvailableLocations(uniqueLocations)
-  }, [activeScheduleId, savedSchedules])
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) {
+      setAvailableTags(fallbackTags)
+      setAvailableSessionTags(
+        fallbackTags.map((name) => ({
+          uuid: name.toLowerCase().replace(/\s+/g, '-'),
+          name
+        }))
+      )
+      setAvailableLocations(fallbackLocations)
+      return
+    }
 
-  // When session/template slideout opens, ensure latest local tags/locations are applied.
+    try {
+      const [tags, locations] = await Promise.all([
+        fetchScheduleTags(String(scheduleUuid), eventUuid),
+        fetchScheduleLocations(String(scheduleUuid), eventUuid)
+      ])
+
+      const tagOptions = tags
+        .map((tag) => {
+          const name = String(tag?.name ?? '').trim()
+          const uuid = String(tag?.uuid ?? '').trim()
+          if (!name || !uuid) return null
+          return { uuid, name }
+        })
+        .filter((item): item is SessionTagOption => Boolean(item))
+
+      const locationOptions = locations
+        .map((loc) => String(loc?.name ?? '').trim())
+        .filter(Boolean)
+
+      setAvailableTags(tagOptions.map((tag) => tag.name))
+      setAvailableSessionTags(tagOptions.length > 0
+        ? tagOptions
+        : fallbackTags.map((name) => ({ uuid: name.toLowerCase().replace(/\s+/g, '-'), name })))
+      setAvailableLocations(locationOptions.length > 0 ? locationOptions : fallbackLocations)
+    } catch {
+      // Keep dropdowns usable even if API fails.
+      setAvailableTags(fallbackTags)
+      setAvailableSessionTags(
+        fallbackTags.map((name) => ({
+          uuid: name.toLowerCase().replace(/\s+/g, '-'),
+          name
+        }))
+      )
+      setAvailableLocations(fallbackLocations)
+    }
+  }, [createdEvent?.uuid, savedSchedules])
+
+  // Load session tags and locations for current schedule.
+  // Prefer schedule tags/locations APIs; fall back to local schedule state.
+  React.useEffect(() => {
+    const scheduleUuid = activeScheduleId
+    if (!scheduleUuid) return
+    void syncSlideoutTagLocationOptions(scheduleUuid)
+  }, [activeScheduleId, syncSlideoutTagLocationOptions])
+
+  // When session/template slideout opens, fetch latest API tags/locations for dropdowns.
   React.useEffect(() => {
     const scheduleUuid = activeScheduleId
     if (!scheduleUuid) return
     if (!isSessionSlideoutOpen && !isTemplateSessionSlideoutOpen) return
-
-    const schedule = savedSchedules.find((s) => String(s.id) === String(scheduleUuid))
-    const rawTags = Array.isArray(schedule?.availableTags) ? schedule.availableTags : []
-    const rawLocations = Array.isArray(schedule?.availableLocations) ? schedule.availableLocations : []
-
-    const uniqueTags = Array.from(new Set(rawTags.map((t) => String(t ?? '').trim()).filter(Boolean)))
-    const uniqueLocations = Array.from(new Set(rawLocations.map((l) => String(l ?? '').trim()).filter(Boolean)))
-
-    setAvailableSessionTags(
-      uniqueTags.map((name) => ({
-        uuid: name.toLowerCase().replace(/\s+/g, '-'),
-        name
-      }))
-    )
-    setAvailableLocations(uniqueLocations)
-  }, [isSessionSlideoutOpen, isTemplateSessionSlideoutOpen, activeScheduleId, savedSchedules])
+    void syncSlideoutTagLocationOptions(scheduleUuid)
+  }, [isSessionSlideoutOpen, isTemplateSessionSlideoutOpen, activeScheduleId, syncSlideoutTagLocationOptions])
 
   // Use fetched event first so weekday selector shows the correct event's dates when switching.
   // Support API fields: event_date, startDate, start_date, startDateTimeISO (use date part).
@@ -1711,23 +1742,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   )
 
   const handleAddSessionClick = (parentId?: string, creationType?: 'template' | 'scratch') => {
-    // Collect all tags and locations from all schedules (same as ScheduleDetailsSlideout)
-    const allTags = new Set<string>()
-    const allLocations = new Set<string>()
-    
-    savedSchedules.forEach(schedule => {
-      if (schedule.availableTags) {
-        schedule.availableTags.forEach(tag => allTags.add(tag))
-      }
-      if (schedule.availableLocations) {
-        schedule.availableLocations.forEach(location => allLocations.add(location))
-      }
-    })
-    
-    // Set available tags and locations from all schedules
-    setAvailableTags(Array.from(allTags))
-    setAvailableLocations(Array.from(allLocations))
-    
+    // Refresh tag/location options for the active schedule so create slideouts
+    // use the latest backend values for their dropdowns.
+    if (activeScheduleId) {
+      void syncSlideoutTagLocationOptions(String(activeScheduleId))
+    }
+
     // Store parent session ID for parallel sessions (e.g. when + button on a session is clicked)
     setParentSessionId(parentId)
     

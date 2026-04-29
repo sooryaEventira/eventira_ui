@@ -59,10 +59,22 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
     'room2': 'Room 2',
   }
 
-  // Use sessionTagOptions (uuid as value) when present so we send tag_uuids to backend; else use availableTags (name as value)
-  const tagOptions: CreatableMultiSelectOption[] = (sessionTagOptions && sessionTagOptions.length > 0)
-    ? sessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
-    : availableTags.map((value) => ({ value, label: tagOptionsMap[value] || value }))
+  // Use sessionTagOptions (uuid as value) when present so we send tag_uuids to backend; else use availableTags (name as value).
+  // Deduplicate by label (case-insensitive) to prevent duplicate entries in dropdown.
+  const tagOptions: CreatableMultiSelectOption[] = useMemo(() => {
+    const base = (sessionTagOptions && sessionTagOptions.length > 0)
+      ? sessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
+      : availableTags.map((value) => ({ value, label: tagOptionsMap[value] || value }))
+
+    const seen = new Set<string>()
+    return base.filter((opt) => {
+      const key = String(opt.label ?? '').trim().toLowerCase()
+      if (!key) return false
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  }, [sessionTagOptions, availableTags])
 
   const locationOptions = availableLocations.map(value => ({
     value,

@@ -470,10 +470,12 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
     }
   }
 
-  // Location options: from prop or unique from sessions; always include "All"
+  // Location options: prefer API, then prop, then unique from sessions; always include "All"
   const locationOptions = useMemo(() => {
-    const base = propAvailableLocations && propAvailableLocations.length > 0
-      ? propAvailableLocations
+    const base = apiLocations.length > 0
+      ? apiLocations.map((loc) => String(loc?.name ?? '').trim()).filter(Boolean)
+      : propAvailableLocations && propAvailableLocations.length > 0
+        ? propAvailableLocations
       : (() => {
           const raw = (sessions || []) as any[]
           const set = new Set<string>()
@@ -483,15 +485,15 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
           })
           return Array.from(set).sort()
         })()
-    return ['All', ...base]
-  }, [sessions, propAvailableLocations])
+    return ['All', ...Array.from(new Set(base))]
+  }, [sessions, propAvailableLocations, apiLocations])
 
-  // Tag options: from prop or API or unique from sessions; always include "All"
+  // Tag options: prefer API, then prop, then unique from sessions; always include "All"
   const tagOptions = useMemo(() => {
-    const base = propAvailableTags && propAvailableTags.length > 0
-      ? propAvailableTags
-      : apiTags.length > 0
-        ? apiTags.map((t) => t.name)
+    const base = apiTags.length > 0
+      ? apiTags.map((t) => t.name)
+      : propAvailableTags && propAvailableTags.length > 0
+        ? propAvailableTags
         : (() => {
             const raw = (sessions || []) as any[]
             const set = new Set<string>()
@@ -503,7 +505,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
             })
             return Array.from(set).sort()
           })()
-    return ['All', ...base]
+    return ['All', ...Array.from(new Set(base))]
   }, [sessions, propAvailableTags, apiTags])
 
   // Position filter panel below trigger (for portal)

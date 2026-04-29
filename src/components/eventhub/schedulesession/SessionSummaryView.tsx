@@ -287,7 +287,7 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
                         className="flex items-center gap-2 rounded border border-slate-100 bg-slate-50 px-3 py-2 text-sm text-slate-700"
                       >
                         {item.url ? (
-                          <a href={item.url} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-primary hover:underline" title={item.name}>
+                          <a href={toAbsoluteMediaUrl(item.url)} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate text-primary hover:underline" title={item.name}>
                             {item.name}
                           </a>
                         ) : (
