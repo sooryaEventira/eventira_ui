@@ -41,11 +41,32 @@ interface SessionSummaryViewProps {
 function getYouTubeEmbedUrl(input: string): string {
   const raw = String(input || '').trim()
   if (!raw) return ''
+  try {
+    const url = new URL(raw)
+    const host = url.hostname.replace(/^www\./i, '').toLowerCase()
+    let videoId = ''
+    if (host === 'youtu.be') {
+      videoId = url.pathname.split('/').filter(Boolean)[0] || ''
+    } else if (host === 'youtube.com' || host === 'm.youtube.com' || host === 'music.youtube.com') {
+      if (url.pathname === '/watch') {
+        videoId = url.searchParams.get('v') || ''
+      } else if (url.pathname.startsWith('/shorts/')) {
+        videoId = url.pathname.split('/')[2] || ''
+      } else if (url.pathname.startsWith('/embed/')) {
+        videoId = url.pathname.split('/')[2] || ''
+      }
+    }
+    if (/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+      return `https://www.youtube-nocookie.com/embed/${videoId}?rel=0&modestbranding=1`
+    }
+  } catch {
+    // ignore URL parse failures and fallback to regex parsing below
+  }
   const watchMatch = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-  if (watchMatch?.[1]) return `https://www.youtube.com/embed/${watchMatch[1]}`
+  if (watchMatch?.[1]) return `https://www.youtube-nocookie.com/embed/${watchMatch[1]}?rel=0&modestbranding=1`
   const shortsMatch = raw.match(/youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/)
-  if (shortsMatch?.[1]) return `https://www.youtube.com/embed/${shortsMatch[1]}`
-  if (raw.includes('youtube.com/embed/')) return raw
+  if (shortsMatch?.[1]) return `https://www.youtube-nocookie.com/embed/${shortsMatch[1]}?rel=0&modestbranding=1`
+  if (raw.includes('youtube.com/embed/')) return raw.replace('youtube.com/embed/', 'youtube-nocookie.com/embed/')
   return ''
 }
 
