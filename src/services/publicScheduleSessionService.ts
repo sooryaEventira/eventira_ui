@@ -238,6 +238,21 @@ export interface PublicScheduleSessionData {
   [key: string]: any
 }
 
+export interface PublicScheduleTag {
+  uuid?: string
+  id?: string | number
+  name?: string
+  [key: string]: any
+}
+
+export interface PublicScheduleLocation {
+  uuid?: string
+  id?: string | number
+  name?: string
+  location?: string
+  [key: string]: any
+}
+
 const extractPageData = (data: any): { results: PublicScheduleSessionData[]; next: string | null } => {
   if (data?.status === 'error') {
     const errorMessage = handleApiError(data, undefined, 'Failed to fetch sessions. Please try again.')
@@ -300,6 +315,44 @@ export const fetchPublicScheduleSessions = async (
       throw new Error(error.message || 'Network error occurred')
     }
     throw error instanceof Error ? error : new Error('Failed to fetch sessions. Please try again.')
+  }
+}
+
+export const fetchPublicScheduleTags = async (
+  eventUuid: string,
+  scheduleUuid: string
+): Promise<PublicScheduleTag[]> => {
+  try {
+    if (!eventUuid || !scheduleUuid) return []
+    const response = await fetch(API_ENDPOINTS.PUBLIC.SCHEDULE_TAGS.LIST(eventUuid, scheduleUuid), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
+    })
+    if (!response || !response.ok) return []
+    const data = await response.json().catch(() => null)
+    const items = data?.data ?? data?.results ?? data
+    return Array.isArray(items) ? (items as PublicScheduleTag[]) : []
+  } catch {
+    return []
+  }
+}
+
+export const fetchPublicScheduleLocations = async (
+  eventUuid: string,
+  scheduleUuid: string
+): Promise<PublicScheduleLocation[]> => {
+  try {
+    if (!eventUuid || !scheduleUuid) return []
+    const response = await fetch(API_ENDPOINTS.PUBLIC.SCHEDULE_LOCATIONS.LIST(eventUuid, scheduleUuid), {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
+    })
+    if (!response || !response.ok) return []
+    const data = await response.json().catch(() => null)
+    const items = data?.data ?? data?.results ?? data
+    return Array.isArray(items) ? (items as PublicScheduleLocation[]) : []
+  } catch {
+    return []
   }
 }
 

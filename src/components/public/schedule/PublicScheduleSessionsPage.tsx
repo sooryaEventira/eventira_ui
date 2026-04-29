@@ -1,6 +1,12 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react'
+import { FilterLines, SearchLg } from '@untitled-ui/icons-react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
-import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
+import {
+  fetchPublicScheduleSessions,
+  fetchPublicScheduleTags,
+  fetchPublicScheduleLocations,
+  mapApiSectionsToSavedSections
+} from '../../../services/publicScheduleSessionService'
 import { addBookmark, removeBookmark } from '../../../services/bookmarkService'
 import { showToast } from '../../../utils/toast'
 import PublicScheduleGrid from './PublicScheduleGrid'
@@ -74,6 +80,15 @@ const parseTime = (raw: any): { time: string; period: 'AM' | 'PM' } => {
   return fallback
 }
 
+const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-person', 'Hybrid'] as const
+
+function sessionTypeToAttendance(sessionType: string): string {
+  const t = String(sessionType || '').toLowerCase()
+  if (t === 'virtual' || t === 'online') return 'Online'
+  if (t === 'hybrid') return 'Hybrid'
+  return 'In-person'
+}
+
 function mapRawToSavedSession(x: any, idx: number): SavedSession {
   const id = String(x.uuid ?? x.id ?? `session-${idx}`)
   const title = String(x.title ?? x.name ?? 'Session')
@@ -133,6 +148,14 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
   const [sessions, setSessions] = useState<SavedSession[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [bookmarkedSessionIds, setBookmarkedSessionIds] = useState<Set<string>>(new Set())
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [appliedSearchKeyword, setAppliedSearchKeyword] = useState('')
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [filterLocations, setFilterLocations] = useState<Set<string>>(new Set(['All']))
+  const [filterAttendance, setFilterAttendance] = useState<Set<string>>(new Set(['All']))
+  const [filterTags, setFilterTags] = useState<Set<string>>(new Set(['All']))
+  const [apiTags, setApiTags] = useState<string[]>([])
+  const [apiLocations, setApiLocations] = useState<string[]>([])
 
   // Resolve schedule title from website index in localStorage
   const scheduleTitle = useMemo(() => {
@@ -188,6 +211,39 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
       })
       .catch(() => { if (!cancelled) setSessions([]) })
       .finally(() => { if (!cancelled) setIsLoading(false) })
+    return () => { cancelled = true }
+  }, [eventUuid, scheduleUuid])
+
+  // If user clears search text, immediately reset applied query to show all sessions.
+  useEffect(() => {
+    if (searchKeyword.trim() === '' && appliedSearchKeyword !== '') {
+      setAppliedSearchKeyword('')
+    }
+  }, [searchKeyword, appliedSearchKeyword])
+
+  useEffect(() => {
+    if (!eventUuid || !scheduleUuid) return
+    let cancelled = false
+    Promise.all([
+      fetchPublicScheduleTags(eventUuid, scheduleUuid),
+      fetchPublicScheduleLocations(eventUuid, scheduleUuid),
+    ])
+      .then(([tags, locations]) => {
+        if (cancelled) return
+        const tagNames = tags
+          .map((t) => String(t?.name ?? '').trim())
+          .filter(Boolean)
+        const locationNames = locations
+          .map((loc) => String(loc?.name ?? loc?.location ?? '').trim())
+          .filter(Boolean)
+        setApiTags(Array.from(new Set(tagNames)))
+        setApiLocations(Array.from(new Set(locationNames)))
+      })
+      .catch(() => {
+        if (cancelled) return
+        setApiTags([])
+        setApiLocations([])
+      })
     return () => { cancelled = true }
   }, [eventUuid, scheduleUuid])
 
@@ -250,6 +306,85 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
     })
   }, [sessions, dayKeys, activeDayIndex, startOfDayKey])
 
+  const filterLocationOptions = useMemo(() => {
+    const fallback = Array.from(
+      new Set(
+        sessionsForDay
+          .map((s) => String(s.location ?? '').trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b))
+    const base = apiLocations.length > 0 ? apiLocations : fallback
+    return ['All', ...base]
+  }, [sessionsForDay, apiLocations])
+
+  const filterTagOptions = useMemo(() => {
+    const fallbackSet = new Set<string>()
+    sessionsForDay.forEach((s) => {
+      const tags = Array.isArray(s.tags) ? s.tags : []
+      tags.forEach((tag: any) => {
+        const value = String(tag?.name ?? tag ?? '').trim()
+        if (value) fallbackSet.add(value)
+      })
+    })
+    const fallback = Array.from(fallbackSet).sort((a, b) => a.localeCompare(b))
+    const base = apiTags.length > 0 ? apiTags : fallback
+    return ['All', ...base]
+  }, [sessionsForDay, apiTags])
+
+  const filteredSessions = useMemo(() => {
+    const keyword = appliedSearchKeyword.trim().toLowerCase()
+    const useLocationFilter = !filterLocations.has('All') && filterLocations.size > 0
+    const useAttendanceFilter = !filterAttendance.has('All') && filterAttendance.size > 0
+    const useTagFilter = !filterTags.has('All') && filterTags.size > 0
+
+    return sessionsForDay.filter((s) => {
+      if (keyword) {
+        const title = String(s.title ?? '').toLowerCase()
+        const location = String(s.location ?? '').toLowerCase()
+        const tags = (Array.isArray(s.tags) ? s.tags : [])
+          .map((t: any) => String(t?.name ?? t ?? '').toLowerCase())
+          .join(' ')
+        if (!title.includes(keyword) && !location.includes(keyword) && !tags.includes(keyword)) return false
+      }
+
+      if (useLocationFilter) {
+        const loc = String(s.location ?? '').trim()
+        if (!loc || !filterLocations.has(loc)) return false
+      }
+
+      if (useAttendanceFilter) {
+        const att = sessionTypeToAttendance(String(s.sessionType ?? ''))
+        if (!filterAttendance.has(att)) return false
+      }
+
+      if (useTagFilter) {
+        const tags = Array.isArray(s.tags) ? s.tags : []
+        const hasTag = tags.some((tag: any) => {
+          const value = String(tag?.name ?? tag ?? '').trim()
+          return value && filterTags.has(value)
+        })
+        if (!hasTag) return false
+      }
+      return true
+    })
+  }, [sessionsForDay, appliedSearchKeyword, filterLocations, filterAttendance, filterTags])
+
+  const toggleFilterValue = (
+    value: string,
+    current: Set<string>,
+    setter: React.Dispatch<React.SetStateAction<Set<string>>>
+  ) => {
+    setter(() => {
+      const next = new Set(current)
+      if (value === 'All') return new Set(['All'])
+      next.delete('All')
+      if (next.has(value)) next.delete(value)
+      else next.add(value)
+      return next.size === 0 ? new Set(['All']) : next
+    })
+  }
+
   const handleSpeakerClick = (speakerUuid: string) => {
     onNavigate(`/events/${eventUuid}/attendees/${speakerUuid}`)
   }
@@ -295,27 +430,142 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
         <div className="text-sm font-semibold text-slate-700">{rangeLabel}</div>
       )}
 
-      {dayKeys.length > 1 && (
-        <div className="flex flex-wrap items-center gap-2">
-          {dayKeys.map((d, idx) => {
-            const isActive = idx === activeDayIndex
-            const dateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d)
-            return (
-              <button
-                key={startOfDayKey(d)}
-                type="button"
-                onClick={() => setActiveDayIndex(idx)}
-                className={[
-                  'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
-                  isActive ? 'bg-primary text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
-                ].join(' ')}
-              >
-                Day {idx + 1} <span className="ml-2 text-xs font-medium opacity-90">{dateLabel}</span>
-              </button>
-            )
-          })}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {dayKeys.length > 1 ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {dayKeys.map((d, idx) => {
+              const isActive = idx === activeDayIndex
+              const dateLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(d)
+              return (
+                <button
+                  key={startOfDayKey(d)}
+                  type="button"
+                  onClick={() => setActiveDayIndex(idx)}
+                  className={[
+                    'rounded-lg px-3 py-2 text-sm font-semibold transition-colors',
+                    isActive ? 'bg-primary text-white' : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-50'
+                  ].join(' ')}
+                >
+                  Day {idx + 1} <span className="ml-2 text-xs font-medium opacity-90">{dateLabel}</span>
+                </button>
+              )
+            })}
+          </div>
+        ) : <div />}
+
+        <div className="ml-auto flex items-center gap-2">
+          <div className="flex h-10 items-center overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm focus-within:border-primary/40 focus-within:ring-2 focus-within:ring-primary/20">
+            <input
+              type="text"
+              value={searchKeyword}
+              onChange={(e) => setSearchKeyword(e.target.value)}
+              placeholder="Search schedule"
+              className="h-full w-52 bg-transparent px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
+            />
+            <button
+              type="button"
+              onClick={() => setAppliedSearchKeyword(searchKeyword.trim())}
+              className="flex h-full items-center justify-center bg-primary px-3 text-white transition hover:bg-primary/90"
+              aria-label="Search sessions"
+            >
+              <SearchLg className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setFilterOpen((v) => !v)}
+              className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-slate-700 shadow-sm transition hover:border-primary/40 hover:text-primary"
+              aria-label="Filter sessions"
+              aria-expanded={filterOpen}
+            >
+              <FilterLines className="h-4 w-4" />
+            </button>
+            {filterOpen && (
+              <div className="absolute right-0 z-30 mt-2 max-h-[420px] w-[260px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-slate-700">Location</p>
+                    <div className="space-y-2">
+                      {filterLocationOptions.map((loc) => (
+                        <label key={loc} className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={filterLocations.has(loc)}
+                            onChange={() => toggleFilterValue(loc, filterLocations, setFilterLocations)}
+                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                          />
+                          <span>{loc}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-sm font-medium text-slate-700">Attendance type</p>
+                    <div className="space-y-2">
+                      {ATTENDANCE_OPTIONS.map((att) => (
+                        <label key={att} className="flex items-center gap-2 text-sm text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={filterAttendance.has(att)}
+                            onChange={() => toggleFilterValue(att, filterAttendance, setFilterAttendance)}
+                            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                          />
+                          <span>{att}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  {filterTagOptions.length > 1 && (
+                    <div>
+                      <p className="mb-2 text-sm font-medium text-slate-700">Tags</p>
+                      <div className="space-y-2">
+                        {filterTagOptions.map((tag) => (
+                          <label key={tag} className="flex items-center gap-2 text-sm text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={filterTags.has(tag)}
+                              onChange={() => toggleFilterValue(tag, filterTags, setFilterTags)}
+                              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                            />
+                            <span>{tag}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterLocations(new Set(['All']))
+                      setFilterAttendance(new Set(['All']))
+                      setFilterTags(new Set(['All']))
+                      setSearchKeyword('')
+                      setAppliedSearchKeyword('')
+                      setFilterOpen(false)
+                    }}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Clear all
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAppliedSearchKeyword(searchKeyword.trim())
+                      setFilterOpen(false)
+                    }}
+                    className="rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90"
+                  >
+                    Apply
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
-      )}
+      </div>
 
       {isLoading ? (
         <div className="space-y-3">
@@ -323,14 +573,14 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
             <div key={i} className="animate-pulse rounded-xl border border-slate-200 bg-white p-4 h-20" />
           ))}
         </div>
-      ) : sessionsForDay.length === 0 ? (
+      ) : filteredSessions.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-6">
           <div className="text-base font-semibold text-slate-900">No sessions found</div>
-          <div className="mt-1 text-sm text-slate-500">No sessions available for this day.</div>
+          <div className="mt-1 text-sm text-slate-500">No sessions match the current search or filters.</div>
         </div>
       ) : (
         <PublicScheduleGrid
-          sessions={sessionsForDay}
+          sessions={filteredSessions}
           onSpeakerClick={handleSpeakerClick}
           onSessionClick={handleSessionClick}
           showBookmark={showBookmark}

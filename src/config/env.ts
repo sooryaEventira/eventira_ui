@@ -209,6 +209,16 @@ export const API_ENDPOINTS = {
       RETRIEVE: (eventUuid: string, _scheduleUuid: string, sessionUuid: string) =>
         `${PUBLIC_API_ROOT}events/${eventUuid}/sessions/${sessionUuid}/`,
     },
+    SCHEDULE_TAGS: {
+      /** List schedule tags on public side. */
+      LIST: (eventUuid: string, scheduleUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/${scheduleUuid}/tags/`,
+    },
+    SCHEDULE_LOCATIONS: {
+      /** List schedule locations on public side. */
+      LIST: (eventUuid: string, scheduleUuid: string) =>
+        `${PUBLIC_API_ROOT}events/${eventUuid}/schedules/${scheduleUuid}/locations/`,
+    },
     SESSION_BOOKMARKS: {
       /** List all bookmarked sessions for an event. GET .../events/{eventUuid}/sessions/bookmarks/ */
       LIST: (eventUuid: string) =>
