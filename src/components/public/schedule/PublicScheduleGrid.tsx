@@ -617,6 +617,33 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
     [bookmarkedSessionIds, childrenByParent, isExpanded, onSpeakerClick, onSessionClick, onToggleBookmark, showBookmark, toggleExpanded]
   )
 
+  const renderGroupSessions = useCallback((group: SavedSession[]) => (
+    <div className={group.length > 1 ? 'space-y-2' : undefined}>
+      {group.map((session) => {
+        const kids = childrenByParent.get(session.id) ?? []
+        const hasChildren = kids.length > 0
+        const open = isExpanded(session.id)
+        return (
+          <SessionCard
+            key={session.id}
+            session={session}
+            hasChildren={hasChildren}
+            childrenCount={kids.length}
+            open={open}
+            onToggle={() => toggleExpanded(session.id)}
+            onSpeakerClick={onSpeakerClick}
+            onSessionClick={onSessionClick}
+            showBookmark={showBookmark}
+            bookmarkedSessionIds={bookmarkedSessionIds}
+            onToggleBookmark={onToggleBookmark}
+          >
+            {renderChildren(session, 1)}
+          </SessionCard>
+        )
+      })}
+    </div>
+  ), [bookmarkedSessionIds, childrenByParent, isExpanded, onSpeakerClick, onSessionClick, onToggleBookmark, renderChildren, showBookmark, toggleExpanded])
+
   return (
     <>
       <div className="space-y-4">
@@ -636,25 +663,24 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
           </div>
         )}
 
+        <div className="space-y-4">
         {displayGroups.map((group) => {
           const representative = group[0]
           const isParallel = group.length > 1
 
           return (
-            <div key={timeSlotKey(representative)} className="flex items-stretch gap-6">
+            <div key={timeSlotKey(representative)} className="flex items-stretch gap-3 md:gap-6">
               {/* Time column */}
-              <div className="flex-shrink-0 w-24 self-stretch">
-                <div className="h-full border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col justify-between">
-                  <div className="text-center pt-3 flex-shrink-0">
-                    <div className="text-sm font-semibold text-slate-900">
+              <div className="w-14 shrink-0 self-stretch md:w-24">
+                <div className="flex h-full flex-col justify-between rounded-lg border border-slate-200 bg-white py-2 shadow-sm md:py-0">
+                  <div className="pt-1 text-center md:pt-3 md:flex-shrink-0">
+                    <div className="text-sm font-semibold text-slate-900 md:text-sm">
                       {formatTime(representative.startTime, representative.startPeriod || 'AM')}
                     </div>
                   </div>
-                  <div className="flex-1 flex items-center justify-center min-h-0">
-                    <div className="w-px h-full bg-slate-200" />
-                  </div>
-                  <div className="text-center pb-3 flex-shrink-0">
-                    <div className="text-sm font-semibold text-slate-900">
+                  <div className="mx-auto h-full w-px flex-1 bg-slate-200" />
+                  <div className="pb-1 text-center md:pb-3 md:flex-shrink-0">
+                    <div className="text-sm font-semibold text-slate-900 md:text-sm">
                       {formatTime(representative.endTime, representative.endPeriod || 'AM')}
                     </div>
                   </div>
@@ -665,7 +691,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
               <div className="relative flex-1">
                 {isParallel && (
                   <svg
-                    className="pointer-events-none"
+                    className="pointer-events-none hidden md:block"
                     style={{ position: 'absolute', left: -14, top: 0, width: 14, height: '100%' }}
                     preserveAspectRatio="none"
                     viewBox="0 0 14 100"
@@ -693,61 +719,18 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
                       </button>
                     </div>
 
-                    <div className="space-y-2 px-3 pb-3">
-                      {group.map((session) => {
-                        const kids = childrenByParent.get(session.id) ?? []
-                        const hasChildren = kids.length > 0
-                        const open = isExpanded(session.id)
-                        return (
-                          <SessionCard
-                            key={session.id}
-                            session={session}
-                            hasChildren={hasChildren}
-                            childrenCount={kids.length}
-                            open={open}
-                            onToggle={() => toggleExpanded(session.id)}
-                            onSpeakerClick={onSpeakerClick}
-                            onSessionClick={onSessionClick}
-                            showBookmark={showBookmark}
-                            bookmarkedSessionIds={bookmarkedSessionIds}
-                            onToggleBookmark={onToggleBookmark}
-                          >
-                            {renderChildren(session, 1)}
-                          </SessionCard>
-                        )
-                      })}
+                    <div className="space-y-2 px-2 pb-2 md:px-3 md:pb-3">
+                      {renderGroupSessions(group)}
                     </div>
                   </div>
                 ) : (
-                  <div className={isParallel ? 'space-y-2' : undefined}>
-                    {group.map((session) => {
-                      const kids = childrenByParent.get(session.id) ?? []
-                      const hasChildren = kids.length > 0
-                      const open = isExpanded(session.id)
-                      return (
-                        <SessionCard
-                          key={session.id}
-                          session={session}
-                          hasChildren={hasChildren}
-                          childrenCount={kids.length}
-                          open={open}
-                          onToggle={() => toggleExpanded(session.id)}
-                          onSpeakerClick={onSpeakerClick}
-                          onSessionClick={onSessionClick}
-                          showBookmark={showBookmark}
-                          bookmarkedSessionIds={bookmarkedSessionIds}
-                          onToggleBookmark={onToggleBookmark}
-                        >
-                          {renderChildren(session, 1)}
-                        </SessionCard>
-                      )
-                    })}
-                  </div>
+                  renderGroupSessions(group)
                 )}
               </div>
             </div>
           )
         })}
+        </div>
       </div>
 
       {showConflicts && modalGroups && (

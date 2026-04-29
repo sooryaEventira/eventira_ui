@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
-import { SearchLg, FilterLines } from '@untitled-ui/icons-react'
+import { SearchLg, FilterLines, XClose } from '@untitled-ui/icons-react'
 import { fetchPublicParticipants, fetchPublicParticipant } from '../../../services/publicParticipantService'
 import { useAblyPresence } from '../../../hooks/useAblyPresence'
 import DirectChat from './DirectChat'
@@ -57,6 +57,9 @@ const ParticipantRow = ({ participant, isSelected, isOnline }: { participant: Pu
 }
 
 const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, onNavigate: _onNavigate, tagId, participantId }) => {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    typeof window !== 'undefined' ? window.innerWidth >= 1024 : true
+  )
   const [myId, setMyId] = useState(() => localStorage.getItem('pub_attendeeUuid') ?? '')
   const onlineIds = useAblyPresence(`event-${eventUuid}-presence`, myId || undefined)
 
@@ -67,6 +70,14 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
     }
     window.addEventListener('pub_attendeeUuid_changed', onChanged)
     return () => window.removeEventListener('pub_attendeeUuid_changed', onChanged)
+  }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onResize = () => setIsDesktop(window.innerWidth >= 1024)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   const [queryInput, setQueryInput] = useState('')
@@ -260,15 +271,15 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
-        <div className="flex items-center gap-2 mt-4">
+        <div className="flex items-center gap-2">
           <div className="flex items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
             <input
               value={queryInput}
               onChange={(e) => setQueryInput(e.target.value)}
               placeholder="Search participants"
-              className="w-[200px] px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none"
+              className="w-40 px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:outline-none sm:w-52 md:w-64"
               onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
             />
             <button type="button" className="flex h-9 w-10 items-center justify-center bg-primary/90 text-white" aria-label="Search">
@@ -303,8 +314,8 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
         <span className="font-semibold text-slate-700">{totalCount}</span>
       </div>
 
-      <div className="flex gap-4 items-stretch">
-        <div className={selectedId ? 'w-1/2 shrink-0 space-y-3' : 'w-full space-y-3'}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
+        <div className={selectedId ? 'w-full space-y-3 lg:w-1/2 lg:shrink-0' : 'w-full space-y-3'}>
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
               <div className="text-base font-semibold text-slate-900">
@@ -320,7 +331,10 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
                 key={`${a.id}-${idx}`}
                 type="button"
                 className="w-full text-left"
-                onClick={() => { setChatOpenForId(null); setSelectedId((prev) => prev === a.id ? null : a.id) }}
+                onClick={() => {
+                  setChatOpenForId(null)
+                  setSelectedId((prev) => (isDesktop ? (prev === a.id ? null : a.id) : a.id))
+                }}
               >
                 <ParticipantRow participant={a} isSelected={selectedId === a.id} isOnline={onlineIds.has(a.id)} />
               </button>
@@ -337,12 +351,38 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
           )}
         </div>
 
-        {selectedId && (
-          <div className="w-1/2 rounded-xl border border-primary bg-primary/5 shadow-sm max-h-[420px] sticky top-4 overflow-y-auto">
+        {selectedId && isDesktop && (
+          <div className="w-full rounded-xl border border-primary bg-primary/5 shadow-sm max-h-[420px] overflow-y-auto lg:sticky lg:top-4 lg:w-1/2">
             {renderDetail()}
           </div>
         )}
       </div>
+
+      {selectedId && !isDesktop && (
+        <div className="fixed inset-0 z-40 lg:hidden" role="dialog" aria-modal="true" aria-label="Participant details">
+          <button
+            type="button"
+            aria-label="Close participant details"
+            className="absolute inset-0 bg-black/30"
+            onClick={() => setSelectedId(null)}
+          />
+          <div className="absolute inset-x-2 bottom-2 top-14 overflow-hidden rounded-2xl border border-primary bg-white shadow-2xl">
+            <div className="flex items-center justify-end border-b border-slate-200 px-3 py-2">
+              <button
+                type="button"
+                onClick={() => setSelectedId(null)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                aria-label="Close details"
+              >
+                <XClose className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="h-[calc(100%-48px)] overflow-y-auto bg-primary/5">
+              {renderDetail()}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sliding bottom chat panel */}
       {(() => {
@@ -351,7 +391,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
           : null
         return (
           <div
-            className={`fixed bottom-0 right-6 z-50 w-[420px] h-[520px] rounded-t-xl border border-slate-200 bg-white shadow-2xl transition-transform duration-300 flex flex-col ${chatOpenForId ? 'translate-y-0' : 'translate-y-full'}`}
+            className={`fixed bottom-0 left-2 right-2 z-50 h-[70vh] max-h-[520px] rounded-t-xl border border-slate-200 bg-white shadow-2xl transition-transform duration-300 flex flex-col sm:left-auto sm:right-4 sm:w-[420px] sm:h-[520px] ${chatOpenForId ? 'translate-y-0' : 'translate-y-full'}`}
           >
             {a && (
               <div className="flex flex-col h-full">

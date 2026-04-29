@@ -48,28 +48,29 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
   }
 
   return (
-    <div className="flex items-center justify-between gap-2 border-t border-slate-200 px-6 py-4">
+    <div className="flex flex-col gap-3 border-t border-slate-200 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-4">
       {from !== undefined && to !== undefined && totalCount !== undefined ? (
-        <span className="text-sm text-slate-500">
+        <span className="text-xs text-slate-500 sm:text-sm">
           Showing {from} to {to} of {totalCount} entries
         </span>
       ) : (
         <span />
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <button
           type="button"
           onClick={() => onPageChange(Math.max(1, currentPage - 1))}
           disabled={currentPage === 1}
-          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:text-sm"
         >
-          ← Previous
+          <span className="sm:hidden">← Prev</span>
+          <span className="hidden sm:inline">← Previous</span>
         </button>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto">
           {pageNumbers.map((page, idx) => {
             if (page === '...') {
               return (
-                <span key={`ellipsis-${idx}`} className="px-2 text-sm text-slate-500">
+                <span key={`ellipsis-${idx}`} className="px-1 text-xs text-slate-500 sm:px-2 sm:text-sm">
                   ...
                 </span>
               )
@@ -81,7 +82,7 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
                 key={pageNum}
                 type="button"
                 onClick={() => onPageChange(pageNum)}
-                className={`rounded-md px-3 py-2 text-sm font-medium transition ${
+                className={`rounded-md px-2.5 py-2 text-xs font-medium transition sm:px-3 sm:text-sm ${
                   isActive
                     ? 'bg-primary text-white'
                     : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
@@ -96,9 +97,10 @@ export const TablePagination: React.FC<TablePaginationProps> = ({
           type="button"
           onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
           disabled={currentPage === totalPages}
-          className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 sm:text-sm"
         >
-          Next →
+          <span className="sm:hidden">Next →</span>
+          <span className="hidden sm:inline">Next →</span>
         </button>
       </div>
     </div>
