@@ -165,20 +165,20 @@ const SessionCard: React.FC<SessionCardProps> = ({
     : (session.attachments?.length || 0)
 
   return (
-    <div className="border border-slate-200 rounded-lg bg-white shadow-sm">
-      <div className="p-4">
+    <div className="w-full border border-slate-200 rounded-lg bg-white shadow-sm">
+      <div className="p-3 sm:p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             {onSessionClick ? (
               <button
                 type="button"
                 onClick={() => onSessionClick(session.id)}
-                className="font-semibold text-slate-900 text-base truncate text-left hover:text-primary hover:underline transition-colors"
+                className="font-semibold text-slate-900 text-sm sm:text-base text-left break-words sm:truncate hover:text-primary hover:underline transition-colors"
               >
                 {session.title}
               </button>
             ) : (
-              <div className="font-semibold text-slate-900 text-base truncate">{session.title}</div>
+              <div className="font-semibold text-slate-900 text-sm sm:text-base text-left break-words sm:truncate">{session.title}</div>
             )}
           </div>
           {showBookmark ? (
@@ -204,7 +204,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
           ) : null}
         </div>
 
-        <div className="mt-3 flex items-center gap-2 flex-wrap">
+        <div className="mt-2 sm:mt-3 flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
             <Calendar className="h-3 w-3" />
             {formatTime(session.startTime, session.startPeriod || 'AM')} – {formatTime(session.endTime, session.endPeriod || 'AM')}
@@ -239,7 +239,7 @@ const SessionCard: React.FC<SessionCardProps> = ({
           <button
             type="button"
             onClick={onToggle}
-            className="mt-3 inline-flex w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+            className="mt-2 sm:mt-3 inline-flex w-full items-center justify-between rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors sm:px-3 sm:py-1.5"
           >
             <span>{childrenCount} sub-session{childrenCount !== 1 ? 's' : ''}</span>
             {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
@@ -538,12 +538,12 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
                           <button
                             type="button"
                             onClick={() => onSessionClick(child.id)}
-                            className="font-semibold text-slate-900 text-sm truncate text-left hover:text-primary hover:underline transition-colors"
+                            className="font-semibold text-slate-900 text-sm text-left break-words sm:truncate hover:text-primary hover:underline transition-colors"
                           >
                             {child.title}
                           </button>
                         ) : (
-                          <div className="font-semibold text-slate-900 text-sm truncate">{child.title}</div>
+                          <div className="font-semibold text-slate-900 text-sm text-left break-words sm:truncate">{child.title}</div>
                         )}
                       </div>
                       <div className="flex items-center gap-1">
@@ -669,7 +669,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
           const isParallel = group.length > 1
 
           return (
-            <div key={timeSlotKey(representative)} className="flex items-stretch gap-3 md:gap-6">
+            <div key={timeSlotKey(representative)} className="w-full flex items-stretch gap-3 md:gap-6">
               {/* Time column */}
               <div className="w-14 shrink-0 self-stretch md:w-24">
                 <div className="flex h-full flex-col justify-between rounded-lg border border-slate-200 bg-white py-2 shadow-sm md:py-0">
@@ -688,7 +688,7 @@ const PublicScheduleGrid: React.FC<PublicScheduleGridProps> = ({
               </div>
 
               {/* Session content */}
-              <div className="relative flex-1">
+              <div className="relative min-w-0 flex-1">
                 {isParallel && (
                   <svg
                     className="pointer-events-none hidden md:block"

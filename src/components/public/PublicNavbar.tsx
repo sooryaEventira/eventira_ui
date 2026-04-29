@@ -437,7 +437,11 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
       >
         <div className="flex min-w-0 flex-1 items-center gap-3">
           {logoUrl ? (
-            <img src={logoUrl} alt="" className="h-10 w-12 shrink-0 rounded-md object-cover" />
+            <img
+              src={logoUrl}
+              alt=""
+              className="h-10 w-10 shrink-0 rounded-md object-contain bg-white ring-1 ring-slate-200"
+            />
           ) : (
             <div className="h-9 w-9 shrink-0 rounded-md bg-slate-100 ring-1 ring-slate-200" />
           )}
@@ -446,17 +450,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
           </h1>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Mobile: hamburger to open sidebar */}
-          <button
-            type="button"
-            onClick={() => setMobileOpen((v) => !v)}
-            className="flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 md:hidden"
-            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-            aria-expanded={mobileOpen}
-          >
-            {mobileOpen ? <X className="h-5 w-5" /> : <Bars className="h-5 w-5" />}
-          </button>
+        <div className="flex items-center gap-1 sm:gap-2">
           <button
             type="button"
             onClick={() => {
@@ -464,12 +458,12 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
               else if (eventUuid) onNavigate(`/events/${eventUuid}/messages`)
               else window.location.href = '/messages'
             }}
-            className="hidden h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700 md:flex"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             aria-label="Messages"
           >
             <MessageTextCircle01 className="h-5 w-5" />
           </button>
-          <div ref={notificationMenuRef} className="relative hidden md:block">
+          <div ref={notificationMenuRef} className="relative block">
             <button
               type="button"
               onClick={handleNotificationClick}
@@ -488,7 +482,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
             {notificationOpen && (
               <div
                 role="menu"
-                className="absolute right-0 top-full z-[1001] mt-1 w-[360px] rounded-lg border border-slate-200 bg-white shadow-lg"
+                className="absolute right-0 top-full z-[1001] mt-1 w-[320px] sm:w-[360px] max-w-[calc(100vw-2rem)] rounded-lg border border-slate-200 bg-white shadow-lg"
               >
                 <div className="flex items-center justify-between border-b border-slate-100 px-3 py-2">
                   <span className="text-sm font-semibold text-slate-800">Notifications</span>
@@ -547,7 +541,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
               </div>
             )}
           </div>
-          <div ref={profileMenuRef} className="relative hidden md:block">
+          <div ref={profileMenuRef} className="relative block">
             <button
               type="button"
               onClick={() => setProfileMenuOpen((v) => !v)}
@@ -617,6 +611,17 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
               </div>
             )}
           </div>
+
+          {/* Mobile: hamburger to open sidebar (kept at far-right for better visual balance) */}
+          <button
+            type="button"
+            onClick={() => setMobileOpen((v) => !v)}
+            className="order-last flex h-9 w-9 items-center justify-center rounded-lg text-slate-600 hover:bg-slate-100 md:hidden"
+            aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileOpen}
+          >
+            {mobileOpen ? <X className="h-5 w-5" /> : <Bars className="h-5 w-5" />}
+          </button>
         </div>
       </header>
       {/* Mobile nav: full-screen overlay with sidebar content + Home + Exit */}
