@@ -96,15 +96,15 @@ const PublicEventProfilePage: React.FC<PublicEventProfilePageProps> = ({ onNavig
   ]
 
   return (
-    <div className="relative bg-white pb-12">
+    <div className="relative bg-white pb-12 pt-4 ">
       {/* Back arrow */}
       <button
         type="button"
         onClick={() => onNavigate(`/events/${eventUuid}`)}
-        className="relative z-10 mb-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-[#E0E0E0] text-slate-700 hover:bg-slate-300 sm:absolute sm:left-0 sm:top-0 sm:mb-0 sm:h-10 sm:w-10"
+        className="relative z-10 mb-3 flex mt-4 h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-300 sm:absolute sm:left-0 sm:top-0 sm:mb-0 sm:h-10 sm:w-10"
         aria-label="Back"
       >
-        <ArrowLeftIcon className="h-5 w-5" />
+        <ArrowLeftIcon className="h-4 w-4" />
       </button>
 
       <div className="mx-auto max-w-2xl pl-0 sm:pl-14">

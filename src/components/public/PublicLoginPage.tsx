@@ -56,42 +56,25 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
         menuItems={[{ label: 'Back to events', href: '/event-list' }]}
       />
 
-      <main className="px-4 pb-12 pt-12 sm:px-6">
-        {/* Back arrow and banner in the same row */}
-        <div className="flex items-start gap-2">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-[#E0E0E0] text-slate-700 hover:bg-slate-300"
-            aria-label="Back"
-          >
-            <ArrowLeftIcon className="h-5 w-5" />
-          </button>
-          <div className="min-w-0 flex-1">
-            <div className="mx-auto w-[500px] max-w-7xl">
-              {/* Banner (same width as card below) with avatar overlapping only the banner */}
-              {/* <div className="relative min-h-[8rem]  w-full rounded-lg bg-[#E0E0E0]" aria-hidden>
-                <div className="absolute mt-12  left-1/2 flex h-24 w-24 -translate-x-1/2 items-center justify-center rounded-full border-2 border-slate-200 bg-white shadow-md">
-                  <UserIcon className="h-12 w-12 text-slate-400" />
-                  <div className="absolute -bottom-0.5 -right-0.5 flex h-8 w-8 items-center justify-center rounded-md border-2 border-primary bg-white shadow-sm">
-                    <CameraIcon className="h-4 w-4 text-primary" />
-                  </div>
-                </div>
-              </div> */}
-
-              {/* Login card: same width as banner */}
-              <div className="relative z-10 mt-12">
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8">
-            <h1 className="text-center text-lg font-bold leading-6 text-slate-700">
+      <main className="relative px-3 pb-10 pt-6 sm:px-6 sm:pb-12 sm:pt-10">
+        <button
+          type="button"
+          onClick={handleBack}
+          className="fixed left-3 top-[calc(4rem+0.75rem)] z-30 flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-slate-200 bg-[#E0E0E0] text-slate-700 shadow-sm hover:bg-slate-300 sm:left-6 sm:top-[calc(4rem+1rem)] sm:h-11 sm:w-11"
+          aria-label="Back"
+        >
+          <ArrowLeftIcon className="h-5 w-5" />
+        </button>
+        <div className="mx-auto mt-10 w-full max-w-lg sm:mt-14">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-md sm:p-8">
+            <h1 className="text-balance text-center text-base font-bold leading-snug text-slate-700 sm:text-lg sm:leading-6">
               Login
             </h1>
-            <p className="text-center text-sm font-normal leading-5 text-slate-500">Welcome back! Please enter your details.</p>
+            <p className="mt-1 text-center text-sm font-normal leading-5 text-slate-500">
+              Welcome back! Please enter your details.
+            </p>
 
-            <form
-              className="mt-6 space-y-4"
-              onSubmit={handleSubmit}
-            >
-
+            <form className="mt-5 space-y-4 sm:mt-6" onSubmit={handleSubmit}>
               <div>
                 <label htmlFor="public-login-email" className="block text-sm font-medium text-black">
                   Email
@@ -102,35 +85,32 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:min-h-0 sm:text-sm"
                   placeholder="Enter your email"
                   disabled={isLoading}
                 />
               </div>
 
               <div>
-                <div className="flex items-center justify-between">
-                  <label htmlFor="public-login-password" className="block text-sm font-medium text-black">
-                    Password
-                  </label>
-
-                </div>
+                <label htmlFor="public-login-password" className="block text-sm font-medium text-black">
+                  Password
+                </label>
                 <input
                   id="public-login-password"
                   type="password"
                   autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="mt-1 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
+                  className="mt-1 block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base text-black placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:min-h-0 sm:text-sm"
                   placeholder="••••••••"
                   disabled={isLoading}
                 />
-                  <a href="#" className="text-sm font-medium text-primary hover:underline">
-                    Forgot password
-                  </a>
+                <a href="#" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
+                  Forgot password
+                </a>
               </div>
 
-              <label className="flex cursor-pointer items-center gap-2">
+              <label className="flex cursor-pointer items-center gap-2 touch-manipulation">
                 <input
                   type="checkbox"
                   checked={rememberMe}
@@ -147,14 +127,14 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white shadow-sm hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70"
+                className="min-h-11 w-full touch-manipulation rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white shadow-sm hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70 sm:min-h-0"
               >
                 {isLoading ? 'Signing in…' : 'Login'}
               </button>
 
               <button
                 type="button"
-                className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-base font-semibold text-black shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2"
+                className="flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-3 text-base font-semibold text-black shadow-sm hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2 sm:min-h-0"
                 aria-label="Login with LinkedIn"
               >
                 <svg className="h-5 w-5" viewBox="0 0 24 24" fill="#0A66C2" aria-hidden>
@@ -170,9 +150,6 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
                 </button>
               </p>
             </form>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </main>

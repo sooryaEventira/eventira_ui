@@ -197,33 +197,33 @@ const PublicProfilePage: React.FC = () => {
   }
 
   const inputBase =
-    'block w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
+    'block min-h-11 w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-3 text-base text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary sm:min-h-0 sm:py-2.5 sm:text-sm'
   const inputIcon = 'absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none'
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen overflow-x-hidden bg-white">
       {/* Top bar: dark purple, logo + EVENTIRA, bell + avatar */}
       <PublicAuthTopbar
         menuTitle="Verify email"
         menuItems={[{ label: 'Back to events', href: '/event-list' }]}
       />
 
-      <main className="relative bg-white px-4 pb-12 pt-6 sm:px-6">
-        {/* Back arrow: above banner on mobile, left of banner on sm+ */}
+      <main className="relative bg-white px-3 pb-10 pt-4 sm:px-6 sm:pb-12 sm:pt-6">
+        {/* Back: in flow on narrow screens, fixed top-left from sm */}
         <button
           type="button"
           onClick={handleBack}
-          className="relative z-10 mb-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-[#E0E0E0] text-slate-700 hover:bg-slate-300 sm:absolute sm:left-6 sm:top-6 sm:mb-0 sm:h-10 sm:w-10"
+          className="relative z-10 mb-3 flex h-10 w-10 shrink-0 touch-manipulation items-center justify-center rounded-lg border border-slate-200 bg-[#E0E0E0] text-slate-700 hover:bg-slate-300 sm:absolute sm:left-6 sm:top-6 sm:mb-0 sm:h-11 sm:w-11"
           aria-label="Back"
         >
           <ArrowLeftIcon className="h-5 w-5" />
         </button>
 
-        <div className="mx-auto max-w-5xl pl-0 sm:pl-14 sm:pr-0">
+        <div className="mx-auto w-full max-w-5xl pl-0 sm:pl-14 sm:pr-0">
           {/* Banner row */}
           <div className="flex items-stretch">
             {/* Banner with edit icon */}
-            <div className="relative h-36 w-full overflow-hidden rounded-t-xl sm:h-40 sm:rounded-t-2xl">
+            <div className="relative h-28 w-full overflow-hidden rounded-t-xl xs:h-36 sm:h-40 sm:rounded-t-2xl">
             <img
               src={ProfileBackground}
               alt=""
@@ -245,17 +245,17 @@ const PublicProfilePage: React.FC = () => {
           </div>
 
           {/* Profile picture overlapping banner */}
-          <div className="relative -mt-14 flex justify-center px-2 sm:-mt-16 sm:px-4">
-            <div className="relative bottom-10">
-              <div className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-lg sm:h-28 sm:w-28 md:h-32 md:w-32">
+          <div className="relative -mt-11 flex justify-center px-2 sm:-mt-16 sm:px-4">
+            <div className="relative bottom-8 sm:bottom-10">
+              <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-4 border-white bg-slate-200 shadow-lg xs:h-24 xs:w-24 sm:h-28 sm:w-28 md:h-32 md:w-32">
                 {profilePicture ? (
                   <img src={profilePicture} alt="Profile" className="h-full w-full object-cover" />
                 ) : (
-                  <PersonIcon className="h-12 w-12 text-slate-400 sm:h-14 sm:w-14 md:h-16 md:w-16" />
+                  <PersonIcon className="h-10 w-10 text-slate-400 xs:h-12 xs:w-12 sm:h-14 sm:w-14 md:h-16 md:w-16" />
                 )}
               </div>
               <label
-                className="absolute -bottom-1 -right-1 flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow hover:bg-primary/90"
+                className="absolute -bottom-1 -right-1 flex h-9 w-9 cursor-pointer touch-manipulation items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow hover:bg-primary/90 sm:h-8 sm:w-8"
                 aria-label="Change profile picture"
               >
                 <CameraIcon className="h-4 w-4" />
@@ -270,13 +270,13 @@ const PublicProfilePage: React.FC = () => {
           </div>
 
           {/* Name and title */}
-          <div className="-mt-2 text-center sm:-mt-4">
-            <h1 className="text-lg font-bold text-slate-900 sm:text-xl md:text-2xl">{fullName}</h1>
-            <p className="mt-1 text-sm text-slate-600">{title}</p>
+          <div className="-mt-1 px-1 text-center sm:-mt-4 sm:px-0">
+            <h1 className="text-balance text-base font-bold leading-snug text-slate-900 xs:text-lg sm:text-xl md:text-2xl">{fullName}</h1>
+            <p className="mt-1 text-pretty text-sm text-slate-600">{title}</p>
           </div>
 
           {/* Form fields */}
-          <div className="mt-6 space-y-4 sm:mt-8 sm:space-y-5">
+          <div className="mt-5 space-y-4 sm:mt-8 sm:space-y-5">
             {/* Name * - stack on mobile for better alignment */}
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">
@@ -320,9 +320,9 @@ const PublicProfilePage: React.FC = () => {
                   placeholder="Email"
                 />
               </div>
-              <p className="mt-1.5 flex items-center gap-1.5 text-sm text-blue-600">
+              <p className="mt-1.5 flex flex-wrap items-center gap-1.5 text-sm text-blue-600">
                 <CheckIcon className="h-4 w-4 shrink-0" />
-                Verified 2 Jan, 2025
+                <span>Verified 2 Jan, 2025</span>
               </p>
             </div>
 
@@ -378,7 +378,7 @@ const PublicProfilePage: React.FC = () => {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60"
+                className="flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-60 sm:min-h-0"
               >
                 {saving ? 'Saving…' : 'Save Changes'}
               </button>
@@ -386,7 +386,7 @@ const PublicProfilePage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleLogOut}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#E74C3C] px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-[#d43c2c] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                className="flex min-h-11 w-full touch-manipulation items-center justify-center gap-2 rounded-lg bg-[#E74C3C] px-4 py-3 text-base font-semibold text-white shadow-sm hover:bg-[#d43c2c] focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 sm:min-h-0"
               >
                 Log Out
                 <LogOutArrowIcon className="h-5 w-5" />

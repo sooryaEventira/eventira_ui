@@ -108,7 +108,6 @@ const getSectionFromPath = (
 const OrganizationsListPage = React.lazy(() => import('./organizations/OrganizationsListPage'))
 const OrganizationDetailPage = React.lazy(() => import('./organizations/OrganizationDetailPage'))
 const ParticipantsListPage = React.lazy(() => import('./participants/ParticipantsListPage'))
-const PublicSchedulePage = React.lazy(() => import('./schedule/PublicSchedulePage'))
 const PublicSessionDetailPage = React.lazy(() => import('./schedule/PublicSessionDetailPage'))
 const PublicEventProfilePage = React.lazy(() => import('./PublicEventProfilePage'))
 const PublicEventPersonalInfoPage = React.lazy(() => import('./PublicEventPersonalInfoPage'))
@@ -127,6 +126,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const [loadError, setLoadError] = useState<string | null>(null)
   const [activePath, setActivePath] = useState<string>(window.location.pathname)
   const [hasScheduleFromApi, setHasScheduleFromApi] = useState(false)
+  const [defaultScheduleUuid, setDefaultScheduleUuid] = useState<string>('')
 
   const refresh = async () => {
     setIsLoading(true)
@@ -145,6 +145,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       setWebsiteSettings(settings)
       setWebsiteIndex(indexData)
       setHasScheduleFromApi(Array.isArray(schedules) && schedules.length > 0)
+      const firstScheduleUuid = Array.isArray(schedules) && schedules.length > 0
+        ? String((schedules[0] as any)?.uuid ?? (schedules[0] as any)?.id ?? '')
+        : ''
+      setDefaultScheduleUuid(firstScheduleUuid)
       try {
         localStorage.setItem(`website-index-${eventUuid}`, JSON.stringify(indexData))
         localStorage.setItem('pub_currentEventUuid', eventUuid)
@@ -618,9 +622,20 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
             />
           </React.Suspense>
         ) : current.section === 'schedule' || current.section === 'sessions' ? (
-          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <PublicSchedulePage eventUuid={eventUuid} onNavigate={handleNavigate} />
-          </React.Suspense>
+          (current.scheduleUuid || defaultScheduleUuid) ? (
+            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+              <PublicScheduleSessionsPage
+                eventUuid={eventUuid}
+                scheduleUuid={current.scheduleUuid || defaultScheduleUuid}
+                onNavigate={handleNavigate}
+              />
+            </React.Suspense>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white p-6">
+              <div className="text-base font-semibold text-slate-900">No schedules yet</div>
+              <div className="mt-1 text-sm text-slate-600">No published schedule is available for this event.</div>
+            </div>
+          )
         ) : current.section === 'event-profile' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <PublicEventProfilePage eventUuid={eventUuid} onNavigate={handleNavigate} />

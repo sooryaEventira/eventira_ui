@@ -182,7 +182,13 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
     return () => { cancelled = true }
   }, [eventUuid, sessionId])
 
-  const schedulePath = `/events/${eventUuid}/schedule`
+  const schedulePath = React.useMemo(() => {
+    const fallback = `/events/${eventUuid}/sessions`
+    if (typeof window === 'undefined') return fallback
+    const from = new URLSearchParams(window.location.search).get('from')
+    if (from && from.startsWith(`/events/${eventUuid}`)) return from
+    return fallback
+  }, [eventUuid])
 
   if (loading) {
     return (
@@ -224,10 +230,10 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
       <button
         type="button"
         onClick={() => onNavigate(schedulePath)}
-        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+        className="mb-6 inline-flex items-center justify-center w-6 h-6 gap-2 text-sm font-medium border border-slate-200 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900"
       >
         <ArrowNarrowLeft className="h-4 w-4" />
-        Back to schedule
+        
       </button>
       <div className={`flex gap-6 items-start`}>
         <div className={chatOpen ? 'flex-1 min-w-0' : 'w-full max-w-4xl'}>

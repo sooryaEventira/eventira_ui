@@ -222,7 +222,10 @@ const PublicYourSchedulePage: React.FC<PublicYourSchedulePageProps> = ({ eventUu
             <PublicScheduleGrid
               sessions={sessions}
               onSpeakerClick={(uuid) => onNavigate?.(`/events/${eventUuid}/attendees/${uuid}`)}
-              onSessionClick={(id) => onNavigate?.(`/events/${eventUuid}/sessions/${id}`)}
+              onSessionClick={(id) => {
+                const from = encodeURIComponent(`${window.location.pathname}${window.location.search}`)
+                onNavigate?.(`/events/${eventUuid}/sessions/${id}?from=${from}`)
+              }}
               showConflicts
             />
           )}

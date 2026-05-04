@@ -81,6 +81,14 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
     label: locationOptionsMap[value] || value
   }))
 
+  const selectedLocationOptions: CreatableMultiSelectOption[] = useMemo(() => {
+    const location = (draft.location || '').trim()
+    if (!location) return []
+    const fromOptions = locationOptions.find((opt) => opt.value === location || opt.label === location)
+    if (fromOptions) return [fromOptions]
+    return [{ value: location.toLowerCase().replace(/\s+/g, '-'), label: location }]
+  }, [draft.location, locationOptions])
+
   // Map draft.tags (uuid or name) to CreatableMultiSelect selected options
   const selectedTagOptions: CreatableMultiSelectOption[] = useMemo(() => {
     return (draft.tags ?? []).map((tag) => {
@@ -118,6 +126,15 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
       return option.label
     })
     onFieldChange('tags', tagValues as unknown as SessionDraft['tags'])
+  }
+
+  const handleLocationMultiChange = (
+    newValue: MultiValue<CreatableMultiSelectOption>,
+    _actionMeta: ActionMeta<CreatableMultiSelectOption>
+  ) => {
+    const selected = Array.from(newValue)
+    const latest = selected[selected.length - 1]
+    onFieldChange('location', latest?.label ?? '')
   }
 
   // Convert stored 12-hour time + period to 24-hour display string
@@ -223,25 +240,14 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
       <div className="flex flex-wrap gap-3">
         {/* Location */}
         <div className="flex-1 min-w-[160px]">
-          {availableLocations.length > 0 ? (
-            <Select
-              label="Location"
-              value={draft.location}
-              onChange={(event) => onFieldChange('location', event.target.value)}
-              options={[
-                { value: '', label: 'Select location' },
-                ...locationOptions
-              ]}
-              className="h-10"
-            />
-          ) : (
-            <Input
-              label="Location"
-              placeholder="Enter location"
-              value={draft.location}
-              onChange={(event) => onFieldChange('location', event.target.value)}
-            />
-          )}
+          <CreatableMultiSelect
+            label="Location"
+            options={locationOptions}
+            value={selectedLocationOptions}
+            onChange={handleLocationMultiChange}
+            placeholder="Select or create"
+            className="rounded-lg"
+          />
         </div>
 
         {/* Tags */}

@@ -7,7 +7,7 @@ import { fetchPublicSchedules } from '../../../services/publicScheduleService'
 import { fetchPublicScheduleSessions, mapApiSectionsToSavedSections } from '../../../services/publicScheduleSessionService'
 import { addBookmark, removeBookmark } from '../../../services/bookmarkService'
 import toast from 'react-hot-toast'
-import { SearchLg, FilterLines, Download01 } from '@untitled-ui/icons-react'
+import { SearchLg, FilterLines } from '@untitled-ui/icons-react'
 
 const ATTENDANCE_OPTIONS = ['All', 'Online', 'In-Person', 'Hybrid']
 
@@ -738,57 +738,6 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
     return list
   }, [sessionsForDay, appliedKeyword, appliedLocations, appliedAttendance, appliedTags])
 
-  const nonConflictSessionsForGrid = useMemo(() => {
-    if (!filteredSessionsForDay.length) return filteredSessionsForDay
-
-    const sessionsById = new Map<string, SavedSession>()
-    const childrenByParent = new Map<string, SavedSession[]>()
-    filteredSessionsForDay.forEach((session) => {
-      const id = String(session.id)
-      sessionsById.set(id, session)
-      if (!session.parentId) return
-      const parentId = String(session.parentId)
-      const children = childrenByParent.get(parentId) ?? []
-      children.push(session)
-      childrenByParent.set(parentId, children)
-    })
-
-    // Consider only explicit top-level sessions for conflict detection.
-    // Child sessions (with parentId) should not create/remove conflicts in public grid.
-    const parentSessions = filteredSessionsForDay.filter((session) => !session.parentId)
-
-    const slotGroups = new Map<string, SavedSession[]>()
-    parentSessions.forEach((session) => {
-      const slotKey = `${session.startTime}|${session.startPeriod || 'AM'}|${session.endTime}|${session.endPeriod || 'PM'}`
-      const grouped = slotGroups.get(slotKey) ?? []
-      grouped.push(session)
-      slotGroups.set(slotKey, grouped)
-    })
-
-    const excludedIds = new Set<string>()
-    const collectDescendants = (parentId: string) => {
-      const children = childrenByParent.get(parentId) ?? []
-      children.forEach((child) => {
-        const childId = String(child.id)
-        if (excludedIds.has(childId)) return
-        excludedIds.add(childId)
-        collectDescendants(childId)
-      })
-    }
-
-    slotGroups.forEach((grouped) => {
-      if (grouped.length <= 1) return
-      grouped.forEach((session) => {
-        const sessionId = String(session.id)
-        excludedIds.add(sessionId)
-        collectDescendants(sessionId)
-      })
-    })
-
-    if (!excludedIds.size) return filteredSessionsForDay
-    return filteredSessionsForDay.filter((session) => !excludedIds.has(String(session.id)))
-  }, [filteredSessionsForDay])
-
   // Position filter panel below trigger
   useEffect(() => {
     if (!filterOpen || !filterTriggerRef.current) return
@@ -826,31 +775,6 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
     setFilterAttendance(new Set())
     setFilterTags(new Set())
     setFilterOpen(false)
-  }
-
-  const handleDownload = () => {
-    const lines = ['Title,Start,End,Location,Attendance,Speakers']
-    filteredSessionsForDay.forEach((s) => {
-      const speakers = (Array.isArray((s as any).speakers) ? (s as any).speakers : [])
-        .map((sp: any) => [sp?.firstName, sp?.lastName, sp?.name].filter(Boolean).join(' '))
-        .join('; ')
-      const row = [
-        `"${String(s.title ?? '').replace(/"/g, '""')}"`,
-        `"${s.startTime ?? ''} ${s.startPeriod ?? ''}"`,
-        `"${s.endTime ?? ''} ${s.endPeriod ?? ''}"`,
-        `"${String(s.location ?? '').replace(/"/g, '""')}"`,
-        `"${sessionTypeToAttendance(s.sessionType ?? '')}"`,
-        `"${speakers.replace(/"/g, '""')}"`
-      ].join(',')
-      lines.push(row)
-    })
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'schedule.csv'
-    a.click()
-    URL.revokeObjectURL(url)
   }
 
   const toCapital = (input: string) => {
@@ -1036,14 +960,6 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
           </div>
 
           {/* Download button */}
-          <button
-            type="button"
-            onClick={handleDownload}
-            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 bg-white shadow-sm text-slate-600 hover:border-primary/40 hover:text-primary transition-colors"
-            aria-label="Download schedule"
-          >
-            <Download01 className="h-4 w-4" />
-          </button>
         </div>
       )}
 

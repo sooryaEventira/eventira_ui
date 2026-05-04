@@ -11,7 +11,7 @@ export interface CreateSessionBody {
   end_at: string
   location: string
   session_type: string
-  tag_uuids: string[]
+  tag_uuids?: string[]
   /** Human-readable tag names corresponding to tag_uuids (backend field: tag_names). */
   tag_names?: string[]
   /** Optional: parent session UUID when creating a child/parallel session. Backend expects the field name `parent`. */

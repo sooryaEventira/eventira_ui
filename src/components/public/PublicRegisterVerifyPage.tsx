@@ -87,77 +87,77 @@ const PublicRegisterVerifyPage: React.FC<PublicRegisterVerifyPageProps> = ({ eve
         menuItems={[{ label: 'Back to events', href: '/event-list' }]}
       />
 
-      <main className="px-4 pb-12 pt-12 sm:px-6">
-        <div className="flex items-start gap-2">
-          <button
-            type="button"
-            onClick={() => window.history.back()}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-[#E0E0E0] text-slate-700"
-            aria-label="Back"
-          >
-            <ArrowLeftIcon className="h-5 w-5" />
-          </button>
+      <main className="relative px-3 pb-10 pt-6 sm:px-6 sm:pb-12 sm:pt-10">
+        <button
+          type="button"
+          onClick={() => window.history.back()}
+          className="fixed left-3 top-[calc(4rem+0.75rem)] z-30 flex h-10 w-10 touch-manipulation items-center justify-center rounded-full border border-slate-200 bg-[#E0E0E0] text-slate-700 shadow-sm hover:bg-slate-300 sm:left-6 sm:top-[calc(4rem+1rem)] sm:h-11 sm:w-11"
+          aria-label="Back"
+        >
+          <ArrowLeftIcon className="h-5 w-5" />
+        </button>
 
-          <div className="min-w-0 flex-1">
-            <div className="mx-auto w-full max-w-md">
-              <div className="relative z-10 mt-12">
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-md sm:p-8">
-                  <h1 className="text-center text-lg font-bold leading-6 text-slate-700">
-                    Verify your email {eventName ? `for ${eventName}` : ''}
-                  </h1>
-                  <p className="mt-1 text-center text-sm font-normal leading-5 text-slate-500">
-                    Enter the 6-digit code sent to your email.
-                  </p>
+        <div className="mx-auto mt-10 w-full max-w-lg sm:mt-14">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-md sm:p-8">
+            <h1 className="text-balance text-center text-base font-bold leading-snug text-slate-700 sm:text-lg sm:leading-6">
+              Verify your email
+              {eventName ? (
+                <>
+                  {' '}
+                  <span className="break-words">for {eventName}</span>
+                </>
+              ) : null}
+            </h1>
+            <p className="mt-1 text-center text-sm font-normal leading-5 text-slate-500">
+              Enter the 6-digit code sent to your email.
+            </p>
 
-                  <form className="mt-6 space-y-6" onSubmit={handleSubmit}>
-                    <div>
-                      <label className="mb-2 block text-left text-sm font-medium text-slate-700">
-                        Code verification
-                      </label>
-                      <div className="flex items-center justify-center gap-6">
-                        {digits.map((digit, idx) => (
-                          <input
-                            key={idx}
-                            ref={(el) => { inputRefs.current[idx] = el }}
-                            type="text"
-                            inputMode="numeric"
-                            maxLength={1}
-                            value={digit}
-                            onChange={(e) => handleChange(idx, e.target.value)}
-                            onKeyDown={(e) => handleKeyDown(idx, e)}
-                            className="h-12 w-12 rounded-lg border border-slate-300 bg-white text-center text-xl font-semibold text-slate-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    {error && (
-                      <p className="text-center text-sm text-red-500">{error}</p>
-                    )}
-
-                    <button
-                      type="submit"
-                      disabled={loading}
-                      className="w-full rounded-lg bg-primary px-4 py-2 text-base font-semibold text-white shadow-sm hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70"
-                    >
-                      {loading ? 'Verifying…' : 'Verify code'}
-                    </button>
-
-                    <p className="text-center text-sm text-slate-600">
-                      Didn&apos;t receive the code?{' '}
-                      <button
-                        type="button"
-                        disabled={resending}
-                        onClick={handleResend}
-                        className="font-semibold text-primary hover:underline disabled:opacity-60"
-                      >
-                        {resending ? 'Sending…' : 'Resend'}
-                      </button>
-                    </p>
-                  </form>
+            <form className="mt-5 space-y-5 sm:mt-6 sm:space-y-6" onSubmit={handleSubmit}>
+              <div className="min-w-0">
+                <label className="mb-2 block text-left text-sm font-medium text-slate-700">
+                  Code verification
+                </label>
+                <div className="grid w-full grid-cols-6 gap-1.5 xs:gap-2 sm:gap-3">
+                  {digits.map((digit, idx) => (
+                    <input
+                      key={idx}
+                      ref={(el) => { inputRefs.current[idx] = el }}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={digit}
+                      onChange={(e) => handleChange(idx, e.target.value)}
+                      onKeyDown={(e) => handleKeyDown(idx, e)}
+                      className="aspect-square min-h-0 w-full min-w-0 rounded-lg border border-slate-300 bg-white p-0 text-center text-base font-semibold tabular-nums text-slate-900 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary xs:text-lg sm:text-xl"
+                    />
+                  ))}
                 </div>
               </div>
-            </div>
+
+              {error && (
+                <p className="text-center text-sm text-red-500">{error}</p>
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="min-h-11 w-full touch-manipulation rounded-lg bg-primary px-4 py-3 text-base font-semibold text-white shadow-sm hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 disabled:opacity-70 sm:min-h-0"
+              >
+                {loading ? 'Verifying…' : 'Verify code'}
+              </button>
+
+              <p className="text-pretty text-center text-sm text-slate-600">
+                Didn&apos;t receive the code?{' '}
+                <button
+                  type="button"
+                  disabled={resending}
+                  onClick={handleResend}
+                  className="font-semibold text-primary hover:underline disabled:opacity-60"
+                >
+                  {resending ? 'Sending…' : 'Resend'}
+                </button>
+              </p>
+            </form>
           </div>
         </div>
       </main>

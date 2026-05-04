@@ -2057,7 +2057,6 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             end_at: endAt,
             location: normalizedSession.location ?? '',
             session_type: parentSessionId ? 'child' : (normalizedSession.sessionType?.trim() || 'keynote'),
-            tag_uuids: tagUuids,
             tag_names: tagNames,
             ...(parentSessionId ? { parent: parentSessionId } : {})
           }
@@ -2186,8 +2185,10 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     const tagNames = (data.tags ?? [])
       .map((t: string) => {
         if (typeof t !== 'string') return null
-        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t || opt.name === t)
-        const name = (fromOptions?.name ?? t)?.toString().trim()
+        const raw = t.toString().trim()
+        if (!raw || UUID_REGEX.test(raw)) return null
+        const fromOptions = availableSessionTags.find((opt) => opt.name === raw)
+        const name = (fromOptions?.name ?? raw).toString().trim()
         return name || null
       })
       .filter((name): name is string => !!name)
@@ -2206,14 +2207,17 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       end_at: endAt,
       location: data.location ?? '',
       session_type: (data.sessionType?.trim() || 'keynote'),
-      tag_uuids: tagUuids,
       tag_names: tagNames
     }
     try {
       let sessionUuid: string | undefined
       const isEditTemplate = Boolean(sessionId)
       if (sessionId) {
-        const updateBody: UpdateSessionBody = { ...sessionBody }
+        const updateBody: UpdateSessionBody = {
+          ...sessionBody,
+          tag_uuids: tagUuids,
+          tags: tagUuids
+        }
         await updateSession(eventUuid, sessionId, String(activeScheduleId), updateBody)
         sessionUuid = sessionId
       } else {

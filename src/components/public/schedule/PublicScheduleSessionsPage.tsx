@@ -390,7 +390,8 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
   }
 
   const handleSessionClick = (sessionId: string) => {
-    onNavigate(`/events/${eventUuid}/sessions/${sessionId}`)
+    const from = encodeURIComponent(`${window.location.pathname}${window.location.search}`)
+    onNavigate(`/events/${eventUuid}/sessions/${sessionId}?from=${from}`)
   }
 
   const handleBookmarkToggle = async (session: SavedSession) => {

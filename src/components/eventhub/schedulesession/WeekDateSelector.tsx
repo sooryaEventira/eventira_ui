@@ -62,10 +62,8 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
     return monthNames[date.getUTCMonth()]
   }
 
-  const getCardTopLabel = (date: Date) => {
-    // Format: "Jan-Wed" (top line)
-    return `${getMonthName(date)}-${getDayName(date)}`
-  }
+  /** First line: month + day-of-month (e.g. "Feb 16"); second line is weekday from getDayName. */
+  const getCardMonthDateLine = (date: Date) => `${getMonthName(date)} ${date.getUTCDate()}`
 
   const weekDates = useMemo(() => getWeekDates(currentDate), [currentDate])
 
@@ -339,10 +337,11 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                   className={`inline-flex flex-col items-center justify-center rounded-[10px] px-2 py-2 text-[12px] shadow-md shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 sm:px-5 sm:py-2.5 sm:text-sm min-w-[120px] w-[140px] md:w-[140px] md:min-w-[140px] md:max-w-[140px] ${buttonClass}`}
                 >
                   <div className={`whitespace-nowrap ${textClass}`} style={{ fontFamily: 'Inter' }}>
-                    {getCardTopLabel(date)}
+                    {getCardMonthDateLine(date)}
                   </div>
                   <div className={numberClass} style={{ fontFamily: 'Inter' }}>
-                    {date.getUTCDate()}                  </div>
+                    {getDayName(date)}
+                  </div>
                 </button>
               </div>
             )

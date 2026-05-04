@@ -223,7 +223,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
     const a = detailParticipant ?? normalizedParticipants.find((x) => x.id === selectedId)
     if (!a && detailLoading) {
       return (
-        <div className="animate-pulse space-y-4 p-6">
+        <div className="animate-pulse space-y-4 px-4 py-6 sm:px-6">
           <div className="mx-auto h-24 w-24 rounded-full bg-slate-100" />
           <div className="mx-auto h-5 w-40 rounded bg-slate-100" />
           <div className="mx-auto h-4 w-56 rounded bg-slate-100" />
@@ -236,7 +236,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
     const organization = String(a.organization ?? '').trim()
     const isOnline = onlineIds.has(a.id)
     return (
-      <div className="flex flex-col items-center p-6">
+      <div className="flex flex-col items-center px-4 py-6 sm:px-6">
         <div className="relative">
           {a.avatarUrl ? (
             <img src={a.avatarUrl} alt={a.name} className="h-24 w-24 rounded-full object-cover ring-2 ring-slate-200" />
@@ -247,16 +247,22 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
           )}
           {isOnline && <span className="absolute bottom-1 right-1 h-4 w-4 rounded-full bg-green-400 ring-2 ring-white" />}
         </div>
-        <h2 className="mt-4 text-base font-semibold text-slate-900 text-center">{a.name}</h2>
-        {affiliation ? <p className="mt-1 text-xs text-slate-500 text-center">{affiliation}</p> : null}
+        <h2 className="mt-4 text-center text-base font-semibold text-slate-900">{a.name}</h2>
+        {affiliation ? <p className="mt-1 text-center text-xs text-slate-500">{affiliation}</p> : null}
         {organization ? (
-          <p className="mt-1 text-xs font-medium text-slate-700 text-center">
-           <span className="font-normal text-slate-600">{organization}</span>
+          <p className="mt-1 text-center text-xs font-medium text-slate-700">
+            <span className="font-normal text-slate-600">at {organization}</span>
           </p>
         ) : null}
-        {(a as any).description ? <p className="mt-3 text-xs leading-5 text-slate-600 text-center">{(a as any).description}</p> : null}
+        {(a as any).description ? (
+          <p className="mt-3 w-full text-left text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6 sm:text-justify">
+            {(a as any).description}
+          </p>
+        ) : null}
         {(a as any).email ? (
-          <a href={`mailto:${(a as any).email}`} className="mt-2 text-xs text-primary hover:underline">{(a as any).email}</a>
+          <a href={`mailto:${(a as any).email}`} className="mt-2 break-all text-center text-xs text-primary hover:underline">
+            {(a as any).email}
+          </a>
         ) : null}
         <button
           type="button"
@@ -274,7 +280,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
         <div className="flex items-center gap-2">
-          <div className="flex items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm mt-2">
             <input
               value={queryInput}
               onChange={(e) => setQueryInput(e.target.value)}
@@ -286,7 +292,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
               <SearchLg className="h-4 w-4" />
             </button>
           </div>
-          <div className="relative">
+          {/* <div className="relative">
             <button type="button" className="flex h-9 w-9 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50" aria-label="Filter">
               <FilterLines className="h-4 w-4" />
             </button>
@@ -301,7 +307,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
                 <option key={opt} value={opt}>{opt}</option>
               ))}
             </select>
-          </div>
+          </div> */}
         </div>
       </div>
 
@@ -352,7 +358,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
         </div>
 
         {selectedId && isDesktop && (
-          <div className="w-full rounded-xl border border-primary bg-primary/5 shadow-sm max-h-[420px] overflow-y-auto lg:sticky lg:top-4 lg:w-1/2">
+          <div className="flex w-full flex-col rounded-xl border border-primary bg-primary/5 shadow-sm lg:sticky lg:top-20 lg:w-1/2 lg:shrink-0 lg:self-stretch lg:min-h-[calc(100dvh-10.5rem)]">
             {renderDetail()}
           </div>
         )}
