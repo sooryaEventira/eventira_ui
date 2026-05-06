@@ -50,6 +50,7 @@ interface ScheduleContentProps {
   availableTags?: string[]
   onBulkUpdateApplied?: () => Promise<void> | void
   onBulkDeleteApplied?: () => Promise<void> | void
+  onTagsOrLocationsChanged?: () => Promise<void> | void
 }
 
 const ScheduleContent: React.FC<ScheduleContentProps> = ({
@@ -73,7 +74,8 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
   availableLocations: propAvailableLocations,
   availableTags: propAvailableTags,
   onBulkUpdateApplied,
-  onBulkDeleteApplied
+  onBulkDeleteApplied,
+  onTagsOrLocationsChanged
 }) => {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isSessionCreationModalOpen, setIsSessionCreationModalOpen] = useState(false)
@@ -375,6 +377,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       setApiTags((prev) => [...prev, created])
       showToast.success('Tag added.')
       closeTagLocationModal()
+      onTagsOrLocationsChanged?.()
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : 'Failed to add tag.')
     } finally {
@@ -392,6 +395,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       setManageLocations((prev) => [...prev, created])
       showToast.success('Location added.')
       closeTagLocationModal()
+      onTagsOrLocationsChanged?.()
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : 'Failed to add location.')
     } finally {
@@ -410,6 +414,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       setManageLocations((prev) => prev.map((l) => l.name === originalName ? { ...l, name: updated.name ?? newName } : l))
       showToast.success('Location updated.')
       closeTagLocationModal()
+      onTagsOrLocationsChanged?.()
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : 'Failed to update location.')
     } finally {
@@ -432,6 +437,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       )
       showToast.success('Tag updated.')
       closeTagLocationModal()
+      onTagsOrLocationsChanged?.()
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : 'Failed to update tag.')
     } finally {
@@ -447,6 +453,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       setManageLocations((prev) => prev.filter((l) => l.name !== deleteLocationCandidate.name))
       showToast.success('Location deleted.')
       setDeleteLocationCandidate(null)
+      onTagsOrLocationsChanged?.()
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : 'Failed to delete location.')
     } finally {
@@ -463,6 +470,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
       setApiTags((prev) => prev.filter((t) => t.uuid !== deleteTagCandidate.uuid))
       showToast.success('Tag deleted.')
       setDeleteTagCandidate(null)
+      onTagsOrLocationsChanged?.()
     } catch (e) {
       showToast.error(e instanceof Error ? e.message : 'Failed to delete tag.')
     } finally {

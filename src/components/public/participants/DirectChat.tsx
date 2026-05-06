@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import * as Ably from 'ably'
-import { Send01 } from '@untitled-ui/icons-react'
+import { Send01, XClose } from '@untitled-ui/icons-react'
 import { API_ENDPOINTS } from '../../../config/env'
 import { type DirectMessage, publishDirectMessage, saveDmMessage, loadDmHistory } from '../../../services/publicDirectMessageService'
 
@@ -37,6 +37,13 @@ const DirectChat: React.FC<DirectChatProps> = ({ peerId, peerName, peerAvatarUrl
   const [input, setInput] = useState('')
   const [ready, setReady] = useState(false)
   const [sending, setSending] = useState(false)
+  const [notifications, setNotifications] = useState<Array<{ id: string; name: string; text: string }>>([])
+
+  useEffect(() => {
+    if (notifications.length === 0) return
+    const t = setTimeout(() => setNotifications((prev) => prev.slice(1)), 4000)
+    return () => clearTimeout(t)
+  }, [notifications])
 
   const channelRef = useRef<Ably.RealtimeChannel | null>(null)
   const clientRef = useRef<Ably.Realtime | null>(null)
@@ -80,6 +87,12 @@ const DirectChat: React.FC<DirectChatProps> = ({ peerId, peerName, peerAvatarUrl
           if (!data?.id) return
           saveDmMessage(channelName, data)
           setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data])
+          if (data.senderId !== myId) {
+            setNotifications((prev) => [
+              ...prev,
+              { id: data.id, name: peerName, text: data.text ?? '' },
+            ])
+          }
         })
 
         channel.once('attached', async () => {
@@ -141,7 +154,7 @@ const DirectChat: React.FC<DirectChatProps> = ({ peerId, peerName, peerAvatarUrl
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {/* Header */}
       <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
         <div className="relative shrink-0">
@@ -221,6 +234,33 @@ const DirectChat: React.FC<DirectChatProps> = ({ peerId, peerName, peerAvatarUrl
           <Send01 className="h-4 w-4" />
         </button>
       </div>
+      {/* Incoming message notifications */}
+      {notifications.length > 0 && (
+        <div className="absolute bottom-16 right-2 z-50 flex flex-col gap-2">
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-lg w-64"
+            >
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
+                {n.name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-800 truncate">{n.name}</p>
+                <p className="text-xs text-slate-500 truncate">{n.text}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))}
+                className="shrink-0 text-slate-400 hover:text-slate-600"
+                aria-label="Dismiss"
+              >
+                <XClose className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

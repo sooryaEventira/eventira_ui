@@ -1,4 +1,6 @@
-import React, { useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import * as Ably from 'ably'
+import type { DirectMessage } from '../../services/publicDirectMessageService'
 import PublicNavbar from './PublicNavbar'
 import { fetchPublicEvent, type PublicEventData } from '../../services/publicEventService'
 import { fetchPublicWebsiteSettings } from '../../services/websiteSettingsService'
@@ -127,6 +129,8 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const [activePath, setActivePath] = useState<string>(window.location.pathname)
   const [hasScheduleFromApi, setHasScheduleFromApi] = useState(false)
   const [defaultScheduleUuid, setDefaultScheduleUuid] = useState<string>('')
+  const [globalNotifs, setGlobalNotifs] = useState<Array<{ id: string; name: string; text: string }>>([])
+  const bgAblyClientsRef = useRef<Ably.Realtime[]>([])
 
   const refresh = async () => {
     setIsLoading(true)
@@ -227,6 +231,71 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         }
       })
       .catch(() => { /* non-critical */ })
+  }, [eventUuid])
+
+  // Auto-dismiss oldest global notification after 4s
+  useEffect(() => {
+    if (globalNotifs.length === 0) return
+    const t = setTimeout(() => setGlobalNotifs((prev) => prev.slice(1)), 4000)
+    return () => clearTimeout(t)
+  }, [globalNotifs])
+
+  // Background Ably subscriptions — fires notifications from any room while user browses other pages
+  useEffect(() => {
+    const token = localStorage.getItem('pub_accessToken')
+    if (!token) return
+    let cancelled = false
+
+    const setup = async () => {
+      try {
+        const res = await fetch(API_ENDPOINTS.PUBLIC.CHAT_ROOMS, {
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        })
+        if (!res.ok || cancelled) return
+        const json = await res.json()
+        const rooms: any[] = Array.isArray(json) ? json : Array.isArray(json?.data) ? json.data : Array.isArray(json?.results) ? json.results : []
+
+        for (const room of rooms.slice(0, 10)) {
+          if (cancelled) break
+          try {
+            const tokenRes = await fetch(API_ENDPOINTS.PUBLIC.CHAT_ROOM_TOKEN(room.room_uuid), {
+              headers: { Authorization: `Bearer ${token}` },
+            })
+            if (!tokenRes.ok || cancelled) continue
+            const td = await tokenRes.json()
+            const d = td?.data ?? td
+            const ablyToken = d?.ably_token ?? d?.token ?? null
+            const channelName = room.channel_name || String(d?.channel_name ?? '')
+            if (!ablyToken || !channelName || cancelled) continue
+
+            const client = new Ably.Realtime({ token: ablyToken })
+            bgAblyClientsRef.current.push(client)
+
+            const channel = client.channels.get(channelName)
+            channel.subscribe((msg: Ably.Message) => {
+              if (cancelled) return
+              const data = msg.data as DirectMessage
+              if (!data?.id) return
+              const myId = localStorage.getItem('pub_attendeeUuid') ?? localStorage.getItem('pub_userUuid') ?? ''
+              if (data.senderId === myId) return
+              // Only show if NOT already on messages page (that page handles its own notifications)
+              if (window.location.pathname.includes('/messages')) return
+              setGlobalNotifs((prev) => prev.some((n) => n.id === data.id) ? prev : [
+                ...prev,
+                { id: data.id, name: room.participant?.name ?? data.senderName ?? 'New message', text: data.text ?? '' },
+              ])
+            })
+          } catch { /* non-critical, skip this room */ }
+        }
+      } catch { /* ignore */ }
+    }
+
+    setup()
+    return () => {
+      cancelled = true
+      bgAblyClientsRef.current.forEach((c) => { try { c.close() } catch { /* ignore */ } })
+      bgAblyClientsRef.current = []
+    }
   }, [eventUuid])
 
   const displayEventName = useMemo(() => {
@@ -678,6 +747,40 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           </div>
         )}
       </main>
+
+      {/* Global incoming-message notifications (fires from any page except /messages) */}
+      {globalNotifs.length > 0 && (
+        <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-2 pointer-events-none">
+          {globalNotifs.map((n) => (
+            <div
+              key={n.id}
+              className="pointer-events-auto flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg w-72"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
+                {n.name.split(' ').slice(0, 2).map((w: string) => w[0]?.toUpperCase() ?? '').join('')}
+              </div>
+              <div
+                className="flex-1 min-w-0 cursor-pointer"
+                onClick={() => {
+                  setGlobalNotifs((prev) => prev.filter((x) => x.id !== n.id))
+                  handleNavigate(`/events/${eventUuid}/messages`)
+                }}
+              >
+                <p className="text-xs font-semibold text-slate-800 truncate">{n.name}</p>
+                <p className="text-xs text-slate-500 truncate">{n.text}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGlobalNotifs((prev) => prev.filter((x) => x.id !== n.id))}
+                className="shrink-0 text-slate-400 hover:text-slate-600"
+                aria-label="Dismiss"
+              >
+                <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

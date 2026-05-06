@@ -508,11 +508,11 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                             </span>
                           )}
                           {Array.isArray(child.tags) && child.tags.length > 0 && (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-blue-600">
-                              <span className="truncate max-w-[140px]">
-                                Tags: {child.tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '')).filter(Boolean).join(', ')}
+                            child.tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '')).filter(Boolean).map((tag) => (
+                              <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-blue-600">
+                                {tag}
                               </span>
-                            </span>
+                            ))
                           )}
                           {(child.attachment_count || 0) > 0 && (
                             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
@@ -684,11 +684,11 @@ const SessionContainer: React.FC<SessionContainerProps> = ({
                   </span>
                 )}
                 {Array.isArray(session.tags) && session.tags.length > 0 && (
-                  <span className="inline-flex items-center gap-1.5 px-2 rounded-full text-xs font-medium border border-slate-200 text-blue-700 bg-slate-100">
-                    <span className="truncate max-w-[160px]">
-                      {session.tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '')).filter(Boolean).join(', ')}
+                  session.tags.map((t: any) => String(t?.name ?? t?.label ?? t ?? '')).filter(Boolean).map((tag) => (
+                    <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border border-slate-200 text-blue-700 bg-slate-100">
+                      {tag}
                     </span>
-                  </span>
+                  ))
                 )}
                 {(session.attachment_count || 0) > 0 && (
                   <span className="inline-flex items-center gap-1.5 px-2  rounded-full border border-slate-200 text-xs font-medium text-slate-700">

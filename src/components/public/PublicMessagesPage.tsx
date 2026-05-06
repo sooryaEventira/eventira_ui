@@ -80,6 +80,7 @@ const PublicMessagesPage: React.FC<PublicMessagesPageProps> = ({
   const [messageInput, setMessageInput] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [isReady, setIsReady] = useState(false)
+  const [notifications, setNotifications] = useState<Array<{ id: string; name: string; text: string }>>([])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<Ably.RealtimeChannel | null>(null)
@@ -110,6 +111,13 @@ const PublicMessagesPage: React.FC<PublicMessagesPageProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Auto-dismiss notifications after 4s
+  useEffect(() => {
+    if (notifications.length === 0) return
+    const t = setTimeout(() => setNotifications((prev) => prev.slice(1)), 4000)
+    return () => clearTimeout(t)
+  }, [notifications])
 
   // Connect to Ably when a room is selected
   const connectRoom = useCallback(async (room: ChatRoom) => {
@@ -147,6 +155,12 @@ const PublicMessagesPage: React.FC<PublicMessagesPageProps> = ({
         if (!data?.id) return
         saveDmMessage(channelName, data)
         setMessages((prev) => prev.some((m) => m.id === data.id) ? prev : [...prev, data])
+        if (data.senderId !== myId) {
+          setNotifications((prev) => [
+            ...prev,
+            { id: data.id, name: room.participant.name, text: data.text ?? '' },
+          ])
+        }
       })
 
       channel.once('attached', async () => {
@@ -342,6 +356,33 @@ const PublicMessagesPage: React.FC<PublicMessagesPageProps> = ({
           </div>
         </div>
       </div>
+      {/* Incoming message notifications */}
+      {notifications.length > 0 && (
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2">
+          {notifications.map((n) => (
+            <div
+              key={n.id}
+              className="flex items-start gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-lg w-72 animate-in fade-in slide-in-from-bottom-2"
+            >
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-xs font-semibold text-primary">
+                {n.name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase() ?? '').join('')}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-slate-800 truncate">{n.name}</p>
+                <p className="text-xs text-slate-500 truncate">{n.text}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotifications((prev) => prev.filter((x) => x.id !== n.id))}
+                className="shrink-0 text-slate-400 hover:text-slate-600"
+                aria-label="Dismiss"
+              >
+                <XClose className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

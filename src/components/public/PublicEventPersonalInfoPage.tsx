@@ -53,10 +53,10 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
   const [education, setEducation] = useState('')
   const [specialization, setSpecialization] = useState('')
   const [bio, setBio] = useState('')
-  const [groups] = useState<string[]>(['Student', 'Vegetarian', 'Group 3'])
   const [interests, setInterests] = useState<string[]>([])
   const [interestInput, setInterestInput] = useState('')
   const [networkingGoals, setNetworkingGoals] = useState<string[]>([])
+  const [extraCustomFields, setExtraCustomFields] = useState<Record<string, string>>({})
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [profilePicture, setProfilePicture] = useState<string>(
@@ -87,6 +87,12 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
         if (Array.isArray(resolvedInterests) && resolvedInterests.length) setInterests(resolvedInterests)
         const resolvedGoals = cf.networking_goals ?? profile.networking_goals
         if (Array.isArray(resolvedGoals) && resolvedGoals.length) setNetworkingGoals(resolvedGoals)
+        const knownKeys = new Set(['location', 'education', 'specialization', 'interests', 'networking_goals', 'post', 'bio'])
+        const extra: Record<string, string> = {}
+        Object.entries(cf).forEach(([k, v]) => {
+          if (!knownKeys.has(k) && v != null && String(v).trim()) extra[k] = String(v)
+        })
+        if (Object.keys(extra).length) setExtraCustomFields(extra)
         const resolvedPic = profile.image ?? profile.profile_picture ?? profile.picture ?? ''
         if (resolvedPic) {
           setProfilePicture(resolvedPic)
@@ -122,6 +128,7 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
         description: bio.trim() || undefined,
         image: profilePictureFile ?? undefined,
         custom_fields: {
+          ...extraCustomFields,
           location: location.trim() || undefined,
           education: education.trim() || undefined,
           specialization: specialization.trim() || undefined,
@@ -434,6 +441,23 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
                   ))}
                 </div>
               </div>
+
+              {/* Extra custom fields from CMS */}
+              {Object.keys(extraCustomFields).length > 0 && (
+                <div className="space-y-3">
+                  {Object.entries(extraCustomFields).map(([label, value]) => (
+                    <div key={label}>
+                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
+                      <input
+                        type="text"
+                        value={value}
+                        readOnly
+                        className={`${inputBase} bg-slate-50 text-slate-500 cursor-not-allowed`}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 

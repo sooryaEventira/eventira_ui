@@ -1844,9 +1844,12 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     const tagNames = (normalizedSession.tags ?? [])
       .map((t) => {
         if (typeof t !== 'string') return null
-        const fromOptions = availableSessionTags.find((opt) => opt.uuid === t || opt.name === t)
-        const name = (fromOptions?.name ?? t)?.toString().trim()
-        return name || null
+        const raw = t.toString().trim()
+        if (!raw) return null
+        const fromOptions = availableSessionTags.find((opt) => opt.uuid === raw || opt.name === raw)
+        if (fromOptions) return fromOptions.name
+        if (UUID_REGEX.test(raw)) return null
+        return raw
       })
       .filter((name): name is string => !!name)
     const draftId = (normalizedSession as SavedSession).id
@@ -2058,6 +2061,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
             location: normalizedSession.location ?? '',
             session_type: parentSessionId ? 'child' : (normalizedSession.sessionType?.trim() || 'keynote'),
             tag_names: tagNames,
+            tag_uuids: tagUuids,
             ...(parentSessionId ? { parent: parentSessionId } : {})
           }
           const created = await createSession(eventUuid, sessionBody)
@@ -2587,8 +2591,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
           {/* Navbar */}
           <EventHubNavbar
             eventName={eventName}
-            isDraft={isDraft}
-            eventStatus={eventStatus}
+            eventStatus={eventStatus ?? (isDraft ? 'Draft' : 'Live')}
             onBackClick={onBackClick}
             onSearchClick={handleSearchClick}
             onNotificationClick={handleNotificationClick}
@@ -2713,6 +2716,9 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
               if (activeScheduleId) await loadSessions(activeScheduleId)
             }}
             onBulkDeleteApplied={async () => {
+              if (activeScheduleId) await loadSessions(activeScheduleId)
+            }}
+            onTagsOrLocationsChanged={async () => {
               if (activeScheduleId) await loadSessions(activeScheduleId)
             }}
             sessionFormOpen={isSessionSlideoutOpen}

@@ -37,6 +37,7 @@ interface BroadcastComposerProps {
   templateType?: string
   type?: 'email' | 'push-notification'
   broadcastTitle?: string
+  communicationId?: number | string | null
 }
 
 const MESSAGE_STATUS_OPTIONS = [
@@ -72,7 +73,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   initialSubject = '',
   initialMessage = '',
   type = 'email',
-  broadcastTitle = ''
+  broadcastTitle = '',
+  communicationId = null,
 }) => {
   const [activeTab, setActiveTab] = useState<'late-message' | 'settings'>('late-message')
   const [subject, setSubject] = useState(initialSubject || '')
@@ -95,7 +97,9 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   const [isSavingAttachments, setIsSavingAttachments] = useState(false)
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ id: string; file: File; name: string; sizeLabel: string }>>([])
   const [uploadedAttachments, setUploadedAttachments] = useState<Array<{ uuid: string; name: string; sizeLabel: string }>>([])
-  const [draftCommunicationId, setDraftCommunicationId] = useState<number | null>(null)
+  const [draftCommunicationId, setDraftCommunicationId] = useState<number | null>(
+    communicationId != null ? Number(communicationId) : null
+  )
 
   const attachmentUuids = uploadedAttachments.map(a => a.uuid)
 
@@ -135,23 +139,34 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     }
   }), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const formatBytes = (bytes: number) => {
-    if (bytes < 1024) return `${bytes}B`
-    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)}K`
-    return `${(bytes / (1024 * 1024)).toFixed(1)}M`
-  }
-
-  const handleAttachmentAdd = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
+  const handleImageInsert = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
     e.target.value = ''
-    if (!files.length) return
-    const newItems = files.map(file => ({
-      id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-      file,
-      name: file.name,
-      sizeLabel: formatBytes(file.size),
-    }))
-    setPendingAttachments(prev => [...prev, ...newItems])
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => {
+        const MAX_W = 600
+        const scale = Math.min(1, MAX_W / img.width)
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const canvas = document.createElement('canvas')
+        canvas.width = w
+        canvas.height = h
+        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
+        const quill = quillRef.current?.getEditor()
+        if (!quill) return
+        const range = quill.getSelection(true)
+        const index = range ? range.index : quill.getLength()
+        quill.insertEmbed(index, 'image', dataUrl, 'user')
+        quill.setSelection(index + 1, 0, 'user')
+        editorContentRef.current = quill.root.innerHTML
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
   }
 
   const removeAttachment = (id: string) =>
@@ -799,8 +814,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
               setDraftCommunicationId(draft.id)
             }
             await sendCommunicationById(communicationId, createdEvent.uuid)
-            // Keep modal briefly so backend status can settle before list refresh.
-            await new Promise((resolve) => setTimeout(resolve, 1200))
+            showToast.success('Message sent successfully.')
             setShowPreviewModal(false)
             if (onSend) {
               await Promise.resolve(onSend({ subject, message: savedMessage, communicationId }))
@@ -923,14 +937,13 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
         </div>
       )}
 
-      {/* Hidden file input for attachments */}
+      {/* Hidden file input for inline image insertion */}
       <input
         ref={imageInputRef}
         type="file"
-        multiple
-        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip"
+        accept="image/*"
         className="hidden"
-        onChange={handleAttachmentAdd}
+        onChange={handleImageInsert}
       />
     </div>
   )

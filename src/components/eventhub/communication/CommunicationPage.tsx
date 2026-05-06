@@ -462,8 +462,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
                 setShowComposer(false)
                 setSelectedBroadcastType(null)
                 setCurrentDraftId(null)
-                await new Promise((resolve) => setTimeout(resolve, 1200))
-                await loadCommunications()
+                loadCommunications()
               }}
             />
           ) : (
@@ -486,23 +485,19 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
                 }
                 setCommunications((prev) => {
                   let next = [...prev]
-                  // Remove local temporary draft row immediately to avoid showing stale "draft".
                   if (currentDraftId) {
                     next = next.filter((comm) => comm.id !== currentDraftId)
                   }
-                  // If API draft row already exists in table, mark it as sent optimistically.
                   if (sentId) {
                     next = next.map((comm) => (comm.id === sentId ? { ...comm, status: 'sent', type: 'email' } : comm))
                   }
                   return next
                 })
-                // Give backend list endpoint a brief window to reflect sent status.
-                await new Promise((resolve) => setTimeout(resolve, 1200))
-                await loadCommunications()
                 setShowComposer(false)
                 setSelectedBroadcastType(null)
                 setCurrentDraftId(null)
                 setComposerHasUnsavedChanges(false)
+                loadCommunications()
               }}
               macros={macros}
               templateType="late-message"
@@ -510,6 +505,7 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
               broadcastTitle={initialBroadcastTitle}
               initialSubject={initialComposerSubject}
               initialMessage={initialComposerMessage}
+              communicationId={currentDraftId}
             />
           )
         ) : (

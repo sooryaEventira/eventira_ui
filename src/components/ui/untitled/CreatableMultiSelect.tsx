@@ -38,9 +38,12 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
   React.useEffect(() => {
     setLocalOptions(prev => {
       const merged = [...options]
-      // Preserve any locally-created options not in the server list
+      // Preserve locally-created options not present in the new server list.
+      // Compare by label (display name) so that value format changes (name → uuid)
+      // between renders don't cause the same tag to appear twice.
       for (const lo of prev) {
-        if (!merged.some(o => o.value === lo.value)) {
+        const loLabel = lo.label.trim().toLowerCase()
+        if (!merged.some(o => o.label.trim().toLowerCase() === loLabel)) {
           merged.push(lo)
         }
       }
