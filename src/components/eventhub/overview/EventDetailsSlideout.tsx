@@ -93,10 +93,17 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
     }
     setSaving(true)
     try {
+      const toISO = (date: string, isEnd: boolean) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(date)
+          ? isEnd ? `${date}T23:59:59.999` : `${date}T00:00:00`
+          : undefined
+
       await updateEvent(eventUuid, {
         eventName: form.eventName,
         startDate: form.startDate || undefined,
         endDate: form.endDate || undefined,
+        startDateTimeISO: form.startDate ? toISO(form.startDate, false) : undefined,
+        endDateTimeISO: form.endDate ? toISO(form.endDate, true) : undefined,
         timezoneId: form.timezoneId || undefined,
         location: form.location || undefined,
         venue: form.venue || undefined,

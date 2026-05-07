@@ -5,10 +5,8 @@ import type { ApiResponse } from './authService'
 
 export interface CreateEventRequest {
   eventName: string
-  startDate: string
   startDateTimeISO: string
   startTime: string
-  endDate: string
   endDateTimeISO: string
   endTime: string
   timezoneId: string
@@ -114,10 +112,8 @@ export const createEvent = async (request: CreateEventRequest): Promise<CreateEv
     
     // Add text fields
     formData.append('eventName', request.eventName)
-    formData.append('startDate', request.startDate)
     formData.append('startDateTimeISO', request.startDateTimeISO)
     formData.append('startTime', request.startTime)
-    formData.append('endDate', request.endDate)
     formData.append('endDateTimeISO', request.endDateTimeISO)
     formData.append('endTime', request.endTime)
     formData.append('timezoneId', request.timezoneId)
@@ -629,6 +625,8 @@ export interface UpdateEventRequest {
   eventName?: string
   startDate?: string
   endDate?: string
+  startDateTimeISO?: string
+  endDateTimeISO?: string
   timezoneId?: string
   location?: string
   venue?: string
@@ -659,6 +657,8 @@ export const updateEvent = async (eventUuid: string, request: UpdateEventRequest
   }
   if (request.startDate != null) body.start_date = request.startDate
   if (request.endDate != null) body.end_date = request.endDate
+  if (request.startDateTimeISO != null) body.startDateTimeISO = request.startDateTimeISO
+  if (request.endDateTimeISO != null) body.endDateTimeISO = request.endDateTimeISO
   if (request.timezoneId != null) body.timezone_id = request.timezoneId
   if (request.location != null) body.location = request.location
   if (request.venue != null) body.venue = request.venue

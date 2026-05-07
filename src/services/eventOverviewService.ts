@@ -38,6 +38,8 @@ interface OverviewApiData {
   publish_status?: string
   start_date?: string
   end_date?: string
+  startDateTimeISO?: string
+  endDateTimeISO?: string
   timezone?: string
   location?: string
   venue?: string
@@ -107,8 +109,18 @@ export async function fetchEventOverview(eventUuid: string): Promise<EventOvervi
   const rawData = json.data ?? {}
   const d: OverviewApiData = typeof (rawData as any)?.data === 'object' ? (rawData as any).data : rawData
   const title = String(d.name ?? '').trim() || 'Untitled event'
-  const startDate = String(d.start_date ?? '').trim()
-  const endDate = String(d.end_date ?? '').trim()
+
+  // The overview API returns start_date/end_date as full ISO strings with timezone offset
+  // e.g. "2026-08-18T00:00:00+05:30". Using new Date() + timeZone:'UTC' on these shifts
+  // the date by the offset (showing Aug 17 instead of Aug 18). Extract only the date
+  // portion (YYYY-MM-DD) directly from the string so the calendar date is preserved.
+  const extractDate = (raw: string): string =>
+    raw.match(/^(\d{4}-\d{2}-\d{2})/)?.[1] ?? raw
+
+  const rawStart = String(d.startDateTimeISO ?? d.start_date ?? '').trim()
+  const rawEnd = String(d.endDateTimeISO ?? d.end_date ?? '').trim()
+  const startDate = extractDate(rawStart)
+  const endDate = extractDate(rawEnd)
   // Location: prefer location, then venue, then address (API may use any of these)
   const location = String(d.location ?? d.venue ?? d.address ?? '').trim()
   const timezone = String(d.timezone ?? '').trim()

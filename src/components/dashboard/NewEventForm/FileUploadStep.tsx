@@ -26,28 +26,21 @@ const FileUploadStep = forwardRef<FileUploadStepRef, FileUploadStepProps>(({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [validationErrors, setValidationErrors] = useState<string[]>([])
 
-  // Convert date strings to ISO format with time
+  // Convert date strings to ISO format with time.
+  // We intentionally avoid any Date object conversion here because JavaScript
+  // parses YYYY-MM-DD strings as UTC midnight, then setHours() shifts to local
+  // midnight — causing a day offset for users in non-UTC timezones (e.g. IST
+  // would shift May 10 to "2026-05-09T18:30:00Z" which the server then stores
+  // as the wrong day). Instead we format the naive datetime string directly so
+  // the server receives the calendar date as-is and appends its own timezone.
   const formatDateToISO = (dateString: string, isEndDate: boolean = false): string => {
-    // If dateString is already in ISO format with time, return it
     if (dateString.includes('T')) {
       return dateString
     }
-    
-    // Parse the date string (format: YYYY-MM-DD)
-    const date = new Date(dateString)
-    if (isNaN(date.getTime())) {
-      // If invalid, try to create a date from the string
+    if (!dateString || !/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
       return dateString
     }
-    
-    // Set time: start date at 00:00:00, end date at 23:59:59
-    if (isEndDate) {
-      date.setHours(23, 59, 59, 999)
-    } else {
-      date.setHours(0, 0, 0, 0)
-    }
-    
-    return date.toISOString()
+    return isEndDate ? `${dateString}T23:59:59.999` : `${dateString}T00:00:00`
   }
 
   // Expose submit function and loading state via ref
@@ -184,10 +177,8 @@ const FileUploadStep = forwardRef<FileUploadStepRef, FileUploadStepProps>(({
 
       const eventRequest = {
         eventName: formData.eventName,
-        startDate,
         startDateTimeISO,
         startTime,
-        endDate,
         endDateTimeISO,
         endTime,
         timezoneId: formData.timezone, // Already a UUID from TimezoneSelector
