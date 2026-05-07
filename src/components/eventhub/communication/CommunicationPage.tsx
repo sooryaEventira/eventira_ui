@@ -241,6 +241,10 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   }, [createdEvent?.uuid])
 
   const [isBroadcastModalOpen, setIsBroadcastModalOpen] = React.useState(false)
+  const [editModalOpen, setEditModalOpen] = React.useState(false)
+  const [editModalCommId, setEditModalCommId] = React.useState<string | null>(null)
+  const [editModalTitle, setEditModalTitle] = React.useState('')
+  const [editModalType, setEditModalType] = React.useState<BroadcastType>('email')
   const [isCreateMacroModalOpen, setIsCreateMacroModalOpen] = React.useState(false)
   const [showComposer, setShowComposer] = React.useState(false)
   const [selectedBroadcastType, setSelectedBroadcastType] = React.useState<BroadcastType | null>(null)
@@ -352,21 +356,29 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     loadCommunications()
   }
 
-  const handleEditCommunication = async (communicationId: string) => {
+  const handleEditCommunication = (communicationId: string) => {
+    const comm = communications.find((c) => c.id === communicationId)
+    if (!comm) return
+    const commType: BroadcastType = comm.type === 'email' ? 'email' : 'push-notification'
+    setEditModalCommId(communicationId)
+    setEditModalTitle(comm.title)
+    setEditModalType(commType)
+    setEditModalOpen(true)
+  }
+
+  const handleEditModalConfirm = async ({ title }: { title: string; type: BroadcastType }) => {
+    setEditModalOpen(false)
     const eventUuid = createdEvent?.uuid
-    if (!eventUuid) {
-      showToast.error('Event UUID is required. Please select an event first.')
-      return
-    }
+    if (!eventUuid || !editModalCommId) return
     try {
-      const detail = await fetchCommunicationById(communicationId, eventUuid)
+      const detail = await fetchCommunicationById(editModalCommId, eventUuid)
       const normalizedChannel = String(detail.channel || '')
         .trim()
         .toLowerCase()
         .replace(/[\s-]+/g, '_')
       const editorType: BroadcastType = normalizedChannel === 'email' ? 'email' : 'push-notification'
       setSelectedBroadcastType(editorType)
-      setInitialBroadcastTitle(detail.title || '')
+      setInitialBroadcastTitle(title || detail.title || '')
       setInitialComposerSubject(detail.subject || '')
       setInitialComposerMessage(detail.message || '')
       setCurrentDraftId(String(detail.id))
@@ -528,12 +540,22 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         )}
       </div>
 
-      {/* Broadcast Type Modal */}
+      {/* Broadcast Type Modal — create */}
       <BroadcastTypeModal
         isOpen={isBroadcastModalOpen}
         onClose={() => setIsBroadcastModalOpen(false)}
         onSelect={handleBroadcastTypeSelect}
         onSubmit={handleBroadcastSubmit}
+      />
+
+      {/* Broadcast Type Modal — edit */}
+      <BroadcastTypeModal
+        isOpen={editModalOpen}
+        onClose={() => setEditModalOpen(false)}
+        mode="edit"
+        initialTitle={editModalTitle}
+        initialType={editModalType}
+        onSubmit={handleEditModalConfirm}
       />
 
       <CreateMacroModal

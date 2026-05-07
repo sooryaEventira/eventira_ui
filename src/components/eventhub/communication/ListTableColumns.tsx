@@ -178,9 +178,16 @@ export const useListTableColumns = ({
             <div className="flex items-center justify-end gap-2">
               <button
                 type="button"
-                onClick={() => onEditCommunication?.(communication.id)}
-                className="flex h-9 w-9 items-center justify-center text-slate-500 transition hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                onClick={() => { if (!isDraft) return; onEditCommunication?.(communication.id) }}
+                disabled={!isDraft}
+                className={[
+                  'flex h-9 w-9 items-center justify-center transition focus:outline-none',
+                  isDraft
+                    ? 'text-slate-500 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/40'
+                    : 'text-slate-300 cursor-not-allowed opacity-60 pointer-events-none'
+                ].join(' ')}
                 aria-label={`Edit ${communication.title}`}
+                title={isDraft ? `Edit ${communication.title}` : 'Only draft items can be edited'}
               >
                 <Pencil01 className="h-4 w-4" strokeWidth={1.8} />
               </button>

@@ -536,11 +536,58 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   }, [eventUuid, webpages, websiteIndex, hasScheduleFromApi])
 
   const current = useMemo(() => getSectionFromPath(eventUuid, activePath), [eventUuid, activePath])
-  const fallbackWebpageSlug =
-    (websiteIndex?.webpages?.[0] as any)?.slug ||
-    webpages[0]?.slug ||
-    undefined
+
+  // Returns true if any nav node (including nested children) has a path containing the given segment.
+  const isPathInNav = (segment: string): boolean => {
+    const check = (nodes: PublicNavNode[]): boolean =>
+      nodes.some((n) =>
+        n.type === 'page'
+          ? n.path.includes(segment)
+          : check(n.children)
+      )
+    // Only gate when the index API has responded; before that allow access to avoid flicker.
+    return !websiteIndex || check(navbarItems)
+  }
+
+  // Use the first webpage from the navigation order, not raw creation order.
+  const fallbackWebpageSlug = useMemo(() => {
+    const findFirstPageSlug = (nodes: PublicNavNode[]): string | undefined => {
+      for (const n of nodes) {
+        if (n.type === 'page') {
+          const match = n.path.match(/\/webpages\/([^/]+)\/?$/)
+          if (match) return match[1]
+        } else {
+          const found = findFirstPageSlug(n.children)
+          if (found) return found
+        }
+      }
+      return undefined
+    }
+    return (
+      findFirstPageSlug(navbarItems) ||
+      (websiteIndex?.webpages?.[0] as any)?.slug ||
+      webpages[0]?.slug ||
+      undefined
+    )
+  }, [navbarItems, websiteIndex, webpages])
   const webpageSlug = current.webpageSlug ?? fallbackWebpageSlug
+
+  // When showing the default/fallback webpage, silently update the URL so the
+  // navbar can match the correct item as active.
+  useEffect(() => {
+    if (
+      current.section === 'webpage' &&
+      !current.webpageSlug &&
+      fallbackWebpageSlug &&
+      !isLoading
+    ) {
+      const targetPath = `/events/${eventUuid}/webpages/${fallbackWebpageSlug}`
+      if (window.location.pathname !== targetPath) {
+        window.history.replaceState({}, '', targetPath)
+        setActivePath(targetPath)
+      }
+    }
+  }, [current.section, current.webpageSlug, fallbackWebpageSlug, eventUuid, isLoading])
 
   const handleNavigate = (path: string) => {
     // Exit to event list: full navigation so PublicApp re-renders and shows PublicEventListPage
@@ -644,12 +691,19 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
             </div>
           </div>
         ) : current.section === 'organizations' ? (
-          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <OrganizationsListPage
-              eventUuid={eventUuid}
-              onNavigate={handleNavigate}
-            />
-          </React.Suspense>
+          isPathInNav('/organizations') ? (
+            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+              <OrganizationsListPage
+                eventUuid={eventUuid}
+                onNavigate={handleNavigate}
+              />
+            </React.Suspense>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white p-6">
+              <div className="text-lg font-semibold text-slate-900">Page not found</div>
+              <div className="mt-1 text-sm text-slate-600">This page is not available for this event.</div>
+            </div>
+          )
         ) : current.section === 'attendees' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <ParticipantsListPage
@@ -667,13 +721,20 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
             />
           </React.Suspense>
         ) : current.section === 'organization' ? (
-          <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
-            <OrganizationDetailPage
-              eventUuid={eventUuid}
-              organizationId={current.organizationId || ''}
-              onNavigate={handleNavigate}
-            />
-          </React.Suspense>
+          isPathInNav('/organizations') ? (
+            <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
+              <OrganizationDetailPage
+                eventUuid={eventUuid}
+                organizationId={current.organizationId || ''}
+                onNavigate={handleNavigate}
+              />
+            </React.Suspense>
+          ) : (
+            <div className="rounded-xl border border-slate-200 bg-white p-6">
+              <div className="text-lg font-semibold text-slate-900">Page not found</div>
+              <div className="mt-1 text-sm text-slate-600">This page is not available for this event.</div>
+            </div>
+          )
         ) : current.section === 'session' ? (
           <React.Suspense fallback={<div className="py-10 text-sm text-slate-600">Loading…</div>}>
             <PublicSessionDetailPage

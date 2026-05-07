@@ -10,6 +10,10 @@ interface BroadcastTypeModalProps {
   onSelect?: (type: BroadcastType) => void
   /** Called when user clicks "Create schedule" with title and type. */
   onSubmit?: (data: { title: string; type: BroadcastType }) => void
+  /** Edit mode: pre-fills fields and locks the type dropdown. */
+  mode?: 'create' | 'edit'
+  initialTitle?: string
+  initialType?: BroadcastType
 }
 
 const TYPE_OPTIONS: { value: BroadcastType; label: string; icon: React.ReactNode; description: string }[] = [
@@ -21,20 +25,26 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
   isOpen,
   onClose,
   onSelect,
-  onSubmit
+  onSubmit,
+  mode = 'create',
+  initialTitle = '',
+  initialType,
 }) => {
-  const [title, setTitle] = useState('')
-  const [type, setType] = useState<BroadcastType | null>(null)
+  const isEditMode = mode === 'edit'
+  const [title, setTitle] = useState(initialTitle)
+  const [type, setType] = useState<BroadcastType | null>(initialType ?? null)
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false)
   const [isSlidingIn, setIsSlidingIn] = useState(false)
 
   useEffect(() => {
     if (isOpen) {
+      setTitle(initialTitle)
+      setType(initialType ?? null)
       const t = requestAnimationFrame(() => setIsSlidingIn(true))
       return () => cancelAnimationFrame(t)
     }
     setIsSlidingIn(false)
-  }, [isOpen])
+  }, [isOpen, initialTitle, initialType])
 
   useEffect(() => {
     if (!isOpen) return
@@ -91,7 +101,7 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
           {/* Header */}
           <div className="shrink-0 px-6 pt-6 pb-4">
             <h2 id="slideout-title" className="text-lg font-bold text-slate-900">
-              New Broadcast
+              {isEditMode ? 'Edit Broadcast' : 'New Broadcast'}
             </h2>
           </div>
 
@@ -120,17 +130,23 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
                   <button
                     id="broadcast-type"
                     type="button"
-                    onClick={() => setTypeDropdownOpen((v) => !v)}
-                    className="w-full flex items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-left text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary"
+                    onClick={() => { if (!isEditMode) setTypeDropdownOpen((v) => !v) }}
+                    disabled={isEditMode}
+                    className={[
+                      'w-full flex items-center justify-between rounded-lg border px-3 py-2.5 text-left focus:outline-none',
+                      isEditMode
+                        ? 'border-slate-200 bg-slate-50 text-slate-400 cursor-not-allowed'
+                        : 'border-slate-300 bg-white text-slate-900 focus:ring-2 focus:ring-primary/40 focus:border-primary'
+                    ].join(' ')}
                   >
-                    <span className={selectedTypeLabel ? 'text-slate-900' : 'text-slate-400'}>
+                    <span className={selectedTypeLabel ? (isEditMode ? 'text-slate-500' : 'text-slate-900') : 'text-slate-400'}>
                       {selectedTypeLabel ?? 'Select type'}
                     </span>
                     <ChevronDown
-                      className={`h-4 w-4 text-slate-500 shrink-0 transition-transform ${typeDropdownOpen ? 'rotate-180' : ''}`}
+                      className={`h-4 w-4 shrink-0 transition-transform ${isEditMode ? 'text-slate-300' : 'text-slate-500'} ${typeDropdownOpen ? 'rotate-180' : ''}`}
                     />
                   </button>
-                  {typeDropdownOpen && (
+                  {!isEditMode && typeDropdownOpen && (
                     <>
                       <div
                         className="fixed inset-0 z-10"
@@ -179,7 +195,7 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
               onClick={handleCreateBroadcast}
               className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-95 focus:outline-none focus:ring-2 focus:ring-primary/40"
             >
-              Create Broadcast
+              {isEditMode ? 'Update broadcast' : 'Create Broadcast'}
             </button>
           </div>
         </div>
