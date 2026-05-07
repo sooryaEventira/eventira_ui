@@ -100,8 +100,6 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
 
       await updateEvent(eventUuid, {
         eventName: form.eventName,
-        startDate: form.startDate || undefined,
-        endDate: form.endDate || undefined,
         startDateTimeISO: form.startDate ? toISO(form.startDate, false) : undefined,
         endDateTimeISO: form.endDate ? toISO(form.endDate, true) : undefined,
         timezoneId: form.timezoneId || undefined,

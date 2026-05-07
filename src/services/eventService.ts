@@ -623,8 +623,6 @@ export const fetchEvent = async (eventUuid: string): Promise<EventData> => {
 
 export interface UpdateEventRequest {
   eventName?: string
-  startDate?: string
-  endDate?: string
   startDateTimeISO?: string
   endDateTimeISO?: string
   timezoneId?: string
@@ -655,8 +653,6 @@ export const updateEvent = async (eventUuid: string, request: UpdateEventRequest
     body.eventName = request.eventName
     body.event_name = request.eventName
   }
-  if (request.startDate != null) body.start_date = request.startDate
-  if (request.endDate != null) body.end_date = request.endDate
   if (request.startDateTimeISO != null) body.startDateTimeISO = request.startDateTimeISO
   if (request.endDateTimeISO != null) body.endDateTimeISO = request.endDateTimeISO
   if (request.timezoneId != null) body.timezone_id = request.timezoneId
