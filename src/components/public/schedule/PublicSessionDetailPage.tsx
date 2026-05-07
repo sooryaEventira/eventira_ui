@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { ArrowNarrowLeft } from '@untitled-ui/icons-react'
+import { ArrowNarrowLeft, Clock, MarkerPin01, User01, Paperclip, ChevronUp, ChevronDown } from '@untitled-ui/icons-react'
 import type { SavedSession } from '../../eventhub/schedulesession/sessionTypes'
 import SessionSummaryView from '../../eventhub/schedulesession/SessionSummaryView'
 import PublicSessionComments from './PublicSessionComments'
@@ -129,6 +129,26 @@ const mapApiSessionToSaved = (x: any, idx: number): SavedSession => {
   }
 }
 
+const formatChildTime = (startAt: any, endAt: any): string => {
+  const fmt = (raw: any) => {
+    const p = parseTime(raw)
+    const [hh, mm] = p.time.split(':').map(Number)
+    const h = hh % 12 || 12
+    return `${String(h).padStart(2, '0')}:${String(mm).padStart(2, '0')} ${p.period}`
+  }
+  if (!startAt && !endAt) return ''
+  if (!endAt) return fmt(startAt)
+  return `${fmt(startAt)} – ${fmt(endAt)}`
+}
+
+const normalizeAttendance = (type: string): string => {
+  const t = String(type ?? '').toLowerCase()
+  if (t === 'virtual' || t === 'online') return 'Online'
+  if (t === 'hybrid') return 'Hybrid'
+  if (t === 'child') return ''
+  return 'In-Person'
+}
+
 interface PublicSessionDetailPageProps {
   eventUuid: string
   sessionId: string
@@ -141,9 +161,12 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
   onNavigate
 }) => {
   const [session, setSession] = useState<SavedSession | null>(null)
+  const [childSessions, setChildSessions] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [notFound, setNotFound] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
+  const [subSessionsExpanded, setSubSessionsExpanded] = useState(true)
+  const [showAllChildren, setShowAllChildren] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -167,7 +190,11 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
           if (found) {
             const fullSession = await fetchPublicSession(eventUuid, scheduleUuid, sessionId)
             const data = fullSession ?? found
-            if (!cancelled) setSession(mapApiSessionToSaved(data, 0))
+            if (!cancelled) {
+              setSession(mapApiSessionToSaved(data, 0))
+              const children = Array.isArray(data?.children) ? data.children : []
+              setChildSessions(children)
+            }
             return
           }
         }
@@ -249,6 +276,83 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
             chatOpen={chatOpen}
             onSpeakerClick={(speakerUuid) => onNavigate(`/events/${eventUuid}/speakers/${speakerUuid}`)}
           />
+
+          {childSessions.length > 0 && (
+            <div className="mt-6 border border-slate-200 rounded-xl">
+              {/* Header */}
+              <button
+                type="button"
+                className="w-full flex items-center justify-between px-4 py-3"
+                onClick={() => setSubSessionsExpanded((v) => !v)}
+              >
+                <span className="text-sm font-semibold text-slate-900">
+                  Sub-sessions ({childSessions.length})
+                </span>
+                {subSessionsExpanded
+                  ? <ChevronUp className="h-4 w-4 text-slate-500" />
+                  : <ChevronDown className="h-4 w-4 text-slate-500" />
+                }
+              </button>
+
+              {subSessionsExpanded && (
+                <div className="px-3 pb-3 flex flex-col gap-2">
+                  {(showAllChildren ? childSessions : childSessions.slice(0, 2)).map((child: any, i: number) => {
+                    const timeStr = formatChildTime(child.start_at ?? child.startAt, child.end_at ?? child.endAt)
+                    const loc = String(child.location ?? child.room ?? '')
+                    const attendance = normalizeAttendance(child.session_type ?? '')
+                    const attachCount = Number(child.attachments_count ?? (Array.isArray(child.attachments) ? child.attachments.length : 0))
+                    return (
+                      <div key={child.uuid ?? i} className="border border-slate-200 rounded-lg px-4 py-3 flex flex-col gap-1.5 bg-white">
+                        <span className="text-sm font-medium text-slate-900">{child.title ?? 'Untitled'}</span>
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                          {timeStr && (
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5" />
+                              {timeStr}
+                            </span>
+                          )}
+                          {loc && (
+                            <span className="flex items-center gap-1">
+                              <MarkerPin01 className="h-3.5 w-3.5" />
+                              {loc}
+                            </span>
+                          )}
+                          {attendance && (
+                            <span className="flex items-center gap-1">
+                              <User01 className="h-3.5 w-3.5" />
+                              {attendance}
+                            </span>
+                          )}
+                          {attachCount > 0 && (
+                            <span className="flex items-center gap-1">
+                              <Paperclip className="h-3.5 w-3.5" />
+                              {attachCount}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })}
+
+                  {childSessions.length > 2 && (
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        className="text-xs font-semibold text-violet-600 hover:text-violet-700 flex items-center gap-1"
+                        onClick={() => setShowAllChildren((v) => !v)}
+                      >
+                        {showAllChildren ? 'Show less' : 'View all'}
+                        {showAllChildren
+                          ? <ChevronUp className="h-3.5 w-3.5" />
+                          : <ChevronDown className="h-3.5 w-3.5" />
+                        }
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
         {chatOpen && (
           <div className="w-80 shrink-0 sticky top-20 self-start">

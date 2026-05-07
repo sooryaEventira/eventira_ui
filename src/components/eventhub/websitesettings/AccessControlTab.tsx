@@ -110,27 +110,6 @@ const AccessControlTab: React.FC = () => {
             </span>
           </label>
           
-          <label className="flex items-center cursor-pointer">
-            <input
-              type="radio"
-              name="visibility"
-              value="hidden"
-              checked={visibility === 'hidden'}
-              onChange={(e) => {
-              const v = e.target.value as 'public' | 'private' | 'hidden'
-              setVisibility(v)
-              persistVisibilityToApi(v)
-            }}
-              className="h-4 w-4 text-primary focus:ring-2 focus:ring-primary/20 border-slate-300"
-            />
-            <span className={`text-sm font-medium px-4 py-2 rounded-lg transition ${
-              visibility === 'hidden'
-                ? 'text-primary'
-                : 'border-slate-200 text-slate-700 hover:border-slate-300'
-            }`}>
-              Hidden
-            </span>
-          </label>
         </div>
       </div>
 

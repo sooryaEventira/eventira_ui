@@ -442,22 +442,6 @@ const PublicEventPersonalInfoPage: React.FC<PublicEventPersonalInfoPageProps> = 
                 </div>
               </div>
 
-              {/* Extra custom fields from CMS */}
-              {Object.keys(extraCustomFields).length > 0 && (
-                <div className="space-y-3">
-                  {Object.entries(extraCustomFields).map(([label, value]) => (
-                    <div key={label}>
-                      <label className="mb-1.5 block text-sm font-medium text-slate-700">{label}</label>
-                      <input
-                        type="text"
-                        value={value}
-                        readOnly
-                        className={`${inputBase} bg-slate-50 text-slate-500 cursor-not-allowed`}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
             </div>
           )}
 

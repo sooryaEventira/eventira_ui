@@ -214,25 +214,31 @@ const BrandingTab: React.FC = () => {
       <div className="space-y-4">
         <div>
           <label className="text-sm font-semibold text-slate-900">Banner</label>
-          <p className="text-xs text-slate-500 mt-1">Recommended: 1920 × 700px</p>
         </div>
         {bannerUrl ? (
-          <div className="relative w-full">
+          <div className="relative w-full rounded-lg overflow-hidden border border-slate-200" style={{ aspectRatio: '1920/700' }}>
             <img
               src={bannerUrl}
               alt="Banner"
-              className="w-full h-56 rounded-lg object-cover"
+              className="absolute inset-0 w-full h-full object-cover"
             />
             <button
               onClick={handleRemoveBanner}
-              className="absolute top-2 right-2 h-6 w-6 rounded-full bg-white/90 backdrop-blur-sm border border-slate-300 flex items-center justify-center hover:bg-white transition shadow-sm"
+              className="absolute top-2 right-2 h-6 w-6 rounded-full bg-white/90 backdrop-blur-sm border border-slate-300 flex items-center justify-center hover:bg-white transition shadow-sm z-10"
             >
               <XClose className="h-4 w-4 text-slate-600" />
             </button>
+            <div className="absolute bottom-2 right-2 rounded bg-black/40 px-2 py-0.5 text-[10px] text-white z-10">
+              1920 × 700
+            </div>
           </div>
         ) : (
-          <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
-            <p className="text-sm text-slate-500 mb-4">No banner uploaded</p>
+          <div
+            className="w-full border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center gap-3 bg-slate-50"
+            style={{ aspectRatio: '1920/700' }}
+          >
+            <p className="text-sm text-slate-500">No banner uploaded</p>
+            <p className="text-xs text-slate-400">Recommended: 1920 × 700 px</p>
             <Button
               variant="secondary"
               onClick={() => bannerInputRef.current?.click()}

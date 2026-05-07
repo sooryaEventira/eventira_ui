@@ -408,11 +408,11 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
           {/* Dynamic created pages */}
           <div className="mt-2 flex flex-col gap-0.5">
             {items.map(renderSidebarNode)}
-            {isAuthenticated && myCalendarButton()}
           </div>
 
           {/* Exit event - common for all, at bottom */}
           <div className="mt-auto pt-4">
+            {isAuthenticated && myCalendarButton()}
             <button
               type="button"
               onClick={() => {
@@ -690,17 +690,17 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
               </div>
             )
           })}
-          {isAuthenticated && (
-            <button
-              type="button"
-              onClick={() => { setMobileOpen(false); onNavigate(myCalendarPath) }}
-              className={['flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold', isActiveForItem(activePath || '', myCalendarPath) ? 'bg-white/20 text-white' : 'text-white/90 hover:bg-white/10'].join(' ')}
-            >
-              <CalendarDate className="h-4 w-4 shrink-0" />
-              <span>My Schedule</span>
-            </button>
-          )}
           <div className="mt-auto pt-4">
+            {isAuthenticated && (
+              <button
+                type="button"
+                onClick={() => { setMobileOpen(false); onNavigate(myCalendarPath) }}
+                className={['flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold', isActiveForItem(activePath || '', myCalendarPath) ? 'bg-white/20 text-white' : 'text-white/90 hover:bg-white/10'].join(' ')}
+              >
+                <CalendarDate className="h-4 w-4 shrink-0" />
+                <span>My Schedule</span>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {

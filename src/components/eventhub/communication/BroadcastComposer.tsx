@@ -528,12 +528,15 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
             <div className="space-y-4 flex-1 flex flex-col min-h-0">
               {isEditing ? (
                 <>
-                  {/* Subject Line */}
+                  {/* Subject Line */}                                                                                                                                             
+                <label htmlFor="subject" className="text-sm font-semibold text-slate-700 mr-2 shrink-0 -mb-3">
+                {type === 'push-notification' ? 'Title:' : 'Subject:'}
+                </label>
                   <div className={`group relative flex flex-col w-full rounded-md border ${type === 'email' && subject.length > 60 ? 'border-orange-300' : 'border-slate-300'} bg-slate-50 transition-all`}>
+
                     <div className="flex items-center px-3 pt-2.5">
-                      <label htmlFor="subject" className="text-sm font-semibold text-slate-700 mr-2 shrink-0">
-                        {type === 'push-notification' ? 'Title:' : 'Subject:'}
-                      </label>
+
+                    
                       <input
                         id="subject"
                         type="text"

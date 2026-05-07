@@ -56,17 +56,13 @@ function formatDateRange(startISO: string, endISO: string): string {
   if (!start || Number.isNaN(start.getTime())) return '—'
 
   const df = new Intl.DateTimeFormat('en-GB', { year: 'numeric', month: 'short', day: 'numeric', timeZone: 'UTC' })
-  const tf = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'UTC' })
 
   const startDate = df.format(start)
-  const startTime = tf.format(start)
-  if (!end || Number.isNaN(end.getTime())) return `${startDate}, ${startTime}`
+  if (!end || Number.isNaN(end.getTime())) return startDate
 
   const endDate = df.format(end)
-  const endTime = tf.format(end)
-  const sameDay = startDate === endDate
-  if (sameDay) return `${startDate}, ${startTime} – ${endTime}`
-  return `${startDate}, ${startTime} – ${endDate}, ${endTime}`
+  if (startDate === endDate) return startDate
+  return `${startDate} – ${endDate}`
 }
 
 function prettyMode(mode: EventOverviewPayload['event']['mode']) {
