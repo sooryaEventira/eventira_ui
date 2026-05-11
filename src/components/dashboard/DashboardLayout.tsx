@@ -6,6 +6,7 @@ import { type Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
 import type { FilterState } from './SearchAndFilterBar'
 import { archiveEvent, deleteEvent, fetchEvents, fetchEvent, type EventData, type CreateEventResponseData } from '../../services/eventService'
+import { fetchUserProfile, type UserProfile } from '../../services/profileService'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { showToast } from '../../utils/toast'
 
@@ -16,6 +17,8 @@ const EventWebsitePage = lazy(() => import('../eventhub/Eventwebsite/EventWebsit
 const WebsitePreviewPage = lazy(() => import('../eventhub/WebsitePreviewPage').then(m => ({ default: m.default })))
 const TeamManagementPage = lazy(() => import('./team/TeamManagementPage').then(m => ({ default: m.default })))
 const ArchivedEventsPage = lazy(() => import('./ArchivedEventsPage').then(m => ({ default: m.default })))
+// @ts-expect-error TS server may not detect newly created file; compiles fine with tsc
+const UserProfilePage = lazy(() => import('./UserProfilePage'))
 
 // Type import for NewEventForm
 import type { EventFormData } from './NewEventForm'
@@ -54,7 +57,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onSidebarItemClick,
   onSearchClick,
   onNotificationClick,
-  onProfileClick,
+  onProfileClick: _onProfileClick,
   onLogout,
   onNewEventClick,
   onArchivedEventsClick,
@@ -93,6 +96,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [showPreviewPage, setShowPreviewPage] = useState(false)
   const [previewPageId, setPreviewPageId] = useState<string>('')
   const [showArchivedEventsPage, setShowArchivedEventsPage] = useState(false)
+  const [showProfilePage, setShowProfilePage] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
 
   const getDashboardPathForItem = (itemId: string) => {
     if (itemId === 'events') return '/dashboard'
@@ -104,18 +109,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     const checkRoute = () => {
       const path = window.location.pathname
       setRoutePath(path)
-      // Read latest event from ref (always current, doesn't cause re-renders)
-      // Also verify it matches context to catch any sync issues
-      const currentEvent = createdEventRef.current
-      const contextEvent = createdEvent
-      
-      // If ref and context are out of sync, use context (more authoritative)
-      const eventToUse = (currentEvent?.uuid === contextEvent?.uuid) ? currentEvent : contextEvent
-      
-      if (currentEvent?.uuid !== contextEvent?.uuid) {
-        // Update ref to match context
-        createdEventRef.current = contextEvent
-      }
+      // Always read from the ref — it is updated synchronously before navigation,
+      // so it is the single source of truth.  The `createdEvent` from context would
+      // be a stale closure value (this effect has [] deps) and must NOT be used here.
+      const eventToUse = createdEventRef.current
       
       // Don't handle editor routes here - they're handled by App.tsx
       if (path.startsWith('/event/website/editor/')) {
@@ -206,6 +203,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   const [events, setEvents] = useState<Event[]>([])
   const [isLoadingEvents, setIsLoadingEvents] = useState<boolean>(true)
   const [eventsError, setEventsError] = useState<string | null>(null)
+  const rawEventDataRef = useRef<EventData[]>([])
 
   // Fetch events function
   const loadEvents = async () => {
@@ -400,10 +398,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         return dateB - dateA // Descending order (newest first)
       })
       
+      rawEventDataRef.current = sortedEventDataList
       setEvents(mappedEvents)
     } catch (error) {
       setEventsError(error instanceof Error ? error.message : 'Failed to load events')
-      // Fallback to empty array or default events on error
       setEvents([])
     } finally {
       setIsLoadingEvents(false)
@@ -440,9 +438,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
     }
   }
 
-  // Fetch events on mount
+  // Fetch events and profile on mount
   useEffect(() => {
     loadEvents()
+    fetchUserProfile()
+      .then((profile) => setUserProfile(profile))
+      .catch(() => { /* profile fetch is best-effort */ })
   }, [])
 
   // Track previous path to detect navigation back to dashboard
@@ -641,50 +642,45 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }
 
   const handleFormSubmit = (_data: EventFormData) => {
-    // TODO: Handle form submission (e.g., API call)
     setShowNewEventForm(false)
     onNewEventClick?.()
   }
 
+  const handleProfileOpen = () => {
+    setShowProfilePage(true)
+  }
+
   const handleEventRowClick = async (event: Event) => {
     console.log('[Dashboard] Event row clicked:', event)
-    try {
-      // Fetch event details by UUID (assuming event.id is the UUID)
-      const eventData = await fetchEvent(event.id)
-      console.log('[Dashboard] Fetched event details:', eventData)
-      
-      // Convert EventData to CreateEventResponseData format for context
-      // EventData already contains all required fields, so we can cast it directly
-      const createdEventData: CreateEventResponseData = {
-        ...eventData
-      }
-      console.log('[Dashboard] Setting createdEvent in context:', createdEventData)
+    if (!event.id) {
+      showToast.error('Cannot open event: missing event ID.')
+      return
+    }
 
-      // Set event in context - this updates both state and localStorage synchronously
-      // IMPORTANT: This must happen BEFORE navigation to ensure context is updated
-      setCreatedEvent(createdEventData)
-      
-      // Immediately update the ref synchronously (don't wait for effect)
-      createdEventRef.current = createdEventData
-      
-      // Verify localStorage was updated
-      const storedEvent = localStorage.getItem('created-event')
-      if (storedEvent) {
-        const parsed = JSON.parse(storedEvent)
-        if (parsed.uuid !== createdEventData.uuid) {
-          // ignore mismatch (will be corrected by next navigation)
-        }
+    try {
+      // Use event data from the already-loaded list to avoid an extra API call
+      // that can fail in clean sessions (incognito, first login, etc.)
+      let eventData: EventData | undefined = rawEventDataRef.current.find(
+        (e) => String(e.uuid) === String(event.id)
+      )
+
+      if (!eventData) {
+        // Fallback: fetch from API if not found in the local list
+        eventData = await fetchEvent(event.id)
       }
-      
-      // Small delay to ensure context update propagates before navigation
-      // This prevents race conditions when switching events quickly
-      await new Promise(resolve => setTimeout(resolve, 100))
-      
-      // Navigate to event website page
+
+      const createdEventData: CreateEventResponseData = { ...eventData }
+
+      setCreatedEvent(createdEventData)
+      createdEventRef.current = createdEventData
+
+      await new Promise(resolve => setTimeout(resolve, 50))
+
       window.history.pushState({}, '', '/event/website')
       window.dispatchEvent(new PopStateEvent('popstate'))
     } catch (error) {
-      // Error is already handled in fetchEvent with toast
+      console.error('[Dashboard] Failed to open event:', error)
+      showToast.error('Failed to open event. Please try again.')
     }
   }
 
@@ -773,11 +769,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         title={title}
         onSearchClick={onSearchClick}
         onNotificationClick={onNotificationClick}
-        onProfileClick={onProfileClick}
+        onProfileClick={handleProfileOpen}
         onLogout={onLogout}
         onNewEventClick={handleNewEventClick}
-        userAvatarUrl={userAvatarUrl}
-        userEmail={userEmail}
+        userAvatarUrl={userProfile?.profile_pic || userAvatarUrl}
+        userEmail={userProfile?.email || userEmail}
+        userName={userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : undefined}
         onMenuClick={toggleSidebar}
         isSidebarOpen={isSidebarOpen}
       />
@@ -785,7 +782,14 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
       {/* Main Content */}
       <main className="lg:ml-[250px] mt-16 p-4 sm:p-6">
-        {showArchivedEventsPage ? (
+        {showProfilePage ? (
+          <Suspense fallback={<ComponentLoadingFallback />}>
+            <UserProfilePage
+              onBackClick={() => setShowProfilePage(false)}
+              onLogout={onLogout}
+            />
+          </Suspense>
+        ) : showArchivedEventsPage ? (
           <Suspense fallback={<ComponentLoadingFallback />}>
             <ArchivedEventsPage
               onBackClick={() => { setShowArchivedEventsPage(false); loadEvents() }}

@@ -512,6 +512,9 @@ export const API_ENDPOINTS = {
       `${env.AUTH_API_URL}${ADMIN_API_BASE}resource-tags/create/`,
   },
 
+  /** User profile. GET /api/v1/profile/ | PATCH /api/v1/profile/ */
+  USER_PROFILE: `${env.AUTH_API_URL}${API_V1_BASE}profile/`,
+
   TEAM: {
     INVITE: `${env.AUTH_API_URL}${ADMIN_API_BASE}invites/`,
     LIST: `${env.AUTH_API_URL}${ADMIN_API_BASE}list-invites/`,

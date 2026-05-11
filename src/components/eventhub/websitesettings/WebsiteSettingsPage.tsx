@@ -15,7 +15,7 @@ const WebsiteSettingsPage: React.FC<WebsiteSettingsPageProps> = () => {
     <div className="w-full">
       {/* Header */}
       <div className=" bg-white px-8 py-6">
-        <h1 className="text-2xl font-bold text-slate-900">Website settings</h1>
+        <h1 className="text-2xl font-bold text-primary-dark">Event Settings</h1>
       </div>
 
       {/* Tabs */}

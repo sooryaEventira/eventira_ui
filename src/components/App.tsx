@@ -101,6 +101,7 @@ const App: React.FC = () => {
     if (cardId === 'schedule-session') setCurrentView('schedule')
     else if (cardId === 'communications') setCurrentView('communication')
     else if (cardId === 'resource-management') setCurrentView('resource-management')
+    else if (cardId === 'analytics') setCurrentView('analytics')
   }
 
   const handleBackToDashboard = () => {

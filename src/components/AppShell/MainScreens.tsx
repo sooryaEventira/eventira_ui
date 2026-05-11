@@ -5,6 +5,7 @@ import {
   SchedulePage,
   CommunicationPage,
   ResourceManagementPage,
+  AnalyticsPage,
   withSuspense
 } from './lazyImports'
 import { EditorViewWithNavbar, type EditorViewWithNavbarProps } from './EditorViewWithNavbar'
@@ -97,6 +98,18 @@ export function MainScreens({
   if (currentView === 'resource-management') {
     return withSuspense(
       <ResourceManagementPage
+        eventName="Highly important conference of 2025"
+        isDraft={true}
+        onBackClick={onBackToDashboard}
+        userAvatarUrl=""
+        onCardClick={onEventHubCardClick}
+      />
+    )
+  }
+
+  if (currentView === 'analytics') {
+    return withSuspense(
+      <AnalyticsPage
         eventName="Highly important conference of 2025"
         isDraft={true}
         onBackClick={onBackToDashboard}

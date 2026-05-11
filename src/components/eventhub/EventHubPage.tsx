@@ -16,6 +16,7 @@ const OrganizationManagementPage = lazy(() => import('./organizationmanagement/O
 const WebsiteSettingsPage = lazy(() => import('./websitesettings/WebsiteSettingsPage').then((m) => ({ default: m.default })))
 const EventHubOverviewPage = lazy(() => import('./overview/EventHubOverviewPage').then((m) => ({ default: m.default })))
 const RegistrationFormPage = lazy(() => import('./registrationform/RegistrationFormPage').then((m) => ({ default: m.default })))
+const AnalyticsPage = lazy(() => import('./analytics/AnalyticsPage').then((m) => ({ default: m.default })))
 
 const SectionFallback = () => (
   <div className="flex h-full min-h-[200px] items-center justify-center">
@@ -205,18 +206,14 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
           />
         )
       case 'analytics':
-        // Placeholder for pages that haven't been implemented yet
         return (
-          <div className="min-h-screen flex items-center justify-center p-8 ">
-            <div className="text-center">
-              <h2 className="text-2xl font-bold text-slate-700 mb-4">
-                {defaultCards.find(card => card.id === activeSection)?.title || 'Coming Soon'}
-              </h2>
-              <p className="text-slate-500">
-                This feature is coming soon.
-              </p>
-            </div>
-          </div>
+          <AnalyticsPage
+            eventName={eventName}
+            isDraft={isDraft}
+            onBackClick={onBackClick}
+            userAvatarUrl={userAvatarUrl}
+            hideNavbarAndSidebar={true}
+          />
         )
       case 'website-settings':
         return (

@@ -7,6 +7,7 @@ export type AppView =
   | 'schedule'
   | 'communication'
   | 'resource-management'
+  | 'analytics'
   | 'public'
 
 export function useAppRouting(

@@ -116,7 +116,7 @@ const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
     return (
       <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-[26px] font-bold text-primary-dark">Organization management</h1>
+          <h1 className="text-[26px] font-bold text-primary-dark">Organization Management</h1>
         </div>
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
@@ -131,7 +131,7 @@ const OrganizationsTable: React.FC<OrganizationsTableProps> = ({
   return (
     <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between -mb-4">
-        <h1 className="text-[26px] font-bold text-primary-dark">Organization management</h1>
+        <h1 className="text-[26px] font-bold text-primary-dark">Organization Management</h1>
         <div className="flex items-center gap-3">
           <Button
             type="button"

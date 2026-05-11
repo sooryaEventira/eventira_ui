@@ -12,6 +12,7 @@ interface DashboardNavbarProps {
   isSidebarOpen?: boolean
   userAvatarUrl?: string
   userEmail?: string
+  userName?: string
 }
 
 const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
@@ -24,7 +25,8 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
   onMenuClick,
   isSidebarOpen = false,
   userAvatarUrl,
-  userEmail
+  userEmail,
+  userName
 }) => {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
@@ -48,7 +50,6 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
 
   const handleProfileClick = () => {
     setIsProfileMenuOpen(!isProfileMenuOpen)
-    onProfileClick?.()
   }
 
   const handleLogout = () => {
@@ -129,9 +130,9 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
             {isProfileMenuOpen && (
               <div className="absolute right-0 mt-2 w-56 rounded-lg border border-slate-200 bg-white shadow-lg py-1 z-50">
                 {/* User Info */}
-                {userEmail && (
+                {(userName || userEmail) && (
                   <div className="px-4 py-2 border-b border-slate-200">
-                    <p className="text-sm font-medium text-slate-900">{userEmail}</p>
+                    <p className="text-sm font-medium text-slate-900">{userName || userEmail}</p>
                   </div>
                 )}
 

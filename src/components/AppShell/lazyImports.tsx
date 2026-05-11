@@ -18,6 +18,9 @@ export const CommunicationPage = lazy(() =>
 export const ResourceManagementPage = lazy(() =>
   import('../eventhub/resourcemanagement/ResourceManagementPage').then((m) => ({ default: m.default }))
 )
+export const AnalyticsPage = lazy(() =>
+  import('../eventhub/analytics/AnalyticsPage').then((m) => ({ default: m.default }))
+)
 export const EditorView = lazy(() =>
   import('../shared/EditorView').then((m) => ({ default: m.default }))
 )
