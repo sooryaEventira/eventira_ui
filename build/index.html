@@ -63,24 +63,51 @@
         background-color: transparent !important;
       }
     </style>
-    <script type="module" crossorigin src="/assets/js/index-BnnJ_4MD.js"></script>
+  <style>
+    #initial-loader {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #f5f5f5;
+    }
+    #initial-loader .spinner {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 3px solid transparent;
+      border-top-color: #6838EE;
+      border-right-color: #6838EE;
+      border-bottom-color: #6838EE;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+    <script type="module" crossorigin src="/assets/js/index-DEsVXf3v.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/js/react-vendor-CKBF57f8.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/vendor-DXiiY0cl.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/icons-vendor-CaBWGbOT.js">
     <link rel="modulepreload" crossorigin href="/assets/js/utils-vendor-D-ib7psx.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/puck-vendor-BFHy09W0.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/vendor-CPqumDRq.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/icons-vendor-BbFJ9TOp.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/puck-vendor-xLXk-L2y.js">
     <link rel="modulepreload" crossorigin href="/assets/js/survey-core-vendor-PYYjYFR8.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/react-ui-vendor-BiFdicbf.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/dashboard-DHQk0e8q.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/public-components-CO5WG5Z_.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/eventhub-Cu2yIfWd.js">
-    <link rel="modulepreload" crossorigin href="/assets/js/advanced-components-DTe1T5op.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/react-ui-vendor-DTGEXAYC.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/dashboard-iqkfiNrQ.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/public-components-zmMexhUX.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/eventhub-HPDpb558.js">
+    <link rel="modulepreload" crossorigin href="/assets/js/advanced-components-D07C5IkA.js">
     <link rel="stylesheet" crossorigin href="/assets/css/vendor-CaM_Irzh.css">
     <link rel="stylesheet" crossorigin href="/assets/css/puck-vendor-CjtveXm2.css">
     <link rel="stylesheet" crossorigin href="/assets/css/survey-core-vendor-BkFLRXuM.css">
-    <link rel="stylesheet" crossorigin href="/assets/css/index-B5TsgFso.css">
+    <link rel="stylesheet" crossorigin href="/assets/css/index-pDmLjnIZ.css">
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div id="initial-loader">
+        <div class="spinner"></div>
+      </div>
+    </div>
   </body>
 </html>
