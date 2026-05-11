@@ -59,6 +59,34 @@ export const fetchPublicIndex = async (eventUuid: string): Promise<WebsiteIndexD
   }
 }
 
+/**
+ * Fetch navigation tree for the published site.
+ * Endpoint: GET {{public_url}}events/{{event_uuid}}/navigation/
+ * Response shape: { status, data: { navigation: [...] } } or { navigation: [...] } or [...]
+ */
+export const fetchPublicNavigation = async (eventUuid: string): Promise<any[]> => {
+  if (!eventUuid) return []
+
+  const url = API_ENDPOINTS.PUBLIC.NAVIGATION(eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json', ...pubAuthHeaders() },
+    credentials: 'include',
+  })
+
+  if (!response.ok) return []
+
+  try {
+    const json = await response.json()
+    const payload = json?.data ?? json
+    if (Array.isArray(payload)) return payload
+    if (Array.isArray(payload?.navigation)) return payload.navigation
+    return []
+  } catch {
+    return []
+  }
+}
+
 export const fetchPublicWebpages = async (eventUuid: string): Promise<PublicWebpageData[]> => {
   try {
     if (!eventUuid) {

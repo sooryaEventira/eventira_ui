@@ -310,7 +310,7 @@ export const updateCommunicationRecipients = async (
 /**
  * Upload a single attachment file and return its UUID
  */
-export const uploadAttachment = async (file: File): Promise<string> => {
+export const uploadAttachment = async (file: File): Promise<{ uuid: string; fileUrl: string }> => {
   const accessToken = localStorage.getItem('accessToken')
   const organizationUuid = localStorage.getItem('organizationUuid')
 
@@ -349,7 +349,7 @@ export const uploadAttachment = async (file: File): Promise<string> => {
   }
 
   if (data.status === 'error') throw new Error(handleApiError(data, undefined, 'Failed to upload attachment.'))
-  if (data.data?.uuid) return data.data.uuid
+  if (data.data?.uuid) return { uuid: data.data.uuid, fileUrl: (data.data as { uuid: string; file_url?: string }).file_url ?? '' }
 
   throw new Error('Unexpected response: missing UUID.')
 }

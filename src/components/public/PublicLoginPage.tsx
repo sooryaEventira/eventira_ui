@@ -32,7 +32,8 @@ const PublicLoginPage: React.FC<PublicLoginPageProps> = () => {
       if (refresh) localStorage.setItem('pub_refreshToken', refresh)
       localStorage.setItem('pub_userEmail', email.trim())
       if (rememberMe) localStorage.setItem('pub_rememberMe', 'true')
-      window.location.href = '/event-list'
+      const returnTo = new URLSearchParams(window.location.search).get('returnTo')
+      window.location.href = (returnTo && returnTo.startsWith('/')) ? returnTo : '/event-list'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Invalid email or password. Please try again.')
     } finally {

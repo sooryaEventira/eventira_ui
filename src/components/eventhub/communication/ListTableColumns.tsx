@@ -15,6 +15,7 @@ interface ListTableColumnsProps {
   onToggleRow: (id: string, checked: boolean) => void
   onEditCommunication?: (communicationId: string) => void
   onDeleteCommunication?: (communicationId: string) => void
+  onRecipientsClick?: (communicationId: string, communicationTitle: string, tab: 'received' | 'not_received') => void
 }
 
 const getStatusBadgeVariant = (status: string) => {
@@ -43,7 +44,8 @@ export const useListTableColumns = ({
   onToggleAllVisible,
   onToggleRow,
   onEditCommunication,
-  onDeleteCommunication
+  onDeleteCommunication,
+  onRecipientsClick,
 }: ListTableColumnsProps): DividerLineTableColumn<TableRowData>[] => {
   return useMemo<DividerLineTableColumn<TableRowData>[]>(
     () => [
@@ -160,9 +162,24 @@ export const useListTableColumns = ({
         sortAccessor: ({ communication }) => communication?.recipients.sent || 0,
         render: ({ communication }) => {
           if (!communication) return null
+          const { sent, total } = communication.recipients
+          const totalRed = sent > 0 && sent < total
+          const canClick = communication.status === 'sent'
           return (
-            <span className="text-sm font-medium text-green-600">
-              {communication.recipients.sent}/{communication.recipients.total}
+            <span className="text-sm font-medium">
+              <span
+                className={`text-green-600 ${canClick ? 'cursor-pointer underline-offset-2 hover:underline' : ''}`}
+                onClick={canClick ? (e) => { e.stopPropagation(); onRecipientsClick?.(communication.id, communication.title, 'received') } : undefined}
+              >
+                {sent}
+              </span>
+              <span className="text-slate-400">/</span>
+              <span
+                className={`${totalRed ? 'text-red-500' : 'text-green-600'} ${totalRed && canClick ? 'cursor-pointer underline-offset-2 hover:underline' : ''}`}
+                onClick={totalRed && canClick ? (e) => { e.stopPropagation(); onRecipientsClick?.(communication.id, communication.title, 'not_received') } : undefined}
+              >
+                {total}
+              </span>
             </span>
           )
         }
@@ -221,7 +238,8 @@ export const useListTableColumns = ({
       onToggleAllVisible,
       onToggleRow,
       onEditCommunication,
-      onDeleteCommunication
+      onDeleteCommunication,
+      onRecipientsClick,
     ]
   )
 }

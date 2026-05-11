@@ -86,7 +86,9 @@ export interface WebsitePageConfigItem {
   browser?: 'in_app' | 'in_browser' | string
   feature_permission?: 'everyone' | 'logged_in' | 'guests' | 'certain_groups' | string
   visibility?: 'show' | 'show_without_access' | 'hide' | string
+  allowed_groups?: string[]
   hide_on_mobile?: boolean
+  hide_on_website?: boolean
   show_in_mobile_menu_without_access?: boolean
   is_desktop_home?: boolean
   is_mobile_home?: boolean
@@ -447,6 +449,47 @@ export const fetchWebsitePageConfigs = async (eventUuid: string): Promise<Websit
   } catch (e) {
     console.error('[fetchWebsitePageConfigs] Parse error:', e)
     return []
+  }
+}
+
+/**
+ * Fetch a single page-config detail.
+ * Endpoint: GET {{admin_url}}website/page-configs/{{configUuid}}/?event_id={{event_uuid}}
+ */
+export const fetchWebsitePageConfigDetail = async (
+  configUuid: string,
+  eventUuid: string
+): Promise<WebsitePageConfigItem | null> => {
+  if (!configUuid || !eventUuid) return null
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken || !organizationUuid) return null
+
+  const url = API_ENDPOINTS.WEBSITE.PAGE_CONFIG_DETAIL(configUuid, eventUuid)
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    console.warn('[fetchWebsitePageConfigDetail] Response not OK:', response.status)
+    return null
+  }
+
+  try {
+    const json = await response.json()
+    const row = json?.data ?? json
+    return row && typeof row === 'object' && !Array.isArray(row)
+      ? (row as WebsitePageConfigItem)
+      : null
+  } catch (e) {
+    console.error('[fetchWebsitePageConfigDetail] Parse error:', e)
+    return null
   }
 }
 

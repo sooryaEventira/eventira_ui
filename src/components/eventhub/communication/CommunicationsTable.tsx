@@ -18,6 +18,7 @@ interface CommunicationsTableProps {
   onCreateMacro?: () => void
   onEditMacro?: (macroId: string) => void
   onDeleteMacro?: (macroId: string) => void
+  onRecipientsClick?: (communicationId: string, communicationTitle: string, tab: 'received' | 'not_received') => void
   isLoading?: boolean
 }
 
@@ -27,9 +28,10 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
   onCreateBroadcast,
   onEditCommunication,
   onDeleteCommunication,
-  onCreateMacro,
+  onCreateMacro: _onCreateMacro,
   onEditMacro,
   onDeleteMacro,
+  onRecipientsClick,
   isLoading = false
 }) => {
 
@@ -203,7 +205,8 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
     onToggleAllVisible: handleToggleAllVisible,
     onToggleRow: handleToggleRow,
     onEditCommunication,
-    onDeleteCommunication
+    onDeleteCommunication,
+    onRecipientsClick,
   })
 
   const macroColumns = useMacroTableColumns({

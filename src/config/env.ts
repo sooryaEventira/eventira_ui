@@ -149,6 +149,9 @@ export const API_ENDPOINTS = {
     /** Page configuration rows. GET {{admin_url}}website/page-configs/?event_id={{event_uuid}} */
     PAGE_CONFIGS: (eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}website/page-configs/?event_id=${eventUuid}`,
+    /** Single page config detail. GET {{admin_url}}website/page-configs/{{configUuid}}?event_id={{event_uuid}} */
+    PAGE_CONFIG_DETAIL: (configUuid: string, eventUuid: string) =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}website/page-configs/${configUuid}/?event_id=${eventUuid}`,
     /** Website settings (branding, domain, visibility). PUT/PATCH with body. */
     SETTINGS: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}website-settings/?event_id=${eventUuid}`,
   },
@@ -252,6 +255,9 @@ export const API_ENDPOINTS = {
     /** Website index for published site (no auth). GET webpages + speaker_tags + attendee_tags for nav. */
     INDEX: (eventUuid: string) =>
       `${PUBLIC_API_ROOT}events/${eventUuid}/index/`,
+    /** Navigation tree for published site. GET {{public_url}}events/{{event_uuid}}/navigation/ */
+    NAVIGATION: (eventUuid: string) =>
+      `${PUBLIC_API_ROOT}events/${eventUuid}/navigation/`,
     /** Ably token auth. GET {{public_url}}chat/ably-token/?channel=session-{uuid} */
     ABLY_TOKEN: (channel?: string) =>
       `${PUBLIC_API_ROOT}chat/ably-token/${channel ? `?channel=${encodeURIComponent(channel)}` : ''}`,

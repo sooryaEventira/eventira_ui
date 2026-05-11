@@ -47,14 +47,6 @@ const MESSAGE_STATUS_OPTIONS = [
   { value: 'Not opened', label: 'Not opened' }
 ]
 
-const TOOLBAR_CONTAINER = [
-  ['bold', 'italic', 'underline'],
-  [{ background: [] }],
-  [{ list: 'ordered' }, { list: 'bullet' }],
-  ['link', 'image'],
-  ['clean'],
-]
-
 const quillFormats = [
   'bold', 'italic', 'underline',
   'background',
@@ -110,6 +102,9 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   ])
   const [tags, setTags] = useState<Array<{ uuid: string; name: string }>>([])
 
+  const [selectedImageEl, setSelectedImageEl] = useState<HTMLImageElement | null>(null)
+  const [imageToolbarPos, setImageToolbarPos] = useState<{ top: number; left: number } | null>(null)
+
   const { createdEvent } = useEventForm()
   const quillRef = useRef<ReactQuill>(null)
   const macroDropdownRef = useRef<HTMLDivElement>(null)
@@ -120,7 +115,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   // with empty deps is safe — no stale captures.
   const quillModules = useMemo(() => ({
     toolbar: {
-      container: TOOLBAR_CONTAINER,
+      container: '#broadcast-editor-toolbar',
       handlers: {
         link() {
           const editor = quillRef.current?.getEditor()
@@ -139,34 +134,30 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     }
   }), []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleImageInsert = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageInsert = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = () => {
-      const img = new Image()
-      img.onload = () => {
-        const MAX_W = 600
-        const scale = Math.min(1, MAX_W / img.width)
-        const w = Math.round(img.width * scale)
-        const h = Math.round(img.height * scale)
-        const canvas = document.createElement('canvas')
-        canvas.width = w
-        canvas.height = h
-        canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85)
-        const quill = quillRef.current?.getEditor()
-        if (!quill) return
-        const range = quill.getSelection(true)
-        const index = range ? range.index : quill.getLength()
-        quill.insertEmbed(index, 'image', dataUrl, 'user')
-        quill.setSelection(index + 1, 0, 'user')
-        editorContentRef.current = quill.root.innerHTML
+    try {
+      const { fileUrl } = await uploadAttachment(file)
+      if (!fileUrl) return
+      const quill = quillRef.current?.getEditor()
+      if (!quill) return
+      const range = quill.getSelection(true)
+      const index = range ? range.index : quill.getLength()
+      quill.insertEmbed(index, 'image', fileUrl, 'user')
+      quill.setSelection(index + 1, 0, 'user')
+      // Default new images to best-fit width
+      const [leaf] = quill.getLeaf(index)
+      if (leaf?.domNode && (leaf.domNode as HTMLElement).tagName === 'IMG') {
+        const img = leaf.domNode as HTMLImageElement
+        img.style.width = '100%'
+        img.style.maxWidth = '600px'
       }
-      img.src = reader.result as string
+      editorContentRef.current = quill.root.innerHTML
+    } catch {
+      // error toast handled in uploadAttachment
     }
-    reader.readAsDataURL(file)
   }
 
   const removeAttachment = (id: string) =>
@@ -268,6 +259,62 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     editorContentRef.current = desiredHtml
   }, [activeTab, isEditing, savedMessage, initialMessage])
 
+  // Attach click listener to Quill editor so clicking an image opens the action toolbar
+  useEffect(() => {
+    if (!isEditing) {
+      setSelectedImageEl(null)
+      setImageToolbarPos(null)
+      return
+    }
+    const editor = quillRef.current?.getEditor()
+    if (!editor) return
+    const handler = (e: MouseEvent) => {
+      const t = e.target as HTMLElement
+      if (t.tagName === 'IMG') {
+        const rect = t.getBoundingClientRect()
+        setSelectedImageEl(t as HTMLImageElement)
+        const TOOLBAR_H = 36
+        setImageToolbarPos({
+          top: Math.max(8, rect.top - TOOLBAR_H - 6),
+          left: rect.left,
+        })
+      } else {
+        setSelectedImageEl(null)
+        setImageToolbarPos(null)
+      }
+    }
+    editor.root.addEventListener('click', handler)
+    return () => editor.root.removeEventListener('click', handler)
+  }, [isEditing])
+
+  const applyImageSize = (size: 'small' | 'bestfit' | 'original') => {
+    if (!selectedImageEl) return
+    if (size === 'small') {
+      selectedImageEl.style.width = '25%'
+      selectedImageEl.style.maxWidth = '150px'
+      selectedImageEl.style.removeProperty('height')
+    } else if (size === 'bestfit') {
+      selectedImageEl.style.width = '100%'
+      selectedImageEl.style.maxWidth = '600px'
+      selectedImageEl.style.removeProperty('height')
+    } else {
+      selectedImageEl.style.removeProperty('width')
+      selectedImageEl.style.removeProperty('max-width')
+      selectedImageEl.style.removeProperty('height')
+    }
+    const editor = quillRef.current?.getEditor()
+    if (editor) editorContentRef.current = editor.root.innerHTML
+  }
+
+  const removeSelectedImage = () => {
+    if (!selectedImageEl) return
+    const editor = quillRef.current?.getEditor()
+    selectedImageEl.remove()
+    if (editor) editorContentRef.current = editor.root.innerHTML
+    setSelectedImageEl(null)
+    setImageToolbarPos(null)
+  }
+
   const selectedRecipients = useMemo(() => {
     const names: string[] = []
     filters.forEach((f) => {
@@ -348,7 +395,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       setIsSavingAttachments(true)
       for (const att of pendingAttachments) {
         try {
-          const uuid = await uploadAttachment(att.file)
+          const { uuid } = await uploadAttachment(att.file)
           newlyUploaded.push({ uuid, name: att.name, sizeLabel: att.sizeLabel })
         } catch {
           showToast.error(`Failed to upload "${att.name}". Please try again.`)
@@ -466,8 +513,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     <div className="space-y-6 px-4 pb-12 pt-28 md:px-10 lg:px-16 -mt-24 min-h-screen flex flex-col">
       <style>{`
         .ql-editor { min-height: 300px; font-size: 14px; font-family: inherit; }
-        .ql-container { border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; }
-        .ql-toolbar { border-top-left-radius: 6px; border-top-right-radius: 6px; background: #f8fafc; }
+        .ql-container.ql-snow { border: none !important; }
+        .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #e2e8f0 !important; background: #f8fafc; }
         .broadcast-editor-content ul { list-style-type: disc; padding-left: 1.5em; margin-bottom: 1em; }
         .broadcast-editor-content ol { list-style-type: decimal; padding-left: 1.5em; margin-bottom: 1em; }
         .broadcast-editor-content b, .broadcast-editor-content strong { font-weight: bold; }
@@ -598,16 +645,43 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                     )}
                   </div>
 
-                  {/* Quill Editor — uncontrolled: stable value ref avoids re-render reset loop */}
-                  <ReactQuill
-                    ref={quillRef}
-                    theme="snow"
+                  {/* Unified editor box: detached toolbar → banner → editor content */}
+                  <div className="rounded-lg border border-slate-300 overflow-hidden flex flex-col">
+                    {/* Toolbar buttons rendered here; Quill wires up handlers via container: '#broadcast-editor-toolbar' */}
+                    <div id="broadcast-editor-toolbar">
+                      <span className="ql-formats">
+                        <button className="ql-bold" type="button" />
+                        <button className="ql-italic" type="button" />
+                        <button className="ql-underline" type="button" />
+                      </span>
+                      <span className="ql-formats">
+                        <select className="ql-background">
+                          <option value="#e60000" /><option value="#ff9900" /><option value="#ffff00" />
+                          <option value="#008a00" /><option value="#0066cc" /><option value="#9933ff" />
+                          <option value="" />
+                        </select>
+                      </span>
+                      <span className="ql-formats">
+                        <button className="ql-list" value="ordered" type="button" />
+                        <button className="ql-list" value="bullet" type="button" />
+                      </span>
+                      <span className="ql-formats">
+                        <button className="ql-link" type="button" />
+                        <button className="ql-image" type="button" />
+                      </span>
+                      <span className="ql-formats">
+                        <button className="ql-clean" type="button" />
+                      </span>
+                    </div>
 
-                    onChange={(val) => { editorContentRef.current = val }}
-                    modules={quillModules}
-                    formats={quillFormats}
-                    className="flex-1"
-                  />
+                    <ReactQuill
+                      ref={quillRef}
+                      theme="snow"
+                      onChange={(val) => { editorContentRef.current = val }}
+                      modules={quillModules}
+                      formats={quillFormats}
+                    />
+                  </div>
 
                   {/* Attachment chips */}
                   {(pendingAttachments.length > 0 || uploadedAttachments.length > 0) && (
@@ -948,6 +1022,20 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
         className="hidden"
         onChange={handleImageInsert}
       />
+
+      {/* Image action toolbar — appears below a clicked image */}
+      {selectedImageEl && imageToolbarPos && (
+        <div
+          className="fixed z-50 flex items-center rounded border border-slate-200 bg-white shadow-lg overflow-hidden text-sm"
+          style={{ top: imageToolbarPos.top, left: imageToolbarPos.left }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button" className="px-3 py-1.5 text-slate-600 hover:bg-slate-50 border-r border-slate-200 whitespace-nowrap" onClick={() => applyImageSize('small')}>Small</button>
+          <button type="button" className="px-3 py-1.5 text-slate-700 font-semibold hover:bg-slate-50 border-r border-slate-200 whitespace-nowrap" onClick={() => applyImageSize('bestfit')}>Best fit</button>
+          <button type="button" className="px-3 py-1.5 text-slate-600 hover:bg-slate-50 border-r border-slate-200 whitespace-nowrap" onClick={() => applyImageSize('original')}>Original size</button>
+          <button type="button" className="px-3 py-1.5 text-red-500 hover:bg-red-50 whitespace-nowrap" onClick={removeSelectedImage}>Remove</button>
+        </div>
+      )}
     </div>
   )
 }

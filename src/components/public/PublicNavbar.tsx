@@ -600,7 +600,7 @@ const PublicNavbar: React.FC<PublicNavbarProps> = ({
                   </>
                 ) : (
                   <a
-                    href="/login"
+                    href={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`}
                     role="menuitem"
                     className="block w-full px-4 py-2.5 text-left text-base font-semibold text-slate-700 hover:bg-slate-50"
                     onClick={() => setProfileMenuOpen(false)}

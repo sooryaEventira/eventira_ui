@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react'
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { useWebsitePages } from '../../contexts/WebsitePagesContext'
 import { NavigationProvider } from '../../contexts/NavigationContext'
@@ -19,6 +19,7 @@ import {
   fetchWebpage,
   fetchWebpages,
   fetchWebsitePageConfigs,
+  fetchWebsitePageConfigDetail,
   fetchNavigationContent,
   type WebpageData,
   type NavigationContentData,
@@ -29,6 +30,7 @@ import { fetchParticipants } from '../../services/participantService'
 import PublicScheduleSessionsPage from '../public/schedule/PublicScheduleSessionsPage'
 import { API_ENDPOINTS } from '../../config/env'
 import { showToast } from '../../utils/toast'
+import { fetchUserTags } from '../../services/communicationService'
 
 interface WebsitePreviewPageProps {
   pageId: string
@@ -45,8 +47,10 @@ const getDefaultSettings = () => ({
   desktopMaxWidthUnit: 'px',
   browser: 'app' as 'app' | 'browser',
   featurePermission: 'everyone' as 'everyone' | 'logged-in' | 'guests' | 'groups',
+  allowedGroups: [] as string[],
   visibility: 'show' as 'show' | 'show-no-access' | 'hide',
   hideOnMobile: false,
+  hideOnWebsite: false,
   showFeatureInMenu: false,
   setAsDesktopHome: true,
   setAsMobileHome: false
@@ -241,6 +245,29 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
   
   // Settings form state
   const [settings, setSettings] = useState(getDefaultSettings)
+  const [availableGroups, setAvailableGroups] = useState<Array<{ uuid: string; name: string }>>([])
+  const [isGroupsDropdownOpen, setIsGroupsDropdownOpen] = useState(false)
+  const groupsDropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!isGroupsDropdownOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (groupsDropdownRef.current && !groupsDropdownRef.current.contains(e.target as Node)) {
+        setIsGroupsDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isGroupsDropdownOpen])
+
+  // Fetch available user groups for the Groups dropdown
+  useEffect(() => {
+    const eventUuid = createdEvent?.uuid
+    if (!eventUuid) return
+    fetchUserTags(eventUuid)
+      .then((tags) => setAvailableGroups(Array.isArray(tags) ? tags : []))
+      .catch(() => setAvailableGroups([]))
+  }, [createdEvent?.uuid])
 
   // Load banner from localStorage or eventData
   useEffect(() => {
@@ -574,13 +601,13 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
       showToast.error('Please select a page before saving configuration.')
       return
     }
-    const itemType =
-      previewSection === 'participants'
-        ? 'participant_group'
-        : previewSection === 'schedule-sessions'
-          ? 'schedule'
-          : 'page'
 
+    const params = new URLSearchParams(window.location.search)
+    const configUuid = params.get('configUuid')
+    if (!configUuid) {
+      showToast.error('Page configuration ID is missing. Please reopen from Configuration tab.')
+      return
+    }
 
     const accessToken = localStorage.getItem('accessToken')
     const organizationUuid = localStorage.getItem('organizationUuid')
@@ -599,7 +626,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
 
     setIsSavingSettings(true)
     try {
-      const response = await fetch(API_ENDPOINTS.WEBSITE.PAGE_CONFIGS(eventUuid), {
+      const response = await fetch(API_ENDPOINTS.WEBSITE.PAGE_CONFIG_DETAIL(configUuid, eventUuid), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -608,16 +635,16 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
         },
         credentials: 'include',
         body: JSON.stringify({
-          item_type: itemType,
-          resource_uuid: currentPage,
           title: settings.title,
           icon: settings.icon,
           desktop_container_max_width: Number(settings.desktopMaxWidth || 700),
           desktop_container_unit: settings.desktopMaxWidthUnit || 'px',
           browser: browserValue,
           feature_permission: permissionMap[settings.featurePermission] ?? 'everyone',
+          allowed_groups: settings.allowedGroups,
           visibility: settings.visibility === 'show-no-access' ? 'show_without_access' : settings.visibility,
           hide_on_mobile: settings.hideOnMobile,
+          hide_on_website: settings.hideOnWebsite ?? false,
           show_in_mobile_menu_without_access: settings.showFeatureInMenu,
           is_desktop_home: settings.setAsDesktopHome,
           is_mobile_home: settings.setAsMobileHome,
@@ -635,17 +662,65 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
     } finally {
       setIsSavingSettings(false)
     }
-  }, [createdEvent?.uuid, currentPage, previewSection, settings])
+  }, [createdEvent?.uuid, currentPage, settings])
 
   useEffect(() => {
     const eventUuid = createdEvent?.uuid
     if (!eventUuid || !currentPage) return
     let cancelled = false
-    // Reset stale values immediately when switching target page.
     setSettings(getDefaultSettings())
+
+    const applyRow = (row: any) => {
+      if (!row || cancelled) return
+      const firstNonEmpty = (...vals: any[]) => {
+        for (const v of vals) {
+          const s = typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim()
+          if (s) return s
+        }
+        return ''
+      }
+
+      setSettings((prev) => ({
+        ...prev,
+        title: firstNonEmpty(row.title, row.resource_title, prev.title),
+        icon: String(row.icon ?? prev.icon ?? 'user'),
+        desktopMaxWidth: String(row.desktop_container_max_width ?? prev.desktopMaxWidth ?? '700'),
+        desktopMaxWidthUnit: String(row.desktop_container_unit ?? prev.desktopMaxWidthUnit ?? 'px'),
+        browser: String(row.browser ?? '').toLowerCase() === 'in_browser' ? 'browser' : 'app',
+        featurePermission:
+          String(row.feature_permission ?? '').toLowerCase() === 'logged_in'
+            ? 'logged-in'
+            : String(row.feature_permission ?? '').toLowerCase() === 'guests'
+              ? 'guests'
+              : String(row.feature_permission ?? '').toLowerCase() === 'certain_groups'
+                ? 'groups'
+                : 'everyone',
+        visibility:
+          String(row.visibility ?? '').toLowerCase() === 'show_without_access'
+            ? 'show-no-access'
+            : String(row.visibility ?? '').toLowerCase() === 'hide'
+              ? 'hide'
+              : 'show',
+        allowedGroups: Array.isArray(row.allowed_groups) ? row.allowed_groups : [],
+        hideOnMobile: Boolean(row.hide_on_mobile),
+        hideOnWebsite: Boolean(row.hide_on_website),
+        showFeatureInMenu: Boolean(row.show_in_mobile_menu_without_access),
+        setAsDesktopHome: Boolean(row.is_desktop_home),
+        setAsMobileHome: Boolean(row.is_mobile_home),
+      }))
+    }
 
     const run = async () => {
       try {
+        const params = new URLSearchParams(window.location.search)
+        const configUuid = params.get('configUuid')
+
+        if (configUuid) {
+          const detail = await fetchWebsitePageConfigDetail(configUuid, eventUuid)
+          applyRow(detail)
+          return
+        }
+
         const rows = await fetchWebsitePageConfigs(eventUuid)
         if (cancelled || !Array.isArray(rows) || rows.length === 0) return
 
@@ -661,42 +736,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
           String(r?.item_type ?? '') === expectedType
         ) || rows.find((r: any) => String(r?.resource_uuid ?? r?.uuid ?? '') === String(currentPage))
 
-        if (!row || cancelled) return
-
-        const firstNonEmpty = (...vals: any[]) => {
-          for (const v of vals) {
-            const s = typeof v === 'string' ? v.trim() : v == null ? '' : String(v).trim()
-            if (s) return s
-          }
-          return ''
-        }
-
-        setSettings((prev) => ({
-          ...prev,
-          title: firstNonEmpty(row.title, row.resource_title, prev.title),
-          icon: String(row.icon ?? prev.icon ?? 'user'),
-          desktopMaxWidth: String(row.desktop_container_max_width ?? prev.desktopMaxWidth ?? '700'),
-          desktopMaxWidthUnit: String(row.desktop_container_unit ?? prev.desktopMaxWidthUnit ?? 'px'),
-          browser: String(row.browser ?? '').toLowerCase() === 'in_browser' ? 'browser' : 'app',
-          featurePermission:
-            String(row.feature_permission ?? '').toLowerCase() === 'logged_in'
-              ? 'logged-in'
-              : String(row.feature_permission ?? '').toLowerCase() === 'guests'
-                ? 'guests'
-                : String(row.feature_permission ?? '').toLowerCase() === 'certain_groups'
-                  ? 'groups'
-                  : 'everyone',
-          visibility:
-            String(row.visibility ?? '').toLowerCase() === 'show_without_access'
-              ? 'show-no-access'
-              : String(row.visibility ?? '').toLowerCase() === 'hide'
-                ? 'hide'
-                : 'show',
-          hideOnMobile: Boolean(row.hide_on_mobile),
-          showFeatureInMenu: Boolean(row.show_in_mobile_menu_without_access),
-          setAsDesktopHome: Boolean(row.is_desktop_home),
-          setAsMobileHome: Boolean(row.is_mobile_home),
-        }))
+        applyRow(row)
       } catch {
         // Keep local defaults if config fetch fails.
       }
@@ -1198,17 +1238,74 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
                   </div>
                 </div>
 
-                <div>
+                <div className="relative" ref={groupsDropdownRef}>
                   <label className="mb-2 block text-xs font-medium uppercase tracking-wide text-slate-500">Groups</label>
-                  <div className="flex items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs">Speakers <span className="text-slate-400">x</span></span>
-                      <span className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs">VIP <span className="text-slate-400">x</span></span>
+                  <button
+                    type="button"
+                    onClick={() => setIsGroupsDropdownOpen(!isGroupsDropdownOpen)}
+                    className="flex w-full items-center justify-between rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700"
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {settings.allowedGroups.length === 0 ? (
+                        <span className="text-slate-400">Select groups...</span>
+                      ) : (
+                        settings.allowedGroups.map((groupId) => {
+                          const group = availableGroups.find((g) => g.uuid === groupId)
+                          return (
+                            <span
+                              key={groupId}
+                              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs"
+                            >
+                              {group?.name ?? groupId}
+                              <span
+                                role="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setSettings({ ...settings, allowedGroups: settings.allowedGroups.filter((id) => id !== groupId) })
+                                }}
+                                className="cursor-pointer text-slate-400 hover:text-slate-600"
+                              >
+                                x
+                              </span>
+                            </span>
+                          )
+                        })
+                      )}
                     </div>
-                    <svg className="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <svg className="h-4 w-4 flex-shrink-0 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                       <path strokeLinecap="round" strokeLinejoin="round" d="m6 9 6 6 6-6" />
                     </svg>
-                  </div>
+                  </button>
+                  {isGroupsDropdownOpen && (
+                    <div className="absolute left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-white shadow-lg">
+                      {availableGroups.length === 0 ? (
+                        <div className="px-3 py-2 text-xs text-slate-400">No groups available</div>
+                      ) : (
+                        availableGroups.map((group) => {
+                          const isSelected = settings.allowedGroups.includes(group.uuid)
+                          return (
+                            <label
+                              key={group.uuid}
+                              className="flex cursor-pointer items-center gap-2 px-3 py-2 hover:bg-slate-50"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  const next = isSelected
+                                    ? settings.allowedGroups.filter((id) => id !== group.uuid)
+                                    : [...settings.allowedGroups, group.uuid]
+                                  setSettings({ ...settings, allowedGroups: next })
+                                }}
+                                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
+                              />
+                              <span className="text-sm text-slate-700">{group.name}</span>
+                            </label>
+                          )
+                        })
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div>
@@ -1254,8 +1351,8 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
                     <label className="flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={settings.showFeatureInMenu}
-                        onChange={(e) => setSettings({ ...settings, showFeatureInMenu: e.target.checked })}
+                        checked={settings.hideOnWebsite}
+                        onChange={(e) => setSettings({ ...settings, hideOnWebsite: e.target.checked })}
                         className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary/20"
                       />
                       <span className="text-sm text-slate-700">Hide on event website</span>

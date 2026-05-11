@@ -4,18 +4,14 @@ import type { DirectMessage } from '../../services/publicDirectMessageService'
 import PublicNavbar from './PublicNavbar'
 import { fetchPublicEvent, type PublicEventData } from '../../services/publicEventService'
 import { fetchPublicWebsiteSettings } from '../../services/websiteSettingsService'
-import { fetchPublicWebpages, fetchPublicIndex, type PublicWebpageData } from '../../services/publicWebpageService'
-import type { WebsiteIndexData } from '../../services/webpageService'
+import { fetchPublicWebpages, fetchPublicNavigation, type PublicWebpageData } from '../../services/publicWebpageService'
 import { fetchPublicSchedules } from '../../services/publicScheduleService'
 import PublicWebpageRenderer from './PublicWebpageRenderer'
 import { buildPublicThemeVars, getPrimaryDarkHex } from '../../config/publicTheme'
-import type { NavigationItem, NavigationPageItem, PublicNavNode } from '../../types/navigation'
+import type { NavigationItem, PublicNavNode } from '../../types/navigation'
 import {
-  loadNavigationConfigFromStorage,
   mapToPublicNav,
   pruneHidden,
-  saveNavigationConfigToStorage,
-  upsertMissingPagesToRoot
 } from '../../utils/navigationTree'
 import { readEventStoreJSON } from '../../utils/eventLocalStore'
 import { API_ENDPOINTS } from '../../config/env'
@@ -122,7 +118,6 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const [event, setEvent] = useState<PublicEventData | null>(null)
   const [webpages, setWebpages] = useState<PublicWebpageData[]>([])
   const [websiteSettings, setWebsiteSettings] = useState<{ brand_primary_color?: string; logo?: string; banner?: string } | null>(null)
-  const [websiteIndex, setWebsiteIndex] = useState<WebsiteIndexData | null>(null)
   const [primaryColorFromWebpage, setPrimaryColorFromWebpage] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -130,6 +125,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const [hasScheduleFromApi, setHasScheduleFromApi] = useState(false)
   const [defaultScheduleUuid, setDefaultScheduleUuid] = useState<string>('')
   const [globalNotifs, setGlobalNotifs] = useState<Array<{ id: string; name: string; text: string }>>([])
+  const [publicNavigation, setPublicNavigation] = useState<any[] | null>(null)
   const bgAblyClientsRef = useRef<Ably.Realtime[]>([])
 
   const refresh = async () => {
@@ -137,24 +133,23 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     setLoadError(null)
     setPrimaryColorFromWebpage(null)
     try {
-      const [evt, pages, settings, indexData, schedules] = await Promise.all([
+      const [evt, pages, settings, schedules, navData] = await Promise.all([
         fetchPublicEvent(eventUuid),
         fetchPublicWebpages(eventUuid),
         fetchPublicWebsiteSettings(eventUuid),
-        fetchPublicIndex(eventUuid),
-        fetchPublicSchedules(eventUuid).catch(() => [])
+        fetchPublicSchedules(eventUuid).catch(() => []),
+        fetchPublicNavigation(eventUuid).catch(() => [])
       ])
       setEvent(evt)
       setWebpages(Array.isArray(pages) ? pages : [])
       setWebsiteSettings(settings)
-      setWebsiteIndex(indexData)
+      setPublicNavigation(Array.isArray(navData) ? navData : [])
       setHasScheduleFromApi(Array.isArray(schedules) && schedules.length > 0)
       const firstScheduleUuid = Array.isArray(schedules) && schedules.length > 0
         ? String((schedules[0] as any)?.uuid ?? (schedules[0] as any)?.id ?? '')
         : ''
       setDefaultScheduleUuid(firstScheduleUuid)
       try {
-        localStorage.setItem(`website-index-${eventUuid}`, JSON.stringify(indexData))
         localStorage.setItem('pub_currentEventUuid', eventUuid)
       } catch {
         // ignore
@@ -312,9 +307,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
 
   const navbarItems: PublicNavNode[] = useMemo(() => {
     const hiddenKey = `navigation-hidden-${eventUuid}`
-    const treeKey = `navigation-tree-${eventUuid}`
 
-    // Same keys as admin (Event website → Navigation). Preview navbar = published navbar when same browser.
     let hiddenIds = new Set<string>()
     try {
       const raw = localStorage.getItem(hiddenKey)
@@ -348,34 +341,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     if (hasOrganizations) SYSTEM_PAGES.push({ id: 'system:organizations', label: 'Organizations', path: `/events/${eventUuid}/organizations` })
     if (hasSchedule) SYSTEM_PAGES.push({ id: 'system:schedule', label: 'Schedule', path: `/events/${eventUuid}/schedule` })
 
-    // Use website index from public API ({{public_url}}events/{{event_uuid}}/index/) or fallback to localStorage.
-    let orderedWebpages = webpages
-    let hasIndexData = false
-    const indexData = websiteIndex ?? (() => {
-      const indexRaw = typeof window !== 'undefined' ? localStorage.getItem(`website-index-${eventUuid}`) : null
-      return indexRaw ? (() => { try { return JSON.parse(indexRaw) } catch { return null } })() : null
-    })()
-    const indexNavigationRaw = Array.isArray((indexData as any)?.navigation) ? (indexData as any).navigation : []
-    if (indexData) {
-      const indexWebpages = Array.isArray(indexData.webpages) ? indexData.webpages : []
-      if (indexWebpages.length > 0) hasIndexData = true
-      if (indexWebpages.length > 0) {
-        const orderByUuid = new Map<string, number>()
-        indexWebpages.forEach((p: { uuid?: string; id?: string }, i: number) => {
-          const id = p?.uuid != null ? String(p.uuid) : (p?.id != null ? String(p.id) : '')
-          if (id) orderByUuid.set(id, i)
-        })
-        orderedWebpages = [...webpages].sort((a, b) => {
-          const aId = String((a as any)?.uuid ?? (a as any)?.id ?? '')
-          const bId = String((b as any)?.uuid ?? (b as any)?.id ?? '')
-          const ai = orderByUuid.get(aId) ?? 9999
-          const bi = orderByUuid.get(bId) ?? 9999
-          return ai - bi
-        })
-      }
-    }
+    // Navigation API is the single source of truth for sidebar menu items.
+    const navigationRaw = Array.isArray(publicNavigation) ? publicNavigation : []
 
-    const dynamicPages: Array<{ id: string; label: string; path: string }> = orderedWebpages.map((p) => ({
+    const dynamicPages: Array<{ id: string; label: string; path: string }> = webpages.map((p) => ({
       id: String(p.uuid),
       label: p.name,
       path: `/events/${eventUuid}/webpages/${p.slug ?? p.uuid}`
@@ -386,43 +355,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       ...dynamicPages.map((i) => [i.id, { label: i.label, path: i.path }] as const)
     ])
 
-    const systemAndWebpageItems: NavigationItem[] = [
-      ...SYSTEM_PAGES.map<NavigationPageItem>((p) => ({
-        id: p.id,
-        type: 'page' as const,
-        title: p.label,
-        slug: p.id,
-        pageId: p.id
-      })),
-      ...dynamicPages.map<NavigationPageItem>((p) => ({
-        id: p.id,
-        type: 'page' as const,
-        title: p.label,
-        slug: String(p.label || '').toLowerCase().replace(/[^a-z0-9]+/g, '-'),
-        pageId: p.id
-      }))
-    ]
-
-    const defaultFlat: NavigationItem[] = [...systemAndWebpageItems]
-    const allowedSystemIds = new Set(SYSTEM_PAGES.map((p) => p.id))
-
-    const pruneUnavailableSystemPages = (items: NavigationItem[]): NavigationItem[] => {
-      const out: NavigationItem[] = []
-      for (const it of items) {
-        // folder shape
-        if ((it as any)?.type === 'folder') {
-          out.push({ ...(it as any), children: pruneUnavailableSystemPages((it as any).children || []) })
-          continue
-        }
-        const pageId = String((it as any)?.pageId ?? '')
-        if (pageId.startsWith('system:') && !allowedSystemIds.has(pageId)) continue
-        out.push(it)
-      }
-      return out
-    }
-
-    // If navigation tree is present in website index (saved on Publish), mirror the CMS navbar structure.
-    const mapIndexNavigationToItems = (list: any[], parentItemType?: string): NavigationItem[] => {
+    const mapNavigationToItems = (list: any[], parentItemType?: string): NavigationItem[] => {
       const out: NavigationItem[] = []
       for (const raw of Array.isArray(list) ? list : []) {
         const itemType = String(raw?.item_type || '').toLowerCase()
@@ -430,9 +363,8 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         if (!uuid) continue
         const title = String(raw?.title ?? raw?.name ?? '').trim() || 'Untitled'
 
-        // Folders and *_group map to folder items
         if (itemType === 'folder' || itemType.endsWith('_group')) {
-          const children = mapIndexNavigationToItems(raw?.items || [], itemType)
+          const children = mapNavigationToItems(raw?.items || raw?.children || [], itemType)
           const folderIconKey = String(raw?.icon ?? '').trim() || undefined
           out.push({
             id: uuid,
@@ -445,12 +377,9 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           continue
         }
 
-        // Page items: resolve path from pagePathById if available; otherwise treat as regular webpage id
         let pageId = uuid
         let pathOverride: string | null = null
 
-        // For speaker/attendee/schedule groups, index navigation uses tag or schedule uuid;
-        // our routing uses synthetic ids like "speaker-tag:{uuid}" / "attendee-tag:{uuid}" / "schedule-tag:{uuid}".
         if (parentItemType === 'speaker_group') {
           pageId = `speaker-tag:${uuid}`
           pathOverride = `/events/${eventUuid}/speakers/tag/${uuid}`
@@ -461,12 +390,10 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           pageId = `schedule-tag:${uuid}`
           pathOverride = `/events/${eventUuid}/schedule/tag/${uuid}`
         } else if (itemType === 'participant') {
-          // Direct participant item: ref_uuid is the participant group/tag UUID used to filter the list
           const tagId = String(raw?.ref_uuid ?? uuid).trim()
           pageId = `attendee-tag:${tagId}`
           pathOverride = `/events/${eventUuid}/attendees/tag/${tagId}`
         } else if (itemType === 'schedule') {
-          // Direct schedule item: ref_uuid is the schedule UUID → sessions list for that schedule
           const scheduleId = String(raw?.ref_uuid ?? uuid).trim()
           pageId = `schedule:${scheduleId}`
           pathOverride = `/events/${eventUuid}/schedule/${scheduleId}/sessions`
@@ -474,9 +401,6 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
 
         const slug = String(raw?.slug ?? '').trim() || title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
 
-        // Ensure pagePathById has an entry for this page id so mapToPublicNav
-        // can resolve it even if it's not present in webpages/tags arrays.
-        // Always prefer slug-based paths from the index over UUID-based fallbacks.
         {
           const existing = pagePathById.get(pageId)
           const path =
@@ -501,39 +425,11 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
       return out
     }
 
-    // When we have website index (saved on Publish), prefer index.navigation so navbar matches CMS. Otherwise use stored tree or default.
-    const stored = loadNavigationConfigFromStorage(treeKey)
-    const hasIndexNavigation = indexNavigationRaw.length > 0
-    const indexNavItems = hasIndexNavigation ? mapIndexNavigationToItems(indexNavigationRaw) : null
-
-    // If the API has responded (websiteIndex !== null), always respect its navigation — even if empty.
-    // Only fall back to localStorage/auto-generated when the API hasn't loaded yet.
-    const apiResponded = websiteIndex !== null
-    const baseItemsRaw = apiResponded
-      ? (hasIndexNavigation ? indexNavItems! : [])
-      : hasIndexData
-        ? defaultFlat
-        : (stored?.items && Array.isArray(stored.items) ? stored.items : defaultFlat)
-    const baseItems = pruneUnavailableSystemPages(baseItemsRaw)
-
-    const defaultFlatPagesForUpsert = systemAndWebpageItems as NavigationPageItem[]
-    // When API responded, its navigation is the single source of truth — never auto-append.
-    const reconciled = (apiResponded || hasIndexNavigation)
-      ? baseItems
-      : upsertMissingPagesToRoot(baseItems, defaultFlatPagesForUpsert)
-
-    // Persist reconciliation so future loads are stable.
-    try {
-      saveNavigationConfigToStorage(treeKey, reconciled)
-    } catch {
-      // ignore (private mode, quota, etc.)
-    }
-
-    // Apply hidden filtering (works for both pages and folders).
-    const visibleTree = pruneHidden(reconciled, hiddenIds)
+    const navItems = mapNavigationToItems(navigationRaw)
+    const visibleTree = pruneHidden(navItems, hiddenIds)
 
     return mapToPublicNav(visibleTree, pagePathById)
-  }, [eventUuid, webpages, websiteIndex, hasScheduleFromApi])
+  }, [eventUuid, webpages, publicNavigation, hasScheduleFromApi])
 
   const current = useMemo(() => getSectionFromPath(eventUuid, activePath), [eventUuid, activePath])
 
@@ -545,12 +441,36 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
           ? n.path.includes(segment)
           : check(n.children)
       )
-    // Only gate when the index API has responded; before that allow access to avoid flicker.
-    return !websiteIndex || check(navbarItems)
+    // Only gate when the navigation API has responded; before that allow access to avoid flicker.
+    return publicNavigation === null || check(navbarItems)
   }
 
-  // Use the first webpage from the navigation order, not raw creation order.
+  // Determine the home page: find the item with is_desktop_home=true.
+  // Wait for publicNavigation to load before resolving — prevents premature redirect.
   const fallbackWebpageSlug = useMemo(() => {
+    // Don't resolve until navigation API has responded
+    if (publicNavigation === null) return undefined
+
+    // Scan raw navigation items for is_desktop_home: true
+    const findDesktopHomeInNav = (list: any[]): string | undefined => {
+      for (const raw of Array.isArray(list) ? list : []) {
+        if (raw?.is_desktop_home === true) {
+          return String(raw?.slug ?? '').trim() || String(raw?.uuid ?? '').trim() || undefined
+        }
+        const nested = findDesktopHomeInNav(raw?.items || raw?.children || [])
+        if (nested) return nested
+      }
+      return undefined
+    }
+
+    const desktopHomeSlug = findDesktopHomeInNav(publicNavigation)
+    if (desktopHomeSlug) return desktopHomeSlug
+
+    // Check webpages list for is_desktop_home flag
+    const homePage = webpages.find((p: any) => p.is_desktop_home === true)
+    if (homePage) return homePage.slug || homePage.uuid
+
+    // Fallback: first page in the rendered navigation
     const findFirstPageSlug = (nodes: PublicNavNode[]): string | undefined => {
       for (const n of nodes) {
         if (n.type === 'page') {
@@ -565,29 +485,28 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
     }
     return (
       findFirstPageSlug(navbarItems) ||
-      (websiteIndex?.webpages?.[0] as any)?.slug ||
       webpages[0]?.slug ||
       undefined
     )
-  }, [navbarItems, websiteIndex, webpages])
+  }, [navbarItems, webpages, publicNavigation])
   const webpageSlug = current.webpageSlug ?? fallbackWebpageSlug
 
-  // When showing the default/fallback webpage, silently update the URL so the
-  // navbar can match the correct item as active.
+  // On initial load, redirect to the desktop home page (is_desktop_home: true).
+  const hasAppliedHomePage = useRef(false)
   useEffect(() => {
-    if (
-      current.section === 'webpage' &&
-      !current.webpageSlug &&
-      fallbackWebpageSlug &&
-      !isLoading
-    ) {
-      const targetPath = `/events/${eventUuid}/webpages/${fallbackWebpageSlug}`
+    if (isLoading || !fallbackWebpageSlug || hasAppliedHomePage.current) return
+
+    hasAppliedHomePage.current = true
+    const targetPath = `/events/${eventUuid}/webpages/${fallbackWebpageSlug}`
+
+    // Always redirect to home on first load when on the webpage section
+    if (current.section === 'webpage') {
       if (window.location.pathname !== targetPath) {
         window.history.replaceState({}, '', targetPath)
         setActivePath(targetPath)
       }
     }
-  }, [current.section, current.webpageSlug, fallbackWebpageSlug, eventUuid, isLoading])
+  }, [current.section, fallbackWebpageSlug, eventUuid, isLoading])
 
   const handleNavigate = (path: string) => {
     // Exit to event list: full navigation so PublicApp re-renders and shows PublicEventListPage
@@ -665,6 +584,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         activePath={activePath}
         onNavigate={handleNavigate}
         navbarBackgroundColor={navbarBackgroundColor}
+        homePath={fallbackWebpageSlug ? `/events/${eventUuid}/webpages/${fallbackWebpageSlug}` : undefined}
         exitEventPath="/event-list"
         onProfileClick={() => handleNavigate(`/events/${eventUuid}/profile`)}
       />

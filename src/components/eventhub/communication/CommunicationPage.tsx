@@ -1,4 +1,4 @@
-import React, { useMemo, useEffect } from 'react'
+import React, { useMemo } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
@@ -8,12 +8,12 @@ import BroadcastComposer from './BroadcastComposer'
 import PushNotificationMakerPage from './PushNotificationMakerPage'
 import CreateMacroModal from './CreateMacroModal'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
-import { Communication, Macro } from './communicationTypes'
-import type { BroadcastType } from './BroadcastTypeModal'
+import RecipientsSlideout from './RecipientsSlideout'
+import { Macro } from './communicationTypes'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
-import { deleteCommunicationById, fetchCommunications, fetchCommunicationById, fetchUserTags } from '../../../services/communicationService'
-import { showToast } from '../../../utils/toast'
+import { useCommunications } from './useCommunications'
+import { useComposerState } from './useComposerState'
 
 interface CommunicationPageProps {
   eventName?: string
@@ -30,412 +30,103 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   onBackClick,
   userAvatarUrl,
   onCardClick,
-  hideNavbarAndSidebar = false
+  hideNavbarAndSidebar = false,
 }) => {
-  // Get eventData and createdEvent from context to maintain consistency with EventHubPage navbar
   const { eventData, createdEvent } = useEventForm()
-  
-  // Prioritize createdEvent data from API (set when clicking event from dashboard), 
-  // fallback to eventData from form, then props
+  const eventUuid = createdEvent?.uuid
   const eventName = createdEvent?.eventName || eventData?.eventName || propEventName || 'Highly important conference of 2025'
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
   const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
-  const handleSearchClick = () => {
-    console.log('Search clicked')
+
+  // ── data ──────────────────────────────────────────────────────────────────
+  const {
+    communications,
+    setCommunications,
+    isLoadingCommunications,
+    setOptimisticSentIds,
+    loadCommunications,
+  } = useCommunications(eventUuid)
+
+  // ── composer / modals state ───────────────────────────────────────────────
+  const composer = useComposerState({
+    communications,
+    setCommunications,
+    setOptimisticSentIds,
+    loadCommunications,
+    eventUuid,
+  })
+
+  // ── macros ────────────────────────────────────────────────────────────────
+  const [macros, setMacros] = React.useState<Macro[]>([
+    { id: 'email',      macro: '{{email}}',      column: 'Email' },
+    { id: 'last_name',  macro: '{{last_name}}',  column: 'Last Name' },
+    { id: 'first_name', macro: '{{first_name}}', column: 'First Name' },
+    { id: 'event_name', macro: '{{event_name}}', column: 'Event Name' },
+  ])
+  const [isCreateMacroModalOpen, setIsCreateMacroModalOpen] = React.useState(false)
+
+  // ── recipients slideout ───────────────────────────────────────────────────
+  const [recipientsSlideout, setRecipientsSlideout] = React.useState<{
+    open: boolean
+    communicationTitle: string
+    tab: 'received' | 'not_received'
+  }>({ open: false, communicationTitle: '', tab: 'received' })
+
+  const handleRecipientsClick = (
+    _communicationId: string,
+    communicationTitle: string,
+    tab: 'received' | 'not_received'
+  ) => {
+    setRecipientsSlideout({ open: true, communicationTitle, tab })
   }
 
-  const handleNotificationClick = () => {
-    console.log('Notification clicked')
+  const handleCreateMacroConfirm = (data: { name: string; source: string }) => {
+    setMacros((prev) => [
+      ...prev,
+      { id: Date.now().toString(), macro: `{{${data.name.toLowerCase()}}}`, column: data.name },
+    ])
+    setIsCreateMacroModalOpen(false)
   }
 
-  const handleProfileClick = () => {
-    console.log('Profile clicked')
-  }
-
-  // Convert cards to sidebar sub-items
+  // ── sidebar ───────────────────────────────────────────────────────────────
   const sidebarItems = useMemo(() => {
     const eventHubSubItems = defaultCards.map((card: ContentCard) => ({
       id: card.id,
       label: card.title,
-      icon: card.icon
+      icon: card.icon,
     }))
-
     return [
-      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
-      { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
-      {
-        id: 'event-hub',
-        label: 'Event Hub',
-        icon: <Globe01 className="h-5 w-5" />,
-        subItems: eventHubSubItems
-      }
+      { id: 'summary',       label: 'Summary',       icon: <InfoCircle className="h-5 w-5" /> },
+      { id: 'event-website', label: 'Event website',  icon: <CodeBrowser className="h-5 w-5" /> },
+      { id: 'event-hub',     label: 'Event Hub',      icon: <Globe01 className="h-5 w-5" />, subItems: eventHubSubItems },
     ]
   }, [])
 
-  const runOrConfirmExit = (action: () => void) => {
-    if (showComposer && composerHasUnsavedChanges) {
-      pendingExitActionRef.current = action
-      setShowUnsavedExitModal(true)
-      return
-    }
-    action()
-  }
-
   const handleSidebarItemClick = (itemId: string) => {
-    console.log('Sidebar item clicked:', itemId)
-    
-    // If clicking on event-hub, navigate back to event hub page
     if (itemId === 'event-hub' && onBackClick) {
-      runOrConfirmExit(() => onBackClick())
+      composer.runOrConfirmExit(() => onBackClick())
       return
     }
-    
-    // For all other sidebar destinations, route through card navigation callback.
     if (itemId !== 'communications' && onCardClick) {
-      runOrConfirmExit(() => onCardClick(itemId))
+      composer.runOrConfirmExit(() => onCardClick(itemId))
     }
   }
 
-  const [communications, setCommunications] = React.useState<Communication[]>([])
-  const [isLoadingCommunications, setIsLoadingCommunications] = React.useState(false)
-  const [optimisticSentIds, setOptimisticSentIds] = React.useState<Set<string>>(new Set())
-
-  // Load communications from API
-  const loadCommunications = async () => {
-    const eventUuid = createdEvent?.uuid
-    
-    if (!eventUuid) {
-      setCommunications([])
-      return
-    }
-
-    setIsLoadingCommunications(true)
-    try {
-      const communicationsData = await fetchCommunications(eventUuid)
-      const needsGroupNameLookup = communicationsData.some((comm) =>
-        Array.isArray(comm.recipient_filters) &&
-        comm.recipient_filters.some((f) => f?.type === 'group' && !!f?.value)
-      )
-      const userTags = needsGroupNameLookup
-        ? await fetchUserTags(eventUuid).catch(() => [])
-        : []
-      const groupNameByUuid = new Map(userTags.map((t) => [t.uuid, t.name]))
-      
-      // Console log the API response
-      console.log('=== Communication List API Response ===')
-      console.log('Communications Data:', JSON.stringify(communicationsData, null, 2))
-      console.log('========================================')
-      
-      // Map API response to Communication interface
-      const mappedCommunications: Communication[] = communicationsData.map((commData) => {
-        const commId = String(commData.id)
-        // Log each communication item
-        console.log('Processing Communication:', {
-          id: commId,
-          subject: commData.subject,
-          tags: commData.tags,
-          total_recipients: commData.total_recipients,
-          sent_count: commData.sent_count,
-          status: commData.status,
-          channel: commData.channel
-        })
-        // Determine status based on API response
-        let status: Communication['status'] = 'sent'
-        if (commData.status === 'scheduled' || commData.scheduled_at) {
-          status = 'scheduled'
-        } else if (commData.status === 'draft') {
-          status = 'draft'
-        }
-        if (optimisticSentIds.has(commId) && status === 'draft') {
-          status = 'sent'
-        }
-
-        // Determine type based on channel (backend can vary casing/format)
-        const normalizedChannel = String(commData.channel || '')
-          .trim()
-          .toLowerCase()
-          .replace(/[\s-]+/g, '_')
-        const type: Communication['type'] = normalizedChannel === 'email' ? 'email' : 'notification'
-
-        // Map Groups column from tags first, then recipient_filters.
-        const tagsSource = commData.tags ?? []
-        const recipientFilters = commData.recipient_filters ?? []
-
-        const userGroups = tagsSource.length > 0
-          ? tagsSource
-              .map((t) => {
-                const id = t.uuid ?? String(t.id ?? '')
-                const name = t.name ?? ''
-                return name ? { id, name, variant: 'primary' as const } : null
-              })
-              .filter((g): g is NonNullable<typeof g> => g !== null)
-          : recipientFilters
-              .filter((f) => !!f?.value)
-              .map((f, idx) => {
-                const rawValue = String(f.value ?? '')
-                const resolvedGroupName =
-                  f.type === 'group' ? (groupNameByUuid.get(rawValue) ?? rawValue) : rawValue
-                const prettyValue = rawValue.replace(/_/g, ' ')
-                const label = f.type === 'message_status'
-                  ? prettyValue.charAt(0).toUpperCase() + prettyValue.slice(1)
-                  : resolvedGroupName
-                const variant: 'primary' | 'secondary' =
-                  f.type === 'message_status' ? 'secondary' : 'primary'
-                return {
-                  id: `filter-${commId}-${idx}`,
-                  name: label,
-                  variant
-                }
-              })
-
-        return {
-          id: commId,
-          title: commData.title || commData.subject || 'Untitled',
-          userGroups,
-          status,
-          type,
-          recipients: {
-            sent: commData.sent_count ?? commData.total_recipients ?? 0,
-            total: commData.total_recipients ?? 0,
-          },
-          scheduledDate: commData.scheduled_at
-        }
-      })
-
-      console.log('=== Mapped Communications ===')
-      console.log('Mapped Communications:', JSON.stringify(mappedCommunications, null, 2))
-      console.log('==============================')
-      
-      setCommunications(mappedCommunications)
-      setOptimisticSentIds((prev) => {
-        if (prev.size === 0) return prev
-        const sentInApi = new Set(
-          communicationsData
-            .filter((c) => c.status !== 'draft')
-            .map((c) => String(c.id))
-        )
-        const next = new Set(prev)
-        let changed = false
-        prev.forEach((id) => {
-          if (sentInApi.has(id)) {
-            next.delete(id)
-            changed = true
-          }
-        })
-        return changed ? next : prev
-      })
-    } catch (error) {
-      // Error is already handled in fetchCommunications with toast
-      // Preserve existing state so locally-added drafts remain visible
-    } finally {
-      setIsLoadingCommunications(false)
-    }
-  }
-
-  // Load communications on mount and when event changes
-  useEffect(() => {
-    if (createdEvent?.uuid) {
-      loadCommunications()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [createdEvent?.uuid])
-
-  const [isBroadcastModalOpen, setIsBroadcastModalOpen] = React.useState(false)
-  const [editModalOpen, setEditModalOpen] = React.useState(false)
-  const [editModalCommId, setEditModalCommId] = React.useState<string | null>(null)
-  const [editModalTitle, setEditModalTitle] = React.useState('')
-  const [editModalType, setEditModalType] = React.useState<BroadcastType>('email')
-  const [isCreateMacroModalOpen, setIsCreateMacroModalOpen] = React.useState(false)
-  const [showComposer, setShowComposer] = React.useState(false)
-  const [selectedBroadcastType, setSelectedBroadcastType] = React.useState<BroadcastType | null>(null)
-  const [initialBroadcastTitle, setInitialBroadcastTitle] = React.useState<string>('')
-  const [initialComposerSubject, setInitialComposerSubject] = React.useState<string>('')
-  const [initialComposerMessage, setInitialComposerMessage] = React.useState<string>('')
-  const [currentDraftId, setCurrentDraftId] = React.useState<string | null>(null)
-  const [composerHasUnsavedChanges, setComposerHasUnsavedChanges] = React.useState(false)
-  const [showUnsavedExitModal, setShowUnsavedExitModal] = React.useState(false)
-  const [deleteCandidate, setDeleteCandidate] = React.useState<Communication | null>(null)
-  const [isDeletingCommunication, setIsDeletingCommunication] = React.useState(false)
-  const pendingExitActionRef = React.useRef<(() => void) | null>(null)
-  const composerSaveHandlerRef = React.useRef<(() => Promise<boolean>) | null>(null)
-
-  const [macros, setMacros] = React.useState<Macro[]>([
-    {
-      id: 'email',
-      macro: '{{email}}',
-      column: 'Email'
-    },
-    {
-      id: 'last_name',
-      macro: '{{last_name}}',
-      column: 'Last Name'
-    },
-    {
-      id: 'first_name',
-      macro: '{{first_name}}',
-      column: 'First Name'
-    },
-    {
-      id: 'event_name',
-      macro: '{{event_name}}',
-      column: 'Event Name'
-    }
-  ])
-
-  const handleCreateBroadcast = () => {
-    setIsBroadcastModalOpen(true)
-  }
-
-  const handleCreateMacro = () => {
-    setIsCreateMacroModalOpen(true)
-  }
-
-  const handleCreateMacroConfirm = (data: { name: string; source: string }) => {
-    const newMacro: Macro = {
-      id: Date.now().toString(),
-      macro: `{{${data.name.toLowerCase()}}}`,
-      column: data.name
-    }
-    setMacros((prev) => [...prev, newMacro])
-    setIsCreateMacroModalOpen(false)
-  }
-
-  const handleBroadcastTypeSelect = (type: BroadcastType) => {
-    setSelectedBroadcastType(type)
-    setInitialBroadcastTitle('')
-    setInitialComposerSubject('')
-    setInitialComposerMessage('')
-    setIsBroadcastModalOpen(false)
-    setShowComposer(true)
-    setCurrentDraftId(null)
-  }
-
-  const handleBroadcastSubmit = (data: { title: string; type: BroadcastType }) => {
-    setSelectedBroadcastType(data.type)
-    setInitialBroadcastTitle(data.title)
-    setInitialComposerSubject('')
-    setInitialComposerMessage('')
-    setIsBroadcastModalOpen(false)
-    setShowComposer(true)
-    setCurrentDraftId(null)
-  }
-
-  const handleComposerCancel = () => {
-    setShowComposer(false)
-    setSelectedBroadcastType(null)
-    setInitialBroadcastTitle('')
-    setInitialComposerSubject('')
-    setInitialComposerMessage('')
-    setCurrentDraftId(null)
-    setComposerHasUnsavedChanges(false)
-    loadCommunications()
-  }
-
-  const handleComposerSave = (data: { subject: string; message: string; templateType?: string }) => {
-    if (currentDraftId) {
-      setCommunications((prev) =>
-        prev.map((comm) =>
-          comm.id === currentDraftId ? { ...comm, title: data.subject } : comm
-        )
-      )
-    } else {
-      const newId = Date.now().toString()
-      setCommunications((prev) => [
-        ...prev,
-        {
-          id: newId,
-          title: data.subject,
-          userGroups: [],
-          status: 'draft',
-          type: selectedBroadcastType === 'email' ? 'email' : 'notification',
-          recipients: { sent: 0, total: 0 },
-        },
-      ])
-      setCurrentDraftId(newId)
-    }
-    loadCommunications()
-  }
-
-  const handleEditCommunication = (communicationId: string) => {
-    const comm = communications.find((c) => c.id === communicationId)
-    if (!comm) return
-    const commType: BroadcastType = comm.type === 'email' ? 'email' : 'push-notification'
-    setEditModalCommId(communicationId)
-    setEditModalTitle(comm.title)
-    setEditModalType(commType)
-    setEditModalOpen(true)
-  }
-
-  const handleEditModalConfirm = async ({ title }: { title: string; type: BroadcastType }) => {
-    setEditModalOpen(false)
-    const eventUuid = createdEvent?.uuid
-    if (!eventUuid || !editModalCommId) return
-    try {
-      const detail = await fetchCommunicationById(editModalCommId, eventUuid)
-      const normalizedChannel = String(detail.channel || '')
-        .trim()
-        .toLowerCase()
-        .replace(/[\s-]+/g, '_')
-      const editorType: BroadcastType = normalizedChannel === 'email' ? 'email' : 'push-notification'
-      setSelectedBroadcastType(editorType)
-      setInitialBroadcastTitle(title || detail.title || '')
-      setInitialComposerSubject(detail.subject || '')
-      setInitialComposerMessage(detail.message || '')
-      setCurrentDraftId(String(detail.id))
-      setShowComposer(true)
-    } catch (e) {
-      showToast.error(e instanceof Error ? e.message : 'Failed to load communication details.')
-    }
-  }
-
-  const handleDeleteCommunicationRequest = (communicationId: string) => {
-    const target = communications.find((comm) => comm.id === communicationId)
-    if (!target) return
-    if (target.status !== 'draft') {
-      showToast.error('Only draft communications can be deleted.')
-      return
-    }
-    setDeleteCandidate(target)
-  }
-
-  const handleConfirmDeleteCommunication = async () => {
-    if (!deleteCandidate || isDeletingCommunication) return
-    const eventUuid = createdEvent?.uuid
-    if (!eventUuid) {
-      showToast.error('Event UUID is required. Please select an event first.')
-      return
-    }
-
-    setIsDeletingCommunication(true)
-    try {
-      await deleteCommunicationById(deleteCandidate.id, eventUuid)
-      setCommunications((prev) => prev.filter((comm) => comm.id !== deleteCandidate.id))
-      setDeleteCandidate(null)
-      showToast.success('Draft deleted successfully.')
-    } catch (e) {
-      showToast.error(e instanceof Error ? e.message : 'Failed to delete communication.')
-    } finally {
-      setIsDeletingCommunication(false)
-    }
-  }
-
+  // ── render ────────────────────────────────────────────────────────────────
   return (
-    <div className={hideNavbarAndSidebar ? "" : "min-h-screen overflow-x-hidden bg-white"}>
+    <div className={hideNavbarAndSidebar ? '' : 'min-h-screen overflow-x-hidden bg-white'}>
       {!hideNavbarAndSidebar && (
         <>
-          {/* Navbar */}
           <EventHubNavbar
             eventName={eventName}
             isDraft={isDraft}
             eventStatus={eventStatus}
-            onBackClick={onBackClick ? () => runOrConfirmExit(() => onBackClick()) : undefined}
-            onSearchClick={handleSearchClick}
-            onNotificationClick={handleNotificationClick}
-            onProfileClick={handleProfileClick}
+            onBackClick={onBackClick ? () => composer.runOrConfirmExit(() => onBackClick()) : undefined}
+            onSearchClick={() => {}}
+            onNotificationClick={() => {}}
+            onProfileClick={() => {}}
             userAvatarUrl={userAvatarUrl}
           />
-
-          {/* Sidebar */}
           <EventHubSidebar
             items={sidebarItems}
             activeItemId="communications"
@@ -444,118 +135,68 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         </>
       )}
 
-      {/* Communication Content */}
-      <div className={hideNavbarAndSidebar ? "" : "md:pl-[250px]"}>
-        {showComposer ? (
-          selectedBroadcastType === 'push-notification' ? (
+      <div className={hideNavbarAndSidebar ? '' : 'md:pl-[250px]'}>
+        {composer.showComposer ? (
+          composer.selectedBroadcastType === 'push-notification' ? (
             <PushNotificationMakerPage
               macros={macros}
-              broadcastTitle={initialBroadcastTitle}
-              initialTitle={initialComposerSubject}
-              initialMessage={initialComposerMessage}
-              onCancel={handleComposerCancel}
-              onSave={(data) => {
-                handleComposerSave({ subject: data.title, message: data.message })
-              }}
-              onSend={async (data) => {
-                const sentId = data.communicationId != null ? String(data.communicationId) : null
-                if (sentId) {
-                  setOptimisticSentIds((prev) => {
-                    const next = new Set(prev)
-                    next.add(sentId)
-                    return next
-                  })
-                  setCommunications((prev) =>
-                    prev.map((comm) =>
-                      comm.id === sentId ? { ...comm, status: 'sent', type: 'notification' } : comm
-                    )
-                  )
-                }
-                setShowComposer(false)
-                setSelectedBroadcastType(null)
-                setCurrentDraftId(null)
-                loadCommunications()
-              }}
+              broadcastTitle={composer.initialBroadcastTitle}
+              initialTitle={composer.initialComposerSubject}
+              initialMessage={composer.initialComposerMessage}
+              onCancel={composer.handleComposerCancel}
+              onSave={(data) => composer.handleComposerSave({ subject: data.title, message: data.message })}
+              onSend={composer.handlePushSend}
             />
           ) : (
             <BroadcastComposer
-              onCancel={() => runOrConfirmExit(handleComposerCancel)}
-              onDiscard={handleComposerCancel}
-              onSave={handleComposerSave}
-              onDirtyChange={setComposerHasUnsavedChanges}
-              registerSaveHandler={(handler) => {
-                composerSaveHandlerRef.current = handler
-              }}
-              onSend={async (data) => {
-                const sentId = data.communicationId != null ? String(data.communicationId) : null
-                if (sentId) {
-                  setOptimisticSentIds((prev) => {
-                    const next = new Set(prev)
-                    next.add(sentId)
-                    return next
-                  })
-                }
-                setCommunications((prev) => {
-                  let next = [...prev]
-                  if (currentDraftId) {
-                    next = next.filter((comm) => comm.id !== currentDraftId)
-                  }
-                  if (sentId) {
-                    next = next.map((comm) => (comm.id === sentId ? { ...comm, status: 'sent', type: 'email' } : comm))
-                  }
-                  return next
-                })
-                setShowComposer(false)
-                setSelectedBroadcastType(null)
-                setCurrentDraftId(null)
-                setComposerHasUnsavedChanges(false)
-                loadCommunications()
-              }}
+              onCancel={() => composer.runOrConfirmExit(composer.handleComposerCancel)}
+              onDiscard={composer.handleComposerCancel}
+              onSave={composer.handleComposerSave}
+              onDirtyChange={composer.setComposerHasUnsavedChanges}
+              registerSaveHandler={(handler) => { composer.composerSaveHandlerRef.current = handler }}
+              onSend={composer.handleEmailSend}
               macros={macros}
               templateType="late-message"
-              type={selectedBroadcastType || 'email'}
-              broadcastTitle={initialBroadcastTitle}
-              initialSubject={initialComposerSubject}
-              initialMessage={initialComposerMessage}
-              communicationId={currentDraftId}
+              type={composer.selectedBroadcastType || 'email'}
+              broadcastTitle={composer.initialBroadcastTitle}
+              initialSubject={composer.initialComposerSubject}
+              initialMessage={composer.initialComposerMessage}
+              communicationId={composer.currentDraftId}
             />
           )
         ) : (
           <CommunicationsTable
             communications={communications}
             macros={macros}
-            onCreateBroadcast={handleCreateBroadcast}
-            onCreateMacro={handleCreateMacro}
-            onEditCommunication={handleEditCommunication}
-            onDeleteCommunication={handleDeleteCommunicationRequest}
+            onCreateBroadcast={composer.handleCreateBroadcast}
+            onCreateMacro={() => setIsCreateMacroModalOpen(true)}
+            onEditCommunication={composer.handleEditCommunication}
+            onDeleteCommunication={composer.handleDeleteCommunicationRequest}
+            onRecipientsClick={handleRecipientsClick}
             isLoading={isLoadingCommunications}
-            onEditMacro={(macroId) => {
-              console.log('Edit macro:', macroId)
-              // TODO: Implement edit macro functionality
-            }}
-            onDeleteMacro={(macroId) => {
-              setMacros((prev) => prev.filter((m) => m.id !== macroId))
-            }}
+            onEditMacro={() => {}}
+            onDeleteMacro={(macroId) => setMacros((prev) => prev.filter((m) => m.id !== macroId))}
           />
         )}
       </div>
 
-      {/* Broadcast Type Modal — create */}
+      {/* Create broadcast modal */}
       <BroadcastTypeModal
-        isOpen={isBroadcastModalOpen}
-        onClose={() => setIsBroadcastModalOpen(false)}
-        onSelect={handleBroadcastTypeSelect}
-        onSubmit={handleBroadcastSubmit}
+        isOpen={composer.isBroadcastModalOpen}
+        onClose={() => composer.setIsBroadcastModalOpen(false)}
+        onSelect={composer.handleBroadcastTypeSelect}
+        onSubmit={composer.handleBroadcastSubmit}
       />
 
-      {/* Broadcast Type Modal — edit */}
+      {/* Edit broadcast modal */}
       <BroadcastTypeModal
-        isOpen={editModalOpen}
-        onClose={() => setEditModalOpen(false)}
+        isOpen={composer.editModalOpen}
+        onClose={() => { if (!composer.isEditSubmitting) composer.setEditModalOpen(false) }}
         mode="edit"
-        initialTitle={editModalTitle}
-        initialType={editModalType}
-        onSubmit={handleEditModalConfirm}
+        initialTitle={composer.editModalTitle}
+        initialType={composer.editModalType}
+        onSubmit={composer.handleEditModalConfirm}
+        isSubmitting={composer.isEditSubmitting}
       />
 
       <CreateMacroModal
@@ -563,18 +204,18 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         onClose={() => setIsCreateMacroModalOpen(false)}
         onConfirm={handleCreateMacroConfirm}
       />
+
       <ConfirmDeleteModal
-        isOpen={!!deleteCandidate}
+        isOpen={!!composer.deleteCandidate}
         title="Delete communication?"
-        itemName={deleteCandidate?.title}
-        isLoading={isDeletingCommunication}
-        onCancel={() => {
-          if (isDeletingCommunication) return
-          setDeleteCandidate(null)
-        }}
-        onConfirm={handleConfirmDeleteCommunication}
+        itemName={composer.deleteCandidate?.title}
+        isLoading={composer.isDeletingCommunication}
+        onCancel={() => { if (!composer.isDeletingCommunication) composer.setDeleteCandidate(null) }}
+        onConfirm={composer.handleConfirmDeleteCommunication}
       />
-      {showUnsavedExitModal && (
+
+      {/* Unsaved changes exit guard */}
+      {composer.showUnsavedExitModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
             <div className="flex flex-col items-center text-center gap-3">
@@ -583,36 +224,20 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
               </div>
               <div>
                 <h3 className="text-base font-semibold text-slate-900">You have unsaved message changes</h3>
-                <p className="mt-1.5 text-sm text-slate-600">
-                  Save your message before leaving this page?
-                </p>
+                <p className="mt-1.5 text-sm text-slate-600">Save your message before leaving this page?</p>
               </div>
               <div className="mt-3 grid w-full grid-cols-2 gap-2">
                 <button
                   type="button"
                   className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
-                  onClick={() => {
-                    setShowUnsavedExitModal(false)
-                    const action = pendingExitActionRef.current
-                    pendingExitActionRef.current = null
-                    action?.()
-                  }}
+                  onClick={composer.handleUnsavedContinue}
                 >
                   Continue without saving
                 </button>
                 <button
                   type="button"
                   className="w-full rounded-md border border-primary bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
-                  onClick={async () => {
-                    const save = composerSaveHandlerRef.current
-                    if (!save) return
-                    const ok = await save()
-                    if (!ok) return
-                    setShowUnsavedExitModal(false)
-                    const action = pendingExitActionRef.current
-                    pendingExitActionRef.current = null
-                    action?.()
-                  }}
+                  onClick={composer.handleUnsavedSave}
                 >
                   Save changes
                 </button>
@@ -621,9 +246,17 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
           </div>
         </div>
       )}
+
+      <RecipientsSlideout
+        isOpen={recipientsSlideout.open}
+        onClose={() => setRecipientsSlideout((s) => ({ ...s, open: false }))}
+        communicationTitle={recipientsSlideout.communicationTitle}
+        initialTab={recipientsSlideout.tab}
+        received={[]}
+        notReceived={[]}
+      />
     </div>
   )
 }
 
 export default CommunicationPage
-

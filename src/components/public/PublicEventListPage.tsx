@@ -162,7 +162,7 @@ const PublicEventListPage: React.FC = () => {
       {/* Top bar: dark purple, logo + EVENTITA, bell + profile */}
       <PublicAuthTopbar
         menuTitle="Events"
-        menuItems={[{ label: 'Login', href: '/login' }]}
+        menuItems={[{ label: 'Login', href: `/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}` }]}
       />
 
       <div className="border-b border-slate-200 px-6 sm:px-8">
@@ -174,7 +174,7 @@ const PublicEventListPage: React.FC = () => {
                 type="button"
                 onClick={() => {
                   if ((tab.id === 'your' || tab.id === 'bookmarked') && !isAuthenticated) {
-                    window.location.href = '/login'
+                    window.location.href = `/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`
                     return
                   }
                   setActiveTab(tab.id)
@@ -269,7 +269,7 @@ const PublicEventListPage: React.FC = () => {
         {!loading && !error && activeTab === 'your' && !isAuthenticated && (
           <div className="rounded-lg border border-slate-200 bg-white p-12 text-center text-slate-600">
             <p className="font-semibold text-slate-800">You need to log in to view your events.</p>
-            <a href="/login" className="mt-3 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary/90">
+            <a href={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`} className="mt-3 inline-block rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-white hover:bg-primary/90">
               Log In
             </a>
           </div>

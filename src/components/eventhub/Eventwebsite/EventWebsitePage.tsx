@@ -11,6 +11,7 @@ import {
   fetchWebsiteIndex,
   fetchNavigationContent,
   fetchWebsitePageConfigs,
+  fetchWebsitePageConfigDetail,
   deleteWebpage,
   type CreateWebpageRequest,
   type WebpageData,
@@ -1054,42 +1055,25 @@ const loadNavigationFromApi = useCallback(async () => {
   }, [setHiddenNavIds])
 
   const renderConfigurationTab = () => {
-    const fallbackRows: Array<{ id: string; name: string; type: 'webpage' | 'user-group' | 'schedule' }> = [
-      ...webpages.map((item) => ({
-        id: item.uuid,
-        name: item.name,
-        type: 'webpage' as const,
-      })),
-      ...(navContent?.participant_groups ?? []).map((item: any) => ({
-        id: String(item?.ref_uuid ?? item?.uuid ?? ''),
-        name: String(item?.title ?? item?.name ?? 'Untitled'),
-        type: 'user-group' as const,
-      })),
-      ...(navContent?.schedules ?? []).map((item: any) => ({
-        id: String(item?.ref_uuid ?? item?.uuid ?? ''),
-        name: String(item?.title ?? item?.name ?? 'Untitled'),
-        type: 'schedule' as const,
-      })),
-    ].filter((row) => row.id)
-
-    const configRows = pageConfigs.length > 0
-      ? pageConfigs.map((item) => ({
-          id: String(item.resource_uuid || item.uuid),
-          name: String(item.resource_title || item.title || 'Untitled'),
-          type: item.item_type === 'participant_group'
-            ? 'user-group'
-            : item.item_type === 'schedule'
-              ? 'schedule'
-              : 'webpage',
-          browser: item.browser,
-          feature_permission: item.feature_permission,
-          visibility: item.visibility,
-          hide_on_mobile: item.hide_on_mobile,
-          show_in_mobile_menu_without_access: item.show_in_mobile_menu_without_access,
-          is_desktop_home: item.is_desktop_home,
-          is_mobile_home: item.is_mobile_home,
-        }))
-      : fallbackRows
+    const configRows = pageConfigs.map((item) => ({
+      configUuid: item.uuid,
+      id: String(item.resource_uuid || item.uuid),
+      name: String(item.resource_title || item.title || 'Untitled'),
+      type:
+        item.item_type === 'participant_group'
+          ? ('user-group' as const)
+          : item.item_type === 'schedule'
+            ? ('schedule' as const)
+            : ('webpage' as const),
+      icon: item.icon?.trim() ? item.icon : '',
+      browser: item.browser,
+      feature_permission: item.feature_permission,
+      visibility: item.visibility,
+      hide_on_mobile: item.hide_on_mobile,
+      show_in_mobile_menu_without_access: item.show_in_mobile_menu_without_access,
+      is_desktop_home: item.is_desktop_home,
+      is_mobile_home: item.is_mobile_home,
+    }))
 
     return (
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
@@ -1116,13 +1100,13 @@ const loadNavigationFromApi = useCallback(async () => {
             ) : configRows.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
-                  No pages yet.
+                  No page configuration returned for this event.
                 </td>
               </tr>
             ) : (
               configRows.map((item) => {
                 return (
-                  <tr key={`${item.type}:${item.id}`} className="hover:bg-slate-50 transition-colors">
+                  <tr key={item.configUuid} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3 font-medium text-slate-900 capitalize whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <span>{item.name}</span>
@@ -1134,27 +1118,31 @@ const loadNavigationFromApi = useCallback(async () => {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500">
-                      <span className="text-xs text-slate-400">Not added</span>
+                      {item.icon ? (
+                        <span className="inline-flex items-center text-slate-700">{renderNavIcon(item.icon, 'h-4 w-4')}</span>
+                      ) : (
+                        <span className="text-xs text-slate-400">Not added</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {(item as any).browser ? String((item as any).browser).replace('_', ' ') : '-'}
+                      {item.browser ? String(item.browser).replace(/_/g, ' ') : '-'}
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {(item as any).feature_permission ? String((item as any).feature_permission).replace('_', ' ') : '-'}
+                      {item.feature_permission ? String(item.feature_permission).replace(/_/g, ' ') : '-'}
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {(item as any).visibility ? String((item as any).visibility).replace('_', ' ') : '-'}
+                      {item.visibility ? String(item.visibility).replace(/_/g, ' ') : '-'}
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {(item as any).hide_on_mobile ? 'Hide on mobile' : '-'}
+                      {item.hide_on_mobile ? 'Hide on mobile' : '-'}
                     </td>
                     <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {(item as any).is_desktop_home || (item as any).is_mobile_home ? 'Yes' : '-'}
+                      {item.is_desktop_home || item.is_mobile_home ? 'Yes' : '-'}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <button
                         type="button"
-                        onClick={() => handlePageAction(item.id, 'settings')}
+                        onClick={() => handleConfigGearClick(item.configUuid, item.id, item.type)}
                         className="p-1.5 rounded transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-100"
                         aria-label="Configure page"
                       >
@@ -1913,6 +1901,35 @@ const loadNavigationFromApi = useCallback(async () => {
     } catch (error) {
       // Error handled silently
     }
+  }
+
+  const handleConfigGearClick = async (
+    configUuid: string,
+    resourceId: string,
+    type: 'webpage' | 'user-group' | 'schedule'
+  ) => {
+    const eventUuid = createdEvent?.uuid ?? localStorage.getItem('currentEventUuid')
+    if (!eventUuid) return
+
+    const detail = await fetchWebsitePageConfigDetail(configUuid, eventUuid)
+    if (!detail) {
+      showToast.error('Failed to load page configuration')
+      return
+    }
+
+    const section =
+      type === 'user-group'
+        ? 'participants'
+        : type === 'schedule'
+          ? 'schedule-sessions'
+          : undefined
+
+    const params = new URLSearchParams({ tab: 'settings' })
+    if (section) params.set('section', section)
+    params.set('configUuid', configUuid)
+
+    window.history.pushState({}, '', `/event/website/preview/${resourceId}?${params.toString()}`)
+    window.dispatchEvent(new PopStateEvent('popstate'))
   }
 
   const handlePageAction = (pageId: string, action: string) => {

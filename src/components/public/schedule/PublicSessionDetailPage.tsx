@@ -271,7 +271,7 @@ const PublicSessionDetailPage: React.FC<PublicSessionDetailPageProps> = ({
             cometChatUser={null}
             isPublic={true}
             isPublicView={true}
-            onLoginClick={() => { window.location.href = '/login' }}
+            onLoginClick={() => { window.location.href = `/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}` }}
             onChatOpen={() => setChatOpen(true)}
             chatOpen={chatOpen}
             onSpeakerClick={(speakerUuid) => onNavigate(`/events/${eventUuid}/speakers/${speakerUuid}`)}
