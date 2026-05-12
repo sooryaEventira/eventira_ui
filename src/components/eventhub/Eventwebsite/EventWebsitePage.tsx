@@ -2069,7 +2069,7 @@ const loadNavigationFromApi = useCallback(async () => {
         <div className="flex-1 p-8 bg-white overflow-y-auto overflow-x-hidden">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 w-full">
-            <h1 className="text-[26px] font-bold text-primary-dark">Event website</h1>
+            <h1 className="text-[26px] font-bold text-primary-dark">Event Website</h1>
             {renderHeaderButtons()}
           </div>
 
@@ -2263,7 +2263,17 @@ const loadNavigationFromApi = useCallback(async () => {
         {/* Unsaved Navigation Changes Modal */}
         {showUnsavedNavModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+            <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl relative">
+              <button
+                type="button"
+                onClick={() => setShowUnsavedNavModal(false)}
+                className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Close"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
               <div className="flex flex-col items-center text-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
                   <AlertCircle className="h-6 w-6 text-amber-500" />
@@ -2314,7 +2324,7 @@ const loadNavigationFromApi = useCallback(async () => {
                       minHeight: '42px'
                     }}
                   >
-                    Publish now
+                    Save changes
                   </button>
                 </div>
               </div>

@@ -575,7 +575,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
   const isAuthSection = false
 
   return (
-    <div className="flex min-h-screen flex-col bg-white" style={publicThemeVars as any}>
+    <div className="flex min-h-screen flex-col bg-white overflow-x-hidden" style={publicThemeVars as any}>
       <PublicNavbar
         eventUuid={eventUuid}
         eventName={displayEventName}
@@ -589,7 +589,7 @@ const PublicEventWebsiteShell: React.FC<PublicEventWebsiteShellProps> = ({ event
         onProfileClick={() => handleNavigate(`/events/${eventUuid}/profile`)}
       />
 
-      <main className={`pt-16 md:pl-72 w-full flex-1 px-4 pb-12 sm:px-6 md:max-w-none ${isAuthSection ? 'flex flex-col' : ''}`}>
+      <main className={`pt-16 md:pl-72 flex-1 px-4 pb-12 sm:px-6 overflow-x-hidden ${isAuthSection ? 'flex flex-col' : ''}`}>
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
             <div className="text-sm font-medium text-slate-600">Loading website…</div>

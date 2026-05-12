@@ -395,9 +395,9 @@ export const fetchEvents = async (): Promise<EventData[]> => {
     const mapEvent = (event: any): EventData => {
       const createdBy = event.created_by 
         ? (typeof event.created_by === 'object' 
-            ? (event.created_by.name || event.created_by.email?.split('@')[0] || 'Unknown')
+            ? (event.created_by.name || event.created_by.email?.split('@')[0] || '')
             : event.created_by)
-        : (event.createdBy || undefined)
+        : (event.createdBy || '')
       
       const attendanceTypeMap: Record<string, string> = {
         'Online': 'virtual',

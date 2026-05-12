@@ -18,7 +18,7 @@ interface EventHubSidebarProps {
 
 const defaultItems: SidebarItem[] = [
   { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
-  { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
+  { id: 'event-website', label: 'Event Website', icon: <CodeBrowser className="h-5 w-5" /> },
   { id: 'event-hub', label: 'Event Hub', icon: <Globe01 className="h-5 w-5" /> }
 ]
 

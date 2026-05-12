@@ -82,14 +82,14 @@ const EventHubNavbar: React.FC<EventHubNavbarProps> = ({
       </div>
 
       <div className="flex items-center gap-3 sm:gap-4">
-        <button
+        {/* <button
           type="button"
           onClick={onSearchClick}
           className="flex items-center rounded-full p-2 text-white transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
           aria-label="Search"
         >
           <SearchLg className="h-5 w-5" aria-hidden="true" />
-        </button>
+        </button> */}
 
         <button
           type="button"

@@ -345,11 +345,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           return `${startMonth} ${start!.getDate()}, ${startYear}–${endMonth} ${end!.getDate()}, ${endYear}`
         }
         
-        // Get createdBy from user info or default
-        const createdBy = eventData.createdBy || 
-                         (eventData as any).created_by || 
-                         localStorage.getItem('userEmail')?.split('@')[0] || 
-                         'Unknown'
+        const createdBy = eventData.createdBy || (eventData as any).created_by || ''
         
         const rawId = eventData.uuid ?? (eventData as any).id ?? (eventData as any).pk
         // Take Event ID directly from API response (event_id)

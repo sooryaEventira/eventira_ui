@@ -276,7 +276,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 overflow-x-hidden">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-semibold text-slate-900">{pageTitle}</h1>
         <div className="flex items-center gap-2">
@@ -320,8 +320,8 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
         <span className="font-semibold text-slate-700">{totalCount}</span>
       </div>
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch">
-        <div className={selectedId ? 'min-w-0 w-full space-y-3 lg:w-1/2 lg:shrink-0' : 'w-full space-y-3'}>
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-stretch min-w-0">
+        <div className={selectedId ? 'min-w-0 w-full space-y-3 lg:w-1/2' : 'w-full space-y-3'}>
           {filtered.length === 0 ? (
             <div className="rounded-xl border border-slate-200 bg-white p-6">
               <div className="text-base font-semibold text-slate-900">
@@ -358,7 +358,7 @@ const ParticipantsListPage: React.FC<ParticipantsListPageProps> = ({ eventUuid, 
         </div>
 
         {selectedId && isDesktop && (
-          <div className="flex min-w-0 w-full flex-col rounded-xl border border-primary bg-primary/5 lg:sticky lg:top-20 lg:w-1/2 lg:shrink-0 lg:self-stretch lg:min-h-[calc(100dvh-10.5rem)]">
+          <div className="flex min-w-0 w-full flex-col rounded-xl border border-primary bg-primary/5 lg:sticky lg:top-20 lg:w-1/2 lg:self-stretch lg:min-h-[calc(100dvh-10.5rem)]">
             {renderDetail()}
           </div>
         )}
