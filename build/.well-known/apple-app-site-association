@@ -1,0 +1,15 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["UXY65QCLVA.com.eventira.app"],
+        "components": [
+          { "/": "/event/*" },
+          { "/": "/home*" },
+          { "/": "/profile*" },
+          { "/": "/auth*" }
+        ]
+      }
+    ]
+  }
+}

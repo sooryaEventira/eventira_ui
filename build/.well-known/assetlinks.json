@@ -1,0 +1,13 @@
+[
+    {
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.eventira.app",
+        "sha256_cert_fingerprints": [
+          "6A:11:91:D2:8B:F7:11:F5:18:4F:5B:D6:58:76:65:EE:CA:77:16:9A:B0:1D:49:7F:B7:29:2C:15:CC:61:8C:D7",
+          "B7:EA:33:1F:D2:D9:08:29:D0:A9:7A:98:45:A0:0F:17:3D:79:39:C0:1E:37:C5:F1:99:26:E6:9E:45:A1:FE:0A"
+        ]
+      }
+    }
+  ]

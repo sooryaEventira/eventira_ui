@@ -537,7 +537,6 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
                     </div>
                   )}
                 </div>
-                </div>
                 <div className="shrink-0 flex items-center justify-end gap-2 border-t border-slate-100 px-4 py-3">
                   <button
                     type="button"
