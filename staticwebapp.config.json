@@ -3,7 +3,8 @@
       {
         "route": "/.well-known/apple-app-site-association",
         "headers": {
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "Content-Disposition": "inline"
         }
       },
       {

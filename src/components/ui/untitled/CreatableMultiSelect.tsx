@@ -88,7 +88,7 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
       ...base,
       minHeight: '40px',
       height: 'auto',
-      alignItems: 'flex-start',
+      alignItems: 'center',
       borderColor: error ? '#fb7185' : state.isFocused ? '#6838EE' : '#cbd5e1',
       boxShadow: state.isFocused
         ? error
@@ -160,6 +160,7 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
       ...base,
       color: '#94a3b8',
       padding: '8px',
+      cursor: 'pointer',
       '&:hover': {
         color: '#64748b'
       }
@@ -168,6 +169,7 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
       ...base,
       color: '#94a3b8',
       padding: '8px',
+      cursor: 'pointer',
       '&:hover': {
         color: '#64748b'
       }

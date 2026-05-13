@@ -508,7 +508,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
   }
 
   const handleProfileClick = () => {
-    // TODO: Implement profile functionality
+    // Profile handled by EventHubNavbar dropdown
   }
 
   const handleBack = () => {
@@ -1091,7 +1091,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
         <div className="flex-1 flex flex-col overflow-hidden bg-white p-8">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h1 className="text-3xl font-bold text-primary">Event Website</h1>
+            <h1 className="text-[26px] font-bold text-primary-dark">{currentPageName || 'Event Website'}</h1>
             <div className="flex items-center gap-3">
               {previewSection === 'webpage' && (
                 <button

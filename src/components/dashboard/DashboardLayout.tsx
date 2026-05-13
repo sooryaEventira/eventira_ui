@@ -17,7 +17,7 @@ const EventWebsitePage = lazy(() => import('../eventhub/Eventwebsite/EventWebsit
 const WebsitePreviewPage = lazy(() => import('../eventhub/WebsitePreviewPage').then(m => ({ default: m.default })))
 const TeamManagementPage = lazy(() => import('./team/TeamManagementPage').then(m => ({ default: m.default })))
 const ArchivedEventsPage = lazy(() => import('./ArchivedEventsPage').then(m => ({ default: m.default })))
-// @ts-expect-error TS server may not detect newly created file; compiles fine with tsc
+
 const UserProfilePage = lazy(() => import('./UserProfilePage'))
 
 // Type import for NewEventForm
@@ -768,7 +768,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         onProfileClick={handleProfileOpen}
         onLogout={onLogout}
         onNewEventClick={handleNewEventClick}
-        userAvatarUrl={userProfile?.profile_pic || userAvatarUrl}
+        userAvatarUrl={(() => {
+          const pic = userProfile?.profile_pic
+          if (!pic) return userAvatarUrl
+          if (pic.startsWith('/')) return `${(import.meta.env.VITE_AUTH_API_URL || '').replace(/\/+$/, '')}${pic}`
+          return pic.replace(/^http:\/\//, 'https://')
+        })()}
         userEmail={userProfile?.email || userEmail}
         userName={userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : undefined}
         onMenuClick={toggleSidebar}

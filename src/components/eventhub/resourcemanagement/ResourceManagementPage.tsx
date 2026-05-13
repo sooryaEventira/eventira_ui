@@ -134,7 +134,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
   }
 
   const handleProfileClick = () => {
-    console.log('Profile clicked')
+    // Profile handled by EventHubNavbar dropdown
   }
 
   // Convert cards to sidebar sub-items
@@ -1117,7 +1117,11 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
                   <FilterLines className="h-4 w-4" strokeWidth={2} />
                 </button>
                 {showFilterModal && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-lg border border-slate-200 bg-white p-4 shadow-lg">
+                  <div className="absolute right-0 top-full z-50 mt-2 w-60 rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
+                    <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                      <h3 className="text-sm font-semibold text-slate-900">Filter</h3>
+                    </div>
+                    <div className="p-4">
                     <h3 className="text-sm font-semibold text-slate-900 mb-3">Type</h3>
                     <div className="space-y-2 mb-4">
                       {[
@@ -1175,6 +1179,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
                       >
                         Apply
                       </button>
+                    </div>
                     </div>
                   </div>
                 )}

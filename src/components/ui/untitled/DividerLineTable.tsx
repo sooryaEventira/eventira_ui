@@ -213,7 +213,7 @@ export function DividerLineTable<TData>({
   }
 
   return (
-    <TableCardRoot size={size} className={twMerge('border-0', rootClassName)}>
+    <TableCardRoot size={size} className={twMerge('border-0 shadow-none overflow-visible rounded-none', rootClassName)}>
       {(headerLeading || headerActions) && (
         <TableCardHeader className="md:flex-row-reverse">
           {headerActions && (
@@ -225,7 +225,8 @@ export function DividerLineTable<TData>({
 
       {subheader}
       <TableCardBody className={twMerge(
-        sortedData.length === 0 ? '' : 'border border-slate-200',
+        sortedData.length === 0 ? '' : 'border border-slate-200 rounded-xl',
+        'mt-4',
         bodyClassName
       )}>
         <Table className={sortedData.length === 0 ? 'border-collapse' : ''}>
@@ -237,8 +238,8 @@ export function DividerLineTable<TData>({
                   scope="col"
                   className={twMerge(
                     'px-2 sm:px-4 py-1.5 sm:py-2 text-xs font-semibold capitalize tracking-wide text-primary border-b border-slate-200',
-                    sortedData.length === 0 && index === 0 ? 'border-l border-slate-200 rounded-tl-lg' : '',
-                    sortedData.length === 0 && index === columns.length - 1 ? 'border-r border-slate-200 rounded-tr-lg' : '',
+                    sortedData.length === 0 && index === 0 ? 'border-l border-slate-200 rounded-tl-xl' : '',
+                    sortedData.length === 0 && index === columns.length - 1 ? 'border-r border-slate-200 rounded-tr-xl' : '',
                     sortedData.length === 0 ? 'border-t border-slate-200' : '',
                     column.align === 'right' ? 'text-right' : column.align === 'center' ? 'text-center' : '',
                     column.headerClassName

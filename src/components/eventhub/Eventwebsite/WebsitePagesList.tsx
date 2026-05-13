@@ -20,7 +20,7 @@ const AUTO_GENERATED_SLUGS = ['welcome', 'organizations', 'speakers', 'attendees
 
 const SectionHeader: React.FC<{ label: string }> = ({ label }) => (
   <div className="px-4 py-2 bg-slate-50 border-b border-slate-200">
-    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{label}</span>
+    <span className="text-xs font-semibold text-slate-500  tracking-wide">{label}</span>
   </div>
 )
 
@@ -62,11 +62,11 @@ const ContentRow: React.FC<{
         </Button>
         {openDropdownId === uuid && (
           <div className="absolute right-0 mt-2 w-48 rounded-md border border-slate-200 bg-white shadow-lg z-[9999] top-full" onClick={(e) => e.stopPropagation()}>
-            {/* <button type="button" onClick={() => { onAction(uuid, 'edit'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3">Edit</button> */}
-            <button type="button" onClick={() => { onAction(uuid, 'duplicate'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3">Duplicate</button>
-            <button type="button" onClick={() => { onAction(uuid, 'settings'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3">Settings</button>
-            <button type="button" onClick={() => { onAction(uuid, 'hide'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3">Hide page</button>
-            <button type="button" onClick={() => { onAction(uuid, 'copy-link'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3">Copy link</button>
+            {/* <button type="button" onClick={() => { onAction(uuid, 'edit'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 first:rounded-t-md flex items-center gap-3">Edit</button> */}
+            <button type="button" onClick={() => { onAction(uuid, 'duplicate'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3">Duplicate</button>
+            <button type="button" onClick={() => { onAction(uuid, 'settings'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3">Settings</button>
+            <button type="button" onClick={() => { onAction(uuid, 'hide'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3">Hide page</button>
+            <button type="button" onClick={() => { onAction(uuid, 'copy-link'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3">Copy link</button>
             <button type="button" onClick={() => { onAction(uuid, 'delete'); setOpenDropdownId(null) }} className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 last:rounded-b-md flex items-center gap-3">Delete</button>
           </div>
         )}
@@ -168,7 +168,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
                         onAction(webpage.uuid, 'edit')
                         setOpenDropdownId(null)
                       }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 first:rounded-t-md flex items-center gap-3"
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 first:rounded-t-md flex items-center gap-3"
                     >
                       {/* <Edit05 className="h-4 w-4 text-slate-400" /> */}
                       Edit
@@ -179,7 +179,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
                         onAction(webpage.uuid, 'duplicate')
                         setOpenDropdownId(null)
                       }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3"
                     >
                       {/* <Copy01 className="h-4 w-4 text-slate-400" /> */}
                       Duplicate
@@ -190,7 +190,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
                         onAction(webpage.uuid, 'settings')
                         setOpenDropdownId(null)
                       }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3"
                     >
                       Settings
                     </button>
@@ -200,7 +200,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
                         onAction(webpage.uuid, 'hide')
                         setOpenDropdownId(null)
                       }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3"
                     >
                       Hide page
                     </button>
@@ -210,7 +210,7 @@ const WebsitePagesList: React.FC<WebsitePagesListProps> = ({
                         onAction(webpage.uuid, 'copy-link')
                         setOpenDropdownId(null)
                       }}
-                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 border-b border-slate-200 flex items-center gap-3"
+                      className="w-full text-left px-4 py-2.5 text-sm text-slate-900 hover:bg-slate-50 flex items-center gap-3"
                     >
                       Copy link
                     </button>

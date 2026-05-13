@@ -188,7 +188,7 @@ const Slideout = forwardRef<SlideoutHandle, SlideoutProps>(function Slideout(pro
             <h2 id="slideout-title" className="text-lg font-semibold text-slate-900">{title}</h2>
             <button
               type="button"
-              className="ml-auto rounded-full p-2 text-slate-500 transition hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              className="ml-auto inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
               onClick={handleClose}
               aria-label="Close"
             >

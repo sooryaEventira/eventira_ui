@@ -882,6 +882,9 @@ const PublicSchedulePage: React.FC<PublicSchedulePageProps> = ({ eventUuid, onNa
                 className="flex max-h-[min(400px,70vh)] w-[250px] flex-col rounded-xl border border-slate-200 bg-white shadow-xl"
                 style={{ position: 'fixed', top: filterPanelPosition.top, left: Math.max(8, filterPanelPosition.left), zIndex: 9999 }}
               >
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 shrink-0">
+                  <h3 className="text-sm font-semibold text-slate-900">Filter</h3>
+                </div>
                 <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
                   <div>
                     <label className="mb-2 block text-sm font-medium text-slate-700">Location</label>

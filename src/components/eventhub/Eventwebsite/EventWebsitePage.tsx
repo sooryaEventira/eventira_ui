@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import { useWebsitePages } from '../../../contexts/WebsitePagesContext'
 import EventHubNavbar from '../EventHubNavbar'
@@ -31,8 +32,10 @@ import { isFolder, isPage } from '../../../utils/navigationTree'
 import { NAV_ICON_KEYS, renderNavIcon, ICONSAX_VARIANTS, buildIconKey, parseIconKey } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
-import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, ChevronDown, ChevronUp, Folder, AlertCircle, Settings01 } from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, ChevronDown, ChevronUp, Folder, AlertCircle, Settings01, XClose } from '@untitled-ui/icons-react'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
+import { Suspense, lazy } from 'react'
+const UserProfilePage = lazy(() => import('../../dashboard/UserProfilePage'))
 
 interface EventWebsitePageProps {
   onBackClick?: () => void
@@ -835,8 +838,10 @@ const loadNavigationFromApi = useCallback(async () => {
     // TODO: Implement notification functionality
   }
 
+  const [showProfilePage, setShowProfilePage] = useState(false)
+
   const handleProfileClick = () => {
-    // TODO: Implement profile functionality
+    setShowProfilePage(true)
   }
 
   // Create sidebar items - Event Hub has sub-items, Event Website does not
@@ -1083,7 +1088,7 @@ const loadNavigationFromApi = useCallback(async () => {
               {['Page', 'Icon', 'Browser', 'Who has access', 'Visibility', 'Platform', 'Home page', ''].map((col) => (
                 <th
                   key={col}
-                  className="px-4 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap"
+                  className="px-4 py-3 text-left text-xs font-semibold text-primary tracking-wide whitespace-nowrap"
                 >
                   {col}
                 </th>
@@ -2074,7 +2079,7 @@ const loadNavigationFromApi = useCallback(async () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center justify-between mb-6 border-b border-slate-200">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div className="flex gap-6">
               <Button
                 variant="tertiary"
@@ -2147,7 +2152,7 @@ const loadNavigationFromApi = useCallback(async () => {
 
           {/* Content based on active tab */}
           {activeSubItem === 'website-pages' && (
-            <div className="pb-96">
+            <div className="pb-96 mt-3">
               <div className="space-y-0 border border-slate-200 rounded-lg bg-white overflow-visible">
                 <WebsitePagesList
                   webpages={sortedWebpagesForListing}
@@ -2261,18 +2266,18 @@ const loadNavigationFromApi = useCallback(async () => {
         )}
 
         {/* Unsaved Navigation Changes Modal */}
-        {showUnsavedNavModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-            <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl relative">
+        {showUnsavedNavModal && createPortal(
+          <div className="fixed inset-0" style={{ zIndex: 10000 }}>
+          <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" />
+          <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ top: 64 }}>
+            <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl relative pointer-events-auto">
               <button
                 type="button"
                 onClick={() => setShowUnsavedNavModal(false)}
-                className="absolute top-3 right-3 text-slate-400 hover:text-slate-600 transition-colors"
+                className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 aria-label="Close"
               >
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <XClose className="h-5 w-5" />
               </button>
               <div className="flex flex-col items-center text-center gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
@@ -2330,6 +2335,8 @@ const loadNavigationFromApi = useCallback(async () => {
               </div>
             </div>
           </div>
+          </div>,
+          document.body
         )}
       </div>
     )
@@ -2360,6 +2367,13 @@ const loadNavigationFromApi = useCallback(async () => {
 
       {/* Main Content */}
       <main className="fixed left-0 right-0 top-16 bottom-0 overflow-y-auto overflow-x-hidden bg-white md:left-[250px]">
+        {showProfilePage ? (
+          <Suspense fallback={<div className="flex items-centet justify-center min-h-[400px]"><div className="h-10 w-10 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>}>
+            <UserProfilePage
+              onBackClick={() => setShowProfilePage(false)}
+            />
+          </Suspense>
+        ) : (
         <div className="min-w-0 p-4 sm:p-6 lg:p-8">
           {/* Header */}
           <div className="flex flex-col gap-4 mb-6 w-full sm:flex-row sm:items-center sm:justify-between">
@@ -2368,7 +2382,7 @@ const loadNavigationFromApi = useCallback(async () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center justify-between mb-6 border-b border-slate-200">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
             <div className="flex gap-6">
               <Button
                 variant="tertiary"
@@ -2441,7 +2455,7 @@ const loadNavigationFromApi = useCallback(async () => {
 
           {/* Content based on active tab */}
           {activeSubItem === 'website-pages' && (
-            <div className="pb-96">
+            <div className="pb-96 mt-3">
               <div className="space-y-0 border border-slate-200 rounded-lg bg-white overflow-visible">
                 <WebsitePagesList
                   webpages={sortedWebpagesForListing}
@@ -2459,6 +2473,7 @@ const loadNavigationFromApi = useCallback(async () => {
           {activeSubItem === 'website-header' && renderNavigationTab()}
           {activeSubItem === 'website-config' && renderConfigurationTab()}
         </div>
+        )}
       </main>
 
       {/* Page Creation Modal */}
@@ -2504,9 +2519,19 @@ const loadNavigationFromApi = useCallback(async () => {
       )}
 
       {/* Unsaved Navigation Changes Modal */}
-      {showUnsavedNavModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+      {showUnsavedNavModal && createPortal(
+        <div className="fixed inset-0" style={{ zIndex: 10000 }}>
+          <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" />
+          <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ top: 64 }}>
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl relative pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => setShowUnsavedNavModal(false)}
+              className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Close"
+            >
+              <XClose className="h-5 w-5" />
+            </button>
             <div className="flex flex-col items-center text-center gap-2">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
                 <AlertCircle className="h-6 w-6 text-amber-500" />
@@ -2562,7 +2587,9 @@ const loadNavigationFromApi = useCallback(async () => {
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       <AddMenuItemModal

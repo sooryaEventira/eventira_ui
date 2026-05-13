@@ -250,7 +250,7 @@ export function useComposerState({
     handleComposerCancel, handleComposerSave, handleEmailSend, handlePushSend,
     runOrConfirmExit,
     // unsaved exit
-    showUnsavedExitModal, handleUnsavedContinue, handleUnsavedSave,
+    showUnsavedExitModal, setShowUnsavedExitModal, handleUnsavedContinue, handleUnsavedSave,
     // delete
     deleteCandidate, setDeleteCandidate,
     isDeletingCommunication,

@@ -9,7 +9,8 @@ interface CreateFolderModalProps {
   onClose: () => void
   onCreate: (folderData: { uuid: string; name: string }) => void
   initialName?: string
-  parentFolderId?: string | null // Optional parent folder UUID for nested folders
+  parentFolderId?: string | null
+  containerStyle?: React.CSSProperties
 }
 
 const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
@@ -17,7 +18,8 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
   onClose,
   onCreate,
   initialName = '',
-  parentFolderId = null
+  parentFolderId = null,
+  containerStyle
 }) => {
   const [folderName, setFolderName] = useState(initialName)
   const [isLoading, setIsLoading] = useState(false)
@@ -105,6 +107,7 @@ const CreateFolderModal: React.FC<CreateFolderModalProps> = ({
       subtitle={initialName ? 'Enter a new name for this folder' : 'Enter a name for the new folder'}
       width={400}
       showHeaderBorder={false}
+      containerStyle={containerStyle}
       footer={
         <div className="flex justify-end gap-3 mb-4">
           <Button variant="secondary" onClick={onClose} disabled={isLoading}>

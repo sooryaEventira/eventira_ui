@@ -20,6 +20,7 @@ interface UploadModalProps {
   cancelButtonText?: string
   instructions?: string[]
   maxFileSize?: number // in bytes
+  containerStyle?: React.CSSProperties
 }
 
 const UploadModal: React.FC<UploadModalProps> = ({ 
@@ -38,7 +39,8 @@ const UploadModal: React.FC<UploadModalProps> = ({
   buttonText = 'Attach files',
   cancelButtonText = 'Cancel',
   instructions,
-  maxFileSize
+  maxFileSize,
+  containerStyle
 }) => {
   const [isDragging, setIsDragging] = useState(false)
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
@@ -289,7 +291,8 @@ const UploadModal: React.FC<UploadModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
+      className="fixed top-0 right-0 bottom-0 left-0 z-[1000] flex items-center justify-center bg-black/50 p-4"
+      style={containerStyle}
       onClick={handleBackdropClick}
       onDragOver={handleBackdropDragOver}
       onDrop={handleBackdropDrop}
@@ -325,24 +328,9 @@ const UploadModal: React.FC<UploadModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg p-2"
+            className="absolute right-3 top-3 inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            <div className="relative h-5 w-5 overflow-hidden">
-              <svg
-                className="absolute left-1.5 top-1.5 h-3 w-3 text-[#A4A7AE]"
-                viewBox="0 0 12 12"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M9 3L3 9M3 3L9 9"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </div>
+            <XClose className="h-5 w-5" />
           </button>
 
           {/* Spacer */}

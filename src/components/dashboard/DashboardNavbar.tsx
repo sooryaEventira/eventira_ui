@@ -93,16 +93,21 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
             </button> */}
 
             {/* Notification Icon */}
-            <button
-              type="button"
-              onClick={onNotificationClick}
-              className="flex items-center svg-ic justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-md hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0"
-              aria-label="Notifications"
-            >
-              <Bell01 
-                className="h-5 w-5  stroke-[red] fill-[#334155]" 
-              />
-            </button>
+            <div className="relative group">
+              <button
+                type="button"
+                onClick={onNotificationClick}
+                className="flex items-center svg-ic justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-md hover:bg-slate-100 active:bg-slate-200 transition-colors flex-shrink-0"
+                aria-label="Notifications"
+              >
+                <Bell01 
+                  className="h-5 w-5  stroke-[red] fill-[#334155]" 
+                />
+              </button>
+              <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 top-full mt-2 whitespace-nowrap rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100 shadow-lg">
+                Notifications
+              </span>
+            </div>
           </div>
 
           {/* Profile Avatar with Dropdown */}
@@ -125,6 +130,7 @@ const DashboardNavbar: React.FC<DashboardNavbarProps> = ({
                 </div>
               )}
             </button>
+
 
             {/* Profile Dropdown Menu */}
             {isProfileMenuOpen && (

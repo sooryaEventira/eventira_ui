@@ -111,11 +111,11 @@ const Modal: React.FC<ModalProps> = ({
     ...contentStyle
   } as React.CSSProperties
 
-  const hasExplicitWidth = typeof width !== 'undefined' || typeof maxWidth !== 'undefined'
+  const hasExplicitWidth = typeof width !== 'undefined'
 
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center overflow-auto bg-black/50 p-0"
+      className="fixed top-0 right-0 bottom-0 left-0 flex items-center justify-center overflow-auto bg-black/50 p-4"
       style={overlayStyle}
       onClick={(e) => {
         // Close modal when clicking on backdrop
@@ -126,7 +126,7 @@ const Modal: React.FC<ModalProps> = ({
     >
       <div
         className={cn(
-          'relative flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[90vh] max-w-[90vw]',
+          'relative m-auto flex flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[90vh] max-w-[90vw]',
           hasExplicitWidth ? 'w-auto' : 'w-full'
         )}
         style={contentStyleWithVars}
@@ -168,7 +168,7 @@ const Modal: React.FC<ModalProps> = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="inline-flex h-9 w-9 m-4 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+                  className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 >
                   <XClose className="h-5 w-5" />
                 </button>

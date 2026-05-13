@@ -143,7 +143,7 @@ const EventHubSidebar: React.FC<EventHubSidebarProps> = ({
                   <span className="flex-1 justify-start text-base font-semibold font-['Inter'] leading-6 transition-colors duration-200 ease-out group-hover:text-slate-700">
                     {item.label}
                   </span>
-                  {hasSubs && (
+                  {/* {hasSubs && (
                     <svg
                       className={`h-4 w-4 text-slate-500 transition-transform duration-200 ${
                         isItemExpanded ? 'rotate-90' : ''
@@ -154,7 +154,7 @@ const EventHubSidebar: React.FC<EventHubSidebarProps> = ({
                     >
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                     </svg>
-                  )}
+                  )} */}
                 </button>
                 {hasSubs  && (
                   <div className="bg-slate-50/50">

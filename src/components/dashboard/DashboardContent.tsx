@@ -82,7 +82,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
-              className={`inline-flex items-center justify-center w-9 h-9 rounded-lg border transition-colors text-slate-500 hover:bg-slate-50 hover:text-slate-700 ${menuOpen ? 'border-slate-300 bg-slate-50' : 'border-transparent hover:border-slate-200'}`}
+              className={`inline-flex items-center justify-center w-10 h-10 rounded-lg border transition-colors text-slate-500 hover:bg-slate-50 hover:text-slate-700 ${menuOpen ? 'border-slate-300 bg-slate-50' : 'border-transparent hover:border-slate-200'}`}
               aria-label="More options"
               aria-expanded={menuOpen}
               aria-haspopup="menu"

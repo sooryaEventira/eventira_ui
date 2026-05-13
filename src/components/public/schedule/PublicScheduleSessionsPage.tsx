@@ -481,8 +481,11 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
               <FilterLines className="h-4 w-4" />
             </button>
             {filterOpen && (
-              <div className="absolute right-0 z-30 mt-2 max-h-[420px] w-[260px] overflow-y-auto rounded-xl border border-slate-200 bg-white p-3 shadow-xl">
-                <div className="space-y-4">
+              <div className="absolute right-0 z-30 mt-2 max-h-[420px] w-[260px] flex flex-col rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden">
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 shrink-0">
+                  <h3 className="text-sm font-semibold text-slate-900">Filter</h3>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-4">
                   <div>
                     <p className="mb-2 text-sm font-medium text-slate-700">Location</p>
                     <div className="space-y-2">
@@ -534,7 +537,8 @@ const PublicScheduleSessionsPage: React.FC<PublicScheduleSessionsPageProps> = ({
                     </div>
                   )}
                 </div>
-                <div className="mt-4 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+                </div>
+                <div className="shrink-0 flex items-center justify-end gap-2 border-t border-slate-100 px-4 py-3">
                   <button
                     type="button"
                     onClick={() => {

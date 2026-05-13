@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { EventHubNavbar } from '../eventhub'
 import { PageManager, PageNameDialog, PageCreationModal } from '../page'
 import { EditorView, withSuspense } from './lazyImports'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { fetchWebsiteSettings } from '../../services/websiteSettingsService'
+import { fetchUserProfile, type UserProfile } from '../../services/profileService'
 
 export interface EditorViewWithNavbarProps {
   currentData: any
@@ -44,6 +45,14 @@ export const EditorViewWithNavbar: React.FC<EditorViewWithNavbarProps> = (props)
     createdEvent?.eventName || eventData?.eventName || 'Highly important conference of 2025'
   const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
 
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+
+  useEffect(() => {
+    fetchUserProfile()
+      .then((profile) => setUserProfile(profile))
+      .catch(() => {})
+  }, [])
+
   const [websiteLogoUrl, setWebsiteLogoUrl] = useState<string | undefined>(undefined)
   const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? undefined
   useEffect(() => {
@@ -59,6 +68,13 @@ export const EditorViewWithNavbar: React.FC<EditorViewWithNavbarProps> = (props)
 
   const eventLogoUrl = websiteLogoUrl ?? createdEvent?.logo ?? undefined
 
+  const resolvedAvatarUrl = useMemo(() => {
+    const pic = userProfile?.profile_pic
+    if (!pic) return userAvatarUrl || undefined
+    if (pic.startsWith('/')) return `${(import.meta.env.VITE_AUTH_API_URL || '').replace(/\/+$/, '')}${pic}`
+    return pic.replace(/^http:\/\//, 'https://')
+  }, [userProfile?.profile_pic, userAvatarUrl])
+
   return (
     <div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
       <EventHubNavbar
@@ -71,7 +87,9 @@ export const EditorViewWithNavbar: React.FC<EditorViewWithNavbarProps> = (props)
         onSearchClick={() => {}}
         onNotificationClick={() => {}}
         onProfileClick={props.handleProfileClick}
-        userAvatarUrl={userAvatarUrl}
+        userAvatarUrl={resolvedAvatarUrl}
+        userEmail={userProfile?.email}
+        userName={userProfile ? [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') : undefined}
       />
 
       <PageManager

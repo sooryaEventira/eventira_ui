@@ -27,23 +27,22 @@ const SearchAndFilterBar: React.FC<SearchAndFilterBarProps> = ({
     <>
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-3">
         {/* Search Input */}
-        <div className="w-full sm:w-[500px] bg-white overflow-hidden rounded-lg border border-[#D5D7DA] outline outline-1 outline-[#D5D7DA] outline-offset-[-1px] inline-flex items-center justify-start gap-2 shadow-[0px_1px_2px_rgba(10,12.67,18,0.05)] px-3 py-2 ">
-          <div className="flex-1 flex items-center justify-start gap-2 min-w-0">
-            {/* Icon Container */}
-            <div className="w-5 h-5 relative overflow-hidden flex items-center justify-center flex-shrink-0">
-              <SearchLg className="w-[15px] h-[15px] text-[#A4A7AE]" strokeWidth={1.67} />
-            </div>
-
-            {/* Input */}
-            <input
-              type="text"
-              value={searchValue}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-              placeholder="Search events"
-              className="flex-1 bg-transparent border-none outline-none text-base placeholder:text-[#717680] text-[#181D27] leading-6 break-words min-w-0"
-              style={{ fontFamily: 'Inter, sans-serif', fontWeight: '400' }}
-            />
-          </div>
+        <div className="w-full sm:w-[500px] bg-white overflow-hidden rounded-lg border border-[#D5D7DA] shadow-[0px_1px_2px_rgba(10,12.67,18,0.05)] inline-flex items-center">
+          <input
+            type="text"
+            value={searchValue}
+            onChange={(e) => onSearchChange?.(e.target.value)}
+            placeholder="Search events"
+            className="flex-1 bg-transparent border-none outline-none text-base placeholder:text-[#717680] text-[#181D27] leading-6 px-3 py-2 min-w-0"
+            style={{ fontFamily: 'Inter, sans-serif', fontWeight: '400' }}
+          />
+          <button
+            type="button"
+            className="flex items-center justify-center bg-primary hover:bg-primary-dark transition-colors rounded-r-lg px-3 self-stretch"
+            aria-label="Search"
+          >
+            <SearchLg className="w-5 h-5 text-white" strokeWidth={2} />
+          </button>
         </div>
 
         {/* Right Side - Date Range Filter and Filter Button */}

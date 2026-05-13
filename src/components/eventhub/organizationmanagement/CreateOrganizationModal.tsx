@@ -99,8 +99,9 @@ const CreateOrganizationModal = ({
       onClose={onClose}
       title={isEdit ? 'Edit organization' : 'Create organization'}
       subtitle="Add organization details."
-      width={672}
+      maxWidth={672}
       showHeaderBorder={true}
+      containerStyle={{ top: 64 }}
       footer={
         <div className="flex w-full items-center justify-end gap-3 pb-4">
           <button

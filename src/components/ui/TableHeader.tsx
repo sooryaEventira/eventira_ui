@@ -64,7 +64,7 @@ export const useTableHeader = ({
                 onClick={() => onTabChange(tab.id)}
                 className={`pb-3 px-1 text-[15px] font-medium font-semibold transition-colors relative whitespace-nowrap ${
                   isActive
-                    ? 'text-primary border-b-2 border-primary'
+                    ? 'text-primary border-b-[3px] border-primary'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >

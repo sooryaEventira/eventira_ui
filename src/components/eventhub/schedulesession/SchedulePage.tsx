@@ -154,7 +154,7 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
   }
 
   const handleProfileClick = () => {
-    console.log('Profile clicked')
+    // Profile handled by EventHubNavbar dropdown
   }
 
   // Convert cards to sidebar sub-items
@@ -1404,15 +1404,6 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
       }
 
       const hasExcelMap = !hasBackendParentLinks && excelMapEntries.length > 0
-
-      // If we have an Excel map, do NOT run any heuristic inference that can override the true mapping.
-      // (The backend list response doesn't carry parent references, so Excel is the only truth.)
-      // However, when there is NO Excel map, we still want to infer parent/child
-      // relationships *per orphan child* even if some sessions already have
-      // explicit backend parent links. This allows UI-created "parallel"
-      // sessions (session_type === "child" but missing parent_session_uuid)
-      // to attach to the previous root session, while preserving any existing
-      // backend-provided parentId values.
       if (!hasExcelMap) {
         // 1) Prefer exact parent-title mapping (matches Excel rule) when API provides parent titles
         // 2) If no parent title is present, fall back to "last parent" inference using session_type ordering.

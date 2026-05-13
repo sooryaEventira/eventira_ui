@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { ChevronDown } from '@untitled-ui/icons-react'
+import { ChevronDown, XClose } from '@untitled-ui/icons-react'
 import {Mail01, Bell01} from '@untitled-ui/icons-react'
 export type BroadcastType = 'email' | 'push-notification'
 
@@ -92,26 +92,34 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
 
   return (
     <>
-      {/* Blurred backdrop */}
+      {/* Backdrop – below navbar */}
       <div
-        className="fixed inset-0 z-40 bg-slate-900/20 backdrop-blur-sm"
+        className="fixed top-[64px] right-0 bottom-0 left-0 z-[1000] bg-black/50"
         aria-hidden
         onClick={handleCancel}
       />
 
       {/* Slideout panel */}
       <div
-        className={`fixed top-0 right-0 bottom-0 z-50 w-full max-w-md bg-white shadow-xl flex flex-col transition-transform duration-200 ease-out ${isSlidingIn ? 'translate-x-0' : 'translate-x-full'}`}
+        className={`fixed top-[64px] right-0 bottom-0 z-[1001] w-full max-w-md bg-white shadow-xl flex flex-col transition-transform duration-200 ease-out ${isSlidingIn ? 'translate-x-0' : 'translate-x-full'}`}
         role="dialog"
         aria-labelledby="slideout-title"
         aria-modal="true"
       >
         <div className="flex flex-col flex-1 overflow-hidden">
           {/* Header */}
-          <div className="shrink-0 px-6 pt-6 pb-4">
+          <div className="shrink-0 flex items-center justify-between px-6 pt-6 pb-4">
             <h2 id="slideout-title" className="text-lg font-bold text-slate-900">
               {isEditMode ? 'Edit Broadcast' : 'New Broadcast'}
             </h2>
+            <button
+              type="button"
+              onClick={handleCancel}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Close"
+            >
+              <XClose className="h-5 w-5" />
+            </button>
           </div>
 
           {/* Form */}
@@ -212,7 +220,7 @@ const BroadcastTypeModal: React.FC<BroadcastTypeModalProps> = ({
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
                 </svg>
               )}
-              {isEditMode ? (isSubmitting ? 'Loading…' : 'Update broadcast') : 'Create Broadcast'}
+              {isEditMode ? (isSubmitting ? 'Loading…' : 'Update broadcast') : 'Create broadcast'}
             </button>
           </div>
         </div>

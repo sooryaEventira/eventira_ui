@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, Suspense, lazy, useEffect } from
 import { useEventForm } from '../../contexts/EventFormContext'
 import EventHubNavbar from './EventHubNavbar'
 import { fetchWebsiteSettings } from '../../services/websiteSettingsService'
+import { fetchUserProfile, type UserProfile } from '../../services/profileService'
 import EventHubSidebar from './EventHubSidebar'
 import { defaultCards, ContentCard } from './EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
@@ -17,6 +18,7 @@ const WebsiteSettingsPage = lazy(() => import('./websitesettings/WebsiteSettings
 const EventHubOverviewPage = lazy(() => import('./overview/EventHubOverviewPage').then((m) => ({ default: m.default })))
 const RegistrationFormPage = lazy(() => import('./registrationform/RegistrationFormPage').then((m) => ({ default: m.default })))
 const AnalyticsPage = lazy(() => import('./analytics/AnalyticsPage').then((m) => ({ default: m.default })))
+const UserProfilePage = lazy(() => import('../dashboard/UserProfilePage'))
 
 const SectionFallback = () => (
   <div className="flex h-full min-h-[200px] items-center justify-center">
@@ -30,13 +32,15 @@ interface EventHubPageProps {
   onBackClick?: () => void
   userAvatarUrl?: string
   onCardClick?: (cardId: string) => void
+  onLogout?: () => void
 }
 
 const EventHubPage: React.FC<EventHubPageProps> = ({
   eventName: propEventName,
   isDraft: propIsDraft,
   onBackClick,
-  userAvatarUrl
+  userAvatarUrl,
+  onLogout
 }) => {
   // Get eventData and createdEvent from context to maintain consistency across all pages
   const { eventData, createdEvent } = useEventForm()
@@ -50,6 +54,14 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
   }, [createdEvent?.eventName, createdEvent?.uuid, eventData?.eventName, propEventName])
   const isDraft = propIsDraft !== undefined ? propIsDraft : true
   const eventStatus = (createdEvent as { status?: string } | null)?.status ?? (eventData as { status?: string } | null)?.status
+
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
+
+  useEffect(() => {
+    fetchUserProfile()
+      .then((profile) => setUserProfile(profile))
+      .catch(() => {})
+  }, [])
 
   const [websiteLogoUrl, setWebsiteLogoUrl] = useState<string | undefined>(undefined)
   const eventUuid = createdEvent?.uuid ?? (typeof window !== 'undefined' ? localStorage.getItem('currentEventUuid') : null) ?? undefined
@@ -65,7 +77,21 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
   }, [eventUuid])
 
   const eventLogoUrl = websiteLogoUrl ?? createdEvent?.logo ?? undefined
+
+  const resolvedAvatarUrl = useMemo(() => {
+    const pic = userProfile?.profile_pic
+    if (!pic) return userAvatarUrl || undefined
+    if (pic.startsWith('/')) return `${(import.meta.env.VITE_AUTH_API_URL || '').replace(/\/+$/, '')}${pic}`
+    return pic.replace(/^http:\/\//, 'https://')
+  }, [userProfile?.profile_pic, userAvatarUrl])
+
+  const resolvedUserName = useMemo(() => {
+    if (!userProfile) return undefined
+    return [userProfile.first_name, userProfile.last_name].filter(Boolean).join(' ') || undefined
+  }, [userProfile?.first_name, userProfile?.last_name])
+
   const [activeSection, setActiveSection] = useState('event-website')
+  const [showProfilePage, setShowProfilePage] = useState(false)
 
   // Read section from URL only on initial mount
   React.useEffect(() => {
@@ -88,7 +114,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
   }
 
   const handleProfileClick = () => {
-    // TODO: Implement profile functionality
+    setShowProfilePage(true)
   }
 
   // Convert cards to sidebar sub-items
@@ -240,7 +266,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
     <div className="h-screen overflow-hidden bg-white">
       {/* Navbar - Uses eventData from context for consistency */}
       <EventHubNavbar
-        key={createdEvent?.uuid || 'no-event'} // Force re-render when event changes
+        key={createdEvent?.uuid || 'no-event'}
         eventName={eventName}
         eventLogoUrl={eventLogoUrl}
         isDraft={isDraft}
@@ -249,7 +275,10 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
         onSearchClick={handleSearchClick}
         onNotificationClick={handleNotificationClick}
         onProfileClick={handleProfileClick}
-        userAvatarUrl={userAvatarUrl}
+        onLogout={onLogout}
+        userAvatarUrl={resolvedAvatarUrl}
+        userEmail={userProfile?.email}
+        userName={resolvedUserName}
       />
 
       {/* Sidebar */}
@@ -260,9 +289,16 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
       />
 
       {/* Content Area */}
-      <div key={activeSection} className="md:pl-[250px] pt-16 h-[calc(100vh-6px)] overflow-y-auto">
+      <div key={showProfilePage ? 'profile' : activeSection} className="md:pl-[250px] pt-16 h-[calc(100vh-6px)] overflow-y-auto">
         <Suspense fallback={<SectionFallback />}>
-          {renderContent()}
+          {showProfilePage ? (
+            <UserProfilePage
+              onBackClick={() => setShowProfilePage(false)}
+              onLogout={onLogout}
+            />
+          ) : (
+            renderContent()
+          )}
         </Suspense>
       </div>
     </div>

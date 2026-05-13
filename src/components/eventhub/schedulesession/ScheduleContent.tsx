@@ -756,8 +756,8 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               variant="tertiary"
               size="sm"
               onClick={onBack}
-              className="p-2"
-              iconLeading={<ArrowNarrowLeft className="h-5 w-5" />}
+              className="inline-flex items-center justify-center w-6 h-6 gap-2 text-sm font-medium border border-slate-200 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900"
+              iconLeading={<ArrowNarrowLeft className="h-4 w-4" />}
               aria-label="Back to schedule list"
             />
           )}
@@ -897,6 +897,9 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                     zIndex: 9999
                   }}
                 >
+                  <div className="bg-slate-50 px-4 py-3 border-b border-slate-200 shrink-0">
+                    <h3 className="text-sm font-semibold text-slate-900">Filter</h3>
+                  </div>
                   <div className="flex-1 overflow-y-auto px-4 py-4">
                     <div className="space-y-4">
                       <div>
@@ -1048,7 +1051,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
             onClick={() => setTagsLocationOpen(false)}
           />
           {/* Panel */}
-          <div className="fixed right-0 top-0 h-full w-full max-w-[480px] bg-white shadow-2xl z-[1001] flex flex-col">
+          <div className="fixed right-0 top-16 bottom-0 w-full max-w-[480px] bg-white shadow-2xl z-[1001] flex flex-col">
             {/* Header */}
             <div className="flex items-start justify-between border-b border-slate-200 px-6 py-5">
               <div>
@@ -1058,7 +1061,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
               <button
                 type="button"
                 onClick={() => setTagsLocationOpen(false)}
-                className="ml-4 mt-0.5 rounded p-1 text-slate-400 hover:text-slate-600 transition-colors"
+                className="ml-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
                 aria-label="Close"
               >
                 <XClose className="h-5 w-5" />

@@ -1,4 +1,6 @@
 import React, { useMemo } from 'react'
+import { createPortal } from 'react-dom'
+import { XClose } from '@untitled-ui/icons-react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
@@ -215,9 +217,19 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
       />
 
       {/* Unsaved changes exit guard */}
-      {composer.showUnsavedExitModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+      {composer.showUnsavedExitModal && createPortal(
+        <div className="fixed inset-0" style={{ zIndex: 10000 }}>
+          <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" />
+          <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ top: 64 }}>
+          <div className="relative bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => composer.setShowUnsavedExitModal(false)}
+              className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Close"
+            >
+              <XClose className="h-5 w-5" />
+            </button>
             <div className="flex flex-col items-center text-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
                 <InfoCircle className="h-6 w-6 text-amber-500" />
@@ -244,7 +256,9 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       <RecipientsSlideout

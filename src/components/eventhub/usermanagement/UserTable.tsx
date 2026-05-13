@@ -434,8 +434,8 @@ const UserTable: React.FC<UserTableProps> = ({
                 className="z-[9999] min-w-[200px] max-h-60 overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
                 style={{ position: 'fixed', top: filterDropdownPos.top, left: filterDropdownPos.left }}
               >
-                <div className="border-b border-slate-100 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Filter by tag
+                <div className="bg-slate-50 px-4 py-3 border-b border-slate-200">
+                  <h3 className="text-sm font-semibold text-slate-900">Filter</h3>
                 </div>
                 <button
                   type="button"

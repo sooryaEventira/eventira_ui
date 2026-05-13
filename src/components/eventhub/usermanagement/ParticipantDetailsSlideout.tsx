@@ -160,10 +160,10 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
         <button
           type="button"
           onClick={onClose}
-          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 text-slate-600 transition hover:bg-white hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="absolute right-4 top-4 inline-flex h-9 w-9 items-center justify-center rounded-md bg-white/90 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           aria-label="Close"
         >
-          <XClose className="h-4 w-4" />
+          <XClose className="h-5 w-5" />
         </button>
       </div>
 
@@ -201,7 +201,7 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
           <p className="mt-1 text-sm text-slate-600">
             {attendee.post && attendee.organization
               ? `${attendee.post} @ ${attendee.organization}`
-              : attendee.post || attendee.organization || 'No title'}
+              : attendee.post || attendee.organization || '-'}
           </p>
         </div>
       </div>

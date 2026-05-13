@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import ReactQuill, { Quill } from 'react-quill'
 import 'react-quill/dist/quill.snow.css'
 
@@ -530,6 +531,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
             variant="tertiary"
             size="sm"
             onClick={onCancel}
+            className=' border border-slate-200 bg-slate-100 w-6 h-6'
             iconLeading={<ArrowLeft className="h-4 w-4" />}
           >
           </Button>
@@ -579,38 +581,33 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                 <label htmlFor="subject" className="text-sm font-semibold text-slate-700 mr-2 shrink-0 -mb-3">
                 {type === 'push-notification' ? 'Title:' : 'Subject:'}
                 </label>
-                  <div className={`group relative flex flex-col w-full rounded-md border ${type === 'email' && subject.length > 60 ? 'border-orange-300' : 'border-slate-300'} bg-slate-50 transition-all`}>
-
-                    <div className="flex items-center px-3 pt-2.5">
-
-                    
+                  <div className={`group relative w-full rounded-md border ${type === 'email' && subject.length > 60 ? 'border-orange-300' : 'border-slate-300'} bg-white transition-all`}>
                       <input
                         id="subject"
                         type="text"
-                        placeholder="Title of your message"
+                        placeholder="Short summary of your message"
                         value={subject}
                         onChange={(e) => {
                           const limit = type === 'push-notification' ? 50 : 120
                           if (e.target.value.length <= limit) setSubject(e.target.value)
                         }}
-                        className="flex-1 bg-transparent border-none p-0 text-sm text-slate-900 focus:ring-0 focus:outline-none placeholder-slate-400"
+                        className="w-full bg-transparent border-none px-3 py-2.5 text-sm text-slate-900 focus:ring-0 focus:outline-none placeholder-slate-400"
                         autoComplete="off"
                       />
-                    </div>
-                    <div className="px-3 pb-1.5 flex items-center gap-2 min-h-[20px]">
-                      {type === 'email' && subject.length > 60 && (
-                        <div className="group/warning relative flex items-center">
-                          <AlertCircle className="h-3 w-3 text-orange-500" />
-                          <div className="absolute bottom-full left-0 mb-2 hidden w-max rounded bg-slate-900 px-2 py-1 text-xs text-white shadow-lg group-hover/warning:block z-10">
-                            May be truncated on mobile
-                            <div className="absolute -bottom-1 left-1 h-2 w-2 rotate-45 bg-slate-900" />
-                          </div>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    {type === 'email' && subject.length > 60 && (
+                      <div className="group/warning relative flex items-center">
+                        <AlertCircle className="h-3 w-3 text-orange-500" />
+                        <div className="absolute bottom-full left-0 mb-2 hidden w-max rounded bg-slate-900 px-2 py-1 text-xs text-white shadow-lg group-hover/warning:block z-10">
+                          May be truncated on mobile
+                          <div className="absolute -bottom-1 left-1 h-2 w-2 rotate-45 bg-slate-900" />
                         </div>
-                      )}
-                      <span className={`text-[10px] ${(type === 'email' && subject.length > 60) || (type === 'push-notification' && subject.length >= 50) ? 'text-orange-500 font-medium' : 'text-slate-400'}`}>
-                        {type === 'push-notification' ? `${50 - subject.length} characters left` : `${120 - subject.length} characters left`}
-                      </span>
-                    </div>
+                      </div>
+                    )}
+                    <span className={`text-xs ${(type === 'email' && subject.length > 60) || (type === 'push-notification' && subject.length >= 50) ? 'text-orange-500 font-medium' : 'text-slate-400'}`}>
+                      {type === 'push-notification' ? `${50 - subject.length} characters remaining` : `${120 - subject.length} characters remaining`}
+                    </span>
                   </div>
 
                   {/* Macro Insert */}
@@ -709,11 +706,14 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                   )}
 
                   {/* Action Buttons */}
-                  <div className="mt-auto pt-6 flex justify-end gap-3 border-t border-slate-200">
-                    <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSavingAttachments}>Cancel</Button>
-                    <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSavingAttachments}>
-                      {isSavingAttachments ? 'Uploading...' : 'Save changes'}
-                    </Button>
+                  <div className="mt-auto pt-6 border-t border-slate-200">
+                    <div className="flex justify-end gap-3">
+                      <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSavingAttachments}>Cancel</Button>
+                      <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSavingAttachments}>
+                        {isSavingAttachments ? 'Uploading...' : 'Save changes'}
+                      </Button>
+                    </div>
+                    <p className="mt-2 text-xs text-slate-400 text-right">Save to schedule or send this message</p>
                   </div>
                 </>
               ) : (
@@ -966,9 +966,19 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
         </div>
       )}
 
-      {showUnsavedMessageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+      {showUnsavedMessageModal && createPortal(
+        <div className="fixed inset-0" style={{ zIndex: 10000 }}>
+          <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" onClick={() => { setShowUnsavedMessageModal(false); setPendingTab(null) }} />
+          <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ top: 64 }}>
+          <div className="relative bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => { setShowUnsavedMessageModal(false); setPendingTab(null) }}
+              className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Close"
+            >
+              <XClose className="h-5 w-5" />
+            </button>
             <div className="flex flex-col items-center text-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
                 <AlertCircle className="h-6 w-6 text-amber-500" />
@@ -976,7 +986,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
               <div>
                 <h3 className="text-base font-semibold text-slate-900">You have unsaved message changes</h3>
                 <p className="mt-1.5 text-sm text-slate-600">
-                  Save your message before moving to Settings?
+                  Save your message before leaving this page?
                 </p>
               </div>
               <div className="mt-3 grid w-full grid-cols-2 gap-2">
@@ -1011,7 +1021,9 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
 
       {/* Hidden file input for inline image insertion */}

@@ -66,6 +66,7 @@ export function MainScreens({
         onBackClick={onBackToDashboard}
         userAvatarUrl=""
         onCardClick={onEventHubCardClick}
+        onLogout={auth.handleLogout}
       />
     )
   }

@@ -129,15 +129,15 @@ const UserProfilePage: FC<UserProfilePageProps> = ({ onBackClick, onLogout }) =>
   const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.email.split('@')[0]
 
   return (
-    <div>
+    <div className="p-4 sm:p-6 lg:p-8">
       {onBackClick && (
         <button
           type="button"
           onClick={onBackClick}
-          className="mb-3 inline-flex items-center gap-1.5 text-sm text-slate-600 hover:text-slate-900 transition-colors"
+          className="inline-flex items-center justify-center w-6 h-6 gap-2 text-sm font-medium border border-slate-200 rounded-lg bg-slate-100 text-slate-600 hover:text-slate-900"
         >
           <ArrowLeft className="h-4 w-4" />
-          <span>Back</span>
+          
         </button>
       )}
 

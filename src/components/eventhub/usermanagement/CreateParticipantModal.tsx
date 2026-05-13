@@ -125,23 +125,23 @@ const CreateParticipantModal: React.FC<CreateParticipantModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={handleCancel} />
+    <div className="fixed inset-0 z-[1000] flex items-start justify-center pt-[72px]">
+      <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" onClick={handleCancel} />
 
-      <div className="relative z-50 w-[450px] max-w-2xl mx-4 bg-white rounded-lg shadow-xl">
+      <div className="relative z-50 w-[450px] max-w-2xl mx-4 bg-white rounded-lg shadow-xl flex flex-col max-h-[calc(100vh-88px)]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200 flex-shrink-0">
           <div>
             <h2 className="text-lg font-semibold text-slate-900">Add user</h2>
             <p className="mt-1 text-sm text-slate-500">Fill in the details for the new user.</p>
           </div>
-          <button type="button" onClick={handleCancel} className="text-slate-400 hover:text-slate-600 transition-colors" aria-label="Close">
+          <button type="button" onClick={handleCancel} className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40" aria-label="Close">
             <XClose className="h-5 w-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="px-6 py-4 space-y-4 max-h-[min(600px,calc(100vh-250px))] overflow-y-auto">
+        <div className="px-6 py-4 space-y-4 flex-1 min-h-0 overflow-y-auto">
           {/* Profile photo */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1.5">Profile photo</label>
@@ -308,7 +308,7 @@ const CreateParticipantModal: React.FC<CreateParticipantModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200">
+        <div className="flex items-center justify-between px-6 py-3 border-t border-slate-200 flex-shrink-0">
           <a href="#" className="inline-flex items-center gap-1 text-sm text-slate-600 hover:text-primary transition-colors">
             <HelpCircle className="h-4 w-4" />
             Need help?

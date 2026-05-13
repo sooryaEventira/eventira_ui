@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import Button from '../../ui/untitled/Button'
 import MobileView from '../../../assets/images/mobile_view.png'
 import EventiraLogo from '../../../assets/images/Logo.png'
@@ -263,6 +264,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
             variant="tertiary"
             size="sm"
             onClick={onCancel}
+            className=' border border-slate-200 bg-slate-100 w-6 h-6'
             iconLeading={<ArrowLeft className="h-4 w-4" />}
           >
        
@@ -320,7 +322,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
                   placeholder="Short summary of your message"
                   className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
-                <div className="mt-2 text-xs text-slate-500">{titleRemaining} characters left</div>
+                <div className="mt-1.5 text-xs text-slate-400">{titleRemaining} characters remaining</div>
               </div>
 
               {/* Message */}
@@ -365,7 +367,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
                   rows={6}
                   className="mt-2 w-full resize-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 />
-                <div className="mt-2 text-xs text-slate-500">{bodyRemaining} characters left</div>
+                <div className="mt-1.5 text-xs text-slate-400">{bodyRemaining} characters remaining</div>
               </div>
 
               {/* Tap behaviour */}
@@ -398,13 +400,16 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
               </div>
 
               {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4">
-                <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSaving}>
-                  Cancel
-                </Button>
-                <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSaving}>
-                  {isSaving ? 'Saving...' : 'Save changes'}
-                </Button>
+              <div className="pt-4 border-t border-slate-200">
+                <div className="flex justify-end gap-3">
+                  <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSaving}>
+                    Cancel
+                  </Button>
+                  <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? 'Saving...' : 'Save changes'}
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-slate-400 text-right">Save to schedule or send this message</p>
               </div>
             </>
           ) : (
@@ -614,9 +619,19 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
         }}
       />
 
-      {showUnsavedMessageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl">
+      {showUnsavedMessageModal && createPortal(
+        <div className="fixed inset-0" style={{ zIndex: 10000 }}>
+          <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" onClick={() => { setShowUnsavedMessageModal(false); setPendingTab(null) }} />
+          <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ top: 64 }}>
+          <div className="relative bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl pointer-events-auto">
+            <button
+              type="button"
+              onClick={() => { setShowUnsavedMessageModal(false); setPendingTab(null) }}
+              className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+              aria-label="Close"
+            >
+              <XClose className="h-5 w-5" />
+            </button>
             <div className="flex flex-col items-center text-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
                 <AlertCircle className="h-6 w-6 text-amber-500" />
@@ -624,11 +639,11 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
               <div>
                 <h3 className="text-base font-semibold text-slate-900">You have unsaved message changes</h3>
                 <p className="mt-1.5 text-sm text-slate-600">
-                  Save your message before moving to Settings?
+                  Save your message before leaving this page?
                 </p>
               </div>
               <div className="mt-3 grid w-full grid-cols-2 gap-2">
-              <button
+                <button
                   type="button"
                   className="w-full rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                   onClick={() => {
@@ -641,7 +656,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
                     }
                   }}
                 >
-                  Discard changes
+                  Continue without saving
                 </button>
                 <button
                   type="button"
@@ -658,7 +673,9 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
               </div>
             </div>
           </div>
-        </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )

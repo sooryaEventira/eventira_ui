@@ -24,11 +24,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   createdByOptions = [],
   currentFilters = {}
 }) => {
-  const [position, setPosition] = useState({ x: 50, y: 50 })
-  const [isDragging, setIsDragging] = useState(false)
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
   const drawerRef = useRef<HTMLDivElement>(null)
-  const headerRef = useRef<HTMLDivElement>(null)
 
   // Filter state
   const [filters, setFilters] = useState<FilterState>(currentFilters)
@@ -37,45 +33,6 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   useEffect(() => {
     setFilters(currentFilters)
   }, [currentFilters])
-
-  // Handle dragging
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!headerRef.current?.contains(e.currentTarget)) return
-    
-    setIsDragging(true)
-    if (drawerRef.current) {
-      const rect = drawerRef.current.getBoundingClientRect()
-      setDragOffset({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      })
-    }
-  }
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDragging) return
-      
-      setPosition({
-        x: e.clientX - dragOffset.x,
-        y: e.clientY - dragOffset.y
-      })
-    }
-
-    const handleMouseUp = () => {
-      setIsDragging(false)
-    }
-
-    if (isDragging) {
-      document.addEventListener('mousemove', handleMouseMove)
-      document.addEventListener('mouseup', handleMouseUp)
-    }
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove)
-      document.removeEventListener('mouseup', handleMouseUp)
-    }
-  }, [isDragging, dragOffset])
 
   const handleStatusChange = (value: string) => {
     setFilters({ ...filters, status: value === 'all' ? undefined : value })
@@ -113,28 +70,18 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 bg-black/20 z-40"
+        className="fixed inset-0 z-40"
         onClick={onClose}
       />
 
-      {/* Draggable Filter Panel */}
+      {/* Filter Panel - anchored to top-right */}
       <div
         ref={drawerRef}
-        style={{
-          position: 'fixed',
-          right: `${position.x}px`,
-          top: `${position.y}px`,
-          cursor: isDragging ? 'grabbing' : 'grab',
-          zIndex: 50
-        }}
-        className="w-60 bg-white rounded-xl shadow-2xl border border-gray-200"
+        className="fixed right-4 top-16 bottom-4 z-50 w-60 bg-white rounded-xl shadow-2xl border border-gray-200 flex flex-col"
       >
         {/* Header */}
-        <div
-          ref={headerRef}
-          onMouseDown={handleMouseDown}
-          className="flex items-center justify-between p-4 border-b border-gray-200 cursor-grab active:cursor-grabbing"
-        >
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 bg-slate-50 flex-shrink-0">
+
           <h3 className="text-lg font-semibold text-slate-900">Filters</h3>
           <button
             onClick={onClose}
@@ -145,7 +92,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
         </div>
 
         {/* Content */}
-        <div className="max-h-[500px] overflow-y-auto p-4 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 space-y-6">
           {/* Status */}
           <div>
             <label className="block text-sm font-semibold text-slate-900 mb-3">
@@ -163,7 +110,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
                       filters.status === status.toLowerCase()
                     }
                     onChange={(e) => handleStatusChange(e.target.value)}
-                    className="w-4 h-4 text-blue-600 rounded-full"
+                    className="w-4 h-4 accent-primary rounded-full"
                   />
                   <span className="text-sm text-slate-700">{status}</span>
                 </label>
@@ -188,7 +135,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
                       filters.attendanceType === type.toLowerCase()
                     }
                     onChange={(e) => handleAttendanceTypeChange(e.target.value)}
-                    className="w-4 h-4 text-blue-600 rounded-full"
+                    className="w-4 h-4 accent-primary rounded-full"
                   />
                   <span className="text-sm text-slate-700">{type}</span>
                 </label>
@@ -266,7 +213,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
                       type="checkbox"
                       checked={filters.createdBy?.includes(user.id) || false}
                       onChange={() => handleCreatedByToggle(user.id)}
-                      className="w-4 h-4 text-blue-600 rounded"
+                      className="w-4 h-4 accent-primary rounded"
                     />
                     {user.avatar && (
                       <img src={user.avatar} alt={user.name} className="w-6 h-6 rounded-full" />
@@ -284,7 +231,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200 bg-gray-50">
+        <div className="flex items-center justify-between gap-3 p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0 rounded-b-xl">
           <button
             onClick={handleClearAll}
             className="px-4 py-2 text-sm font-medium text-slate-700 hover:bg-gray-200 rounded-lg transition-colors"
@@ -293,7 +240,7 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
           </button>
           <button
             onClick={handleApply}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+            className="px-4 py-2 text-sm font-medium text-white bg-primary hover:bg-primary-dark rounded-lg transition-colors"
           >
             Apply
           </button>

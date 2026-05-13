@@ -13,6 +13,7 @@ import OrganizationGroupsTable, {
   type OrganizationManagementTab
 } from './OrganizationGroupsTable'
 import CreateOrganizationModal from './CreateOrganizationModal'
+import EditOrganizationSlideout from './EditOrganizationSlideout'
 import { createExhibitor, deleteExhibitor, fetchExhibitors, importExhibitors, updateExhibitor } from '../../../services/exhibitorService'
 import { ConfirmDeleteModal } from '../../ui'
 import { writeEventStoreJSON } from '../../../utils/eventLocalStore'
@@ -189,6 +190,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false)
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
+  const [isEditSlideoutOpen, setIsEditSlideoutOpen] = useState(false)
   const [editingOrgId, setEditingOrgId] = useState<string | null>(null)
   const [isSavingOrganization, setIsSavingOrganization] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Organization | null>(null)
@@ -257,7 +259,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
 
   const handleEdit = (organizationId: string) => {
     setEditingOrgId(organizationId)
-    setIsCreateModalOpen(true)
+    setIsEditSlideoutOpen(true)
   }
 
   const handleRequestDelete = (organizationId: string) => {
@@ -289,7 +291,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
           stall_number: data.stallNumber
         })
         showToast.success('Organization updated')
-        setIsCreateModalOpen(false)
+        setIsEditSlideoutOpen(false)
         setEditingOrgId(null)
         await loadOrganizations()
       } catch (e) {
@@ -365,7 +367,7 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
             items={sidebarItems}
             activeItemId="organization-management"
             onItemClick={handleSidebarItemClick}
-            isModalOpen={isUploadModalOpen || isCreateModalOpen || isCreateGroupModalOpen}
+            isModalOpen={isUploadModalOpen || isCreateModalOpen || isEditSlideoutOpen || isCreateGroupModalOpen}
           />
         </>
       )}
@@ -449,11 +451,22 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
       />
 
       <CreateOrganizationModal
-        key={editingOrgId ?? 'new'}
+        key="new"
         isOpen={isCreateModalOpen}
         onClose={() => {
           if (isSavingOrganization) return
           setIsCreateModalOpen(false)
+        }}
+        isSaving={isSavingOrganization}
+        onSave={handleSaveOrganization}
+      />
+
+      <EditOrganizationSlideout
+        key={editingOrgId ?? 'edit'}
+        isOpen={isEditSlideoutOpen}
+        onClose={() => {
+          if (isSavingOrganization) return
+          setIsEditSlideoutOpen(false)
           setEditingOrgId(null)
         }}
         isSaving={isSavingOrganization}
