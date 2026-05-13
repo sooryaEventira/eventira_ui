@@ -319,6 +319,7 @@ export function useAuth(
       if (organization.uuid) {
         localStorage.setItem('organizationUuid', organization.uuid)
         localStorage.setItem('organizationName', organization.name)
+        localStorage.setItem('userRole', 'event_admin')
       }
       setIsAuthenticated(true)
       localStorage.setItem('isAuthenticated', 'true')
@@ -337,7 +338,8 @@ export function useAuth(
   const handleOrganizationSelect = (org: { uuid: string; name: string; role?: string }) => {
     localStorage.setItem('organizationUuid', org.uuid)
     localStorage.setItem('organizationName', org.name)
-    if (org.role) localStorage.setItem('userRole', org.role)
+    if (org.role) localStorage.setItem('userRole', String(org.role))
+    else localStorage.removeItem('userRole')
     setShowOrganizationSelect(false)
     setCurrentView('dashboard')
     window.history.pushState({}, '', '/dashboard')

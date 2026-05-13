@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { XClose, ChevronLeft, ChevronRight } from '@untitled-ui/icons-react'
+import { XClose, ChevronLeft, ChevronRight, RefreshCcw02 } from '@untitled-ui/icons-react'
 import {
   fetchCommunicationRecipients,
   fetchRecipientsPage,
+  resendCommunicationRecipient,
   type RecipientItem,
 } from '../../../services/communicationService'
+import { showToast } from '../../../utils/toast'
 
 interface RecipientsSlideoutProps {
   isOpen: boolean
@@ -14,11 +16,18 @@ interface RecipientsSlideoutProps {
   communicationId: string
   eventUuid: string
   onRetryAll?: () => void
+  isRetryingAll?: boolean
 }
 
 const reasonBadgeClass = (code?: string) => {
   if (code === 'opt-out' || code === 'optout') return 'bg-orange-100 text-orange-700'
   return 'bg-red-100 text-red-600'
+}
+
+const isFailStatus = (status?: string) => {
+  if (!status) return false
+  const s = status.toLowerCase()
+  return s === 'fail' || s === 'failed' || s === 'failure'
 }
 
 const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
@@ -29,6 +38,7 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
   communicationId,
   eventUuid,
   onRetryAll,
+  isRetryingAll = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'received' | 'not_received'>(initialTab)
   const [isSlidingIn, setIsSlidingIn] = useState(false)
@@ -41,6 +51,11 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
   const [startIndex, setStartIndex] = useState(0)
   const [pageStack, setPageStack] = useState<Array<{ url: string; startIndex: number }>>([])
   const [currentUrl, setCurrentUrl] = useState('')
+  const [resendingRecipientIds, setResendingRecipientIds] = useState<Set<number>>(new Set())
+
+  const failedCount = activeTab === 'not_received'
+    ? data.filter((r) => isFailStatus(r.status)).length
+    : 0
 
   const loadPage = useCallback(async (fetchFn: () => Promise<Awaited<ReturnType<typeof fetchRecipientsPage>>>) => {
     setIsLoading(true)
@@ -92,6 +107,40 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
     if (tab === activeTab) return
     setActiveTab(tab)
   }
+
+  const handleResendRecipient = useCallback(
+    async (recipient: RecipientItem) => {
+      if (!communicationId || !recipient?.id) return
+      if (resendingRecipientIds.has(recipient.id)) return
+
+      setResendingRecipientIds((prev) => {
+        const next = new Set(prev)
+        next.add(recipient.id)
+        return next
+      })
+
+      try {
+        await resendCommunicationRecipient(communicationId, recipient.id)
+        showToast.success(`Resent to ${recipient.email || recipient.name || 'recipient'}.`)
+        if (eventUuid) {
+          await loadPage(() =>
+            currentUrl
+              ? fetchRecipientsPage(currentUrl)
+              : fetchCommunicationRecipients(communicationId, eventUuid, activeTab)
+          )
+        }
+      } catch (err) {
+        showToast.error(err instanceof Error ? err.message : 'Failed to resend message.')
+      } finally {
+        setResendingRecipientIds((prev) => {
+          const next = new Set(prev)
+          next.delete(recipient.id)
+          return next
+        })
+      }
+    },
+    [communicationId, eventUuid, activeTab, currentUrl, loadPage, resendingRecipientIds]
+  )
 
   const handleNext = async () => {
     if (!nextUrl) return
@@ -155,22 +204,29 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
           </button>
         </div>
 
-        {/* Tabs */}
-        <div className="shrink-0 flex border-b border-slate-200 px-6">
-          {(['received', 'not_received'] as const).map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => handleTabChange(tab)}
-              className={`pb-3 mr-6 text-sm font-medium border-b-2 transition-colors ${
-                activeTab === tab
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {tab === 'received' ? 'Received' : 'Not received'}
-            </button>
-          ))}
+        {/* Tabs — edge-to-edge row; each tab flex-1 + centered label */}
+        <div className="shrink-0 w-full">
+          <div className="flex w-full items-end border-b border-slate-200">
+            {(['received', 'not_received'] as const).map((tab) => {
+              const isActive = activeTab === tab
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => handleTabChange(tab)}
+                  className={`-mb-px min-w-0 flex-1 pb-3 text-center text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 rounded-sm ${
+                    isActive
+                      ? 'border-b-[3px] border-primary text-primary'
+                      : 'border-b-[3px] border-transparent text-slate-500 hover:text-slate-600'
+                  }`}
+                >
+                  {tab === 'received' ? 'Received' : 'Not received'}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {/* Table */}
@@ -188,7 +244,12 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide w-1/3">Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide w-1/3">Email</th>
                   {activeTab === 'not_received' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Reason</th>
+                    <>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wide">Reason</th>
+                      <th className="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wide w-16">
+                        <span className="sr-only">Actions</span>
+                      </th>
+                    </>
                   )}
                 </tr>
               </thead>
@@ -196,33 +257,65 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
                 {data.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={activeTab === 'not_received' ? 3 : 2}
+                      colSpan={activeTab === 'not_received' ? 4 : 2}
                       className="px-6 py-10 text-center text-sm text-slate-400"
                     >
                       No records found.
                     </td>
                   </tr>
                 ) : (
-                  data.map((item, idx) => (
-                    <tr key={item.id ?? idx} className="hover:bg-slate-50">
-                      <td className="px-6 py-3.5 font-medium text-slate-900">{item.name}</td>
-                      <td className="px-6 py-3.5 text-slate-600">{item.email}</td>
-                      {activeTab === 'not_received' && (
-                        <td className="px-6 py-3.5">
-                          <div className="space-y-1">
-                            {item.error && (
-                              <p className="text-slate-700">{item.error}</p>
-                            )}
-                            {item.status && (
-                              <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${reasonBadgeClass(item.status)}`}>
-                                {item.status}
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                      )}
-                    </tr>
-                  ))
+                  data.map((item, idx) => {
+                    const showResend = activeTab === 'not_received' && isFailStatus(item.status)
+                    const isResending = resendingRecipientIds.has(item.id)
+                    return (
+                      <tr key={item.id ?? idx} className="hover:bg-slate-50">
+                        <td className="px-6 py-3.5 font-medium text-slate-900">{item.name}</td>
+                        <td className="px-6 py-3.5 text-slate-600">{item.email}</td>
+                        {activeTab === 'not_received' && (
+                          <>
+                            <td className="px-6 py-3.5">
+                              <div className="space-y-1">
+                                {item.error && (
+                                  <p className="text-slate-700">{item.error}</p>
+                                )}
+                                {item.status && (
+                                  <span className={`inline-block rounded px-1.5 py-0.5 text-xs font-medium ${reasonBadgeClass(item.status)}`}>
+                                    {item.status}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-3.5">
+                              <div className="flex items-center justify-end gap-1">
+                                {showResend ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleResendRecipient(item)}
+                                    disabled={isResending}
+                                    className={[
+                                      'flex h-8 w-8 items-center justify-center rounded-md transition focus:outline-none',
+                                      isResending
+                                        ? 'text-slate-300 cursor-not-allowed opacity-60'
+                                        : 'text-slate-500 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/40'
+                                    ].join(' ')}
+                                    aria-label={`Resend message to ${item.email || item.name}`}
+                                    title={isResending ? 'Resending…' : 'Resend message'}
+                                  >
+                                    <RefreshCcw02
+                                      className={`h-4 w-4 ${isResending ? 'animate-spin' : ''}`}
+                                      strokeWidth={1.8}
+                                    />
+                                  </button>
+                                ) : (
+                                  <span className="inline-block h-8 w-8" aria-hidden />
+                                )}
+                              </div>
+                            </td>
+                          </>
+                        )}
+                      </tr>
+                    )
+                  })
                 )}
               </tbody>
             </table>
@@ -270,10 +363,18 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
               <button
                 type="button"
                 onClick={onRetryAll}
-                disabled={!onRetryAll || count === 0}
-                className="rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!onRetryAll || isRetryingAll || failedCount === 0}
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-medium text-white hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                title={
+                  failedCount === 0
+                    ? 'No failed recipients to retry'
+                    : `Retry ${failedCount} failed recipient${failedCount === 1 ? '' : 's'} on this page`
+                }
               >
-                Retry all
+                {isRetryingAll && (
+                  <RefreshCcw02 className="h-4 w-4 animate-spin" strokeWidth={1.8} />
+                )}
+                {isRetryingAll ? 'Retrying…' : 'Retry all'}
               </button>
             </>
           ) : (

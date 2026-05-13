@@ -9,6 +9,7 @@ import { archiveEvent, deleteEvent, fetchEvents, fetchEvent, type EventData, typ
 import { fetchUserProfile, type UserProfile } from '../../services/profileService'
 import { useEventForm } from '../../contexts/EventFormContext'
 import { showToast } from '../../utils/toast'
+import { canCreateEventsForCurrentOrganization } from '../../utils/organizationRole'
 
 // Lazy load components that are only shown conditionally
 const NewEventForm = lazy(() => import('./NewEventForm').then(m => ({ default: m.default })))
@@ -65,6 +66,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   onSortEvents,
   onOrganizationChange
 }) => {
+  const canCreateEvents = canCreateEventsForCurrentOrganization()
   const { setCreatedEvent, createdEvent } = useEventForm()
   // Use ref to store latest createdEvent so checkRoute always has access to current value
   // without causing the effect to re-run when event changes
@@ -120,6 +122,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       }
       
       if (path === '/event/create/template') {
+        if (!canCreateEventsForCurrentOrganization()) {
+          window.history.pushState({}, '', '/dashboard')
+          window.dispatchEvent(new PopStateEvent('popstate'))
+          return
+        }
         setShowTemplatePage(true)
         setShowNewEventForm(false)
         setShowEventWebsitePage(false)
@@ -185,6 +192,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
     // Listen for custom event to open form
     const handleOpenForm = () => {
+      if (!canCreateEventsForCurrentOrganization()) return
       setShowTemplatePage(false)
       setShowEventWebsitePage(false)
       setShowNewEventForm(true)
@@ -442,6 +450,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
       .catch(() => { /* profile fetch is best-effort */ })
   }, [])
 
+  useEffect(() => {
+    if (showNewEventForm && !canCreateEvents) {
+      setShowNewEventForm(false)
+    }
+  }, [showNewEventForm, canCreateEvents])
+
   // Track previous path to detect navigation back to dashboard
   const prevPathRef = useRef<string>(window.location.pathname)
 
@@ -624,6 +638,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   }
 
   const handleNewEventClick = () => {
+    if (!canCreateEventsForCurrentOrganization()) return
     setShowNewEventForm(true)
     onNewEventClick?.()
   }
@@ -737,7 +752,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
 
   // Show form overlay if form is open
-  if (showNewEventForm) {
+  if (showNewEventForm && canCreateEvents) {
     return (
       <Suspense fallback={<ComponentLoadingFallback />}>
         <NewEventForm
@@ -825,6 +840,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         ) : (
           <DashboardContent
             title={title}
+            canCreateEvent={canCreateEvents}
             onNewEventClick={handleNewEventClick}
             onArchivedEventsClick={handleArchivedEventsClick}
             searchValue={searchValue}

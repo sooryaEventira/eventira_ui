@@ -6,8 +6,14 @@ import type { Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
 import { DotsVertical } from '@untitled-ui/icons-react'
 
+const DEFAULT_CREATE_DISABLED_REASON =
+  'Only Event Admins can create new events in this organization. Ask an Event Admin for access or switch to an organization where you have that role.'
+
 interface DashboardContentProps {
   title?: string
+  /** When false, the New event control is inactive (non–Event Admin roles). */
+  canCreateEvent?: boolean
+  createEventDisabledReason?: string
   onNewEventClick?: () => void
   onArchivedEventsClick?: () => void
   searchValue?: string
@@ -30,6 +36,8 @@ interface DashboardContentProps {
 }
 
 const DashboardContent: React.FC<DashboardContentProps> = ({
+  canCreateEvent = true,
+  createEventDisabledReason = DEFAULT_CREATE_DISABLED_REASON,
   onNewEventClick,
   onArchivedEventsClick,
   searchValue,
@@ -65,19 +73,40 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   return (
     <div className="space-y-4 sm:space-y-6">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 overflow-visible">
         <h1 className="text-xl sm:text-2xl font-semibold text-primary-dark">
           Overview
         </h1>
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
-            type="button"
-            onClick={onNewEventClick}
-            className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary-dark transition-colors"
-          >
-            <span>+</span>
-            <span>New event</span>
-          </button>
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-visible">
+          <div className="relative flex-1 sm:flex-none group overflow-visible">
+            <button
+              type="button"
+              onClick={canCreateEvent ? onNewEventClick : undefined}
+              disabled={!canCreateEvent}
+              aria-disabled={!canCreateEvent}
+              aria-label={
+                canCreateEvent
+                  ? 'Create new event'
+                  : `New event unavailable. ${createEventDisabledReason}`
+              }
+              className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
+                canCreateEvent
+                  ? 'bg-primary text-white hover:bg-primary-dark'
+                  : 'cursor-not-allowed bg-slate-300 text-slate-500 opacity-80'
+              }`}
+            >
+              <span>+</span>
+              <span>New event</span>
+            </button>
+            {!canCreateEvent && (
+              <span
+                role="tooltip"
+                className="pointer-events-none absolute right-0 top-full z-[60] mt-2 max-w-[min(22rem,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg ring-1 ring-white/10 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 break-words [overflow-wrap:anywhere]"
+              >
+                {createEventDisabledReason}
+              </span>
+            )}
+          </div>
           <div ref={menuRef} className="relative">
             <button
               type="button"

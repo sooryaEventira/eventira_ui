@@ -19,7 +19,11 @@ interface CommunicationsTableProps {
   onEditMacro?: (macroId: string) => void
   onDeleteMacro?: (macroId: string) => void
   onRecipientsClick?: (communicationId: string, communicationTitle: string, tab: 'received' | 'not_received') => void
+  onResendCommunication?: (communicationId: string, communicationTitle: string) => void
+  resendingCommunicationIds?: Set<string>
   isLoading?: boolean
+  /** When the Macros tab is active, show loading until GET macros completes */
+  isLoadingMacros?: boolean
 }
 
 const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
@@ -32,7 +36,10 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
   onEditMacro,
   onDeleteMacro,
   onRecipientsClick,
-  isLoading = false
+  onResendCommunication,
+  resendingCommunicationIds,
+  isLoading = false,
+  isLoadingMacros = false
 }) => {
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -207,6 +214,8 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
     onEditCommunication,
     onDeleteCommunication,
     onRecipientsClick,
+    onResendCommunication,
+    resendingCommunicationIds,
   })
 
   const macroColumns = useMacroTableColumns({
@@ -264,17 +273,22 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
     setCurrentPage(1)
   }, [activeTab])
 
-  // Loading state - check after all hooks
-  if (isLoading) {
+  // Loading state - check after all hooks (per-tab so Macros can load independently)
+  const showBlockingLoading =
+    (activeTab === 'list' && isLoading) || (activeTab === 'macros' && isLoadingMacros)
+
+  if (showBlockingLoading) {
     return (
       <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h1 className="text-[26px] font-bold text-primary-dark">Communication</h1>
+          <h1 className="text-[26px] font-bold text-primary-dark">Communications</h1>
         </div>
         <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#6938EF] mb-4"></div>
-            <p className="text-slate-600">Loading communications...</p>
+            <p className="text-slate-600">
+              {activeTab === 'macros' ? 'Loading macros...' : 'Loading communications...'}
+            </p>
           </div>
         </div>
       </div>
@@ -284,7 +298,7 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
   return (
     <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16 ">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ">
-        <h1 className="text-[26px] font-bold text-primary-dark ">Communication</h1>
+        <h1 className="text-[26px] font-bold text-primary-dark ">Communications</h1>
         <div className="flex items-center gap-3">
           {activeTab === 'list' && (
             <button

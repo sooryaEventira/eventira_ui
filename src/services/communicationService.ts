@@ -507,6 +507,229 @@ export const fetchCommunications = async (
   }
 }
 
+/** Normalized macro row for Communications UI (matches Macro in communicationTypes). */
+export interface MacroListItem {
+  id: string
+  macro: string
+  column: string
+}
+
+function formatMacroPlaceholder(raw: string): string {
+  const t = raw.trim()
+  if (!t) return ''
+  if (t.includes('{{')) return t
+  const inner = t.replace(/^\{\{|\}\}$/g, '').trim()
+  return inner ? `{{${inner}}}` : ''
+}
+
+/** Human-readable column label from inner slug, e.g. first_name → First name */
+function placeholderToColumnLabel(macroFormatted: string): string {
+  const bare = macroFormatted.replace(/[{}]/g, '').trim()
+  if (!bare) return macroFormatted
+  const withSpaces = bare.replace(/_/g, ' ')
+  return withSpaces
+    .split(/\s+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function mapMacroApiRow(raw: unknown, index: number): MacroListItem | null {
+  if (raw == null) return null
+
+  // API shape: { status: "success", data: ["{{first_name}}", "{{email}}", ...] }
+  if (typeof raw === 'string') {
+    const macroStr = formatMacroPlaceholder(raw)
+    if (!macroStr) return null
+    const inner = macroStr.replace(/[{}]/g, '').trim()
+    const id = inner ? inner.replace(/\s+/g, '_') : `macro-${index}`
+    return {
+      id,
+      macro: macroStr,
+      column: placeholderToColumnLabel(macroStr),
+    }
+  }
+
+  if (typeof raw !== 'object') return null
+  const r = raw as Record<string, unknown>
+  const id =
+    r.uuid ?? r.id ?? r.pk ?? r.macro_uuid ?? r.slug ?? `macro-${index}`
+
+  const macroCandidate =
+    r.macro ?? r.placeholder ?? r.token ?? r.key ?? r.macro_key ?? r.field ?? r.name
+  const columnCandidate =
+    r.column ??
+    r.label ??
+    r.display_name ??
+    r.description ??
+    r.title ??
+    r.field_name ??
+    r.friendly_name ??
+    r.column_name
+
+  let macroStr =
+    macroCandidate != null && String(macroCandidate).trim()
+      ? formatMacroPlaceholder(String(macroCandidate))
+      : ''
+
+  let columnStr = columnCandidate != null ? String(columnCandidate).trim() : ''
+
+  if (!macroStr && !columnStr) return null
+
+  if (!macroStr && columnStr) {
+    macroStr = formatMacroPlaceholder(columnStr)
+  }
+  if (!columnStr && macroStr) {
+    columnStr = placeholderToColumnLabel(macroStr)
+  }
+
+  return {
+    id: String(id),
+    macro: macroStr,
+    column: columnStr || macroStr,
+  }
+}
+
+function extractMacroRowsAndNext(payload: unknown): { rows: unknown[]; next: string | null } {
+  if (payload == null) return { rows: [], next: null }
+  if (Array.isArray(payload)) return { rows: payload, next: null }
+
+  if (typeof payload !== 'object') return { rows: [], next: null }
+  const p = payload as Record<string, unknown>
+
+  if (p.status === 'error' || p.status === 'failure') {
+    throw new Error(
+      handleApiError(p as unknown as ApiResponse, undefined, 'Failed to fetch macros. Please try again.')
+    )
+  }
+
+  const nextFrom = (obj: Record<string, unknown>): string | null => {
+    const n = obj.next
+    return typeof n === 'string' && n.trim() ? n : null
+  }
+
+  if (Array.isArray(p.results)) {
+    return { rows: p.results, next: nextFrom(p) }
+  }
+
+  if (Array.isArray(p.data)) {
+    return { rows: p.data, next: nextFrom(p) }
+  }
+
+  if (p.status === 'success') {
+    const data = p.data
+    if (Array.isArray(data)) return { rows: data, next: nextFrom(p) }
+    if (data && typeof data === 'object') {
+      const d = data as Record<string, unknown>
+      if (Array.isArray(d.results)) {
+        return { rows: d.results, next: nextFrom(d) ?? nextFrom(p) }
+      }
+      if (Array.isArray(d.data)) {
+        return { rows: d.data, next: nextFrom(d) ?? nextFrom(p) }
+      }
+    }
+  }
+
+  return { rows: [], next: null }
+}
+
+/**
+ * List macros for an event.
+ * GET event-communications/macros/?event_uuid={eventUuid}
+ */
+export const fetchMacros = async (eventUuid: string): Promise<MacroListItem[]> => {
+  try {
+    const accessToken = localStorage.getItem('accessToken')
+    const organizationUuid = localStorage.getItem('organizationUuid')
+
+    if (!accessToken) {
+      const errorMessage = handleApiError(
+        'Authentication required. Please login again.',
+        undefined,
+        'Authentication required. Please login again.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!organizationUuid) {
+      const errorMessage = handleApiError(
+        'Organization UUID is missing. Please create or select an organization first.',
+        undefined,
+        'Organization UUID is missing. Please create or select an organization first.'
+      )
+      throw new Error(errorMessage)
+    }
+
+    if (!eventUuid) {
+      throw new Error('Event UUID is required.')
+    }
+
+    const merged: MacroListItem[] = []
+    let nextUrl: string | null = API_ENDPOINTS.COMMUNICATION.MACROS_LIST(eventUuid)
+    let pageGuard = 0
+    const maxPages = 100
+
+    while (nextUrl) {
+      pageGuard += 1
+      if (pageGuard > maxPages) break
+
+      const response = await fetch(nextUrl, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'X-Organization': organizationUuid,
+        },
+        credentials: 'include',
+      })
+
+      if (!response || !response.ok) {
+        if (!response) {
+          throw new Error(handleNetworkError(null))
+        }
+        if (response.status === 404) return []
+        try {
+          const errorData: ApiResponse<unknown> = await response.json()
+          throw new Error(
+            handleApiError(errorData, response, 'Failed to fetch macros. Please try again.')
+          )
+        } catch (parseError) {
+          if (parseError instanceof Error && !parseError.message.includes('fetch')) throw parseError
+          throw new Error(handleApiError(null, response, 'Failed to fetch macros. Please try again.'))
+        }
+      }
+
+      const raw = await response.text()
+      let payload: unknown = null
+      try {
+        payload = raw ? JSON.parse(raw) : null
+      } catch {
+        throw new Error(handleParseError('Invalid response from server. Please try again.'))
+      }
+
+      const { rows, next } = extractMacroRowsAndNext(payload)
+      for (let i = 0; i < rows.length; i++) {
+        const mapped = mapMacroApiRow(rows[i], merged.length + i)
+        if (mapped) merged.push(mapped)
+      }
+
+      if (next && next.trim()) {
+        nextUrl = next.startsWith('http') ? next : new URL(next, nextUrl).href
+      } else {
+        nextUrl = null
+      }
+    }
+
+    return merged
+  } catch (error) {
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      throw new Error(handleNetworkError(null))
+    }
+    if (error instanceof Error) throw error
+    throw new Error('An unexpected error occurred while fetching macros.')
+  }
+}
+
 /**
  * Fetch one communication detail by ID
  * GET event-communications/{id}/?event_id={eventUuid}
@@ -617,6 +840,60 @@ export const fetchCommunicationRecipients = async (
 ): Promise<RecipientPageResult> => {
   const url = API_ENDPOINTS.COMMUNICATION.RECIPIENTS(communicationId, eventUuid, tab)
   return fetchRecipientsPage(url)
+}
+
+/**
+ * Resend a single failed recipient.
+ * POST event-communications/{communicationId}/recipients/{recipientId}/resend/
+ * Backend only allows resending recipients with a "fail" status; opted-out and
+ * already-delivered recipients will be rejected by the API.
+ */
+export const resendCommunicationRecipient = async (
+  communicationId: string | number,
+  recipientId: string | number
+): Promise<void> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken) throw new Error('Authentication required. Please login again.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const response = await fetch(
+    API_ENDPOINTS.COMMUNICATION.RESEND_RECIPIENT(communicationId, recipientId),
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+        'X-Organization': organizationUuid,
+      },
+      credentials: 'include',
+    }
+  )
+
+  if (!response.ok) {
+    let message = 'Failed to resend message.'
+    try {
+      const err: ApiResponse = await response.json()
+      message = handleApiError(err, response, message)
+    } catch {
+      message = handleApiError(null, response, message)
+    }
+    throw new Error(message)
+  }
+
+  if (response.status === 204) return
+
+  const raw = await response.text()
+  if (!raw.trim()) return
+
+  try {
+    const data: ApiResponse = JSON.parse(raw)
+    if (data.status === 'error' || data.status === 'failure') {
+      throw new Error(handleApiError(data, undefined, 'Failed to resend message.'))
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message && !e.message.includes('JSON')) throw e
+  }
 }
 
 export const fetchRecipientsPage = async (url: string): Promise<RecipientPageResult> => {

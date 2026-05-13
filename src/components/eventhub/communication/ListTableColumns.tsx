@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Pencil01, Trash03, Mail01, Bell01, HelpCircle } from '@untitled-ui/icons-react'
+import { Pencil01, Trash03, Mail01, Bell01, HelpCircle, RefreshCcw02 } from '@untitled-ui/icons-react'
 import {
   Badge,
   type DividerLineTableColumn
@@ -16,6 +16,8 @@ interface ListTableColumnsProps {
   onEditCommunication?: (communicationId: string) => void
   onDeleteCommunication?: (communicationId: string) => void
   onRecipientsClick?: (communicationId: string, communicationTitle: string, tab: 'received' | 'not_received') => void
+  onResendCommunication?: (communicationId: string, communicationTitle: string) => void
+  resendingCommunicationIds?: Set<string>
 }
 
 const getStatusBadgeVariant = (status: string) => {
@@ -46,6 +48,8 @@ export const useListTableColumns = ({
   onEditCommunication,
   onDeleteCommunication,
   onRecipientsClick,
+  onResendCommunication,
+  resendingCommunicationIds,
 }: ListTableColumnsProps): DividerLineTableColumn<TableRowData>[] => {
   return useMemo<DividerLineTableColumn<TableRowData>[]>(
     () => [
@@ -191,8 +195,40 @@ export const useListTableColumns = ({
         render: ({ communication }) => {
           if (!communication) return null
           const isDraft = communication.status === 'draft'
+          const { sent, total } = communication.recipients
+          const hasFailures =
+            communication.status === 'sent' && total > 0 && sent < total
+          const isResending = !!resendingCommunicationIds?.has(communication.id)
           return (
             <div className="flex items-center justify-end gap-2">
+              {hasFailures && (
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    if (isResending) return
+                    onResendCommunication?.(communication.id, communication.title)
+                  }}
+                  disabled={isResending}
+                  className={[
+                    'flex h-9 w-9 items-center justify-center transition focus:outline-none',
+                    isResending
+                      ? 'text-slate-300 cursor-not-allowed opacity-60'
+                      : 'text-slate-500 hover:text-primary focus-visible:ring-2 focus-visible:ring-primary/40'
+                  ].join(' ')}
+                  aria-label={`Resend failed messages for ${communication.title}`}
+                  title={
+                    isResending
+                      ? 'Resending failed messages…'
+                      : `Resend failed messages (${total - sent})`
+                  }
+                >
+                  <RefreshCcw02
+                    className={`h-4 w-4 ${isResending ? 'animate-spin' : ''}`}
+                    strokeWidth={1.8}
+                  />
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => { if (!isDraft) return; onEditCommunication?.(communication.id) }}
@@ -240,6 +276,8 @@ export const useListTableColumns = ({
       onEditCommunication,
       onDeleteCommunication,
       onRecipientsClick,
+      onResendCommunication,
+      resendingCommunicationIds,
     ]
   )
 }

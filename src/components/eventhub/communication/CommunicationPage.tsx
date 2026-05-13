@@ -11,11 +11,18 @@ import PushNotificationMakerPage from './PushNotificationMakerPage'
 import CreateMacroModal from './CreateMacroModal'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import RecipientsSlideout from './RecipientsSlideout'
-import { Macro } from './communicationTypes'
 import { defaultCards, ContentCard } from '../EventHubContent'
 import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import { useCommunications } from './useCommunications'
+import { useMacros } from './useMacros'
 import { useComposerState } from './useComposerState'
+import {
+  fetchCommunicationRecipients,
+  fetchRecipientsPage,
+  resendCommunicationRecipient,
+  type RecipientItem,
+} from '../../../services/communicationService'
+import { showToast } from '../../../utils/toast'
 
 interface CommunicationPageProps {
   eventName?: string
@@ -49,6 +56,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     loadCommunications,
   } = useCommunications(eventUuid)
 
+  const { macros, setMacros, isLoadingMacros } = useMacros(eventUuid)
+
   // ── composer / modals state ───────────────────────────────────────────────
   const composer = useComposerState({
     communications,
@@ -58,13 +67,6 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
     eventUuid,
   })
 
-  // ── macros ────────────────────────────────────────────────────────────────
-  const [macros, setMacros] = React.useState<Macro[]>([
-    { id: 'email',      macro: '{{email}}',      column: 'Email' },
-    { id: 'last_name',  macro: '{{last_name}}',  column: 'Last Name' },
-    { id: 'first_name', macro: '{{first_name}}', column: 'First Name' },
-    { id: 'event_name', macro: '{{event_name}}', column: 'Event Name' },
-  ])
   const [isCreateMacroModalOpen, setIsCreateMacroModalOpen] = React.useState(false)
 
   // ── recipients slideout ───────────────────────────────────────────────────
@@ -82,6 +84,101 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   ) => {
     setRecipientsSlideout({ open: true, communicationId, communicationTitle, tab })
   }
+
+  const [resendingCommunicationIds, setResendingCommunicationIds] = React.useState<Set<string>>(
+    new Set()
+  )
+
+  const fetchAllFailedRecipients = React.useCallback(
+    async (communicationId: string): Promise<RecipientItem[]> => {
+      if (!eventUuid) return []
+      const collected: RecipientItem[] = []
+      let page = await fetchCommunicationRecipients(communicationId, eventUuid, 'not_received')
+      collected.push(...page.data)
+      let safety = 0
+      while (page.next && safety < 100) {
+        safety += 1
+        page = await fetchRecipientsPage(page.next)
+        collected.push(...page.data)
+      }
+      return collected
+    },
+    [eventUuid]
+  )
+
+  const resendFailedRecipients = React.useCallback(
+    async (communicationId: string, recipients: RecipientItem[]) => {
+      const failed = recipients.filter((r) => {
+        const status = (r.status || '').toLowerCase()
+        return status === 'fail' || status === 'failed' || status === 'failure'
+      })
+      if (failed.length === 0) return { success: 0, failure: 0 }
+
+      let success = 0
+      let failure = 0
+      for (const r of failed) {
+        try {
+          await resendCommunicationRecipient(communicationId, r.id)
+          success += 1
+        } catch {
+          failure += 1
+        }
+      }
+      return { success, failure }
+    },
+    []
+  )
+
+  const handleResendCommunication = React.useCallback(
+    async (communicationId: string, communicationTitle: string) => {
+      if (!eventUuid) {
+        showToast.error('Event UUID is required.')
+        return
+      }
+      if (resendingCommunicationIds.has(communicationId)) return
+
+      setResendingCommunicationIds((prev) => {
+        const next = new Set(prev)
+        next.add(communicationId)
+        return next
+      })
+
+      try {
+        const recipients = await fetchAllFailedRecipients(communicationId)
+        const result = await resendFailedRecipients(communicationId, recipients)
+
+        if (result.success === 0 && result.failure === 0) {
+          showToast.info(`No failed recipients to resend for "${communicationTitle}".`)
+        } else if (result.failure === 0) {
+          showToast.success(`Resent ${result.success} failed message${result.success === 1 ? '' : 's'}.`)
+        } else if (result.success === 0) {
+          showToast.error(`Failed to resend ${result.failure} message${result.failure === 1 ? '' : 's'}.`)
+        } else {
+          showToast.success(
+            `Resent ${result.success} message${result.success === 1 ? '' : 's'}; ${result.failure} still failing.`
+          )
+        }
+        loadCommunications()
+      } catch (e) {
+        showToast.error(e instanceof Error ? e.message : 'Failed to resend messages.')
+      } finally {
+        setResendingCommunicationIds((prev) => {
+          const next = new Set(prev)
+          next.delete(communicationId)
+          return next
+        })
+      }
+    },
+    [eventUuid, resendingCommunicationIds, fetchAllFailedRecipients, resendFailedRecipients, loadCommunications]
+  )
+
+  const handleRetryAllInSlideout = React.useCallback(async () => {
+    if (!recipientsSlideout.communicationId) return
+    await handleResendCommunication(
+      recipientsSlideout.communicationId,
+      recipientsSlideout.communicationTitle
+    )
+  }, [handleResendCommunication, recipientsSlideout.communicationId, recipientsSlideout.communicationTitle])
 
   const handleCreateMacroConfirm = (data: { name: string; source: string }) => {
     setMacros((prev) => [
@@ -176,7 +273,10 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
             onEditCommunication={composer.handleEditCommunication}
             onDeleteCommunication={composer.handleDeleteCommunicationRequest}
             onRecipientsClick={handleRecipientsClick}
+            onResendCommunication={handleResendCommunication}
+            resendingCommunicationIds={resendingCommunicationIds}
             isLoading={isLoadingCommunications}
+            isLoadingMacros={isLoadingMacros}
             onEditMacro={() => {}}
             onDeleteMacro={(macroId) => setMacros((prev) => prev.filter((m) => m.id !== macroId))}
           />
@@ -269,6 +369,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
         communicationTitle={recipientsSlideout.communicationTitle}
         initialTab={recipientsSlideout.tab}
         eventUuid={eventUuid ?? ''}
+        onRetryAll={handleRetryAllInSlideout}
+        isRetryingAll={resendingCommunicationIds.has(recipientsSlideout.communicationId)}
       />
     </div>
   )
