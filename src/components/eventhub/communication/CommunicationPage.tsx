@@ -70,16 +70,17 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
   // ── recipients slideout ───────────────────────────────────────────────────
   const [recipientsSlideout, setRecipientsSlideout] = React.useState<{
     open: boolean
+    communicationId: string
     communicationTitle: string
     tab: 'received' | 'not_received'
-  }>({ open: false, communicationTitle: '', tab: 'received' })
+  }>({ open: false, communicationId: '', communicationTitle: '', tab: 'received' })
 
   const handleRecipientsClick = (
-    _communicationId: string,
+    communicationId: string,
     communicationTitle: string,
     tab: 'received' | 'not_received'
   ) => {
-    setRecipientsSlideout({ open: true, communicationTitle, tab })
+    setRecipientsSlideout({ open: true, communicationId, communicationTitle, tab })
   }
 
   const handleCreateMacroConfirm = (data: { name: string; source: string }) => {
@@ -264,10 +265,10 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
       <RecipientsSlideout
         isOpen={recipientsSlideout.open}
         onClose={() => setRecipientsSlideout((s) => ({ ...s, open: false }))}
+        communicationId={recipientsSlideout.communicationId}
         communicationTitle={recipientsSlideout.communicationTitle}
         initialTab={recipientsSlideout.tab}
-        received={[]}
-        notReceived={[]}
+        eventUuid={eventUuid ?? ''}
       />
     </div>
   )

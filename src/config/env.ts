@@ -416,6 +416,8 @@ export const API_ENDPOINTS = {
     DETAIL: (communicationId: number | string, eventUuid: string) =>
       `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/${communicationId}/?event_id=${eventUuid}`,
     LIST: (eventUuid: string) => `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/?event_uuid=${eventUuid}`,
+    RECIPIENTS: (communicationId: string | number, eventUuid: string, tab: 'received' | 'not_received') =>
+      `${env.AUTH_API_URL}${ADMIN_API_BASE}event-communications/${communicationId}/recipients/?event_uuid=${eventUuid}&tab=${tab}`,
     ATTACHMENT_UPLOAD: `${env.AUTH_API_URL}${ADMIN_API_BASE}attachments/upload/`,
   },
   // Unified User/Participant Management endpoints (combines speakers + attendees)

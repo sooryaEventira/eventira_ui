@@ -592,6 +592,72 @@ export const deleteCommunicationById = async (
   }
 }
 
+export interface RecipientItem {
+  id: number
+  name: string
+  email: string
+  status?: string
+  error?: string
+  sent_at?: string
+  is_opened?: boolean
+  opened_at?: string | null
+}
+
+export interface RecipientPageResult {
+  count: number
+  next: string | null
+  previous: string | null
+  data: RecipientItem[]
+}
+
+export const fetchCommunicationRecipients = async (
+  communicationId: string | number,
+  eventUuid: string,
+  tab: 'received' | 'not_received'
+): Promise<RecipientPageResult> => {
+  const url = API_ENDPOINTS.COMMUNICATION.RECIPIENTS(communicationId, eventUuid, tab)
+  return fetchRecipientsPage(url)
+}
+
+export const fetchRecipientsPage = async (url: string): Promise<RecipientPageResult> => {
+  const accessToken = localStorage.getItem('accessToken')
+  const organizationUuid = localStorage.getItem('organizationUuid')
+  if (!accessToken) throw new Error('Authentication required.')
+  if (!organizationUuid) throw new Error('Organization UUID is missing.')
+
+  const response = await fetch(url, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+      'X-Organization': organizationUuid,
+    },
+    credentials: 'include',
+  })
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return { count: 0, next: null, previous: null, data: [] }
+    }
+    let message = 'Failed to fetch recipients.'
+    try {
+      const err = await response.json()
+      message = handleApiError(err, response, message)
+    } catch {
+      message = handleApiError(null, response, message)
+    }
+    throw new Error(message)
+  }
+
+  const json = await response.json()
+  return {
+    count: json.count ?? 0,
+    next: json.next ?? null,
+    previous: json.previous ?? null,
+    data: Array.isArray(json.data) ? json.data : [],
+  }
+}
+
 /**
  * Fetch user groups (tags) for the communication Settings recipient filters.
  * GET user-tags/?event_uuid={eventUuid}
