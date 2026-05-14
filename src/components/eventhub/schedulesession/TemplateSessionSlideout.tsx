@@ -16,6 +16,7 @@ import type { SessionSection } from './sessionTypes'
 import ResourceVideoPickerModal from './ResourceVideoPickerModal'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { fetchSpeakers, type SpeakerData } from '../../../services/speakerService'
+import { createSessionTag, fetchSessionTags } from '../../../services/sessionService'
 
 // Drag handle icon component (3x3 grid)
 const DragHandleIcon = ({ className }: { className?: string }) => (
@@ -143,19 +144,47 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const speakerSearchInputRef = useRef<HTMLInputElement | null>(null)
   const slideoutRef = useRef<SlideoutHandle>(null)
 
+  const [localSessionTagOptions, setLocalSessionTagOptions] = useState<Array<{ uuid: string; name: string }>>([])
+
+  useEffect(() => {
+    setLocalSessionTagOptions(sessionTagOptions ?? [])
+  }, [sessionTagOptions])
+
   const handleClose = useCallback(() => {
     slideoutRef.current?.returnFocus()
     setPendingRemoveSection(null)
     onClose()
   }, [onClose])
 
-  // Tag options for CreatableMultiSelect
+  // Tag options — mirror SessionSlideout: local list updates when user creates a tag via API
   const tagOptions: CreatableMultiSelectOption[] = useMemo(() => {
-    if (sessionTagOptions && sessionTagOptions.length > 0) {
-      return sessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
+    if (localSessionTagOptions.length > 0) {
+      return localSessionTagOptions.map((t) => ({ value: t.uuid, label: t.name }))
     }
     return availableTags.map((tag) => ({ value: tag, label: tag }))
-  }, [sessionTagOptions, availableTags])
+  }, [localSessionTagOptions, availableTags])
+
+  const locationOptions: CreatableMultiSelectOption[] = useMemo(
+    () => availableLocations.map((value) => ({ value, label: value })),
+    [availableLocations]
+  )
+
+  const selectedLocationOptions: CreatableMultiSelectOption[] = useMemo(() => {
+    const location = (formData.location || '').trim()
+    if (!location) return []
+    const fromOptions = locationOptions.find((opt) => opt.value === location || opt.label === location)
+    if (fromOptions) return [fromOptions]
+    return [{ value: location.toLowerCase().replace(/\s+/g, '-'), label: location }]
+  }, [formData.location, locationOptions])
+
+  const handleLocationMultiChange = (
+    newValue: MultiValue<CreatableMultiSelectOption>,
+    _actionMeta: ActionMeta<CreatableMultiSelectOption>
+  ) => {
+    const selected = Array.from(newValue)
+    const latest = selected[selected.length - 1]
+    setFormData((prev) => ({ ...prev, location: latest?.label ?? '' }))
+  }
 
   const selectedTagOptions: CreatableMultiSelectOption[] = useMemo(() => {
     return formData.tags.map((tag) => {
@@ -170,7 +199,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     _actionMeta: ActionMeta<CreatableMultiSelectOption>
   ) => {
     const tagValues = Array.from(newValue).map((option) => {
-      const fromSessionTag = sessionTagOptions?.find(
+      const fromSessionTag = localSessionTagOptions.find(
         (opt) => opt.uuid === option.value || opt.name === option.label
       )
       if (fromSessionTag) return fromSessionTag.uuid
@@ -178,6 +207,44 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     })
     setFormData((prev) => ({ ...prev, tags: tagValues }))
   }
+
+  const handleCreateTagOption = useCallback(
+    async (inputValue: string) => {
+      if (!eventUuid) return
+      try {
+        const newTag = await createSessionTag(eventUuid, inputValue)
+        if (newTag) {
+          setLocalSessionTagOptions((prev) => {
+            if (prev.some((t) => t.uuid === newTag.uuid)) return prev
+            return [...prev, newTag]
+          })
+          setFormData((prev) => ({
+            ...prev,
+            tags: prev.tags.map((t) =>
+              t === inputValue || t === inputValue.toLowerCase().replace(/\s+/g, '-') ? newTag.uuid : t
+            ),
+          }))
+        } else {
+          const refreshed = await fetchSessionTags(eventUuid)
+          if (refreshed.length > 0) {
+            setLocalSessionTagOptions(refreshed)
+            const found = refreshed.find((t) => t.name.toLowerCase() === inputValue.toLowerCase())
+            if (found) {
+              setFormData((prev) => ({
+                ...prev,
+                tags: prev.tags.map((t) =>
+                  t === inputValue || t === inputValue.toLowerCase().replace(/\s+/g, '-') ? found.uuid : t
+                ),
+              }))
+            }
+          }
+        }
+      } catch {
+        // Tag creation failed — label remains in tags
+      }
+    },
+    [eventUuid]
+  )
 
   useEffect(() => {
     if (isOpen && initialData != null) {
@@ -218,7 +285,10 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
   const sectionVideoInputRef = useRef<HTMLInputElement | null>(null)
   const sectionVideoUploadSectionIdRef = useRef<string | null>(null)
-  const [resourceVideoPickerSectionId, setResourceVideoPickerSectionId] = useState<string | null>(null)
+  const [resourcePickerTarget, setResourcePickerTarget] = useState<{
+    sectionId: string
+    media: 'video' | 'image'
+  } | null>(null)
 
   // Reset to edit mode when slideout opens
   useEffect(() => {
@@ -331,15 +401,10 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   const handleConfirmSection = () => {
     const selectedSection = sectionOptions.find(opt => opt.id === selectedSectionId)
     if (selectedSection) {
-      const sectionDescription =
-        selectedSection.id === 'text'
-          ? 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Odio dictumst tempus magna elit cras posuere cursus pulvinar id. Facilisis at eu amet ornare enim arcu malesuada rutrum a.'
-          : undefined
       const newSection: SessionSection = {
         id: `${selectedSection.id}-${Date.now()}`,
         type: selectedSection.id,
         title: selectedSection.label,
-        description: sectionDescription,
         data:
           selectedSection.id === 'location'
             ? { embed: '' } // user can paste iframe or URL
@@ -355,7 +420,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
                       ? { speakers: [] } // list of { id, name, role }
                       : undefined
       }
-      setFormData((prev) => ({ ...prev, sections: [...(prev.sections || []), newSection] }))
+      setFormData((prev) => ({ ...prev, sections: [newSection, ...(prev.sections || [])] }))
     }
     setIsSectionModalOpen(false)
   }
@@ -483,7 +548,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     setFormData((prev) => ({
       ...prev,
       sections: prev.sections.map((s) =>
-        s.id === sectionId ? { ...s, data: { ...(s.data || {}), file: undefined, previewUrl: undefined } } : s
+        s.id === sectionId ? { ...s, data: { ...(s.data || {}), file: undefined, previewUrl: undefined, url: '' } } : s
       )
     }))
   }
@@ -588,31 +653,50 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
   }
 
   const openVideoResourcePicker = (sectionId: string) => {
-    setResourceVideoPickerSectionId(sectionId)
+    setResourcePickerTarget({ sectionId, media: 'video' })
   }
 
-  const handleResourceVideoSelect = (url: string) => {
-    const sectionId = resourceVideoPickerSectionId
-    setResourceVideoPickerSectionId(null)
-    if (!sectionId) return
-    if (sectionId === 'template-video') {
-      setFormData((prev) => ({
-        ...prev,
-        videoUrl: url,
-        videoFile: null,
-        videoPreviewUrl: ''
-      }))
+  const openImageResourcePicker = (sectionId: string) => {
+    setResourcePickerTarget({ sectionId, media: 'image' })
+  }
+
+  const handleResourcePickerSelect = (url: string, _name: string) => {
+    const pick = resourcePickerTarget
+    setResourcePickerTarget(null)
+    if (!pick?.sectionId) return
+    if (pick.media === 'video') {
+      if (pick.sectionId === 'template-video') {
+        setFormData((prev) => ({
+          ...prev,
+          videoUrl: url,
+          videoFile: null,
+          videoPreviewUrl: ''
+        }))
+        return
+      }
+      const section = formData.sections.find((s) => s.id === pick.sectionId)
+      updateSection(pick.sectionId, {
+        data: {
+          ...(section?.data || {}),
+          videoUrl: url,
+          video_url: url,
+          videoFile: undefined,
+          videoPreviewUrl: undefined
+        }
+      })
       return
     }
-    const section = formData.sections.find((s) => s.id === sectionId)
-    updateSection(sectionId, {
-      data: {
-        ...(section?.data || {}),
-        videoUrl: url,
-        video_url: url,
-        videoFile: undefined,
-        videoPreviewUrl: undefined
+    const section = formData.sections.find((s) => s.id === pick.sectionId)
+    const prevBlob = section?.data?.previewUrl
+    if (typeof prevBlob === 'string' && prevBlob.startsWith('blob:')) {
+      try {
+        URL.revokeObjectURL(prevBlob)
+      } catch {
+        // ignore
       }
+    }
+    updateSection(pick.sectionId, {
+      data: { ...(section?.data || {}), url, file: undefined, previewUrl: undefined }
     })
   }
 
@@ -798,6 +882,7 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
       onRemoveResourcesFile: handleRemoveResourcesFile,
       onOpenVideoUploadPicker: openVideoUploadPicker,
       onOpenVideoResourcePicker: openVideoResourcePicker,
+      onOpenImageResourcePicker: openImageResourcePicker,
       eventUuid,
       onAddSpeakerToSection: (sectionId: string, speaker: { id: string; name: string; role?: string }) => {
         if (sectionId === 'template-speakers') {
@@ -981,6 +1066,19 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
     </div>
   )
 
+  const slideoutHeader = (
+    <div className="flex items-center justify-end border-b border-slate-200 px-6 py-3">
+      <button
+        type="button"
+        onClick={handleClose}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        aria-label="Close"
+      >
+        <XClose className="h-5 w-5" />
+      </button>
+    </div>
+  )
+
   const footerContent = (
     <div className="flex items-center justify-end gap-3 border-t border-slate-200 bg-white px-6 py-4">
       {isEditing ? (
@@ -1073,18 +1171,20 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
         onChange={handleSectionVideoFileChange}
         aria-hidden
       />
-      {resourceVideoPickerSectionId && eventUuid && (
+      {resourcePickerTarget && eventUuid && (
         <ResourceVideoPickerModal
-          isOpen={Boolean(resourceVideoPickerSectionId)}
-          onClose={() => setResourceVideoPickerSectionId(null)}
+          isOpen={Boolean(resourcePickerTarget)}
+          onClose={() => setResourcePickerTarget(null)}
           eventUuid={eventUuid}
-          onSelect={(url) => handleResourceVideoSelect(url)}
+          mediaType={resourcePickerTarget.media}
+          onSelect={handleResourcePickerSelect}
         />
       )}
       <Slideout
         ref={slideoutRef}
         isOpen={isOpen}
         onClose={handleClose}
+        header={slideoutHeader}
         topOffset={topOffset}
         panelWidthRatio={panelWidthRatio}
         footer={footerContent}
@@ -1094,80 +1194,70 @@ const TemplateSessionSlideout: React.FC<TemplateSessionSlideoutProps> = ({
             {/* Scrollable Content */}
             <div className="px-6 py-6 space-y-4">
         {/* Title Section */}
-        <div className="flex items-start justify-between">
-          <div className="flex-1 pr-4">
-            <label className="block mb-2">
-              <span className="text-sm font-medium text-slate-700">Title <span className="text-red-500">*</span></span>
-            </label>
-            <Input
-              type="text"
-              value={formData.title}
-              onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              placeholder="Enter session title"
-              className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-          </div>
-          <button
-            type="button"
-            onClick={handleClose}
-            className="mt-7 p-2 text-slate-500 hover:text-slate-700 transition-colors"
-            aria-label="Close"
-          >
-            <XClose className="h-5 w-5" />
-          </button>
-        </div>
-          {/* Session Meta Row */}
+            <div className="min-w-0">
+              <Input
+                label="Title *"
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData((prev) => ({ ...prev, title: e.target.value }))}
+                placeholder="Enter session title"
+              />
+            </div>
+          {/* Row 1: start / end / session type — single row; row 2: location / tags — single row */}
           <div className="space-y-3">
-            <div className="grid grid-cols-[1fr_1fr_1.5fr_1.5fr_1.5fr] gap-4">
-              <Input
-                label="Start time"
-                type="time"
-                value={formData.startTime}
-                onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
-              />
-              <Input
-                label="End time"
-                type="time"
-                value={formData.endTime}
-                onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
-              />
-              {availableLocations.length > 0 ? (
-                <Select
-                  label="Location"
-                  value={formData.location}
-                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                  options={[
-                    { value: '', label: 'Select location' },
-                    ...availableLocations.map(loc => ({ value: loc, label: loc }))
-                  ]}
-                />
-              ) : (
+            <div className="grid grid-cols-3 gap-3 min-w-0">
+              <div className="min-w-0">
                 <Input
-                  label="Location"
-                  type="text"
-                  value={formData.location}
-                  onChange={(e) => setFormData(prev => ({ ...prev, location: e.target.value }))}
-                  placeholder="Enter location"
+                  label="Start time"
+                  type="time"
+                  value={formData.startTime}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, startTime: e.target.value }))}
                 />
-              )}
-              <Select
-                label="Session type"
-                value={formData.sessionType}
-                onChange={(e) => setFormData(prev => ({ ...prev, sessionType: e.target.value }))}
-                options={[
-                  { value: '', label: 'Select session type' },
-                  { value: 'online', label: 'Online' },
-                  { value: 'in-person', label: 'In person' }
-                ]}
-              />
-              <CreatableMultiSelect
-                label="Tags"
-                options={tagOptions}
-                value={selectedTagOptions}
-                onChange={handleTagsChange}
-                placeholder="Select or create"
-                className="rounded-lg"
-              />
+              </div>
+              <div className="min-w-0">
+                <Input
+                  label="End time"
+                  type="time"
+                  value={formData.endTime}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, endTime: e.target.value }))}
+                />
+              </div>
+              <div className="min-w-0">
+                <Select
+                  label="Session type"
+                  value={formData.sessionType}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, sessionType: e.target.value }))}
+                  options={[
+                    { value: '', label: 'Select session type' },
+                    { value: 'online', label: 'Online' },
+                    { value: 'in-person', label: 'In person' },
+                  ]}
+                  className="h-10"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3 min-w-0">
+              <div className="min-w-0">
+                <CreatableMultiSelect
+                  label="Location"
+                  options={locationOptions}
+                  value={selectedLocationOptions}
+                  onChange={handleLocationMultiChange}
+                  placeholder="Select or create"
+                  className="rounded-lg"
+                />
+              </div>
+              <div className="min-w-0">
+                <CreatableMultiSelect
+                  label="Tags"
+                  options={tagOptions}
+                  value={selectedTagOptions}
+                  onChange={handleTagsChange}
+                  onCreateOption={eventUuid ? handleCreateTagOption : undefined}
+                  placeholder="Select or create"
+                  className="rounded-lg"
+                />
+              </div>
             </div>
 
             {/* Child Session Checkbox and Add Section Button */}

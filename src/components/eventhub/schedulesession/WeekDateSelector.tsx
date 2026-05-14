@@ -295,36 +295,37 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
           {displayDates.map((date, index) => {
             const isSelected = isCurrentDay(date)
             const isInRangeDate = startDate && endDate ? isDateInRange(date, startDate, endDate) : false
-            
-            // Determine button styling
-            let buttonClass = 'bg-[#FAFAFA] text-[#414651] outline outline-1 outline-[#D5D7DA] hover:bg-slate-50 hover:-translate-y-0.5'
-            let textClass = 'font-semibold text-[#414651]'
-            let numberClass = 'font-medium text-[#414651]'
-            
+
+            // Default: white card, neutral outline
+            let buttonClass =
+              'bg-white text-slate-900 border-2 border-slate-200 shadow-none hover:bg-slate-50 hover:border-slate-300'
+            let textClass = 'font-semibold text-slate-900'
+            let numberClass = 'font-medium text-slate-900'
+
             if (startDate && endDate) {
-              // Outside event range: disabled / dimmed
               if (!isInRangeDate) {
+                // Outside event range: dimmed, not part of event
                 buttonClass =
-                  'bg-[#FAFAFA] text-[#414651] outline outline-1 outline-[#E5E7EB] opacity-40 cursor-not-allowed'
-                textClass = 'font-semibold text-[#414651]'
-                numberClass = 'font-medium text-[#414651]'
-              } else {
-                // Inside range but NOT the active day: solid purple
+                  'bg-[#FAFAFA] text-slate-600 border border-slate-200 opacity-40 cursor-not-allowed shadow-none'
+                textClass = 'font-semibold text-slate-500'
+                numberClass = 'font-medium text-slate-500'
+              } else if (!isSelected) {
+                // Other event days: white background, thin purple outline, dark text
                 buttonClass =
-                  'bg-primary text-white shadow-md shadow-primary/30 outline-none hover:bg-primary/90 hover:-translate-y-0.5'
-                textClass = 'font-semibold text-white'
-                numberClass = 'font-medium text-white'
+                  'bg-white text-slate-900 border border-primary shadow-none hover:bg-slate-50'
+                textClass = 'font-semibold text-slate-900'
+                numberClass = 'font-medium text-slate-900'
               }
             }
 
-            // Active working day (clicked): light purple (overrides others)
+            // Current (selected) day: dark purple fill + white text
             if (isSelected) {
               buttonClass =
-                'bg-primary/20 text-primary shadow-md outline outline-1 outline-primary/40 hover:bg-primary/30 hover:-translate-y-0.5'
-              textClass = 'font-bold text-primary'
-              numberClass = 'font-semibold text-primary'
+                'bg-primary-dark text-white border-2 border-primary-dark shadow-md shadow-primary/20 hover:bg-primary-dark/90'
+              textClass = 'font-semibold text-white'
+              numberClass = 'font-medium text-white'
             }
-            
+
             return (
               <div key={`${date.toISOString()}-${index}`} className="relative shrink-0">
                 <button
@@ -334,7 +335,7 @@ const WeekDateSelector: React.FC<WeekDateSelectorProps> = ({
                     // even when no sessions exist yet for that date.
                     selectDate(date)
                   }}
-                  className={`inline-flex flex-col items-center justify-center rounded-[10px] px-2 py-2 text-[12px] shadow-md shadow-primary/30 transition-all duration-200 hover:-translate-y-0.5 sm:px-5 sm:py-2.5 sm:text-sm min-w-[120px] w-[140px] md:w-[140px] md:min-w-[140px] md:max-w-[140px] ${buttonClass}`}
+                  className={`inline-flex flex-col items-center justify-center rounded-[10px] px-2 py-2 text-[12px] transition-all duration-200 hover:-translate-y-0.5 sm:px-5 sm:py-2.5 sm:text-sm min-w-[120px] w-[140px] md:w-[140px] md:min-w-[140px] md:max-w-[140px] ${buttonClass}`}
                 >
                   <div className={`whitespace-nowrap ${textClass}`} style={{ fontFamily: 'Inter' }}>
                     {getCardMonthDateLine(date)}

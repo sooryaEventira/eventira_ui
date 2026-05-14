@@ -531,9 +531,8 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
           </div> */}
 
           <div>
-            <label htmlFor="description" className="block text-sm font-medium text-slate-700 mb-1">
-              Description
-            </label>
+            <label htmlFor="description" className="flex w-full flex-col gap-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Description</span>
             <textarea
               id="description"
               value={details.description}
@@ -542,6 +541,7 @@ const ScheduleDetailsSlideout: React.FC<ScheduleDetailsSlideoutProps> = ({
               rows={6}
               className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
             />
+            </label>
           </div>
         </div>
       </div>

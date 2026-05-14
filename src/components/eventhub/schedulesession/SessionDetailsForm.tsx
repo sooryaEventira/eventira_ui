@@ -199,7 +199,7 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
             onFieldChange(timeKey, next.time as any)
             onFieldChange(periodKey as any, next.period as any)
           }}
-          className="h-10 w-[100px] rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="h-10 w-full min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-600 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
       </div>
     )
@@ -207,21 +207,18 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-1">
-        <p className="text-sm font-semibold text-slate-600">SESSION TITLE</p>
-        <Input
-          placeholder="Enter session title"
-          value={draft.title || ''}
-          onChange={(event) => onFieldChange('title', event.target.value)}
-        />
-      </div>
+      <Input
+        label="Title *"
+        placeholder="Enter session title"
+        value={draft.title || ''}
+        onChange={(event) => onFieldChange('title', event.target.value)}
+      />
 
-      {/* Row 1: Start time | End time | Session type */}
-      <div className="flex flex-wrap gap-3">
-        {renderTimeField('Start time', 'startTime')}
-        {renderTimeField('End time', 'endTime')}
-
-        <div className="flex-1 min-w-[140px]">
+      {/* Row 1: Start time | End time | Session type — single row (grid) */}
+      <div className="grid grid-cols-3 gap-3 min-w-0">
+        <div className="min-w-0">{renderTimeField('Start time', 'startTime')}</div>
+        <div className="min-w-0">{renderTimeField('End time', 'endTime')}</div>
+        <div className="min-w-0">
           <Select
             label="Session type"
             value={draft.sessionType}
@@ -236,10 +233,10 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
         </div>
       </div>
 
-      {/* Row 2: Location | Tags */}
-      <div className="flex flex-wrap gap-3">
+      {/* Row 2: Location | Tags — single row (grid) */}
+      <div className="grid grid-cols-2 gap-3 min-w-0">
         {/* Location */}
-        <div className="flex-1 min-w-[160px]">
+        <div className="min-w-0">
           <CreatableMultiSelect
             label="Location"
             options={locationOptions}
@@ -251,7 +248,7 @@ const SessionDetailsForm: React.FC<SessionDetailsFormProps> = ({
         </div>
 
         {/* Tags */}
-        <div className="flex-1 min-w-[180px]">
+        <div className="min-w-0">
           <CreatableMultiSelect
             label="Tags"
             options={tagOptions}

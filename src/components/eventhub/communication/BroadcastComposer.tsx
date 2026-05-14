@@ -39,6 +39,10 @@ interface BroadcastComposerProps {
   type?: 'email' | 'push-notification'
   broadcastTitle?: string
   communicationId?: number | string | null
+  /** Open existing draft in read-only “saved” state with Edit (update-broadcast flow). */
+  startInSavedView?: boolean
+  /** Hydrate attachment chips when loading an existing email draft. */
+  initialUploadedAttachments?: Array<{ uuid: string; name: string; sizeLabel: string }>
 }
 
 const MESSAGE_STATUS_OPTIONS = [
@@ -68,6 +72,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   type = 'email',
   broadcastTitle = '',
   communicationId = null,
+  startInSavedView = false,
+  initialUploadedAttachments,
 }) => {
   const [activeTab, setActiveTab] = useState<'late-message' | 'settings'>('late-message')
   const [subject, setSubject] = useState(initialSubject || '')
@@ -90,11 +96,17 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   const [isSavingAttachments, setIsSavingAttachments] = useState(false)
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ id: string; file: File; name: string; sizeLabel: string }>>([])
   const [uploadedAttachments, setUploadedAttachments] = useState<Array<{ uuid: string; name: string; sizeLabel: string }>>([])
+  /** Sorted UUID join — baseline for “no changes” save guard. */
+  const [savedAttachmentUuidsKey, setSavedAttachmentUuidsKey] = useState('')
   const [draftCommunicationId, setDraftCommunicationId] = useState<number | null>(
     communicationId != null ? Number(communicationId) : null
   )
 
-  const attachmentUuids = uploadedAttachments.map(a => a.uuid)
+  const attachmentUuids = uploadedAttachments.map((a) => a.uuid)
+  const sortedCurrentAttachmentKey = useMemo(
+    () => [...uploadedAttachments.map((a) => a.uuid)].sort().join(','),
+    [uploadedAttachments]
+  )
 
   // Settings Tab State
   const [matchLogic, setMatchLogic] = useState<'ANY' | 'ALL'>('ALL')
@@ -198,18 +210,21 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   useEffect(() => {
     const nextSubject = initialSubject || ''
     const nextMessage = initialMessage || ''
+    const nextAttachments = initialUploadedAttachments ?? []
 
     setSubject(nextSubject)
     setSavedSubject(nextSubject)
     setSavedMessage(nextMessage)
     editorContentRef.current = nextMessage
-    setIsEditing(true)
+    setUploadedAttachments(nextAttachments)
+    setSavedAttachmentUuidsKey([...nextAttachments.map((a) => a.uuid)].sort().join(','))
+    setIsEditing(!startInSavedView)
 
     const quill = quillRef.current?.getEditor()
     if (quill) {
       quill.clipboard.dangerouslyPasteHTML(nextMessage)
     }
-  }, [initialSubject, initialMessage])
+  }, [initialSubject, initialMessage, initialUploadedAttachments, startInSavedView])
 
   useEffect(() => {
     const loadTags = async () => {
@@ -391,6 +406,18 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       return false
     }
 
+    const sortedUploadedKey = [...uploadedAttachments.map((a) => a.uuid)].sort().join(',')
+    if (
+      pendingAttachments.length === 0 &&
+      draftCommunicationId != null &&
+      trimmedSubject === savedSubject.trim() &&
+      normalizeEditorHtml(trimmedMessage) === normalizeEditorHtml(savedMessage) &&
+      sortedUploadedKey === savedAttachmentUuidsKey
+    ) {
+      showToast.info('No changes to save.')
+      return true
+    }
+
     let newlyUploaded: typeof uploadedAttachments = []
     if (pendingAttachments.length > 0) {
       setIsSavingAttachments(true)
@@ -427,6 +454,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
 
     setSavedMessage(current)
     setSavedSubject(subject)
+    setSavedAttachmentUuidsKey([...allAttachmentUuids].sort().join(','))
     onSave({ subject, message: current, templateType: activeTab === 'late-message' ? 'late-message' : undefined })
     setIsEditing(false)
     return true
@@ -457,7 +485,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
     (
       subject.trim() !== savedSubject.trim() ||
       normalizeEditorHtml(editorContentRef.current) !== normalizeEditorHtml(savedMessage) ||
-      pendingAttachments.length > 0
+      pendingAttachments.length > 0 ||
+      sortedCurrentAttachmentKey !== savedAttachmentUuidsKey
     )
 
   useEffect(() => {
@@ -478,7 +507,8 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       (
         subject.trim() !== savedSubject.trim() ||
         getCurrentEditorHtml() !== normalizeEditorHtml(savedMessage) ||
-        pendingAttachments.length > 0
+        pendingAttachments.length > 0 ||
+        sortedCurrentAttachmentKey !== savedAttachmentUuidsKey
       )
     if (activeTab === 'late-message' && nextTab === 'settings' && liveHasUnsavedChanges) {
       setPendingTab(nextTab)
@@ -555,20 +585,26 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
       <div className="rounded-xl bg-white overflow-hidden flex flex-col">
         {/* Tabs */}
         <div className="flex gap-6 border-b border-slate-200 flex-shrink-0">
-          <Button
-            type="button" variant="tertiary" size="sm"
-            onClick={() => handleTabSwitch('late-message')}
-            className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors whitespace-nowrap ${activeTab === 'late-message' ? 'text-primary border-b-primary' : 'text-slate-600 hover:text-slate-900 border-b-transparent'}`}
-          >
-            Message
-          </Button>
-          <Button
-            type="button" variant="tertiary" size="sm"
-            onClick={() => handleTabSwitch('settings')}
-            className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors whitespace-nowrap ${activeTab === 'settings' ? 'text-primary border-b-primary' : 'text-slate-600 hover:text-slate-900 border-b-transparent'}`}
-          >
-            Settings
-          </Button>
+          {([
+            { id: 'late-message', label: 'Message' },
+            { id: 'settings', label: 'Settings' },
+          ] as const).map((tab) => {
+            const isActive = activeTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleTabSwitch(tab.id)}
+                className={`pb-3 px-1 text-[15px] font-semibold transition-colors relative whitespace-nowrap focus:outline-none ${
+                  isActive
+                    ? 'text-primary border-b-[3px] border-primary'
+                    : 'text-slate-600 hover:text-slate-900 border-b-[3px] border-transparent'
+                }`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
 
         {/* Content Area */}
@@ -709,7 +745,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
                   <div className="mt-auto pt-6 border-t border-slate-200">
                     <div className="flex justify-end gap-3">
                       <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSavingAttachments}>Cancel</Button>
-                      <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSavingAttachments}>
+                      <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSavingAttachments || (draftCommunicationId != null && !hasUnsavedMessageChanges)}>
                         {isSavingAttachments ? 'Uploading...' : 'Save changes'}
                       </Button>
                     </div>

@@ -5,10 +5,20 @@ import { fetchAllFolders, fetchFiles, type FileData, type FolderData } from '../
 const VIDEO_EXTENSIONS = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'wmv', 'flv', 'm4v']
 const VIDEO_CONTENT_TYPES = ['video/mp4', 'video/webm', 'video/ogg', 'video/quicktime', 'video/x-msvideo', 'video/x-ms-wmv']
 
+const IMAGE_EXTENSIONS = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico', 'avif', 'heic', 'tif', 'tiff']
+
 function isVideoFile(file: FileData): boolean {
   const ext = (file.name || '').split('.').pop()?.toLowerCase() ?? ''
   const ct = String(file.content_type || '').toLowerCase()
   return VIDEO_EXTENSIONS.includes(ext) || VIDEO_CONTENT_TYPES.some((t) => ct.includes(t))
+}
+
+function isImageFile(file: FileData): boolean {
+  const ext = (file.name || '').split('.').pop()?.toLowerCase() ?? ''
+  const ct = String(file.content_type || '').toLowerCase()
+  if (IMAGE_EXTENSIONS.includes(ext)) return true
+  if (ct.startsWith('image/')) return true
+  return false
 }
 
 interface ResourceVideoPickerModalProps {
@@ -16,13 +26,16 @@ interface ResourceVideoPickerModalProps {
   onClose: () => void
   eventUuid: string
   onSelect: (url: string, name: string) => void
+  /** When `image`, lists image files from Resource Management (default: `video`). */
+  mediaType?: 'video' | 'image'
 }
 
 const ResourceVideoPickerModal: React.FC<ResourceVideoPickerModalProps> = ({
   isOpen,
   onClose,
   eventUuid,
-  onSelect
+  onSelect,
+  mediaType = 'video'
 }) => {
   const [folders, setFolders] = useState<FolderData[]>([])
   const [selectedFolderId, setSelectedFolderId] = useState<string | null>(null)
@@ -32,28 +45,56 @@ const ResourceVideoPickerModal: React.FC<ResourceVideoPickerModalProps> = ({
 
   useEffect(() => {
     if (!isOpen || !eventUuid) return
-    setLoading(true)
-    setError(null)
-    fetchAllFolders(eventUuid)
-      .then((all) => setFolders(all))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load folders'))
-      .finally(() => setLoading(false))
-  }, [isOpen, eventUuid])
-
-  useEffect(() => {
-    if (!isOpen) return
+    let cancelled = false
     setLoading(true)
     setError(null)
     setFiles([])
-    fetchFiles(selectedFolderId ?? undefined)
-      .then((list) => setFiles(list.filter(isVideoFile)))
-      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load files'))
-      .finally(() => setLoading(false))
-  }, [isOpen, selectedFolderId])
+
+    ;(async () => {
+      try {
+        const allFolders = await fetchAllFolders(eventUuid)
+        if (cancelled) return
+        setFolders(allFolders)
+
+        let merged: FileData[]
+        if (selectedFolderId) {
+          merged = await fetchFiles(selectedFolderId)
+        } else {
+          // Do not call fetchFiles() without a folder — that lists unscoped org files.
+          // Only list files that live under this event's folders.
+          if (allFolders.length === 0) {
+            merged = []
+          } else {
+            const batches = await Promise.all(allFolders.map((f) => fetchFiles(f.uuid)))
+            if (cancelled) return
+            const byId = new Map<string, FileData>()
+            for (const batch of batches) {
+              for (const file of batch) {
+                byId.set(file.uuid, file)
+              }
+            }
+            merged = Array.from(byId.values())
+          }
+        }
+
+        if (cancelled) return
+        const filtered = merged.filter(mediaType === 'image' ? isImageFile : isVideoFile)
+        setFiles(filtered)
+      } catch (e) {
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load files')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [isOpen, eventUuid, selectedFolderId, mediaType])
 
   const handleSelect = (file: FileData) => {
     const url = file.file ?? (file as any).url ?? ''
-    const name = file.name ?? 'Video'
+    const name = file.name ?? (mediaType === 'image' ? 'Image' : 'Video')
     if (url) {
       onSelect(url, name)
       onClose()
@@ -72,7 +113,11 @@ const ResourceVideoPickerModal: React.FC<ResourceVideoPickerModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-          <h3 className="text-base font-semibold text-slate-900">Select video from Resource Management</h3>
+          <h3 className="text-base font-semibold text-slate-900">
+            {mediaType === 'image'
+              ? 'Select image from Resource Management'
+              : 'Select video from Resource Management'}
+          </h3>
           <button
             type="button"
             onClick={onClose}
@@ -90,7 +135,7 @@ const ResourceVideoPickerModal: React.FC<ResourceVideoPickerModalProps> = ({
               onChange={(e) => setSelectedFolderId(e.target.value || null)}
               className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
             >
-              <option value="">-- Root / All folders --</option>
+              <option value="">All folders (this event)</option>
               {folders.map((f) => (
                 <option key={f.uuid} value={f.uuid}>
                   {f.name}
@@ -104,7 +149,7 @@ const ResourceVideoPickerModal: React.FC<ResourceVideoPickerModalProps> = ({
           {loading ? (
             <div className="py-8 text-center text-sm text-slate-500">Loading…</div>
           ) : files.length === 0 ? (
-            <div className="py-8 text-center text-sm text-slate-500">No video files in this folder.</div>
+            <div className="py-8 text-center text-sm text-slate-600">No files found</div>
           ) : (
             <ul className="max-h-60 overflow-y-auto rounded-lg border border-slate-200 divide-y divide-slate-100">
               {files.map((file) => (

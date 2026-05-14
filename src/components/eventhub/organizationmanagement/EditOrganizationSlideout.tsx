@@ -129,54 +129,67 @@ const EditOrganizationSlideout: React.FC<EditOrganizationSlideoutProps> = ({
         <div className="flex-1 overflow-y-auto px-6 py-5">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Name <span className="text-red-500">*</span>
-              </label>
+              <label htmlFor="edit-org-name" className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Name <span className="text-rose-500">*</span>
+                </span>
               <input
+                id="edit-org-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Organization name"
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
               />
+              </label>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Website</label>
+              <label htmlFor="edit-org-website" className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Website</span>
               <input
+                id="edit-org-website"
                 type="url"
                 value={website}
                 onChange={(e) => setWebsite(e.target.value)}
                 placeholder="https://example.com"
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
               />
+              </label>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Other Links</label>
+              <label htmlFor="edit-org-links" className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Other links</span>
               <input
+                id="edit-org-links"
                 type="url"
                 value={linkedin}
                 onChange={(e) => setLinkedin(e.target.value)}
                 placeholder="https://www.linkedin.com/company/..."
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
               />
+              </label>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Group</label>
+              <label htmlFor="edit-org-group" className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Group</span>
               <input
+                id="edit-org-group"
                 type="text"
                 value={groups}
                 onChange={(e) => setGroups(e.target.value)}
                 placeholder="e.g. exhibitors, sponsors, partners"
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
               />
+              </label>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-              <div className="rich-text-editor">
+              <div className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Description</span>
+                <div className="rich-text-editor">
                 <ReactQuill
                   theme="snow"
                   value={description}
@@ -185,6 +198,7 @@ const EditOrganizationSlideout: React.FC<EditOrganizationSlideoutProps> = ({
                   className="bg-white rounded-md"
                   placeholder="Enter organization description..."
                 />
+                </div>
               </div>
               <style dangerouslySetInnerHTML={{ __html: `
   .rich-text-editor .ql-container {
@@ -202,14 +216,17 @@ const EditOrganizationSlideout: React.FC<EditOrganizationSlideoutProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Logo link</label>
+              <label htmlFor="edit-org-logo" className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Logo link</span>
               <input
+                id="edit-org-logo"
                 type="url"
                 value={logoLink}
                 onChange={(e) => setLogoLink(e.target.value)}
                 placeholder="https://.../logo.png"
                 className="w-full px-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-primary/40 focus:border-primary outline-none"
               />
+              </label>
             </div>
           </div>
         </div>

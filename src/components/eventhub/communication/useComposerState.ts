@@ -36,6 +36,12 @@ export function useComposerState({
   const [initialBroadcastTitle, setInitialBroadcastTitle] = useState('')
   const [initialComposerSubject, setInitialComposerSubject] = useState('')
   const [initialComposerMessage, setInitialComposerMessage] = useState('')
+  /** Email attachments loaded with an existing draft (for dirty checks / hydration). */
+  const [initialComposerAttachments, setInitialComposerAttachments] = useState<
+    Array<{ uuid: string; name: string; sizeLabel: string }>
+  >([])
+  /** When true, email/push composer opens in read-only “saved” view with Edit (draft edit flow). */
+  const [composerOpenInSavedView, setComposerOpenInSavedView] = useState(false)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null)
   const [composerHasUnsavedChanges, setComposerHasUnsavedChanges] = useState(false)
 
@@ -65,6 +71,8 @@ export function useComposerState({
     setInitialBroadcastTitle('')
     setInitialComposerSubject('')
     setInitialComposerMessage('')
+    setInitialComposerAttachments([])
+    setComposerOpenInSavedView(false)
     setCurrentDraftId(null)
     setComposerHasUnsavedChanges(false)
   }
@@ -78,6 +86,8 @@ export function useComposerState({
     setInitialBroadcastTitle('')
     setInitialComposerSubject('')
     setInitialComposerMessage('')
+    setInitialComposerAttachments([])
+    setComposerOpenInSavedView(false)
     setIsBroadcastModalOpen(false)
     setShowComposer(true)
     setCurrentDraftId(null)
@@ -88,6 +98,8 @@ export function useComposerState({
     setInitialBroadcastTitle(data.title)
     setInitialComposerSubject(data.type === 'email' ? DEFAULT_EMAIL_SUBJECT : '')
     setInitialComposerMessage(data.type === 'email' ? DEFAULT_EMAIL_TEMPLATE : '')
+    setInitialComposerAttachments([])
+    setComposerOpenInSavedView(false)
     setIsBroadcastModalOpen(false)
     setShowComposer(true)
     setCurrentDraftId(null)
@@ -177,7 +189,16 @@ export function useComposerState({
       setInitialBroadcastTitle(title || detail.title || '')
       setInitialComposerSubject(detail.subject || '')
       setInitialComposerMessage(detail.message || '')
+      const att = (detail.attachments ?? [])
+        .map((a) => ({
+          uuid: String(a.uuid ?? ''),
+          name: (a.file_name || 'Attachment').trim() || 'Attachment',
+          sizeLabel: '—' as const,
+        }))
+        .filter((a) => a.uuid)
+      setInitialComposerAttachments(att)
       setCurrentDraftId(String(detail.id))
+      setComposerOpenInSavedView(true)
       setEditModalOpen(false)
       setShowComposer(true)
     } catch (e) {
@@ -245,6 +266,8 @@ export function useComposerState({
     // composer
     showComposer, selectedBroadcastType,
     initialBroadcastTitle, initialComposerSubject, initialComposerMessage,
+    initialComposerAttachments,
+    composerOpenInSavedView,
     currentDraftId, composerHasUnsavedChanges, setComposerHasUnsavedChanges,
     composerSaveHandlerRef,
     handleComposerCancel, handleComposerSave, handleEmailSend, handlePushSend,

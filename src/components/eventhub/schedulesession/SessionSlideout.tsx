@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { XClose } from '@untitled-ui/icons-react'
 import Slideout, { type SlideoutHandle } from '../../ui/untitled/Slideout'
 import Button from '../../ui/untitled/Button'
 import SessionDetailsForm from './SessionDetailsForm'
@@ -77,7 +78,10 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   const resourcesUploadSectionIdRef = useRef<string | null>(null)
   const videoInputRef = useRef<HTMLInputElement | null>(null)
   const videoUploadSectionIdRef = useRef<string | null>(null)
-  const [resourceVideoPickerSectionId, setResourceVideoPickerSectionId] = useState<string | null>(null)
+  const [resourcePickerTarget, setResourcePickerTarget] = useState<{
+    sectionId: string
+    media: 'video' | 'image'
+  } | null>(null)
   const slideoutRef = useRef<SlideoutHandle>(null)
 
   // Sync local tag options when the prop updates (e.g. after parent fetches tags)
@@ -207,11 +211,6 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
       return
     }
 
-    const sectionDescription =
-      section.id === 'text'
-        ? 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Odio dictumst tempus magna elit cras posuere cursus pulvinar id. Facilisis at eu amet ornare enim arcu malesuada rutrum a.'
-        : undefined
-
     const data =
       section.id === 'location'
         ? { embed: '' }
@@ -232,14 +231,13 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setDraft((prev) => ({
       ...prev,
       sections: [
-        ...prev.sections,
         {
           id: `${section.id}-${Date.now()}`,
           type: section.id,
           title: section.label,
-          description: sectionDescription,
           data
-        }
+        },
+        ...prev.sections
       ]
     }))
 
@@ -410,7 +408,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     setDraft((prev) => ({
       ...prev,
       sections: prev.sections.map((s) =>
-        s.id === sectionId ? { ...s, data: { ...(s.data || {}), file: undefined, previewUrl: undefined } } : s
+        s.id === sectionId ? { ...s, data: { ...(s.data || {}), file: undefined, previewUrl: undefined, url: '' } } : s
       )
     }))
   }
@@ -561,29 +559,54 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
   }
 
   const openVideoResourcePicker = (sectionId: string) => {
-    setResourceVideoPickerSectionId(sectionId)
+    setResourcePickerTarget({ sectionId, media: 'video' })
   }
 
-  const handleResourceVideoSelect = (url: string, _name: string) => {
-    const sectionId = resourceVideoPickerSectionId
-    setResourceVideoPickerSectionId(null)
-    if (!sectionId) return
+  const openImageResourcePicker = (sectionId: string) => {
+    setResourcePickerTarget({ sectionId, media: 'image' })
+  }
+
+  const handleResourcePickerSelect = (url: string, _name: string) => {
+    const pick = resourcePickerTarget
+    setResourcePickerTarget(null)
+    if (!pick?.sectionId) return
+    if (pick.media === 'video') {
+      setDraft((prev) => ({
+        ...prev,
+        sections: prev.sections.map((s) =>
+          s.id === pick.sectionId
+            ? {
+                ...s,
+                data: {
+                  ...(s.data || {}),
+                  videoUrl: url,
+                  video_url: url,
+                  videoFile: undefined,
+                  videoPreviewUrl: undefined
+                }
+              }
+            : s
+        )
+      }))
+      return
+    }
     setDraft((prev) => ({
       ...prev,
-      sections: prev.sections.map((s) =>
-        s.id === sectionId
-          ? {
-              ...s,
-              data: {
-                ...(s.data || {}),
-                videoUrl: url,
-                video_url: url,
-                videoFile: undefined,
-                videoPreviewUrl: undefined
-              }
-            }
-          : s
-      )
+      sections: prev.sections.map((s) => {
+        if (s.id !== pick.sectionId) return s
+        const prevBlob = s.data?.previewUrl
+        if (typeof prevBlob === 'string' && prevBlob.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(prevBlob)
+          } catch {
+            // ignore
+          }
+        }
+        return {
+          ...s,
+          data: { ...(s.data || {}), url, file: undefined, previewUrl: undefined }
+        }
+      })
     }))
   }
 
@@ -604,6 +627,7 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
     onRemoveResourcesFile: handleRemoveResourcesFile,
     onOpenVideoUploadPicker: openVideoUploadPicker,
     onOpenVideoResourcePicker: openVideoResourcePicker,
+    onOpenImageResourcePicker: openImageResourcePicker,
     eventUuid: eventUuid || undefined,
     onAddSpeakerToSection: (sectionId: string, speaker: { id: string; name: string; role?: string }) => {
       const sec = draft.sections.find((s) => s.id === sectionId)
@@ -652,7 +676,8 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
       await onSave(draft)
       setIsSectionModalOpen(false)
       setTagsInput(draft.tags.join(', '))
-      handleClose()
+      setActiveTab('preview')
+      setIsEditing(false)
     } finally {
       setIsSaving(false)
     }
@@ -707,6 +732,19 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         </>
       )}
     </>
+  )
+
+  const slideoutHeader = (
+    <div className="flex items-center justify-end border-b border-slate-200 px-6 py-3">
+      <button
+        type="button"
+        onClick={handleClose}
+        className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+        aria-label="Close"
+      >
+        <XClose className="h-5 w-5" />
+      </button>
+    </div>
   )
 
   const docAccept =
@@ -765,18 +803,20 @@ const SessionSlideout: React.FC<SessionSlideoutProps> = ({
         onChange={handleVideoFileChange}
         aria-hidden
       />
-      {resourceVideoPickerSectionId && eventUuid && (
+      {resourcePickerTarget && eventUuid && (
         <ResourceVideoPickerModal
-          isOpen={Boolean(resourceVideoPickerSectionId)}
-          onClose={() => setResourceVideoPickerSectionId(null)}
+          isOpen={Boolean(resourcePickerTarget)}
+          onClose={() => setResourcePickerTarget(null)}
           eventUuid={eventUuid}
-          onSelect={(url, name) => handleResourceVideoSelect(url, name)}
+          mediaType={resourcePickerTarget.media}
+          onSelect={handleResourcePickerSelect}
         />
       )}
       <Slideout
         ref={slideoutRef}
         isOpen={isOpen}
         onClose={handleClose}
+        header={slideoutHeader}
         topOffset={topOffset}
         panelWidthRatio={panelWidthRatio}
         footer={footerContent}

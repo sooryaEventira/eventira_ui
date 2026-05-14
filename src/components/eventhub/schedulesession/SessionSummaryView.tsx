@@ -8,7 +8,9 @@ import ImageLightbox from '../../ui/untitled/ImageLightbox'
 
 function toAbsoluteMediaUrl(url: string): string {
   const raw = String(url || '').trim()
-  if (!raw || raw.startsWith('http://') || raw.startsWith('https://')) return raw
+  if (!raw) return ''
+  if (raw.startsWith('blob:') || raw.startsWith('data:')) return raw
+  if (raw.startsWith('http://') || raw.startsWith('https://')) return raw
   const base = (env.AUTH_API_URL || '').replace(/\/$/, '')
   return base && raw.startsWith('/') ? `${base}${raw}` : raw
 }
@@ -148,10 +150,6 @@ const SessionSummaryView: React.FC<SessionSummaryViewProps> = ({
     session.location && {
       id: 'location',
       label: session.location
-    },
-    session.sessionType && {
-      id: 'type',
-      label: session.sessionType
     },
     ...displayTags.map((tag) => ({
       id: `tag-${tag}`,

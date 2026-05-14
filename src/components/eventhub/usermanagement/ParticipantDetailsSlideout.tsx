@@ -224,8 +224,8 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
       {/* Form fields */}
       <div className="px-6 pb-6 space-y-5">
         {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Name</label>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Name</span>
           <div className="grid grid-cols-2 gap-3">
             <input
               type="text"
@@ -245,8 +245,8 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
         </div>
 
         {/* Email */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Email</label>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Email</span>
           <input
             type="email"
             value={email}
@@ -263,8 +263,8 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
         </div>
 
         {/* Organization */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Organization</label>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Organization</span>
           <input
             type="text"
             value={organization}
@@ -275,8 +275,8 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
         </div>
 
         {/* Designation */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Designation</label>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Designation</span>
           <input
             type="text"
             value={post}
@@ -288,8 +288,8 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
 
         {/* Groups */}
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Group</label>
           <CreatableMultiSelect
+            label="Group"
             options={tagOptions}
             value={selectedGroups}
             placeholder="Select or create groups..."
@@ -300,8 +300,8 @@ const ParticipantDetailsSlideout: React.FC<ParticipantDetailsSlideoutProps> = ({
         </div>
 
         {/* Description */}
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-2">Description</label>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Description</span>
           <textarea
             value={description}
             onChange={(e) => setDescription(e.target.value)}

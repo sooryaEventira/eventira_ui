@@ -190,15 +190,19 @@ const RecipientsSlideout: React.FC<RecipientsSlideoutProps> = ({
       <div
         className={`fixed top-16 right-0 bottom-0 z-[1010] w-full max-w-xl bg-white shadow-xl flex flex-col transition-transform duration-200 ease-out ${isSlidingIn ? 'translate-x-0' : 'translate-x-full'}`}
         role="dialog"
+        aria-labelledby="recipients-slideout-title"
         aria-modal="true"
       >
-        {/* Header */}
-        <div className="shrink-0 flex items-start justify-between px-6 pt-6 pb-4">
-          <h2 className="text-base font-semibold text-slate-900">{slideoutTitle}</h2>
+        {/* Header — match shared Slideout title row */}
+        <div className="shrink-0 flex items-center justify-between border-b border-slate-200 px-6 py-4">
+          <h2 id="recipients-slideout-title" className="text-lg font-semibold text-slate-900">
+            {slideoutTitle}
+          </h2>
           <button
             type="button"
             onClick={onClose}
-            className="ml-4 rounded-md p-1 text-slate-400 hover:text-slate-600"
+            className="ml-4 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+            aria-label="Close"
           >
             <XClose className="h-5 w-5" />
           </button>

@@ -243,9 +243,13 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
               broadcastTitle={composer.initialBroadcastTitle}
               initialTitle={composer.initialComposerSubject}
               initialMessage={composer.initialComposerMessage}
+              communicationId={composer.currentDraftId}
+              startInSavedView={composer.composerOpenInSavedView}
               onCancel={composer.handleComposerCancel}
               onSave={(data) => composer.handleComposerSave({ subject: data.title, message: data.message })}
               onSend={composer.handlePushSend}
+              onDirtyChange={composer.setComposerHasUnsavedChanges}
+              registerSaveHandler={(handler) => { composer.composerSaveHandlerRef.current = handler }}
             />
           ) : (
             <BroadcastComposer
@@ -261,6 +265,8 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
               broadcastTitle={composer.initialBroadcastTitle}
               initialSubject={composer.initialComposerSubject}
               initialMessage={composer.initialComposerMessage}
+              initialUploadedAttachments={composer.initialComposerAttachments}
+              startInSavedView={composer.composerOpenInSavedView}
               communicationId={composer.currentDraftId}
             />
           )

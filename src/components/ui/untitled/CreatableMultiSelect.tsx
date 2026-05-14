@@ -1,6 +1,7 @@
-import React, { useState, useCallback } from 'react'
+import React, { useState, useCallback, useMemo } from 'react'
 import CreatableSelect from 'react-select/creatable'
-import { StylesConfig, MultiValue, ActionMeta } from 'react-select'
+import { MultiValue, ActionMeta } from 'react-select'
+import { getUntitledReactSelectStyles } from './untitledReactSelectStyles'
 
 export interface CreatableMultiSelectOption {
   value: string
@@ -82,138 +83,10 @@ const CreatableMultiSelect: React.FC<CreatableMultiSelectProps> = ({
     [onCreateOption, onChange, value]
   )
 
-  // Custom styles to match Untitled UI design system
-  const customStyles: StylesConfig<CreatableMultiSelectOption, true> = {
-    control: (base, state) => ({
-      ...base,
-      minHeight: '40px',
-      height: 'auto',
-      alignItems: 'center',
-      borderColor: error ? '#fb7185' : state.isFocused ? '#6838EE' : '#cbd5e1',
-      boxShadow: state.isFocused
-        ? error
-          ? '0 0 0 2px rgba(251, 113, 133, 0.2)'
-          : '0 0 0 2px rgba(104, 56, 238, 0.2)'
-        : 'none',
-      '&:hover': {
-        borderColor: error ? '#fb7185' : '#6838EE'
-      },
-      backgroundColor: isDisabled ? '#f9fafb' : '#ffffff',
-      cursor: isDisabled ? 'not-allowed' : 'text'
-    }),
-    placeholder: (base) => ({
-      ...base,
-      color: '#94a3b8',
-      fontSize: '14px'
-    }),
-    input: (base) => ({
-      ...base,
-      color: '#334155',
-      fontSize: '14px',
-      margin: 0,
-      padding: 0
-    }),
-    valueContainer: (base) => ({
-      ...base,
-      padding: '2px 8px',
-      display: 'flex',
-      flexWrap: 'wrap',
-      gap: '4px',
-      maxHeight: '92px',
-      overflowY: 'auto'
-    }),
-    multiValue: (base) => ({
-      ...base,
-      backgroundColor: '#f1f5f9',
-      borderRadius: '6px',
-      margin: 0,
-      maxWidth: '100%'
-    }),
-    multiValueLabel: (base) => ({
-      ...base,
-      color: '#334155',
-      fontSize: '14px',
-      padding: '2px 6px',
-      whiteSpace: 'nowrap',
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      maxWidth: '220px'
-    }),
-    multiValueRemove: (base) => ({
-      ...base,
-      color: '#64748b',
-      borderRadius: '0 6px 6px 0',
-      '&:hover': {
-        backgroundColor: '#e2e8f0',
-        color: '#334155'
-      }
-    }),
-    indicatorsContainer: (base) => ({
-      ...base,
-      paddingRight: '8px'
-    }),
-    indicatorSeparator: (base) => ({
-      ...base,
-      display: 'none'
-    }),
-    dropdownIndicator: (base) => ({
-      ...base,
-      color: '#94a3b8',
-      padding: '8px',
-      cursor: 'pointer',
-      '&:hover': {
-        color: '#64748b'
-      }
-    }),
-    clearIndicator: (base) => ({
-      ...base,
-      color: '#94a3b8',
-      padding: '8px',
-      cursor: 'pointer',
-      '&:hover': {
-        color: '#64748b'
-      }
-    }),
-    menu: (base) => ({
-      ...base,
-      borderRadius: '8px',
-      border: '1px solid #e2e8f0',
-      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
-      marginTop: '4px',
-      zIndex: 9999
-    }),
-    menuList: (base) => ({
-      ...base,
-      padding: '4px'
-    }),
-    option: (base, state) => ({
-      ...base,
-      backgroundColor: state.isSelected
-        ? '#6838EE'
-        : state.isFocused
-        ? '#f1f5f9'
-        : '#ffffff',
-      color: state.isSelected ? '#ffffff' : '#334155',
-      fontSize: '14px',
-      padding: '8px 12px',
-      cursor: 'pointer',
-      borderRadius: '6px',
-      margin: '2px 0',
-      '&:active': {
-        backgroundColor: state.isSelected ? '#6838EE' : '#e2e8f0'
-      }
-    }),
-    noOptionsMessage: (base) => ({
-      ...base,
-      color: '#64748b',
-      fontSize: '14px',
-      padding: '12px'
-    }),
-    menuPortal: (base) => ({
-      ...base,
-      zIndex: 9999
-    })
-  }
+  const customStyles = useMemo(
+    () => getUntitledReactSelectStyles<CreatableMultiSelectOption>(error, isDisabled, true),
+    [error, isDisabled]
+  )
 
   return (
     <label className={`flex w-full flex-col gap-1 ${className}`}>

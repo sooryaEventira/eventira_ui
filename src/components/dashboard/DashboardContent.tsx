@@ -87,7 +87,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
               aria-label={
                 canCreateEvent
                   ? 'Create new event'
-                  : `New event unavailable. ${createEventDisabledReason}`
+                  : createEventDisabledReason
               }
               className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${
                 canCreateEvent
@@ -99,12 +99,12 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
               <span>New event</span>
             </button>
             {!canCreateEvent && (
-              <span
+              <div
                 role="tooltip"
-                className="pointer-events-none absolute right-0 top-full z-[60] mt-2 max-w-[min(22rem,calc(100vw-2rem))] rounded-lg bg-slate-900 px-3 py-2 text-left text-xs font-medium leading-snug text-white opacity-0 shadow-lg ring-1 ring-white/10 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 break-words [overflow-wrap:anywhere]"
+                className="pointer-events-none absolute left-0 top-full z-[70] mt-2 w-[min(22rem,calc(100vw-1.5rem))] rounded-xl border border-slate-700 bg-black px-4 py-3 text-left text-sm leading-relaxed text-white shadow-xl opacity-0 ring-1 ring-white/10 transition-opacity duration-200 ease-out before:pointer-events-none before:absolute before:-top-[7px] before:right-8 before:z-0 before:h-3 before:w-3 before:rotate-45 before:border-l before:border-t before:border-slate-700 before:bg-black before:content-[''] group-hover:opacity-100 group-focus-within:opacity-100 sm:left-auto sm:right-0"
               >
-                {createEventDisabledReason}
-              </span>
+                <p className="relative z-[1] m-0 text-white">{createEventDisabledReason}</p>
+              </div>
             )}
           </div>
           <div ref={menuRef} className="relative">

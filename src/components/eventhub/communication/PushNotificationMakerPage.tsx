@@ -16,10 +16,16 @@ interface PushNotificationMakerPageProps {
   broadcastTitle?: string
   initialTitle?: string
   initialMessage?: string
+  /** Server draft id when editing an existing notification draft. */
+  communicationId?: number | string | null
+  /** Open in read-only saved view with Edit (draft update flow). */
+  startInSavedView?: boolean
   onCancel: () => void
   onDiscard?: () => void
   onSave: (data: { title: string; message: string; tapBehaviour: string; tapTarget: string }) => void
   onSend?: (data: { title: string; message: string; communicationId?: number }) => void | Promise<void>
+  onDirtyChange?: (dirty: boolean) => void
+  registerSaveHandler?: (handler: (() => Promise<boolean>) | null) => void
 }
 
 const TITLE_LIMIT = 35
@@ -36,10 +42,14 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
   broadcastTitle = '',
   initialTitle = '',
   initialMessage = '',
+  communicationId = null,
+  startInSavedView = false,
   onCancel,
   onDiscard,
   onSave,
-  onSend
+  onSend,
+  onDirtyChange,
+  registerSaveHandler,
 }) => {
   const { createdEvent } = useEventForm()
   const [activeTab, setActiveTab] = useState<'message' | 'settings'>('message')
@@ -56,6 +66,8 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
   const [pendingTab, setPendingTab] = useState<'message' | 'settings' | null>(null)
   const [draftCommunicationId, setDraftCommunicationId] = useState<number | null>(null)
   const [hasSavedDraft, setHasSavedDraft] = useState(false)
+  /** When false, Message tab shows read-only summary + Edit (draft opened from list). */
+  const [isMessageEditing, setIsMessageEditing] = useState(true)
   const [matchLogic, setMatchLogic] = useState<'ANY' | 'ALL'>('ALL')
   const [filters, setFilters] = useState([{ id: '1', field: 'Group', operator: 'is', value: '' }])
   const [tags, setTags] = useState<Array<{ uuid: string; name: string }>>([])
@@ -107,6 +119,23 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
       })
     )
   }, [tags])
+
+  useEffect(() => {
+    const nextTitle = initialTitle || ''
+    const nextBody = initialMessage || ''
+    setTitle(nextTitle)
+    setBody(nextBody)
+    setSavedTitle(nextTitle)
+    setSavedBody(nextBody)
+    if (communicationId != null && String(communicationId).trim() !== '' && !Number.isNaN(Number(communicationId))) {
+      setDraftCommunicationId(Number(communicationId))
+      setHasSavedDraft(true)
+    } else {
+      setDraftCommunicationId(null)
+      setHasSavedDraft(false)
+    }
+    setIsMessageEditing(!startInSavedView)
+  }, [initialTitle, initialMessage, communicationId, startInSavedView])
 
   useEffect(() => {
     if (tapBehaviour === 'open-event-page') {
@@ -174,23 +203,33 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
     }
   }
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     if (!createdEvent?.uuid) {
       showToast.error('Event UUID is required. Please select an event first.')
-      return
+      return false
     }
     if (!title.trim()) {
       showToast.error('Title is required.')
-      return
+      return false
     }
     if (!body.trim()) {
       showToast.error('Message is required.')
-      return
+      return false
     }
+
+    if (
+      draftCommunicationId != null &&
+      title.trim() === savedTitle.trim() &&
+      body.trim() === savedBody.trim()
+    ) {
+      showToast.info('No changes to save.')
+      return true
+    }
+
     const recipientFilters = buildRecipientFilters()
     if (recipientFilters.length === 0) {
       showToast.error('Please add at least one filter in the Settings tab.')
-      return
+      return false
     }
     let draftSaved = false
     setIsSaving(true)
@@ -209,24 +248,35 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
       setHasSavedDraft(true)
       setSavedTitle(title)
       setSavedBody(body)
+      setIsMessageEditing(false)
     } catch {
       setHasSavedDraft(false)
     } finally {
       setIsSaving(false)
     }
     onSave({ title: title.trim(), message: body, tapBehaviour, tapTarget })
-    // Required flow:
-    // Save -> draft API success -> show Send/Schedule.
-    // Preview should open only when user clicks Send.
-    if (!draftSaved) return
+    if (!draftSaved) return false
+    return true
   }
 
-  const hasUnsavedMessageChanges =
-    title.trim() !== savedTitle.trim() || body.trim() !== savedBody.trim()
+  const messageContentDirty =
+    isMessageEditing &&
+    (title.trim() !== savedTitle.trim() || body.trim() !== savedBody.trim())
+
+  useEffect(() => {
+    onDirtyChange?.(messageContentDirty)
+  }, [messageContentDirty, onDirtyChange])
+
+  useEffect(() => {
+    registerSaveHandler?.(handleSave)
+    return () => {
+      registerSaveHandler?.(null)
+    }
+  }, [registerSaveHandler, handleSave])
 
   const handleTabSwitch = (nextTab: 'message' | 'settings') => {
     if (nextTab === activeTab) return
-    if (activeTab === 'message' && nextTab === 'settings' && hasUnsavedMessageChanges) {
+    if (activeTab === 'message' && nextTab === 'settings' && messageContentDirty) {
       setPendingTab(nextTab)
       setShowUnsavedMessageModal(true)
       return
@@ -308,6 +358,33 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
         {/* Left: maker */}
         <div className="space-y-5">
           {activeTab === 'message' ? (
+            !isMessageEditing && hasSavedDraft ? (
+              <div className="space-y-6">
+                <div className="border-b border-slate-200 pb-4">
+                  <span className="font-bold text-slate-900">Title</span>
+                  <p className="mt-1 text-sm font-medium text-slate-900">{title || '—'}</p>
+                </div>
+                <div className="border-b border-slate-200 pb-4">
+                  <span className="font-bold text-slate-900">Message</span>
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{body || '—'}</p>
+                </div>
+                <div className="border-b border-slate-200 pb-4">
+                  <span className="font-bold text-slate-900">Tap behaviour</span>
+                  <p className="mt-1 text-sm text-slate-700">
+                    {tapBehaviour === 'open-session' && 'Open session'}
+                    {tapBehaviour === 'open-speaker-profile' && 'Open speaker profile'}
+                    {tapBehaviour === 'open-event-page' && 'Open event page'}
+                    {tapBehaviour === 'external-link' && 'External link'}
+                    {tapTarget && tapBehaviour !== 'open-event-page' ? ` — ${tapTarget}` : ''}
+                  </p>
+                </div>
+                <div className="flex justify-end pt-2">
+                  <Button type="button" variant="primary" size="md" onClick={() => setIsMessageEditing(true)}>
+                    Edit
+                  </Button>
+                </div>
+              </div>
+            ) : (
             <>
               {/* Title */}
               <div>
@@ -405,13 +482,20 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
                   <Button type="button" variant="secondary" size="md" onClick={onCancel} disabled={isSaving}>
                     Cancel
                   </Button>
-                  <Button type="button" variant="primary" size="md" onClick={handleSave} disabled={isSaving}>
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={handleSave}
+                    disabled={isSaving || (draftCommunicationId != null && !messageContentDirty)}
+                  >
                     {isSaving ? 'Saving...' : 'Save changes'}
                   </Button>
                 </div>
                 <p className="mt-2 text-xs text-slate-400 text-right">Save to schedule or send this message</p>
               </div>
             </>
+            )
           ) : (
             <div className="space-y-6 h-[calc(100vh-200px)] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-200 pb-4">

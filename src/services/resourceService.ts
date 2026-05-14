@@ -477,12 +477,6 @@ export const fetchFiles = async (folderId?: string | null): Promise<FileData[]> 
       throw new Error(errorMessage)
     }
 
-    // Debug: log raw LIST_FILES response payload
-    console.log('📄 LIST_FILES response:', {
-      folderId: folderId ?? null,
-      responseData,
-    })
-
     let files: FileData[]
     if (responseData.status === 'success' && Array.isArray(responseData.data)) {
       files = responseData.data

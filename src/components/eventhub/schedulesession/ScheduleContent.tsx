@@ -860,7 +860,7 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                 value={filterKeyword}
                 onChange={(e) => { setFilterKeyword(e.target.value); setFilterKeywordApplied(e.target.value.trim()); }}
                 onKeyDown={(e) => e.key === 'Escape' && (setFilterKeyword(''), setFilterKeywordApplied(''))}
-                placeholder="Search sessions…"
+                placeholder="Search sessions"
                 className="h-full w-72 bg-transparent px-3 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
               />
               <button
@@ -903,7 +903,6 @@ const ScheduleContent: React.FC<ScheduleContentProps> = ({
                   <div className="flex-1 overflow-y-auto px-4 py-4">
                     <div className="space-y-4">
                       <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Search by keyword</label>
                         <div className="flex gap-2">
                           <input
                             type="text"

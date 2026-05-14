@@ -153,35 +153,41 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
         <div className="space-y-5 p-6">
           {/* Event name */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Event name <span className="text-rose-500">*</span>
-            </label>
+            <label htmlFor="edit-event-name" className="flex w-full flex-col gap-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Event name <span className="text-rose-500">*</span>
+              </span>
             <input
+              id="edit-event-name"
               type="text"
               value={form.eventName}
               onChange={(e) => set('eventName', e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#6938EF] focus:outline-none focus:ring-1 focus:ring-[#6938EF]"
               placeholder="Enter event name"
             />
+            </label>
           </div>
 
           {/* Start / End date */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Start date <span className="text-rose-500">*</span>
-              </label>
+              <label className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  Start date <span className="text-rose-500">*</span>
+                </span>
               <DatePicker
                 id="edit-start-date"
                 value={form.startDate}
                 onChange={(v) => set('startDate', v)}
                 placeholder="Pick start date"
               />
+              </label>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                End date <span className="text-rose-500">*</span>
-              </label>
+              <label className="flex w-full flex-col gap-1">
+                <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                  End date <span className="text-rose-500">*</span>
+                </span>
               <DatePicker
                 id="edit-end-date"
                 value={form.endDate}
@@ -189,25 +195,29 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
                 minDate={form.startDate || undefined}
                 placeholder="Pick end date"
               />
+              </label>
             </div>
           </div>
 
           {/* Timezone */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Timezone <span className="text-rose-500">*</span>
-            </label>
+            <label className="flex w-full flex-col gap-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Timezone <span className="text-rose-500">*</span>
+              </span>
             <TimezoneSelector
               value={form.timezoneId}
               onChange={(v) => set('timezoneId', v)}
             />
+            </label>
           </div>
 
           {/* Location */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Location <span className="text-rose-500">*</span>
-            </label>
+            <label className="flex w-full flex-col gap-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Location <span className="text-rose-500">*</span>
+              </span>
             <div className="relative">
               <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-slate-400">
                 <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -223,6 +233,7 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
                 placeholder="City, Country"
               />
             </div>
+            </label>
           </div>
 
           {/* Venue */}
@@ -241,10 +252,12 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
 
           {/* Attendees */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Attendees <span className="text-rose-500">*</span>
-            </label>
+            <label htmlFor="edit-attendees" className="flex w-full flex-col gap-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                Attendees <span className="text-rose-500">*</span>
+              </span>
             <input
+              id="edit-attendees"
               type="number"
               min={1}
               value={form.attendees}
@@ -252,14 +265,15 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 focus:border-[#6938EF] focus:outline-none focus:ring-1 focus:ring-[#6938EF]"
               placeholder="500"
             />
+            </label>
           </div>
 
           {/* Event experience */}
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700">
-              Event experience
-            </label>
+            <label htmlFor="edit-event-experience" className="flex w-full flex-col gap-1">
+              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Event experience</span>
             <select
+              id="edit-event-experience"
               value={form.eventExperience}
               onChange={(e) => set('eventExperience', e.target.value)}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-[#6938EF] focus:outline-none focus:ring-1 focus:ring-[#6938EF]"
@@ -271,6 +285,7 @@ const EventDetailsSlideout: React.FC<EventDetailsSlideoutProps> = ({
                 </option>
               ))}
             </select>
+            </label>
           </div>
         </div>
       )}
