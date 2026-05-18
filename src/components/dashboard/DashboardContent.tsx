@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react'
 import SearchAndFilterBar, { type FilterState } from './SearchAndFilterBar'
+import SummaryCards from './SummaryCards'
 import EventsTable from './EventsTable'
 import type { Event } from './EventsTable'
 import type { DateRange } from '../ui/untitled'
@@ -135,7 +136,7 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
           </div>
         </div>
       </div>
-
+     <SummaryCards />
       {/* Search and Filter Bar */}
       <SearchAndFilterBar
         searchValue={searchValue}
