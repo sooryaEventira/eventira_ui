@@ -5,7 +5,7 @@ import { fetchWebsiteSettings } from '../../services/websiteSettingsService'
 import { fetchUserProfile, type UserProfile } from '../../services/profileService'
 import EventHubSidebar from './EventHubSidebar'
 import { defaultCards, ContentCard } from './EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
+import { CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 
 // Lazy-load section components so only the active section loads
 const CommunicationPage = lazy(() => import('./communication/CommunicationPage').then((m) => ({ default: m.default })))
@@ -15,7 +15,6 @@ const EventWebsitePage = lazy(() => import('./Eventwebsite/EventWebsitePage').th
 const UserManagementPage = lazy(() => import('./usermanagement/UserManagementPage').then((m) => ({ default: m.default })))
 const OrganizationManagementPage = lazy(() => import('./organizationmanagement/OrganizationManagementPage').then((m) => ({ default: m.default })))
 const WebsiteSettingsPage = lazy(() => import('./websitesettings/WebsiteSettingsPage').then((m) => ({ default: m.default })))
-const EventHubOverviewPage = lazy(() => import('./overview/EventHubOverviewPage').then((m) => ({ default: m.default })))
 const RegistrationFormPage = lazy(() => import('./registrationform/RegistrationFormPage').then((m) => ({ default: m.default })))
 const AnalyticsPage = lazy(() => import('./analytics/AnalyticsPage').then((m) => ({ default: m.default })))
 const UserProfilePage = lazy(() => import('../dashboard/UserProfilePage'))
@@ -93,14 +92,18 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
   const [activeSection, setActiveSection] = useState('event-website')
   const [showProfilePage, setShowProfilePage] = useState(false)
 
-  // Read section from URL only on initial mount
+  // Read section from URL only on initial mount (legacy ?section=summary → event website)
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const section = urlParams.get('section')
+    if (section === 'summary') {
+      setActiveSection('event-website')
+      window.history.replaceState({ section: 'event-website' }, '', '/event/hub?section=event-website')
+      return
+    }
     if (section) {
       setActiveSection(section)
     } else {
-      // If no section in URL, default to event-website instead of empty event-hub page
       setActiveSection('event-website')
     }
   }, []) // Only run on mount
@@ -126,7 +129,6 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
     }))
 
     return [
-      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       {
         id: 'event-hub',
@@ -144,7 +146,7 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
 
   const handleSidebarItemClick = useCallback((itemId: string) => {
     // Handle top-level menu items
-    if (itemId === 'event-hub' || itemId === 'event-website' || itemId === 'summary') {
+    if (itemId === 'event-hub' || itemId === 'event-website') {
       setActiveSection(itemId)
       // Update URL to reflect the change
       const newUrl = itemId === 'event-hub' ? '/event/hub' : `/event/hub?section=${itemId}`
@@ -163,15 +165,6 @@ const EventHubPage: React.FC<EventHubPageProps> = ({
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'summary':
-        return (
-          <EventHubOverviewPage
-            onNavigateSection={(sectionId) => {
-              setActiveSection(sectionId)
-              window.history.pushState({ section: sectionId }, '', `/event/hub?section=${sectionId}`)
-            }}
-          />
-        )
       case 'communications':
         return (
           <CommunicationPage

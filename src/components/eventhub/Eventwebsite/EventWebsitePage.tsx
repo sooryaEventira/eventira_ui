@@ -1,5 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { createPortal } from 'react-dom'
+﻿import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import { useWebsitePages } from '../../../contexts/WebsitePagesContext'
 import EventHubNavbar from '../EventHubNavbar'
@@ -32,10 +31,14 @@ import { isFolder, isPage } from '../../../utils/navigationTree'
 import { NAV_ICON_KEYS, renderNavIcon, ICONSAX_VARIANTS, buildIconKey, parseIconKey } from '../../../utils/navIcons'
 import WebsitePagesList from './WebsitePagesList'
 import AddMenuItemModal from './AddMenuItemModal'
-import { InfoCircle, CodeBrowser, Globe01, Eye, Plus, Trash01, ChevronDown, ChevronUp, Folder, AlertCircle, Settings01, XClose } from '@untitled-ui/icons-react'
+import { InfoCircle, CodeBrowser, Globe01, Trash01, ChevronDown, ChevronUp, Folder } from '@untitled-ui/icons-react'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { Suspense, lazy } from 'react'
 const UserProfilePage = lazy(() => import('../../dashboard/UserProfilePage'))
+import WebsiteHeaderActions from './WebsiteHeaderActions'
+import WebsiteConfigurationTab from './WebsiteConfigurationTab'
+import WebsiteTabsBar from './WebsiteTabsBar'
+import UnsavedNavigationModal from './UnsavedNavigationModal'
 
 interface EventWebsitePageProps {
   onBackClick?: () => void
@@ -1059,110 +1062,13 @@ const loadNavigationFromApi = useCallback(async () => {
     setNavigationPreviewActive((current) => (current === id ? null : current))
   }, [setHiddenNavIds])
 
-  const renderConfigurationTab = () => {
-    const configRows = pageConfigs.map((item) => ({
-      configUuid: item.uuid,
-      id: String(item.resource_uuid || item.uuid),
-      name: String(item.resource_title || item.title || 'Untitled'),
-      type:
-        item.item_type === 'participant_group'
-          ? ('user-group' as const)
-          : item.item_type === 'schedule'
-            ? ('schedule' as const)
-            : ('webpage' as const),
-      icon: item.icon?.trim() ? item.icon : '',
-      browser: item.browser,
-      feature_permission: item.feature_permission,
-      visibility: item.visibility,
-      hide_on_mobile: item.hide_on_mobile,
-      show_in_mobile_menu_without_access: item.show_in_mobile_menu_without_access,
-      is_desktop_home: item.is_desktop_home,
-      is_mobile_home: item.is_mobile_home,
-    }))
-
-    return (
-      <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-50">
-            <tr>
-              {['Page', 'Icon', 'Browser', 'Who has access', 'Visibility', 'Platform', 'Home page', ''].map((col) => (
-                <th
-                  key={col}
-                  className="px-4 py-3 text-left text-xs font-semibold text-primary tracking-wide whitespace-nowrap"
-                >
-                  {col}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {isLoadingPageConfigs ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
-                  Loading configuration...
-                </td>
-              </tr>
-            ) : configRows.length === 0 ? (
-              <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-400 text-sm">
-                  No page configuration returned for this event.
-                </td>
-              </tr>
-            ) : (
-              configRows.map((item) => {
-                return (
-                  <tr key={item.configUuid} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-slate-900 capitalize whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <span>{item.name}</span>
-                        {item.type !== 'webpage' && (
-                          <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
-                            {item.type === 'user-group' ? 'User Group' : 'Schedule'}
-                          </span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-slate-500">
-                      {item.icon ? (
-                        <span className="inline-flex items-center text-slate-700">{renderNavIcon(item.icon, 'h-4 w-4')}</span>
-                      ) : (
-                        <span className="text-xs text-slate-400">Not added</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {item.browser ? String(item.browser).replace(/_/g, ' ') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {item.feature_permission ? String(item.feature_permission).replace(/_/g, ' ') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {item.visibility ? String(item.visibility).replace(/_/g, ' ') : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {item.hide_on_mobile ? 'Hide on mobile' : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-slate-600 whitespace-nowrap">
-                      {item.is_desktop_home || item.is_mobile_home ? 'Yes' : '-'}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleConfigGearClick(item.configUuid, item.id, item.type)}
-                        className="p-1.5 rounded transition-colors text-slate-400 hover:text-slate-600 hover:bg-slate-100"
-                        aria-label="Configure page"
-                      >
-                        <Settings01 className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
-    )
-  }
+  const renderConfigurationTab = () => (
+    <WebsiteConfigurationTab
+      pageConfigs={pageConfigs}
+      isLoading={isLoadingPageConfigs}
+      onConfigure={handleConfigGearClick}
+    />
+  )
 
   const renderNavigationTab = () => {
     const eventUuid = eventUuidForNavigation
@@ -1748,30 +1654,9 @@ const loadNavigationFromApi = useCallback(async () => {
     )
   }
 
-  // Reusable header buttons component to avoid duplication
+  // Reusable header actions component to avoid duplication
   const renderHeaderButtons = () => (
-    <div className="flex items-center gap-3 flex-nowrap overflow-visible">
-      <Button
-        variant="secondary"
-        size="md"
-        onClick={handlePreview}
-        iconLeading={<Eye className="h-4 w-4" />}
-      >
-        Preview
-      </Button>
-      <Button
-        variant="primary"
-        size="md"
-        onClick={() => handlePublishWebsite()}
-        disabled={isPublishing}
-        data-custom-publish-button="true"
-        className="bg-[#6938EF] hover:bg-[#5925DC] text-white whitespace-nowrap"
-        iconLeading={<Globe01 className="h-4 w-4 flex-shrink-0" />}
-        aria-label="Publish"
-      >
-        {isPublishing ? 'Publishing...' : 'Publish'}
-      </Button>
-    </div>
+    <WebsiteHeaderActions isPublishing={isPublishing} onPreview={handlePreview} onPublish={() => handlePublishWebsite()} />
   )
 
   const handleNewPage = () => {
@@ -2079,76 +1964,13 @@ const loadNavigationFromApi = useCallback(async () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <div className="flex gap-6">
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => handleTabSwitch('website-pages')}
-                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                  activeSubItem === 'website-pages'
-                    ? 'text-primary border-b-primary'
-                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-                }`}
-              >
-                Website pages
-              </Button>
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => handleTabSwitch('website-header')}
-                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                  activeSubItem === 'website-header'
-                    ? 'text-primary border-b-primary'
-                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-                }`}
-              >
-                Navigation
-              </Button>
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => handleTabSwitch('website-config')}
-                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                  activeSubItem === 'website-config'
-                    ? 'text-primary border-b-primary'
-                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-                }`}
-              >
-                Configuration
-              </Button>
-            </div>
-            {activeSubItem === 'website-header' ? (
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setShowAddMenuItemModal(true)}
-                  iconLeading={<Plus className="h-4 w-4" />}
-                  className="bg-white border-primary text-primary hover:bg-primary/5"
-                >
-                  Add menu item
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setShowCreateNavFolderModal(true)}
-                  iconLeading={<Plus className="h-4 w-4" />}
-                >
-                  Add group menu
-                </Button>
-              </div>
-            ) : activeSubItem === 'website-pages' ? (
-              <Button
-                variant="primary"
-                size="md"
-                onClick={handleNewPage}
-                iconLeading={<Plus className="h-4 w-4" />}
-              >
-                New page
-              </Button>
-            ) : null}
-          </div>
+          <WebsiteTabsBar
+            activeTab={activeSubItem as any}
+            onTabChange={(tab) => handleTabSwitch(tab)}
+            onNewPage={handleNewPage}
+            onAddMenuItem={() => setShowAddMenuItemModal(true)}
+            onAddGroupMenu={() => setShowCreateNavFolderModal(true)}
+          />
 
           {/* Content based on active tab */}
           {activeSubItem === 'website-pages' && (
@@ -2265,79 +2087,13 @@ const loadNavigationFromApi = useCallback(async () => {
           </div>
         )}
 
-        {/* Unsaved Navigation Changes Modal */}
-        {showUnsavedNavModal && createPortal(
-          <div className="fixed inset-0" style={{ zIndex: 10000 }}>
-          <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" />
-          <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ top: 64 }}>
-            <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl relative pointer-events-auto">
-              <button
-                type="button"
-                onClick={() => setShowUnsavedNavModal(false)}
-                className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-                aria-label="Close"
-              >
-                <XClose className="h-5 w-5" />
-              </button>
-              <div className="flex flex-col items-center text-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                  <AlertCircle className="h-6 w-6 text-amber-500" />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">You have unpublished changes</h3>
-                  <p className="mt-1.5 text-sm text-slate-600">
-                    You have unpublished navigation changes. Publish now to apply them, or discard to leave without saving.
-                  </p>
-                </div>
-                <div
-                  key="unsaved-nav-actions-top"
-                  style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '12px' }}
-                >
-                  <button
-                    type="button"
-                    data-modal-button="true"
-                    onClick={handleDiscardNavChanges}
-                    style={{
-                      flex: 1,
-                      padding: '10px 14px',
-                      backgroundColor: '#ffffff',
-                      color: '#344054',
-                      border: '1px solid #D0D5DD',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      minHeight: '42px'
-                    }}
-                  >
-                    Discard changes
-                  </button>
-                  <button
-                    type="button"
-                    data-modal-button="true"
-                    onClick={handlePublishAndSwitch}
-                    style={{
-                      flex: 1,
-                      padding: '10px 14px',
-                      backgroundColor: '#6938EF',
-                      color: '#ffffff',
-                      border: '1px solid #6938EF',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      minHeight: '42px'
-                    }}
-                  >
-                    Save changes
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>,
-          document.body
-        )}
+        <UnsavedNavigationModal
+          isOpen={showUnsavedNavModal}
+          saveLabel="Save changes"
+          onClose={() => setShowUnsavedNavModal(false)}
+          onDiscard={handleDiscardNavChanges}
+          onSave={handlePublishAndSwitch}
+        />
       </div>
     )
   }
@@ -2382,76 +2138,13 @@ const loadNavigationFromApi = useCallback(async () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
-            <div className="flex gap-6">
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => handleTabSwitch('website-pages')}
-                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                  activeSubItem === 'website-pages'
-                    ? 'text-primary border-b-primary'
-                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-                }`}
-              >
-                Website pages
-              </Button>
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => handleTabSwitch('website-header')}
-                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                  activeSubItem === 'website-header'
-                    ? 'text-primary border-b-primary'
-                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-                }`}
-              >
-                Navigation
-              </Button>
-              <Button
-                variant="tertiary"
-                size="sm"
-                onClick={() => handleTabSwitch('website-config')}
-                className={`pb-3 px-1 h-auto rounded-none border-b-2 transition-colors relative ${
-                  activeSubItem === 'website-config'
-                    ? 'text-primary border-b-primary'
-                    : 'text-slate-600 hover:text-slate-900 border-b-transparent'
-                }`}
-              >
-                Configuration
-              </Button>
-            </div>
-            {activeSubItem === 'website-header' ? (
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setShowAddMenuItemModal(true)}
-                  iconLeading={<Plus className="h-4 w-4" />}
-                  className="bg-white border-primary text-primary hover:bg-primary/5"
-                >
-                  Add menu item
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={() => setShowCreateNavFolderModal(true)}
-                  iconLeading={<Plus className="h-4 w-4" />}
-                >
-                  Add group menu
-                </Button>
-              </div>
-            ) : activeSubItem === 'website-pages' ? (
-              <Button
-                variant="primary"
-                size="md"
-                onClick={handleNewPage}
-                iconLeading={<Plus className="h-4 w-4" />}
-              >
-                New page
-              </Button>
-            ) : null}
-          </div>
+          <WebsiteTabsBar
+            activeTab={activeSubItem as any}
+            onTabChange={(tab) => handleTabSwitch(tab)}
+            onNewPage={handleNewPage}
+            onAddMenuItem={() => setShowAddMenuItemModal(true)}
+            onAddGroupMenu={() => setShowCreateNavFolderModal(true)}
+          />
 
           {/* Content based on active tab */}
           {activeSubItem === 'website-pages' && (
@@ -2518,79 +2211,13 @@ const loadNavigationFromApi = useCallback(async () => {
         </div>
       )}
 
-      {/* Unsaved Navigation Changes Modal */}
-      {showUnsavedNavModal && createPortal(
-        <div className="fixed inset-0" style={{ zIndex: 10000 }}>
-          <div className="fixed top-[64px] right-0 bottom-0 left-0 bg-black/50" />
-          <div className="fixed inset-0 flex items-center justify-center pointer-events-none" style={{ top: 64 }}>
-          <div className="bg-white rounded-xl p-6 max-w-sm w-full mx-4 shadow-xl relative pointer-events-auto">
-            <button
-              type="button"
-              onClick={() => setShowUnsavedNavModal(false)}
-              className="absolute top-4 right-4 inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-              aria-label="Close"
-            >
-              <XClose className="h-5 w-5" />
-            </button>
-            <div className="flex flex-col items-center text-center gap-2">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
-                <AlertCircle className="h-6 w-6 text-amber-500" />
-              </div>
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">You have unpublished changes</h3>
-                <p className="mt-1.5 text-sm text-slate-600">
-                  You have unpublished navigation changes. Publish now to apply them, or discard to leave without saving.
-                </p>
-              </div>
-              <div
-                key="unsaved-nav-actions-main"
-                style={{ display: 'flex', flexDirection: 'row', width: '100%', gap: '12px', marginTop: '12px' }}
-              >
-                <button
-                  type="button"
-                  data-modal-button="true"
-                  onClick={handleDiscardNavChanges}
-                  style={{
-                    flex: 1,
-                    padding: '10px 14px',
-                    backgroundColor: '#ffffff',
-                    color: '#344054',
-                    border: '1px solid #D0D5DD',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    minHeight: '42px'
-                  }}
-                >
-                  Discard changes
-                </button>
-                <button
-                  type="button"
-                  data-modal-button="true"
-                  onClick={handlePublishAndSwitch}
-                  style={{
-                    flex: 1,
-                    padding: '10px 14px',
-                    backgroundColor: '#6938EF',
-                    color: '#ffffff',
-                    border: '1px solid #6938EF',
-                    borderRadius: '8px',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    minHeight: '42px'
-                  }}
-                >
-                  Publish now
-                </button>
-              </div>
-            </div>
-          </div>
-          </div>
-        </div>,
-        document.body
-      )}
+      <UnsavedNavigationModal
+        isOpen={showUnsavedNavModal}
+        saveLabel="Publish now"
+        onClose={() => setShowUnsavedNavModal(false)}
+        onDiscard={handleDiscardNavChanges}
+        onSave={handlePublishAndSwitch}
+      />
 
       <AddMenuItemModal
         isVisible={showAddMenuItemModal}

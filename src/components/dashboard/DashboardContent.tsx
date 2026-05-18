@@ -1,5 +1,4 @@
 import React, { useRef, useState, useEffect } from 'react'
-import SummaryCards from './SummaryCards'
 import SearchAndFilterBar, { type FilterState } from './SearchAndFilterBar'
 import EventsTable from './EventsTable'
 import type { Event } from './EventsTable'
@@ -53,9 +52,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
   onArchiveEvent,
   onEventRowClick,
   onSortEvents,
-  totalEvents,
-  liveEvents,
-  eventDrafts,
   events
 }) => {
   const [menuOpen, setMenuOpen] = useState(false)
@@ -139,13 +135,6 @@ const DashboardContent: React.FC<DashboardContentProps> = ({
           </div>
         </div>
       </div>
-
-      {/* Summary Cards */}
-      <SummaryCards
-        totalEvents={totalEvents}
-        liveEvents={liveEvents}
-        eventDrafts={eventDrafts}
-      />
 
       {/* Search and Filter Bar */}
       <SearchAndFilterBar

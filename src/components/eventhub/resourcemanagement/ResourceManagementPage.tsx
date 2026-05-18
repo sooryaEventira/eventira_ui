@@ -3,7 +3,7 @@ import { useEventForm } from '../../../contexts/EventFormContext'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import { defaultCards, ContentCard } from '../EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01, Folder, Upload01, Plus, DotsVertical, ChevronRight, File01, SearchLg, FilterLines, Calendar,SwitchVertical01 } from '@untitled-ui/icons-react'
+import { Folder, Upload01, Plus, DotsVertical, ChevronRight, File01, SearchLg, FilterLines, Calendar,SwitchVertical01, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import { Button } from '../../ui/untitled'
 import ResourceContextMenu from './ResourceContextMenu'
 import MoveToFolderModal from './MoveToFolderModal'
@@ -146,7 +146,6 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
     }))
 
     return [
-      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       {
         id: 'event-hub',
@@ -1036,7 +1035,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
 
       {/* Main Content */}
       <div className={hideNavbarAndSidebar ? "" : "md:pl-[250px]"}>
-        <div className="space-y-6 px-4 pb-12 pt-8 md:px-10 lg:px-16">
+        <div className="space-y-6 px-8 pb-12 pt-8">
           {/* Header */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-6">
             <h1 className="text-[26px] font-bold text-primary-dark">Resource Management</h1>
@@ -1239,7 +1238,7 @@ const ResourceManagementPage: React.FC<ResourceManagementPageProps> = ({
             
             {/* Breadcrumbs - only when inside a folder (hide "All media" in content area at root) */}
             {currentFolderId && (
-              <div className="px-4 md:px-8 pt-4 pb-2">
+              <div className="px-8 pt-4 pb-2">
                 <div className="flex items-center gap-2 text-sm">
                   {breadcrumbs.map((crumb, index) => (
                     <React.Fragment key={crumb.id || 'root'}>

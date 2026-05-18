@@ -3,7 +3,7 @@ import { useEventForm } from '../../../contexts/EventFormContext'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import { defaultCards, ContentCard } from '../EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
+import { CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import UploadModal from '../../ui/UploadModal'
 import { showToast } from '../../../utils/toast'
 import type { Organization } from './organizationTypes'
@@ -55,7 +55,6 @@ const OrganizationManagementPage: React.FC<OrganizationManagementPageProps> = ({
       icon: card.icon
     }))
     return [
-      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       { id: 'event-hub', label: 'Event Hub', icon: <Globe01 className="h-5 w-5" />, subItems: eventHubSubItems }
     ]

@@ -541,7 +541,7 @@ const BroadcastComposer: React.FC<BroadcastComposerProps> = ({
   }
 
   return (
-    <div className="space-y-6 px-4 pb-12 pt-28 md:px-10 lg:px-16 -mt-24 min-h-screen flex flex-col">
+    <div className="space-y-6 px-8 pb-12 pt-28 -mt-24 min-h-screen flex flex-col">
       <style>{`
         .ql-editor { min-height: 300px; font-size: 14px; font-family: inherit; }
         .ql-container.ql-snow { border: none !important; }

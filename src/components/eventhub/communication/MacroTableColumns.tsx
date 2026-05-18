@@ -70,7 +70,7 @@ export const useMacroTableColumns = ({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         align: 'right',
         render: ({ macro }) => {
           if (!macro) return null

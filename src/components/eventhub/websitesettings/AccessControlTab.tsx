@@ -77,7 +77,7 @@ const AccessControlTab: React.FC = () => {
               setVisibility(v)
               persistVisibilityToApi(v)
             }}
-              className="h-4 w-4 text-primary focus:ring-2 focus:ring-primary/20 "
+              className="h-4 w-4 shrink-0 cursor-pointer accent-primary text-primary focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
             />
             <span className={`text-sm font-medium px-4 py-2 rounded-lg transition ${
               visibility === 'public'
@@ -99,7 +99,7 @@ const AccessControlTab: React.FC = () => {
               setVisibility(v)
               persistVisibilityToApi(v)
             }}
-              className="h-4 w-4 text-primary focus:ring-2 focus:ring-primary/20"
+              className="h-4 w-4 shrink-0 cursor-pointer accent-primary text-primary focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
             />
             <span className={`text-sm font-medium px-4 py-2 rounded-lg transition ${
               visibility === 'private'

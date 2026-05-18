@@ -532,7 +532,7 @@ const UserTable: React.FC<UserTableProps> = ({
   // ---------- Render ----------
   if (isLoading) {
     return (
-      <div className="px-4 pt-8 pb-4 md:px-10 lg:px-16">
+      <div className="px-8 pt-8 pb-4">
         <div className="flex flex-col gap-3 pb-8 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-[26px] font-bold text-primary-dark">User Management</h1>
         </div>
@@ -547,7 +547,7 @@ const UserTable: React.FC<UserTableProps> = ({
   }
 
   return (
-    <div className="px-4 pt-8 pb-4 md:px-10 lg:px-16">
+    <div className="px-8 pt-8 pb-4">
       <div className="flex flex-col gap-3 pb-8 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-[26px] font-bold text-primary-dark">User Management</h1>
         <div className="flex items-center gap-3">

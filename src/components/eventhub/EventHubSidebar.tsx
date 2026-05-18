@@ -1,5 +1,5 @@
 import React from 'react'
-import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
+import { CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import Button from '../ui/untitled/Button'
 
 interface SidebarItem {
@@ -17,7 +17,6 @@ interface EventHubSidebarProps {
 }
 
 const defaultItems: SidebarItem[] = [
-  { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
   { id: 'event-website', label: 'Event Website', icon: <CodeBrowser className="h-5 w-5" /> },
   { id: 'event-hub', label: 'Event Hub', icon: <Globe01 className="h-5 w-5" /> }
 ]

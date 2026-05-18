@@ -12,7 +12,7 @@ import CreateMacroModal from './CreateMacroModal'
 import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import RecipientsSlideout from './RecipientsSlideout'
 import { defaultCards, ContentCard } from '../EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
+import { CodeBrowser, Globe01, InfoCircle } from '@untitled-ui/icons-react'
 import { useCommunications } from './useCommunications'
 import { useMacros } from './useMacros'
 import { useComposerState } from './useComposerState'
@@ -196,7 +196,6 @@ const CommunicationPage: React.FC<CommunicationPageProps> = ({
       icon: card.icon,
     }))
     return [
-      { id: 'summary',       label: 'Summary',       icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website',  icon: <CodeBrowser className="h-5 w-5" /> },
       { id: 'event-hub',     label: 'Event Hub',      icon: <Globe01 className="h-5 w-5" />, subItems: eventHubSubItems },
     ]

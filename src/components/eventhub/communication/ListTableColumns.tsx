@@ -190,7 +190,7 @@ export const useListTableColumns = ({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         align: 'right',
         render: ({ communication }) => {
           if (!communication) return null

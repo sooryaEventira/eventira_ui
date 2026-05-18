@@ -834,7 +834,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
           title="Speakers"
           showTitle={true}
           containerMaxWidth="max-w-7xl"
-          containerPadding="px-4 sm:px-6 lg:px-8 py-8"
+          containerPadding="px-8 py-8"
         />
       </div>
 
@@ -854,7 +854,7 @@ const WebsitePreviewPage: React.FC<WebsitePreviewPageProps> = ({
           title="Frequently Asked Questions"
           description="Everything you need to know about the product and billing. Can't find the answer you're looking for? Please chat to our friendly team"
           containerMaxWidth="max-w-7xl"
-          containerPadding="px-4 sm:px-6 lg:px-8 py-8"
+          containerPadding="px-8 py-8"
         />
       </div>
 

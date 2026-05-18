@@ -176,12 +176,12 @@ const TimezoneSelector: React.FC<TimezoneSelectorProps> = ({ value, onChange, cl
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         disabled={isLoading}
-        className="w-full appearance-none rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex h-10 w-full min-h-10 max-h-10 appearance-none items-center justify-between gap-2 overflow-hidden rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <span className={value ? 'text-slate-700' : 'text-slate-400'}>
+        <span className={`min-w-0 flex-1 truncate text-left ${value ? 'text-slate-700' : 'text-slate-400'}`}>
           {displayValue}
         </span>
-        <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
       {/* Dropdown — rendered in portal to escape overflow-y-auto containers */}

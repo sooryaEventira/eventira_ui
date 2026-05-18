@@ -15,6 +15,8 @@ interface FileUploadProps {
   onChange: (file: File | null) => void
   maxWidth?: string
   maxHeight?: string
+  /** Logo: preview fills height. Banner: preview fills width (`object-contain`, never cropped). */
+  previewVariant?: 'logo' | 'banner'
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
@@ -24,7 +26,8 @@ const FileUpload: React.FC<FileUploadProps> = ({
   value,
   onChange,
   maxWidth: _maxWidth,
-  maxHeight: _maxHeight
+  maxHeight: _maxHeight,
+  previewVariant = 'logo',
 }) => {
   const [uploadedFile, setUploadedFile] = useState<UploadedFile | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
@@ -181,7 +184,7 @@ const FileUpload: React.FC<FileUploadProps> = ({
   return (
     <div className="flex flex-col gap-4 w-full">
       {/* Label */}
-      <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+      <label className="text-sm font-medium text-slate-700">
         {label}
       </label>
       
@@ -200,11 +203,23 @@ const FileUpload: React.FC<FileUploadProps> = ({
       >
         {/* Show Preview or Upload UI */}
         {previewUrl && accept?.includes('image') ? (
-          <img
-            src={previewUrl}
-            alt={uploadedFile?.file.name}
-            className="max-w-20 max-h-20 object-contain"
-          />
+          previewVariant === 'banner' ? (
+            <div className="flex w-full max-w-full items-center justify-center py-2">
+              <img
+                src={previewUrl}
+                alt={uploadedFile?.file.name ?? 'Banner preview'}
+                className="h-auto w-full max-h-48 object-contain"
+              />
+            </div>
+          ) : (
+            <div className="flex h-28 w-full items-center justify-center">
+              <img
+                src={previewUrl}
+                alt={uploadedFile?.file.name ?? 'Logo preview'}
+                className="h-full max-h-28 w-auto max-w-full object-contain"
+              />
+            </div>
+          )
         ) : (
           <div className="self-stretch flex flex-col items-center gap-3">
             {/* Icon Container */}

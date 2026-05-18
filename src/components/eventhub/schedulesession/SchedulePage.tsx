@@ -11,7 +11,7 @@ import ConfirmDeleteModal from '../../ui/ConfirmDeleteModal'
 import { SavedSchedule, SavedSession, SessionDraft } from './sessionTypes'
 import { defaultSessionDraft } from './sessionConfig'
 import { defaultCards, ContentCard } from '../EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
+import { CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import { API_ENDPOINTS } from '../../../config/env'
 import { showToast } from '../../../utils/toast'
 import { fetchTimezones } from '../../../services/timezoneService'
@@ -166,7 +166,6 @@ const SchedulePage: React.FC<SchedulePageProps> = ({
     }))
 
     return [
-      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       {
         id: 'event-hub',

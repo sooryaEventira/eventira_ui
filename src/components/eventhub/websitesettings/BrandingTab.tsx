@@ -3,7 +3,7 @@ import { Button } from '../../ui/untitled'
 import { XClose, Upload01, ChevronDown } from '@untitled-ui/icons-react'
 import { useEventForm } from '../../../contexts/EventFormContext'
 import { showToast } from '../../../utils/toast'
-import { fetchWebsiteSettings, updateWebsiteSettings, getWebsiteSettingsStorageKey, getBrandingStorageKey, type WebsiteSettingsBody } from '../../../services/websiteSettingsService'
+import { fetchWebsiteSettings, updateWebsiteSettings, getWebsiteSettingsStorageKey, getBrandingStorageKey, APP_DEFAULT_BRAND_PRIMARY, coalesceBrandPrimary, type WebsiteSettingsBody } from '../../../services/websiteSettingsService'
 import { API_ENDPOINTS } from '../../../config/env'
 
 const BrandingTab: React.FC = () => {
@@ -27,7 +27,7 @@ const BrandingTab: React.FC = () => {
     if (logoFromApi) setLogoUrl(logoFromApi)
   }, [createdEvent?.banner, createdEvent?.logo])
 
-  const [primaryColor, setPrimaryColor] = useState('#6366f1')
+  const [primaryColor, setPrimaryColor] = useState(APP_DEFAULT_BRAND_PRIMARY)
   const [headingFont, setHeadingFont] = useState('Inter')
   const [bodyFont, setBodyFont] = useState('Inter')
   const [showThemeDropdown, setShowThemeDropdown] = useState(false)
@@ -39,8 +39,7 @@ const BrandingTab: React.FC = () => {
     const key = getBrandingStorageKey(eventUuid)
     const saved = typeof window !== 'undefined' ? localStorage.getItem(key) : null
     const parsed = saved ? (() => { try { return JSON.parse(saved) } catch { return null } })() : null
-    if (parsed?.primaryColor) setPrimaryColor(parsed.primaryColor)
-    else setPrimaryColor('#6366f1')
+    setPrimaryColor(coalesceBrandPrimary(parsed?.primaryColor))
     if (parsed?.headingFont) setHeadingFont(parsed.headingFont)
     else setHeadingFont('Inter')
     if (parsed?.bodyFont) setBodyFont(parsed.bodyFont)
@@ -69,7 +68,7 @@ const BrandingTab: React.FC = () => {
     let cancelled = false
     fetchWebsiteSettings(eventUuid).then((data) => {
       if (cancelled || !data) return
-      if (data.brand_primary_color) setPrimaryColor(String(data.brand_primary_color))
+      setPrimaryColor(coalesceBrandPrimary(data.brand_primary_color))
       if (data.heading_font) setHeadingFont(String(data.heading_font))
       if (data.body_font) setBodyFont(String(data.body_font))
       const logo = resolveMediaUrl(data.logo)
@@ -79,7 +78,7 @@ const BrandingTab: React.FC = () => {
 
       const brandingKey = getBrandingStorageKey(eventUuid)
       localStorage.setItem(brandingKey, JSON.stringify({
-        primaryColor: String(data.brand_primary_color ?? '#6366f1'),
+        primaryColor: coalesceBrandPrimary(data.brand_primary_color),
         headingFont: String(data.heading_font ?? 'Inter'),
         bodyFont: String(data.body_font ?? 'Inter'),
       }))
@@ -103,6 +102,7 @@ const BrandingTab: React.FC = () => {
 
   // Color options for the theme picker
   const themeColors = [
+    { name: 'Primary', hex: APP_DEFAULT_BRAND_PRIMARY },
     { name: 'Indigo', hex: '#6366f1' },
     { name: 'Purple', hex: '#8b5cf6' },
     { name: 'Blue', hex: '#3b82f6' },
@@ -216,11 +216,11 @@ const BrandingTab: React.FC = () => {
           <label className="text-sm font-semibold text-slate-900">Banner</label>
         </div>
         {bannerUrl ? (
-          <div className="relative w-full rounded-lg overflow-hidden border border-slate-200" style={{ aspectRatio: '1920/700' }}>
+          <div className="relative w-[640px] max-w-full rounded-lg border border-slate-200 bg-slate-50">
             <img
               src={bannerUrl}
               alt="Banner"
-              className="absolute inset-0 w-full h-full object-cover"
+              className="block h-auto w-full max-w-full align-top"
             />
             <button
               onClick={handleRemoveBanner}
@@ -229,16 +229,15 @@ const BrandingTab: React.FC = () => {
               <XClose className="h-4 w-4 text-slate-600" />
             </button>
             <div className="absolute bottom-2 right-2 rounded bg-black/40 px-2 py-0.5 text-[10px] text-white z-10">
-              1920 × 700
+              Preview 640px wide
             </div>
           </div>
         ) : (
           <div
-            className="w-full border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center gap-3 bg-slate-50"
-            style={{ aspectRatio: '1920/700' }}
+            className="w-[640px] max-w-full min-h-[180px] border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center gap-3 bg-slate-50 px-4 py-8"
           >
             <p className="text-sm text-slate-500">No banner uploaded</p>
-            <p className="text-xs text-slate-400">Recommended: 1920 × 700 px</p>
+            <p className="text-xs text-slate-400 text-center">Preview is 640px wide; height follows your image (nothing is cropped).</p>
             <Button
               variant="secondary"
               onClick={() => bannerInputRef.current?.click()}
@@ -322,7 +321,7 @@ const BrandingTab: React.FC = () => {
                     value={primaryColor}
                     onChange={(e) => setPrimaryColor(e.target.value)}
                     className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 pr-32 text-sm text-slate-700 shadow-sm transition placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="#6366f1"
+                    placeholder={APP_DEFAULT_BRAND_PRIMARY}
                   />
                   <Button
                     variant="primary"

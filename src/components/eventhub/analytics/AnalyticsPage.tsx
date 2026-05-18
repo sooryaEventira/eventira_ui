@@ -3,7 +3,7 @@ import { useEventForm } from '../../../contexts/EventFormContext'
 import EventHubNavbar from '../EventHubNavbar'
 import EventHubSidebar from '../EventHubSidebar'
 import { defaultCards, ContentCard } from '../EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01, RefreshCw01, Download01 } from '@untitled-ui/icons-react'
+import { CodeBrowser, Globe01, RefreshCw01, Download01 } from '@untitled-ui/icons-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, LineChart, Line, Legend,
@@ -50,7 +50,6 @@ const AnalyticsPage: React.FC<AnalyticsPageProps> = ({
       icon: card.icon,
     }))
     return [
-      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       { id: 'event-hub', label: 'Event Hub', icon: <Globe01 className="h-5 w-5" />, subItems: eventHubSubItems },
     ]
@@ -190,7 +189,7 @@ function DataTable({ title, headers, rows, pagination }: { title: string; header
 
   return (
     <div className="rounded-xl border border-gray-200">
-      <div className="px-6 py-4">
+      <div className="px-8 py-4">
         <h3 className="text-base font-medium text-gray-900">{title}</h3>
       </div>
       <div className="overflow-x-auto">
@@ -198,7 +197,7 @@ function DataTable({ title, headers, rows, pagination }: { title: string; header
           <thead>
             <tr className="border-t border-gray-200 bg-gray-50">
               {headers.map((header) => (
-                <th key={header} className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
+                <th key={header} className="px-8 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
                   {header}
                 </th>
               ))}
@@ -208,7 +207,7 @@ function DataTable({ title, headers, rows, pagination }: { title: string; header
             {displayedRows.map((row, i) => (
               <tr key={i} className="hover:bg-gray-50">
                 {row.map((cell, j) => (
-                  <td key={j} className="whitespace-nowrap px-6 py-4 text-sm text-gray-900">
+                  <td key={j} className="whitespace-nowrap px-8 py-4 text-sm text-gray-900">
                     {cell}
                   </td>
                 ))}
@@ -218,7 +217,7 @@ function DataTable({ title, headers, rows, pagination }: { title: string; header
         </table>
       </div>
       {pagination && totalPages > 1 && (
-        <div className="flex items-center justify-between border-t border-gray-200 px-6 py-3">
+        <div className="flex items-center justify-between border-t border-gray-200 px-8 py-3">
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}

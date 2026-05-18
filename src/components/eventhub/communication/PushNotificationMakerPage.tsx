@@ -307,7 +307,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
 
   return (
     <div className="rounded-xl bg-white overflow-hidden">
-      <div className="px-6 pt-5 pb-0 flex items-center justify-between gap-3">
+      <div className="px-8 pt-5 pb-0 flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <Button
             type="button"
@@ -333,7 +333,7 @@ const PushNotificationMakerPage: React.FC<PushNotificationMakerPageProps> = ({
         )}
       </div>
       {/* Tabs */}
-      <div className="flex gap-6 border-b border-slate-200 px-6">
+      <div className="flex gap-6 border-b border-slate-200 px-8">
         <button
           type="button"
           onClick={() => handleTabSwitch('message')}

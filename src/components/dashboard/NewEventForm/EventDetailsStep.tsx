@@ -39,7 +39,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
     <div className="space-y-4">
       {/* Event name */}
       <div className="flex flex-col gap-1">
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-sm font-medium text-slate-700">
           Event name<span className="text-red-500">*</span>
         </label>
         <input
@@ -54,7 +54,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
       {/* Start date, End date, and Timezone */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-[180px_180px_1fr]">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <label className="text-sm font-medium text-slate-700">
             Start date<span className="text-red-500">*</span>
           </label>
           <DatePicker
@@ -66,7 +66,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
           />
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <label className="text-sm font-medium text-slate-700">
             End date<span className="text-red-500">*</span>
           </label>
           <DatePicker
@@ -82,7 +82,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
           )}
         </div>
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <label className="text-sm font-medium text-slate-700">
             Timezone<span className="text-red-500">*</span>
           </label>
           <TimezoneSelector
@@ -110,7 +110,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
       {/* Location and Attendees in same row */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+          <label className="text-sm font-medium text-slate-700">
             Location<span className="text-red-500">*</span>
           </label>
           <div className="relative">
@@ -137,8 +137,8 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
         </div>
 
         <div className="flex flex-col gap-1">
-          <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            Total Attendees<span className="text-red-500">*</span>
+          <label className="text-sm font-medium text-slate-700">
+            Total attendees<span className="text-red-500">*</span>
           </label>
           <input
             type="number"
@@ -153,7 +153,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
 
       {/* Event Experience */}
      <div className="flex flex-col gap-2">
-        <label className="text-xs font-medium uppercase tracking-wide text-slate-500">
+        <label className="text-sm font-medium text-slate-700">
           Event experience
         </label>
         <div className="flex gap-4">
@@ -164,7 +164,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
               value="in-person"
               checked={formData.eventExperience === 'in-person'}
               onChange={(e) => updateFormData({ eventExperience: e.target.value as 'in-person' | 'virtual' | 'hybrid' })}
-              className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
+              className="h-4 w-4 shrink-0 cursor-pointer accent-primary text-primary focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
             />
             <span className="text-sm text-slate-700">In-person</span>
           </label>
@@ -175,7 +175,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
               value="virtual"
               checked={formData.eventExperience === 'virtual'}
               onChange={(e) => updateFormData({ eventExperience: e.target.value as 'in-person' | 'virtual' | 'hybrid' })}
-              className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
+              className="h-4 w-4 shrink-0 cursor-pointer accent-primary text-primary focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
             />
             <span className="text-sm text-slate-700">Virtual</span>
           </label>
@@ -186,7 +186,7 @@ const EventDetailsStep: React.FC<EventDetailsStepProps> = ({ formData, updateFor
               value="hybrid"
               checked={formData.eventExperience === 'hybrid'}
               onChange={(e) => updateFormData({ eventExperience: e.target.value as 'in-person' | 'virtual' | 'hybrid' })}
-              className="w-4 h-4 text-primary focus:ring-2 focus:ring-primary/20"
+              className="h-4 w-4 shrink-0 cursor-pointer accent-primary text-primary focus:ring-2 focus:ring-primary/20 focus:ring-offset-0"
             />
             <span className="text-sm text-slate-700">Hybrid</span>
           </label>

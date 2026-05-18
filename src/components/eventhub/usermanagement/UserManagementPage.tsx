@@ -25,7 +25,7 @@ import EditGroupModal from '../../ui/EditGroupModal'
 import ParticipantDetailsSlideout from './ParticipantDetailsSlideout'
 import type { Participant, Group, CustomField, AttendeeTab } from './participantTypes'
 import { defaultCards, ContentCard } from '../EventHubContent'
-import { InfoCircle, CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
+import { CodeBrowser, Globe01 } from '@untitled-ui/icons-react'
 import attendeeSpeakerTemplate from '../../../assets/excel/Attendee Speaker template.xlsx?url'
 import { setTagPublished, setTagUnpublished, deleteTag, updateTag } from '../../../services/eventTagService'
 import { showToast } from '../../../utils/toast'
@@ -166,7 +166,6 @@ const UserManagementPage: React.FC<UserManagementPageProps> = ({
       icon: card.icon
     }))
     return [
-      { id: 'summary', label: 'Summary', icon: <InfoCircle className="h-5 w-5" /> },
       { id: 'event-website', label: 'Event website', icon: <CodeBrowser className="h-5 w-5" /> },
       {
         id: 'event-hub',

@@ -53,6 +53,8 @@ const FilterDrawer: React.FC<FilterDrawerProps> = ({
   const handleClearAll = () => {
     setFilters({})
     setSearchTerm('')
+    // Apply empty filters immediately so the overview table resets (not only after "Apply").
+    onApply({})
   }
 
   const handleApply = () => {

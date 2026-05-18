@@ -279,7 +279,7 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
 
   if (showBlockingLoading) {
     return (
-      <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
+      <div className="space-y-8 px-8 pb-12 pt-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-[26px] font-bold text-primary-dark">Communications</h1>
         </div>
@@ -296,7 +296,7 @@ const CommunicationsTable: React.FC<CommunicationsTableProps> = ({
   }
 
   return (
-    <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16 ">
+    <div className="space-y-8 px-8 pb-12 pt-8">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ">
         <h1 className="text-[26px] font-bold text-primary-dark ">Communications</h1>
         <div className="flex items-center gap-3">

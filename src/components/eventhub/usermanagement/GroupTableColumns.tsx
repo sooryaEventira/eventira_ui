@@ -85,7 +85,7 @@ export const useGroupTableColumns = ({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         align: 'right',
         render: ({ group }) => {
           if (!group) return null

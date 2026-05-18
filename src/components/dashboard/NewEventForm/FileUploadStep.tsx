@@ -317,6 +317,7 @@ const FileUploadStep = forwardRef<FileUploadStepRef, FileUploadStepProps>(({
         onChange={(file) => updateFormData({ logo: file })}
         maxWidth="500"
         maxHeight="500"
+        previewVariant="logo"
       />
 
       {/* Banner Upload */}
@@ -328,6 +329,7 @@ const FileUploadStep = forwardRef<FileUploadStepRef, FileUploadStepProps>(({
         onChange={(file) => updateFormData({ banner: file })}
         maxWidth="800"
         maxHeight="400"
+        previewVariant="banner"
       />
 
     </div>

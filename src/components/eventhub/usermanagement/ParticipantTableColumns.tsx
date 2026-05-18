@@ -252,7 +252,7 @@ export const useParticipantTableColumns = ({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         align: 'right',
         render: ({ participant }) => {
           if (!participant) return null

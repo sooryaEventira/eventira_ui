@@ -1,6 +1,23 @@
 import { API_ENDPOINTS } from '../config/env'
 import { handleApiError } from '../utils/errorHandler'
 
+/** Product primary (matches `src/index.css` `--color-primary`). */
+export const APP_DEFAULT_BRAND_PRIMARY = '#6838EE'
+
+/**
+ * Empty or solid black from the API usually means “not set yet”; show app primary until the organiser picks a colour.
+ */
+export function coalesceBrandPrimary(value: unknown): string {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (!raw) return APP_DEFAULT_BRAND_PRIMARY
+  const withHash = raw.startsWith('#') ? raw : `#${raw}`
+  const lower = withHash.toLowerCase()
+  if (lower === '#000' || lower === '#000000' || /^#000000[0-9a-f]{2}$/.test(lower)) {
+    return APP_DEFAULT_BRAND_PRIMARY
+  }
+  return withHash
+}
+
 export interface WebsiteSettingsBody {
   heading_font: string
   body_font: string
@@ -33,7 +50,7 @@ export function buildWebsiteSettingsBodyFromStorage(eventUuid: string | null | u
     return {
       heading_font: 'Inter',
       body_font: 'Inter',
-      brand_primary_color: '#6366f1',
+      brand_primary_color: APP_DEFAULT_BRAND_PRIMARY,
       visibility: 'private',
       require_registration: true,
       domain_url: '',
@@ -48,7 +65,7 @@ export function buildWebsiteSettingsBodyFromStorage(eventUuid: string | null | u
   return {
     heading_font: branding.headingFont ?? 'Inter',
     body_font: branding.bodyFont ?? 'Inter',
-    brand_primary_color: branding.primaryColor ?? '#6366f1',
+    brand_primary_color: coalesceBrandPrimary(branding.primaryColor),
     visibility: settings.visibility === 'public' || settings.visibility === 'hidden' ? settings.visibility : 'private',
     require_registration: settings.require_registration ?? true,
     domain_url: settings.domain_url ?? '',
@@ -92,14 +109,16 @@ export async function fetchWebsiteSettings(eventUuid: string): Promise<WebsiteSe
     const raw = data?.data ?? data
     if (!raw || typeof raw !== 'object') return null
     console.log('[website-settings GET] parsed:', raw)
+    const spread = { ...raw } as Record<string, unknown>
+    const brand_primary_color = coalesceBrandPrimary(spread.brand_primary_color)
     return {
-      heading_font: String(raw.heading_font ?? 'Inter'),
-      body_font: String(raw.body_font ?? 'Inter'),
-      brand_primary_color: String(raw.brand_primary_color ?? '#6366f1'),
-      visibility: raw.visibility === 'public' || raw.visibility === 'hidden' ? raw.visibility : 'private',
-      require_registration: Boolean(raw.require_registration),
-      domain_url: String(raw.domain_url ?? ''),
-      ...raw,
+      ...spread,
+      heading_font: String(spread.heading_font ?? 'Inter'),
+      body_font: String(spread.body_font ?? 'Inter'),
+      brand_primary_color,
+      visibility: spread.visibility === 'public' || spread.visibility === 'hidden' ? spread.visibility : 'private',
+      require_registration: Boolean(spread.require_registration),
+      domain_url: String(spread.domain_url ?? ''),
     } as WebsiteSettingsData
   } catch {
     return null
@@ -161,9 +180,14 @@ export async function fetchPublicWebsiteSettings(
     if (!brand_primary_color && raw && typeof (raw as any).data === 'object' && (raw as any).data !== null) {
       brand_primary_color = parseBrandPrimaryColor((raw as any).data as Record<string, unknown>)
     }
+    const resolvedBrand = brand_primary_color ? coalesceBrandPrimary(brand_primary_color) : undefined
     const logo = resolveMediaUrl(raw.logo ?? (raw as any).data?.logo)
     const banner = resolveMediaUrl(raw.banner ?? (raw as any).data?.banner)
-    return { ...(brand_primary_color ? { brand_primary_color } : {}), ...(logo ? { logo } : {}), ...(banner ? { banner } : {}) }
+    return {
+      ...(resolvedBrand ? { brand_primary_color: resolvedBrand } : {}),
+      ...(logo ? { logo } : {}),
+      ...(banner ? { banner } : {}),
+    }
   } catch {
     return null
   }

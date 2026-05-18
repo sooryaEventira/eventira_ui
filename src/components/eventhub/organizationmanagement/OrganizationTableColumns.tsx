@@ -245,7 +245,7 @@ export const useOrganizationTableColumns = ({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         align: 'right',
         render: ({ organization }) => {
           if (!organization) return null

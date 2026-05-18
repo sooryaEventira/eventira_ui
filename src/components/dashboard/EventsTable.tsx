@@ -297,7 +297,7 @@ const EventsTable: React.FC<EventsTableProps> = ({
       }] : []),
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         sortable: false,
         align: 'right',
         render: (item) => (

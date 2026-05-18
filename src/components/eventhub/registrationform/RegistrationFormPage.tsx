@@ -76,7 +76,7 @@ const RegistrationFormPage: React.FC<RegistrationFormPageProps> = ({ hideNavbarA
   }
 
   return (
-    <div className="space-y-8 px-4 pb-12 pt-8 md:px-10 lg:px-16">
+    <div className="space-y-8 px-8 pb-12 pt-8">
       <div className="flex items-center justify-between gap-4">
         <h1 className="text-[26px] font-bold text-primary-dark">Registration</h1>
         <button

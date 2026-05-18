@@ -194,7 +194,7 @@ const NewEventForm: React.FC<NewEventFormProps> = ({ onClose, onSubmit }) => {
               (currentStep === 1 && !isStep1Valid()) ||
               (currentStep === TOTAL_STEPS && isSubmitting)
             }
-            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-[#6938EF] hover:bg-[#5925DC] transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-[#6938EF] flex items-center gap-2"
+            className="px-4 py-2 rounded-lg text-sm font-semibold text-white bg-primary hover:bg-primary-dark transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-primary flex items-center gap-2"
           >
             {currentStep === TOTAL_STEPS ? (
               <>

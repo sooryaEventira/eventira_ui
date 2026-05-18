@@ -73,7 +73,7 @@ export const useCustomFieldTableColumns = ({
       },
       {
         id: 'actions',
-        header: '',
+        header: 'Actions',
         align: 'right',
         render: ({ customField }) => {
           if (!customField) return null
