@@ -499,34 +499,32 @@ const UploadModal: React.FC<UploadModalProps> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="flex w-full flex-col items-start justify-start pt-4">
-          <div className="inline-flex w-full items-start justify-start gap-3 self-stretch px-6 pb-4">
-            {/* Cancel Button */}
-            <Button
-              type="button"
-              variant="secondary"
-              size="lg"
-              onClick={onClose}
-              className="flex-1"
-              style={{ fontFamily: 'Inter' }}
-            >
-              {cancelButtonText}
-            </Button>
+  <div className="flex w-full flex-col items-start justify-start pt-4">
+  <div className="inline-flex w-full items-center justify-end gap-3 self-stretch px-4 pb-4">
+    {/* Cancel Button */}
+    <Button
+      type="button"
+      variant="secondary"
+      size="md"
+      onClick={onClose}
+      style={{ fontFamily: 'Inter' }}
+    >
+      {cancelButtonText}
+    </Button>
 
-            {/* Attach Files Button */}
-            <Button
-              type="button"
-              variant="primary"
-              size="lg"
-              onClick={handleAttachFiles}
-              disabled={selectedFiles.length === 0 || isUploading || !handleUpload}
-              className="flex-1"
-              style={{ fontFamily: 'Inter' }}
-            >
-              {isUploading ? 'Uploading...' : buttonText}
-            </Button>
-          </div>
-        </div>
+    {/* Attach Files Button */}
+    <Button
+      type="button"
+      variant="primary"
+      size="md"
+      onClick={handleAttachFiles}
+      disabled={selectedFiles.length === 0 || isUploading || !handleUpload}
+      style={{ fontFamily: 'Inter' }}
+    >
+      {isUploading ? 'Uploading...' : buttonText}
+    </Button>
+  </div>
+</div>
       </div>
     </div>
   )
